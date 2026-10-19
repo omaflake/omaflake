@@ -1,0 +1,6 @@
+# Optional: rename to home.nix – a home-manager module added for the guest user.
+{ pkgs, settings, ... }:
+
+{
+  home.packages = with pkgs; [ ];
+}

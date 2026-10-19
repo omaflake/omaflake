@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!-- Embedded into omaf-runner (__TEXT,__info_plist, Package.swift): a command-line tool that uses the camera or the
+     microphone needs these usage descriptions, otherwise macOS terminates it on first access. -->
+<plist version="1.0">
+<dict>
+	<key>CFBundleIdentifier</key>
+	<string>app.omaflake.runner</string>
+	<key>CFBundleName</key>
+	<string>omaf-runner</string>
+	<key>NSCameraUsageDescription</key>
+	<string>Your Mac's camera in a VM – only while an app in a VM with the camera switched on uses it.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Your Mac's microphone in a VM – only for VMs where you switched the microphone on.</string>
+</dict>
+</plist>

@@ -1,0 +1,59 @@
+{
+  "comment": "Frames of the omaflake agent protocol (spec 11.9). Checked by nix/agent (cargo test) and Tests/OmaflakeCoreTests/AgentProtocolTests.swift.",
+  "frames": [
+    {
+      "name": "hello",
+      "type": 1,
+      "flags": 0,
+      "payload": "{\"agent\":\"0.1.0\",\"protocol\":{\"min\":1,\"max\":1}}",
+      "hex": "4f4d4641010000002e0000007b226167656e74223a22302e312e30222c2270726f746f636f6c223a7b226d696e223a312c226d6178223a317d7d"
+    },
+    {
+      "name": "goodbye, empty payload",
+      "type": 4,
+      "flags": 0,
+      "payload": "",
+      "hex": "4f4d46410400000000000000"
+    },
+    {
+      "name": "first chunk of a longer message",
+      "type": 256,
+      "flags": 1,
+      "payload": "abc",
+      "hex": "4f4d46410001010003000000616263"
+    }
+  ],
+  "streams": [
+    {
+      "name": "garbage before a frame",
+      "hex": "78797a4f4d464101000000020000007b7d",
+      "types": [
+        1
+      ],
+      "errors": 1
+    },
+    {
+      "name": "length over the limit, then a good frame",
+      "hex": "4f4d464103000000ffffffff4f4d464103000000020000007b7d",
+      "types": [
+        3
+      ],
+      "errors": 1
+    },
+    {
+      "name": "two frames back to back",
+      "hex": "4f4d464101000000020000007b7d4f4d464103000000020000007b7d",
+      "types": [
+        1,
+        3
+      ],
+      "errors": 0
+    },
+    {
+      "name": "a frame cut off after a partial magic",
+      "hex": "78784f4d",
+      "types": [],
+      "errors": 1
+    }
+  ]
+}

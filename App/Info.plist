@@ -1,0 +1,165 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>CFBundleDevelopmentRegion</key>
+	<string>en</string>
+	<!-- UI languages (App/Resources/*.lproj); English is the fallback -->
+	<key>CFBundleLocalizations</key>
+	<array>
+		<string>en</string>
+		<string>de</string>
+	</array>
+	<key>CFBundleIdentifier</key>
+	<string>app.omaflake.Omaflake</string>
+	<key>CFBundleName</key>
+	<string>omaflake</string>
+	<key>CFBundleDisplayName</key>
+	<string>omaflake</string>
+	<key>CFBundleIconFile</key>
+	<string>omaflake</string>
+	<key>CFBundleExecutable</key>
+	<string>omaflake</string>
+	<key>CFBundlePackageType</key>
+	<string>APPL</string>
+	<key>CFBundleShortVersionString</key>
+	<string>0.1.0</string>
+	<key>CFBundleVersion</key>
+	<string>1</string>
+	<key>LSMinimumSystemVersion</key>
+	<string>27.0</string>
+	<!-- menu bar only, no Dock icon -->
+	<key>LSUIElement</key>
+	<true/>
+	<key>NSAppleEventsUsageDescription</key>
+	<string>Opens a Terminal window with an SSH session to the VM.</string>
+	<!-- omaflake keeps its data in ~/.omaflake; protected folders only when you choose one (share folder, image flake, a recipe folder) -->
+	<key>NSCameraUsageDescription</key>
+	<string>Your Mac's camera in a VM – only while an app in a VM with the camera switched on uses it.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Your Mac's microphone in a VM – only for VMs where you switched the microphone on.</string>
+	<key>NSDocumentsFolderUsageDescription</key>
+	<string>omaflake uses a folder in Documents only because you chose it – as a folder shared with a VM or as the location of your recipes.</string>
+	<key>NSDesktopFolderUsageDescription</key>
+	<string>omaflake uses a folder on the Desktop only because you chose it – as a folder shared with a VM or as the location of your recipes.</string>
+	<key>NSDownloadsFolderUsageDescription</key>
+	<string>omaflake uses a folder in Downloads only because you chose it – as a folder shared with a VM or as the location of your recipes.</string>
+	<!-- Packages (plan B108): a VM, an image or recipes as one folder the Finder shows as a file; double-click imports -->
+	<key>UTExportedTypeDeclarations</key>
+	<array>
+		<dict>
+			<key>UTTypeIdentifier</key>
+			<string>app.omaflake.vm</string>
+			<key>UTTypeDescription</key>
+			<string>omaflake VM</string>
+			<key>UTTypeConformsTo</key>
+			<array>
+				<string>com.apple.package</string>
+				<string>public.composite-content</string>
+			</array>
+			<key>UTTypeIconFile</key>
+			<string>omaflake</string>
+			<key>UTTypeTagSpecification</key>
+			<dict>
+				<key>public.filename-extension</key>
+				<array>
+					<string>omaflake-vm</string>
+				</array>
+			</dict>
+		</dict>
+		<dict>
+			<key>UTTypeIdentifier</key>
+			<string>app.omaflake.image</string>
+			<key>UTTypeDescription</key>
+			<string>omaflake Image</string>
+			<key>UTTypeConformsTo</key>
+			<array>
+				<string>com.apple.package</string>
+				<string>public.composite-content</string>
+			</array>
+			<key>UTTypeIconFile</key>
+			<string>omaflake</string>
+			<key>UTTypeTagSpecification</key>
+			<dict>
+				<key>public.filename-extension</key>
+				<array>
+					<string>omaflake-image</string>
+				</array>
+			</dict>
+		</dict>
+		<dict>
+			<key>UTTypeIdentifier</key>
+			<string>app.omaflake.recipe</string>
+			<key>UTTypeDescription</key>
+			<string>omaflake Recipe</string>
+			<key>UTTypeConformsTo</key>
+			<array>
+				<string>com.apple.package</string>
+				<string>public.composite-content</string>
+			</array>
+			<key>UTTypeIconFile</key>
+			<string>omaflake</string>
+			<key>UTTypeTagSpecification</key>
+			<dict>
+				<key>public.filename-extension</key>
+				<array>
+					<string>omaflake-recipe</string>
+				</array>
+			</dict>
+		</dict>
+	</array>
+	<key>CFBundleDocumentTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleTypeName</key>
+			<string>omaflake VM</string>
+			<key>CFBundleTypeRole</key>
+			<string>Editor</string>
+			<key>LSHandlerRank</key>
+			<string>Owner</string>
+			<key>LSTypeIsPackage</key>
+			<true/>
+			<key>LSItemContentTypes</key>
+			<array>
+				<string>app.omaflake.vm</string>
+			</array>
+		</dict>
+		<dict>
+			<key>CFBundleTypeName</key>
+			<string>omaflake Image</string>
+			<key>CFBundleTypeRole</key>
+			<string>Viewer</string>
+			<key>LSHandlerRank</key>
+			<string>Owner</string>
+			<key>LSTypeIsPackage</key>
+			<true/>
+			<key>LSItemContentTypes</key>
+			<array>
+				<string>app.omaflake.image</string>
+			</array>
+		</dict>
+		<dict>
+			<key>CFBundleTypeName</key>
+			<string>omaflake Recipe</string>
+			<key>CFBundleTypeRole</key>
+			<string>Viewer</string>
+			<key>LSHandlerRank</key>
+			<string>Owner</string>
+			<key>LSTypeIsPackage</key>
+			<true/>
+			<key>LSItemContentTypes</key>
+			<array>
+				<string>app.omaflake.recipe</string>
+			</array>
+		</dict>
+	</array>
+	<key>NSRemovableVolumesUsageDescription</key>
+	<string>omaflake uses an external disk only because you chose it – to export or import a VM, an image or recipes, or to run a VM from there.</string>
+	<!-- update check (spec §11.6): the feed on the website, written by the release workflow -->
+	<key>OMUpdateFeedURL</key>
+	<string>https://omaflake.app/update.json</string>
+	<!-- omaflake is a project of falkOSS -->
+	<key>NSHumanReadableCopyright</key>
+	<string>© 2026 Falcon Lake Open Source Software gUG (haftungsbeschränkt) i.G. – a falkOSS project. AGPL-3.0-or-later.</string>
+</dict>
+</plist>

@@ -1,0 +1,7 @@
+# Optional: rename to darwin.nix – added to darwinConfigurations.linux-builder.
+{ ... }:
+
+{
+  # Fit the Linux builder to your Mac
+  nix.linux-builder.config.virtualisation.cores = 4;
+}

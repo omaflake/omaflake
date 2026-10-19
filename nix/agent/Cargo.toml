@@ -1,0 +1,18 @@
+[package]
+name = "omaflake-agent"
+version = "0.2.0"
+edition = "2021"
+description = "omaflake guest agent: talks to omaflake on the Mac over the virtio port org.omaflake.agent"
+license = "AGPL-3.0-or-later"
+publish = false
+
+[dependencies]
+libc = "0.2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+[profile.release]
+opt-level = "s"
+lto = true
+strip = true
+panic = "abort"

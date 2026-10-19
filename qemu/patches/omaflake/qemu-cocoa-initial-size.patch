@@ -1,0 +1,45 @@
+From: omaflake contributors
+Subject: cocoa: with zoom-to-fit, the window follows the guest resolution until the user resizes it
+
+Applies on top of try-omarchy qemu-cocoa-dynamic-display.
+
+--- a/ui/cocoa.m
++++ b/ui/cocoa.m
+@@ -108,6 +108,11 @@
+ static int cursor_hide = 1;
+ static int left_command_key_enabled = 1;
+ static bool swap_opt_cmd;
++/*
++ * omaflake: until the user resizes the window, it follows the guest
++ * resolution with zoom-to-fit (instead of the initial 640x480 view).
++ */
++static bool user_resized_window;
+ 
+ static bool zoom_interpolation;
+ static NSTextField *pauseLabel;
+@@ -670,6 +675,15 @@
+     } else if ([[self window] styleMask] & NSWindowStyleMaskFullScreen) {
+         [[self window] setContentSize:[self fixAspectRatio:[self screenSafeAreaSize]]];
+         [[self window] center];
++    } else if (!user_resized_window) {
++        NSSize visible = [[[self window] screen] visibleFrame].size;
++        NSRect content = [[self window] contentRectForFrameRect:NSMakeRect(0, 0, visible.width, visible.height)];
++        NSSize guest = NSMakeSize(screen.width / [[self window] backingScaleFactor],
++                                  screen.height / [[self window] backingScaleFactor]);
++        NSSize target = NSMakeSize(MIN(guest.width, content.size.width), MIN(guest.height, content.size.height));
++
++        [[self window] setContentSize:[self fixAspectRatio:target]];
++        [[self window] center];
+     } else {
+         [[self window] setContentSize:[self fixAspectRatio:[self frame].size]];
+     }
+@@ -1485,6 +1499,9 @@
+ 
+ - (void)windowDidResize:(NSNotification *)notification
+ {
++    if ([[notification object] inLiveResize]) {
++        user_resized_window = true;
++    }
+     [cocoaView updateScale];
+     [cocoaView updateUIInfo];
+ }

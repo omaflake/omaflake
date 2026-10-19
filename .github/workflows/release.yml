@@ -1,0 +1,83 @@
+# Release on a version tag (v0.2.0 …): builds the app, signs it with the Developer ID and notarizes it when the
+# secrets exist, and drafts a GitHub release with the zip and its SHA-256 (plan B67, spec §11.4/§11.8).
+# Secrets (M12): DEVELOPER_ID_P12 (base64), DEVELOPER_ID_P12_PASSWORD, SIGN_IDENTITY ("Developer ID Application: …"),
+# NOTARY_KEY_P8 (base64), NOTARY_KEY_ID, NOTARY_ISSUER_ID. Without them: an unsigned draft, marked as such.
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ${{ vars.MACOS_RUNNER || 'xcode-27' }}
+    env:
+      HAS_CERT: ${{ secrets.DEVELOPER_ID_P12 != '' }}
+      HAS_NOTARY: ${{ secrets.NOTARY_KEY_P8 != '' }}
+    steps:
+      - uses: actions/checkout@v5
+      - name: Xcode – the image's default; the macOS 27 SDK is needed (Package.swift)
+        run: |
+          xcodebuild -version
+          sdk=$(xcrun --show-sdk-version)
+          if [ "${sdk%%.*}" -lt 27 ]; then
+            echo "::error::macOS SDK $sdk – omaflake needs the macOS 27 SDK (Xcode 27). Use the xcode-27 image or set the repository variable MACOS_RUNNER to a runner with Xcode 27."
+            exit 1
+          fi
+      - name: Version from the tag matches Info.plist
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: |
+          want="${GITHUB_REF_NAME#v}"
+          have=$(plutil -extract CFBundleShortVersionString raw App/Info.plist)
+          [ "$want" = "$have" ] || { echo "Tag $GITHUB_REF_NAME but Info.plist says $have"; exit 1; }
+      - name: Developer ID certificate into a temporary keychain
+        if: ${{ env.HAS_CERT == 'true' }}
+        env:
+          P12: ${{ secrets.DEVELOPER_ID_P12 }}
+          P12_PASSWORD: ${{ secrets.DEVELOPER_ID_P12_PASSWORD }}
+        run: |
+          kc="$RUNNER_TEMP/signing.keychain-db"; pw=$(uuidgen)
+          security create-keychain -p "$pw" "$kc"
+          security set-keychain-settings -lut 3600 "$kc"
+          security unlock-keychain -p "$pw" "$kc"
+          printf '%s' "$P12" | base64 --decode > "$RUNNER_TEMP/id.p12"
+          security import "$RUNNER_TEMP/id.p12" -k "$kc" -P "$P12_PASSWORD" -T /usr/bin/codesign
+          security set-key-partition-list -S apple-tool:,apple: -s -k "$pw" "$kc"
+          security list-keychains -d user -s "$kc"
+      - name: Build and sign
+        env:
+          SIGN_IDENTITY: ${{ secrets.SIGN_IDENTITY }}
+        run: scripts/bundle-app.sh
+      - name: Notarize
+        if: ${{ env.HAS_NOTARY == 'true' }}
+        env:
+          NOTARY_KEY_P8: ${{ secrets.NOTARY_KEY_P8 }}
+          NOTARY_KEY_ID: ${{ secrets.NOTARY_KEY_ID }}
+          NOTARY_ISSUER_ID: ${{ secrets.NOTARY_ISSUER_ID }}
+        run: |
+          printf '%s' "$NOTARY_KEY_P8" | base64 --decode > "$RUNNER_TEMP/notary.p8"
+          NOTARY_KEY_PATH="$RUNNER_TEMP/notary.p8" scripts/notarize.sh
+      - name: Zip (unsigned builds)
+        if: ${{ env.HAS_NOTARY != 'true' }}
+        run: |
+          v=$(plutil -extract CFBundleShortVersionString raw build/omaflake.app/Contents/Info.plist)
+          ditto -c -k --keepParent build/omaflake.app "build/omaflake-$v-unsigned.zip"
+          (cd build && shasum -a 256 "omaflake-$v-unsigned.zip" > "omaflake-$v-unsigned.zip.sha256")
+      - name: Update feed (spec §11.6) – published on the website once the release is out
+        run: |
+          zip=$(find build -maxdepth 1 -name 'omaflake-*.zip' | head -1); v=$(plutil -extract CFBundleShortVersionString raw build/omaflake.app/Contents/Info.plist)
+          sum=$(cut -d' ' -f1 "$zip.sha256")
+          url="https://github.com/${GITHUB_REPOSITORY}/releases/download/${GITHUB_REF_NAME}/$(basename "$zip")"
+          page="https://github.com/${GITHUB_REPOSITORY}/releases/tag/${GITHUB_REF_NAME}"
+          printf '{"version":"%s","url":"%s","sha256":"%s","notes":null,"page":"%s"}\n' "$v" "$url" "$sum" "$page" > build/update.json
+      - name: Draft release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          tag="${GITHUB_REF_NAME}"
+          gh release create "$tag" build/omaflake-*.zip build/omaflake-*.zip.sha256 build/update.json --draft --title "omaflake $tag" \
+            --notes "Draft – check the files, then publish. $( [ -f build/.notarized-upload.zip ] || echo 'UNSIGNED build: for testing only.')"

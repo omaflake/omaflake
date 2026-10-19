@@ -1,0 +1,6 @@
+# Optional: rename to nixos.nix – a NixOS module added to every NixOS image.
+{ pkgs, settings, ... }:
+
+{
+  environment.systemPackages = with pkgs; [ ];
+}

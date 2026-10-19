@@ -1,0 +1,64 @@
+# Checks on every push and pull request (plan B67).
+# While the repository is private, the macOS job runs only by hand (workflow_dispatch): macOS minutes count tenfold
+# on private repositories. Once public, it runs on every push as well.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  flakes:
+    name: Flakes and guest scripts
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: cachix/install-nix-action@v31
+        with:
+          extra_nix_config: experimental-features = nix-command flakes
+      - name: Root flake (QEMU package, guest module) – evaluate all systems
+        run: nix flake check --all-systems --no-build
+      # Without recipes (they live in omaflake/recipes, which checks them against this flake): evaluates on its own
+      - name: Image flake – evaluates
+        run: nix flake check --all-systems --no-build "path:$PWD/nix"
+      - name: Guest agents and scripts parse
+        run: |
+          for f in nix/modules/*.py; do python3 -I -c "import ast,sys; ast.parse(open(sys.argv[1]).read())" "$f"; done
+          for f in scripts/*.sh; do bash -n "$f"; done
+
+  swift:
+    name: Build and test (macOS)
+    if: ${{ !github.event.repository.private || github.event_name == 'workflow_dispatch' }}
+    # macOS 27 SDK needed (Package.swift): GitHub's xcode-27 image (preview; macOS 27.0.1, Xcode 27.0 by default)
+    runs-on: ${{ vars.MACOS_RUNNER || 'xcode-27' }}
+    steps:
+      - uses: actions/checkout@v5
+      - name: Xcode – the image's default; the macOS 27 SDK is needed (Package.swift)
+        run: |
+          xcodebuild -version
+          sdk=$(xcrun --show-sdk-version)
+          if [ "${sdk%%.*}" -lt 27 ]; then
+            echo "::error::macOS SDK $sdk – omaflake needs the macOS 27 SDK (Xcode 27). Use the xcode-27 image or set the repository variable MACOS_RUNNER to a runner with Xcode 27."
+            exit 1
+          fi
+      - name: Toolchain
+        run: |
+          sw_vers
+          xcodebuild -version
+          swift --version
+      - name: Build
+        run: swift build
+      - name: Test
+        run: swift test
+      - name: App bundle (ad hoc)
+        run: scripts/bundle-app.sh
+      - uses: actions/upload-artifact@v4
+        with:
+          name: omaflake-app-adhoc
+          path: build/omaflake.app
+          retention-days: 7

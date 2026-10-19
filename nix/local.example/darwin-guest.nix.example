@@ -1,0 +1,6 @@
+# Optional: rename to darwin-guest.nix – a nix-darwin module added to every macOS image.
+{ pkgs, settings, ... }:
+
+{
+  environment.systemPackages = with pkgs; [ ];
+}

@@ -1,0 +1,3 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="150 150 724 724" width="1024" height="1024">
+<defs><g id="g-arm" fill="none" stroke="#FFFFFF" stroke-width="34" stroke-linecap="round" stroke-linejoin="round"><line x1="512" y1="440" x2="512" y2="230"/><polyline points="446,356 512,296 578,356"/><polyline points="470,262 512,224 554,262"/></g></defs><g transform="rotate(14 512 512)"><use href="#g-arm" transform="rotate(0 512 512)"/><use href="#g-arm" transform="rotate(60 512 512)"/><use href="#g-arm" transform="rotate(120 512 512)"/><use href="#g-arm" transform="rotate(180 512 512)"/><use href="#g-arm" transform="rotate(240 512 512)"/><use href="#g-arm" transform="rotate(300 512 512)"/></g>
+</svg>

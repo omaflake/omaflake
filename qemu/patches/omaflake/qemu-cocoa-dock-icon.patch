@@ -1,0 +1,28 @@
+From: omaflake contributors
+Subject: cocoa: Dock icon from OMAFLAKE_DOCK_ICON
+
+Applies on top of qemu-cocoa-initial-size.
+
+--- a/ui/cocoa.m
++++ b/ui/cocoa.m
+@@ -2520,6 +2520,20 @@
+     TransformProcessType(&psn, kProcessTransformToForegroundApplication);
+ 
+     [QemuApplication sharedApplication];
++
++    /*
++     * omaflake: Dock icon from OMAFLAKE_DOCK_ICON (path to a PNG/ICNS);
++     * a bare binary otherwise shows the generic executable icon.
++     */
++    const char *dock_icon = getenv("OMAFLAKE_DOCK_ICON");
++    if (dock_icon && *dock_icon) {
++        NSImage *icon = [[NSImage alloc] initWithContentsOfFile:
++                         [NSString stringWithUTF8String:dock_icon]];
++        if (icon) {
++            [NSApp setApplicationIconImage:icon];
++            [icon release];
++        }
++    }
+ 
+     dcl.con = qemu_console_lookup_default();
+     kbd = qkbd_state_init(dcl.con);

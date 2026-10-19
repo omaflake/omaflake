@@ -1,0 +1,3 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="206 206 612 612" width="32" height="32">
+<style>.f{color:#121212} @media (prefers-color-scheme: dark){.f{color:#FFFFFF}}</style><g class="f"><defs><g id="f-arm" fill="none" stroke="currentColor" stroke-width="60" stroke-linecap="round" stroke-linejoin="round"><line x1="512" y1="424" x2="512" y2="250"/><polyline points="446,316 512,250 578,316"/></g></defs><g transform="rotate(14 512 512)"><use href="#f-arm" transform="rotate(0 512 512)"/><use href="#f-arm" transform="rotate(60 512 512)"/><use href="#f-arm" transform="rotate(120 512 512)"/><use href="#f-arm" transform="rotate(180 512 512)"/><use href="#f-arm" transform="rotate(240 512 512)"/><use href="#f-arm" transform="rotate(300 512 512)"/></g></g>
+</svg>
