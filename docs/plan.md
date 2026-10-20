@@ -539,3 +539,36 @@ Order (one milestone at a time, acceptance criterion ticked in spec §7):
 
 Small items on the way: check the Dock icon of QEMU/runner windows by eye (B27). The old QEMU builds p2/p3 and
 `~/.omaflake/qemu/src/build-*` are gone (2026-10-18: `~/.omaflake/qemu/` holds only the link to the Nix-built QEMU).
+
+## 9. NixOS host support (planned)
+
+**Goal:** run omaflake's CLI on an x86_64 NixOS host and build and operate x86_64 NixOS guests natively with KVM.
+This is a new host platform, not support for NixOS guests (already implemented on macOS). The existing macOS host
+continues to support aarch64 NixOS guests and macOS guests unchanged.
+
+**Initial scope:** CLI and headless guest lifecycle first. macOS guests, the SwiftUI app, graphical windows, 3D,
+audio, and host/guest camera or clipboard integration remain macOS-only or out of scope for the first milestone.
+The Linux Builder and nix-darwin are not prerequisites on the NixOS host; Nix builds the image natively.
+
+**Implementation sequence:**
+
+1. **Linux portability spike:** build the Swift CLI and the minimum `OmaflakeCore` dependencies on x86_64 NixOS.
+   Separate macOS-only APIs and targets (AppKit/CoreGraphics, Keychain, Virtualization.framework, macOS base and
+   runner code) from portable CLI/core functionality. Provide Linux implementations where needed for process
+   management, host/user defaults, and credentials; do not weaken macOS behavior.
+2. **Native image and runtime path:** expose the required `x86_64-linux` flake outputs; select x86_64 QEMU,
+   compatible UEFI firmware, and KVM on NixOS. Refactor QEMU arguments and capability checks so host architecture
+   and accelerator are explicit instead of hard-coded to aarch64/HVF. Keep the existing macOS QEMU path intact.
+3. **Architecture-aware packages and operations:** persist the image system/architecture in image metadata and
+   ensure image lines, `current` links, instance creation, import/export, and start reject incompatible images.
+   Older metadata must continue to identify existing Mac-built aarch64 images correctly.
+4. **NixOS prerequisites and CLI:** adapt `omaf doctor` and preflight for Nix, flakes, x86_64 QEMU, KVM access,
+   firmware, image flake, SSH keys, and disk space, without requiring nix-darwin or a Linux Builder. Ensure
+   recipe-source credentials have a secure Linux-compatible provider rather than assuming macOS Keychain.
+5. **Acceptance and follow-on work:** on a clean x86_64 NixOS system, check prerequisites, build an image, then
+   create, start with KVM, reach by SSH, stop, reset, and remove a VM. Plan GUI/windowing and other integrations as
+   separate milestones after the headless CLI path is reliable.
+
+**First technical gate:** validate the Linux Swift build and one end-to-end x86_64 image build and KVM boot on an
+actual NixOS host before committing to the full port. Treat GUI display support and the exact Linux credential
+provider as separate decisions; they are not required to accept the headless CLI milestone. Tracking: #2.
