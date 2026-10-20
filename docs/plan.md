@@ -565,9 +565,11 @@ The Linux Builder and nix-darwin are not prerequisites on the NixOS host; Nix bu
 4. **NixOS prerequisites and CLI:** adapt `omaf doctor` and preflight for Nix, flakes, x86_64 QEMU, KVM access,
    firmware, image flake, SSH keys, and disk space, without requiring nix-darwin or a Linux Builder. Ensure
    recipe-source credentials have a secure Linux-compatible provider rather than assuming macOS Keychain.
-5. **Acceptance and follow-on work:** on a clean x86_64 NixOS system, check prerequisites, build an image, then
-   create, start with KVM, reach by SSH, stop, reset, and remove a VM. Plan GUI/windowing and other integrations as
-   separate milestones after the headless CLI path is reliable.
+5. **UI foundation and acceptance:** frontend prototyping may proceed independently of the CLI backend. The Tauri
+   development scaffold and TypeScript dashboard live in `ui/`; keep its preview data clearly separate from real VM
+   operations. Define the versioned JSONL contract and connect UI actions only after the headless CLI path is reliable.
+   On a clean x86_64 NixOS system, check prerequisites, build an image, then create, start with KVM, reach by SSH,
+   stop, reset, and remove a VM; verify the UI reports build progress, cancellation, and failures.
 
 **First technical gate:** validate the Linux Swift build and one end-to-end x86_64 image build and KVM boot on an
 actual NixOS host before committing to the full port. Treat GUI display support and the exact Linux credential

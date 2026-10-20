@@ -21,6 +21,9 @@ VM content is as declarative as possible (Nix). Whatever cannot be declared for 
 the **base** and is documented in a checklist (§6.5).
 The app/CLI only takes care of **operations**.
 
+On x86_64 NixOS, omaflake is planned to support NixOS guests through the CLI and a separate Tauri desktop UI.
+The existing SwiftUI app and macOS guest support remain macOS-only.
+
 ## 2. Scope
 
 | In scope | Out of scope |
@@ -30,7 +33,7 @@ The app/CLI only takes care of **operations**.
 | QEMU with Apple Hypervisor (HVF) for NixOS | Virtualization.framework for Linux guests (no 3D) |
 | Recipes as Nix modules (NixOS or nix-darwin) | Ansible, Packer, MDM |
 | macOS installation from Apple's IPSW (restore image) | registry/OCI images (`pull`/`push`) |
-| Host: macOS on Apple Silicon only; app only as macOS app | Linux/Windows host, web UI |
+| Hosts: macOS on Apple Silicon (SwiftUI app); x86_64 NixOS for NixOS guests (CLI, Tauri UI planned) | Windows hosts, web UI |
 | Local use | multi-user, server operation; distribution only with §11 |
 
 ## 3. Terms
