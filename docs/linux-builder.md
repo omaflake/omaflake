@@ -1,3 +1,9 @@
+---
+title: Linux builder
+nav_order: 8
+permalink: /linux-builder/
+---
+
 # Linux builder on macOS
 
 NixOS guest images are `aarch64-linux` derivations. A Mac cannot build them natively, so Nix needs a

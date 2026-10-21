@@ -1,3 +1,9 @@
+---
+title: macOS base
+nav_order: 9
+permalink: /macos-base/
+---
+
 # macOS base `mac-base-<os-build>`
 
 **Since 2026-10-16 the base is built automatically** by `omaf macos install` (app: "Install macOS Base …", plan BM29):

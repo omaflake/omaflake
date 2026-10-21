@@ -1,3 +1,9 @@
+---
+title: CLI reference
+nav_order: 3
+permalink: /cli/
+---
+
 # omaf – CLI (spec M3)
 
 Swift package (repo root, `Package.swift`): `OmaflakeCore` (logic, shared with the app) + `omaf` (CLI, swift-argument-parser).

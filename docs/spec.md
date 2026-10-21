@@ -1,3 +1,9 @@
+---
+title: Design (spec)
+nav_order: 4
+permalink: /spec/
+---
+
 # Spec – omaflake: clean NixOS and macOS VMs at the push of a button
 
 Status: draft v0.4 · 2026-10-16 · early development, not yet released

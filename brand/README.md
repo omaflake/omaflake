@@ -23,6 +23,7 @@ endorsement.
 | Menu bar (template image, macOS tints it) | `png/menubar/omaflakeTemplate.png`, `@2x`, `@3x` or `svg/omaflake-menubarTemplate.svg` |
 | GitHub org avatar | `social/github-avatar-500.png` |
 | GitHub social preview (repo settings) | `social/omaflake-social-1280x640.png` |
+| Developer docs (omaflake.dev) | `docs/assets/` – copies of `web/favicon.ico`, `web/favicon.svg` and `svg/omaflake-mark-on-dark.svg` (GitHub Pages serves only `docs/`); copy them again after `generate.py` |
 | Website `<head>` | `web/` – favicon.ico, favicon.svg (transparent, adapts to light/dark), apple-touch-icon.png, icon-192/512.png, site.webmanifest |
 | README / docs header | `png/mark/omaflake-mark-on-dark-*.png` or `-on-light-*.png` (transparent) |
 | Rounded app icon as image | `png/icon/omaflake-icon-*.png` (transparent corners, macOS grid) |

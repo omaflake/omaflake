@@ -1,3 +1,9 @@
+---
+title: Menu bar app
+nav_order: 7
+permalink: /app/
+---
+
 # omaflake – menu bar app (spec M4, M11)
 
 SwiftUI `MenuBarExtra` on top of `OmaflakeCore`. No Dock icon (`LSUIElement`), no App Sandbox, ad-hoc signed.
