@@ -21,7 +21,7 @@ public struct ImageStore: Sendable {
         public static let fileFormat = FileFormat("image", file: "image.json", steps: [
             { o in
                 FileFormat.renameKey("flavor", to: "recipe", in: &o)
-                o["system"] = (o["kind"] as? String) == GuestKind.macos.rawValue ? "aarch64-darwin" : "aarch64-linux"
+                o["system"] = Platform.legacySystem(for: (o["kind"] as? String).flatMap(GuestKind.init) ?? .nixos)
             },
         ])
 
@@ -82,13 +82,29 @@ public struct ImageStore: Sendable {
     }
 
     /// image.json, brought up to date (and written back) if it is older; nil if there is none or it cannot be read
-    public static func readInfo(_ dir: URL) -> Info? {
+    public static func readInfo(_ dir: URL) -> Info? { (try? checkedInfo(dir)) ?? nil }
+
+    /// image.json as `readInfo`, but with the reason when it cannot be read (too old, too new, damaged); nil if there is
+    /// none
+    static func checkedInfo(_ dir: URL) throws -> Info? {
         let d = JSONDecoder()
         d.dateDecodingStrategy = .iso8601
-        guard let data = try? Data(contentsOf: infoFile(dir)),
-              let read = try? Info.fileFormat.decode(Info.self, from: data, decoder: d) else { return nil }
+        guard let data = try? Data(contentsOf: infoFile(dir)) else { return nil }
+        let read = try Info.fileFormat.decode(Info.self, from: data, decoder: d)
         if read.migrated { try? writeInfo(read.value, to: dir) }
         return read.value
+    }
+
+    /// Image packages this omaflake cannot read – written by a much older or a newer omaflake, or damaged (plan B114)
+    public func unreadable() -> [UnreadableFile] {
+        let names = (try? FileManager.default.contentsOfDirectory(atPath: paths.images.path)) ?? []
+        return names.filter { !$0.hasPrefix(".") }
+            .compactMap { Package.name(of: URL(fileURLWithPath: $0), kind: .image) }.sorted()
+            .compactMap { name in
+                do { _ = try Self.checkedInfo(paths.imageDir(name)); return nil } catch {
+                    return UnreadableFile(name: name, reason: error.localizedDescription)
+                }
+            }
     }
 
     /// Writes image.json; a read-only (macOS) folder is opened for it and closed again.

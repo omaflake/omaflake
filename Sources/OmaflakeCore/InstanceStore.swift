@@ -55,6 +55,19 @@ public struct InstanceStore: Sendable {
         return names.sorted().compactMap { try? load($0) }
     }
 
+    /// VM packages this omaflake cannot read – written by a much older or a newer omaflake, or damaged (plan B114)
+    public func unreadable() -> [UnreadableFile] {
+        var names = ((try? FileManager.default.contentsOfDirectory(atPath: paths.instances.path)) ?? [])
+            .compactMap { Package.name(of: URL(fileURLWithPath: $0), kind: .vm) }
+        for url in paths.externalInstances() {
+            if let n = Package.name(of: url, kind: .vm), !names.contains(n) { names.append(n) }
+        }
+        return names.sorted().compactMap { name in
+            guard exists(name) else { return nil }
+            do { _ = try load(name); return nil } catch { return UnreadableFile(name: name, reason: error.localizedDescription) }
+        }
+    }
+
     /// The VM's package lies outside the data folder (e.g. on an external disk, plan B108)
     public func isExternal(_ name: String) -> Bool {
         !paths.instance(name).dir.standardizedFileURL.path.hasPrefix(paths.instances.standardizedFileURL.path + "/")

@@ -129,6 +129,7 @@ struct MainView: View {
                 ForEach(rows) { row in
                     InstanceRow(row: row, busy: model.busy.contains(row.id), model: model)
                 }
+                ForEach(model.unreadableVMs, id: \.self) { UnreadableHint(name: $0.name, reason: $0.reason) }
             }
         case .images:
             // Every built image on its own row (plan B93); builds that wait, run or failed on top
@@ -167,6 +168,7 @@ struct MainView: View {
                         show("new")
                     }
                 }
+                ForEach(model.unreadableImages, id: \.self) { UnreadableHint(name: $0.name, reason: $0.reason) }
             }
         case .recipes:
             let all = model.imageRows
@@ -199,6 +201,8 @@ struct MainView: View {
                 } else if rows.isEmpty && offered.isEmpty {
                     FilteredOut(model: model)
                 }
+                let updates = model.recipeUpdates
+                if !updates.isEmpty { RecipeUpdates(updates: updates, model: model) }
                 if all.isEmpty, !model.suggestedRecipes.isEmpty {
                     // First start: omaflake ships no recipes – the official ones are suggested
                     HStack(spacing: 8) {
@@ -218,14 +222,7 @@ struct MainView: View {
                 ForEach(offered, id: \.recipe.id) { item in
                     OfferedRecipeRow(recipe: item.recipe, source: item.source, model: model)
                 }
-                ForEach(model.unreadableRecipes, id: \.id) { r in
-                    HStack(alignment: .firstTextBaseline, spacing: 8) {
-                        Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(.orange)
-                        Text("\(RecipeID.qualified(r.id)) is written for another omaflake (recipe version \(r.version), this one reads \(RecipeLibrary.recipeVersion)) – update it from its source")
-                            .font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
-                    }
-                    .padding(10)
-                }
+                ForEach(model.unreadableRecipes, id: \.self) { UnreadableHint(name: RecipeID.qualified($0.name), reason: $0.reason) }
                 ForEach(model.sources.filter { model.catalogErrors[$0.id] != nil }, id: \.id) { s in
                     HStack(alignment: .firstTextBaseline, spacing: 8) {
                         Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(.orange)
@@ -689,6 +686,60 @@ struct OfferedRecipeRow: View {
                 }
             }
         }
+    }
+}
+
+/// A VM, image or recipe this omaflake cannot read – too old, too new or damaged (plan B114)
+struct UnreadableHint: View {
+    let name: String
+    let reason: String
+
+    var body: some View {
+        HStack(alignment: .firstTextBaseline, spacing: 8) {
+            Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(.orange)
+            Text(verbatim: "\(name): \(reason)").font(.caption).foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true).textSelection(.enabled)
+        }
+        .padding(10)
+    }
+}
+
+/// Newer versions of downloaded recipes, found when the sources are looked into (plan B111, B114): taken over – the
+/// older one goes unless an image uses it – or added next to it when older versions are kept
+struct RecipeUpdates: View {
+    let updates: [(id: String, recipe: RecipeCatalog.Recipe, source: RecipeSource)]
+    let model: AppModel
+
+    var body: some View {
+        let keep = model.keepRecipeVersions
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: 8) {
+                Image(systemName: "arrow.down.circle.fill").foregroundStyle(BrandStyle.cyan)
+                Text("Newer recipe versions in your sources").font(.callout)
+                Spacer()
+                if updates.count > 1 {
+                    ActionButton(icon: "arrow.down.circle", title: keep ? "Add All" : "Update All") {
+                        for u in updates { model.installRecipe(u.recipe.id, from: u.source) }
+                    }
+                }
+            }
+            ForEach(updates, id: \.id) { u in
+                HStack(spacing: 8) {
+                    GuestKindIcon(kind: u.recipe.kind).frame(width: 16)
+                    Text(verbatim: RecipeID.qualified(u.id)).font(.caption)
+                    Text(verbatim: "· \(u.source.displayName)").font(.caption).foregroundStyle(.secondary).lineLimit(1)
+                    Spacer()
+                    ActionButton(icon: "arrow.down.circle", title: keep ? "Add Version" : "Update") {
+                        model.installRecipe(u.recipe.id, from: u.source)
+                    }
+                    .disabled(model.installingRecipes.contains(u.recipe.id))
+                }
+            }
+            Text(keep ? "The new version is added; the older ones stay (Settings: keep older recipe versions)."
+                      : "The new version takes over; the older one goes unless an image is built from it.")
+                .font(.caption2).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+        }
+        .padding(10)
     }
 }
 

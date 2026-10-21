@@ -43,7 +43,8 @@ form is the [recipe schema]({{ '/schema/' | relative_url }}).
 | `nixos` | `aarch64-linux` (a Mac with Apple silicon), `x86_64-linux` |
 | `macos` | `aarch64-darwin` |
 
-omaflake shows a recipe only where it runs (the app's filter "Other Architectures" and `omaf recipes --all-systems`
+A recipe without `systems` (written before omaflake 0.2.0) is built for Apple silicon. omaflake shows a recipe only
+where it runs (the app's filter "Other Architectures" and `omaf recipes --all-systems`
 show the others) and builds it only for a system it lists. Images and VMs record their `system`; a VM of another
 architecture is not created, started or imported.
 

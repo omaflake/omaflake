@@ -83,9 +83,8 @@ struct RecipesList: ParsableCommand {
                 if let origin = origins[id] { print("    from \(origin)") }
             }
         }
-        for (id, version) in RecipeLibrary(paths: env.paths).unreadable(env.settings) {
-            let found = version == 0 ? "no recipe $schema" : "recipe version \(version)"
-            print("\(RecipeID.qualified(id)): recipe.toml has \(found), this omaflake reads version \(RecipeLibrary.recipeVersion) – update it from its source")
+        for u in RecipeLibrary(paths: env.paths).unreadable(env.settings) {
+            print("⚠ \(RecipeID.qualified(u.name)): \(u.reason)")
         }
         if defaults.count < all.count {
             print("\(all.count - defaults.count) more for other architectures: omaf recipes --all-systems")
@@ -224,6 +223,8 @@ struct ImagesList: ParsableCommand {
             print("    System:    \(image.info.system)")
             print("    Instances: \(used)")
         }
+        // Images this omaflake cannot read (too old, too new, damaged, plan B114)
+        for u in env.images.unreadable() { print("⚠ \(u.name): \(u.reason)") }
     }
 }
 
@@ -412,6 +413,8 @@ struct List: ParsableCommand {
         let env = Env()
         let backends = try env.backends()
         let all = backends.store.list()
+        // VMs this omaflake cannot read (too old, too new, damaged, plan B114)
+        for u in backends.store.unreadable() { print("⚠ \(u.name): \(u.reason)") }
         guard !all.isEmpty else { print("No instances. Create one with: omaf new <name> --recipe <recipe>"); return }
         let lengths = OmaflakeID.Lengths.current(env.paths)
         print(pad("NAME", 16) + pad("STATUS", 8) + pad("KIND", 7) + pad("RECIPE", 13) + pad("SSH", 16) + pad("EPHEMERAL", 10) + pad("DISK", 10) + "IMAGE")

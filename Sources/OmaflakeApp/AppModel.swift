@@ -364,6 +364,9 @@ final class AppModel {
         let versions = Dictionary(grouping: images.list(), by: \.info.line)
             .mapValues { $0.sorted { $0.info.created > $1.info.created } }
         if versions != imageVersions { imageVersions = versions }
+        let badImages = images.unreadable(), badVMs = store.unreadable()
+        if badImages != unreadableImages { unreadableImages = badImages }
+        if badVMs != unreadableVMs { unreadableVMs = badVMs }
         // A recipe's image is the newest of its line: there is no default image to pick any more – a VM is created from
         // the image it is started from (plan B100); "upgrade" moves a VM to the newest image of its recipe's line (B110)
         for recipe in Set(store.list().map(\.recipe)).union(recipes.keys) {
@@ -513,8 +516,10 @@ final class AppModel {
     var sources: [RecipeSource] { Settings.load(paths).recipeSources }
     /// Where each available recipe comes from: RecipeSource.id
     private(set) var recipeOrigins: [String: String] = [:]
-    /// Recipes of another recipe.toml version – not built until they are updated (plan B114)
-    private(set) var unreadableRecipes: [(id: String, version: Int)] = []
+    /// Recipes, images and VMs this omaflake cannot read (too old, too new, damaged) – shown with a warning (plan B114)
+    private(set) var unreadableRecipes: [UnreadableFile] = []
+    private(set) var unreadableImages: [UnreadableFile] = []
+    private(set) var unreadableVMs: [UnreadableFile] = []
     /// What tells recipes of the same author, kind and name apart (plan B110)
     private(set) var recipeDistinctions: [String: String] = [:]
     /// Every line's versions (plan B111)
@@ -571,6 +576,16 @@ final class AppModel {
         guard let entry = installedRecipes[id], let s = source(entry.source),
               let r = catalogs[s.id]?.recipes.first(where: { $0.id == RecipeID.base(id) }), r.version != entry.version else { return nil }
         return (r, s)
+    }
+
+    /// What looking into the sources found: for each line of downloaded recipes whose newest version has a newer one in
+    /// its source, that one – taken over or added next to it (Settings: keep older recipe versions, plan B111)
+    var recipeUpdates: [(id: String, recipe: RecipeCatalog.Recipe, source: RecipeSource)] {
+        let newest = Dictionary(grouping: installedRecipes, by: { RecipeID.lineKey(base: RecipeID.base($0.key), source: $0.value.source) })
+            .compactMap { $0.value.max { $0.value.installed < $1.value.installed }?.key }
+        return newest.compactMap { id in update(for: id).map { (id, $0.recipe, $0.source) } }
+            .filter { installedRecipes[RecipeID.make(base: $0.recipe.id, contentHash: $0.recipe.contentHash)] == nil }
+            .sorted { $0.id < $1.id }
     }
 
     /// Downloads a recipe (with what it requires) from its source; also updates

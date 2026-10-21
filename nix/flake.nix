@@ -62,8 +62,11 @@
       kinds = [ "nixos" "macos" ];
       # What a recipe of each kind can be built for (plan B114, Platform.swift); recipe.toml lists its own in `systems`
       kindSystems = { nixos = [ "aarch64-linux" "x86_64-linux" ]; macos = [ "aarch64-darwin" ]; };
-      # recipe.toml's version (plan B114): the "$schema" this flake reads (docs/schema/recipe/)
+      # recipe.toml's versions (plan B114, RecipeLibrary.recipeVersion/recipeMinimum): v1 names its "$schema"
+      # (docs/schema/recipe/) and its systems; v0 has neither and was made for Apple silicon. omaflake stages only
+      # recipes of these versions.
       recipeSchema = "https://omaflake.dev/schema/recipe/v1.json";
+      legacySystems = { nixos = [ "aarch64-linux" ]; macos = [ "aarch64-darwin" ]; };
       validName = what: s: lib.assertMsg (builtins.match "[a-z0-9][a-z0-9-]*" s != null)
         "recipe ${what} \"${s}\" – use lowercase letters, digits and -";
       dirsIn = dir: if builtins.pathExists dir
@@ -73,19 +76,20 @@
         let
           d = readToml (folder + "/recipe.toml");
           where = "${author}/${kind}/${name}";
-          systems = d.systems or [ ];
+          v0 = !(d ? "$schema");
+          systems = if v0 then legacySystems.${kind} else d.systems or [ ];
         in
         assert validName "author" author && validName "name" name;
         assert lib.assertMsg ((d.author or author) == author)
           "${where}: author = \"${d.author or ""}\" in recipe.toml, but the folder says ${author}";
-        assert lib.assertMsg ((d."$schema" or "") == recipeSchema)
+        assert lib.assertMsg (v0 || d."$schema" == recipeSchema)
           "${where}: recipe.toml needs \"$schema\" = \"${recipeSchema}\" (it has ${d."$schema" or "none"})";
         assert lib.assertMsg (builtins.isList systems && systems != [ ] && lib.all (s: builtins.elem s kindSystems.${kind}) systems)
           "${where}: systems in recipe.toml must list some of ${lib.concatStringsSep ", " kindSystems.${kind}}";
         {
           inherit id folder systems;
           defaults = { user = if kind == "macos" then settings.macUser else settings.user; }
-            // builtins.removeAttrs d [ "author" "kind" "name" "$schema" ] // { inherit author kind name; };
+            // builtins.removeAttrs d [ "author" "kind" "name" "$schema" ] // { inherit author kind name systems; };
         };
       # Staged by omaflake (plan B110): recipes.json names each recipe – ID "<author>.<kind>.<name>@<content hash>" →
       # "<tree>/<author>/<kind>/<name>", every recipe in a tree of its own with the recipes it requires next to it.

@@ -145,7 +145,7 @@ public struct InstanceConfig: Codable, Sendable, Equatable {
         { o in
             FileFormat.renameKey("flavor", to: "recipe", in: &o)
             if o["kind"] == nil { o["kind"] = GuestKind.nixos.rawValue }
-            o["system"] = (o["kind"] as? String) == GuestKind.macos.rawValue ? "aarch64-darwin" : "aarch64-linux"
+            o["system"] = Platform.legacySystem(for: (o["kind"] as? String).flatMap(GuestKind.init) ?? .nixos)
         },
     ])
 

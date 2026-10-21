@@ -28,6 +28,11 @@ public enum Platform {
         #endif
     }
 
+    /// The system of a file or recipe from before B114, which has none: everything then ran on a Mac with Apple silicon
+    public static func legacySystem(for kind: GuestKind) -> String {
+        kind == .macos ? "aarch64-darwin" : "aarch64-linux"
+    }
+
     /// A guest of `system` runs on this host
     public static func runsHere(_ system: String) -> Bool {
         GuestKind.allCases.contains { hostSystem(for: $0) == system }

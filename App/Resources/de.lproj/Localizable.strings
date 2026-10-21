@@ -475,7 +475,6 @@
 "Only HTTPS addresses, GitHub repositories and folders can be recipe sources" = "Rezept-Quellen können nur HTTPS-Adressen, GitHub-Repositories und Ordner sein";
 "Cannot store the token in the Keychain (%d)" = "Der Token kann nicht im Schlüsselbund abgelegt werden (%d)";
 "Not a recipe catalog (catalog.json): %@" = "Kein Rezept-Katalog (catalog.json): %@";
-"The catalog has schema %lld – this omaflake reads %lld; update omaflake" = "Der Katalog hat Schema %1$lld – dieses omaflake liest %2$lld; aktualisiere omaflake";
 "Not a valid address: %@" = "Keine gültige Adresse: %@";
 "%@ is private – add a token in Settings → Recipe Sources" = "%@ ist privat – hinterlege einen Token unter Einstellungen → Rezept-Quellen";
 "%@: the token is not valid (or has expired)" = "%@: Der Token ist ungültig (oder abgelaufen)";
@@ -563,3 +562,19 @@
 "Kept while images built from it are there" = "Bleibt, solange Vorlagen daraus gebaut da sind";
 "Remove this version …" = "Diese Version entfernen …";
 "Remove the recipe version “%@”?" = "Rezept-Version „%@“ entfernen?";
+
+/* Architectures and file versions (plan B114) */
+"Other Architectures" = "Andere Architekturen";
+"Architectures" = "Architekturen";
+"Not for this Mac – built for %@" = "Nicht für diesen Mac – gebaut für %@";
+"Not for this Mac – it is built for %@" = "Nicht für diesen Mac – gebaut für %@";
+"%@ is built for %@ – this computer runs %@" = "%1$@ ist für %2$@ gebaut – dieser Computer führt %3$@ aus";
+"%@ has version %lld – this omaflake reads up to %lld; update omaflake" = "%1$@ hat Version %2$lld – dieses omaflake liest bis Version %3$lld; aktualisiere omaflake";
+"%@ has version %lld – too old for this omaflake, which reads %lld to %lld" = "%1$@ hat Version %2$lld – zu alt für dieses omaflake, es liest Version %3$lld bis %4$lld";
+"not JSON" = "kein JSON";
+"Newer recipe versions in your sources" = "Neuere Rezept-Versionen in deinen Quellen";
+"Add All" = "Alle hinzufügen";
+"Update All" = "Alle aktualisieren";
+"Add Version" = "Version hinzufügen";
+"The new version is added; the older ones stay (Settings: keep older recipe versions)." = "Die neue Version kommt dazu; die älteren bleiben (Einstellungen: Ältere Rezept-Versionen behalten).";
+"The new version takes over; the older one goes unless an image is built from it." = "Die neue Version ersetzt die ältere; die ältere geht, außer eine Vorlage ist daraus gebaut.";

@@ -24,6 +24,6 @@ the app is on [omaflake.app](https://omaflake.app).
 | [File schemas]({{ '/schema/' | relative_url }}) | JSON Schemas of every file omaflake writes and reads |
 | [Contributing]({{ '/contributing/' | relative_url }}) | build, test and the rules of the repository |
 
-**Status:** early development (alpha 0.1.0, unsigned). Source code:
+**Status:** early development (alpha, unsigned – see the [changelog]({{ '/changelog/' | relative_url }})). Source code:
 [omaflake/omaflake](https://github.com/omaflake/omaflake) (AGPL-3.0-or-later); official recipes:
 [omaflake/recipes](https://github.com/omaflake/recipes) (MIT).

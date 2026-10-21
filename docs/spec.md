@@ -145,18 +145,28 @@ Pages from `docs/`); a published version is never removed. omaflake brings an ol
 (step by step, v<n> → v<n+1>, and writes it back) and refuses a newer one or another type. A file without `$schema` is
 version 0 (before B114).
 
-| Type | File |
-|---|---|
-| `image` | `image.json` in an image package |
-| `instance` | `instance.json` in a VM package |
-| `settings` | `~/.omaflake/config.json` |
-| `installed` | `<data>/recipes/.installed.json` |
-| `macos-vm` | `config.json` of a macOS VM folder (base, image, VM) |
-| `manifest` | `manifest.json` of an exported package |
-| `catalog` | a source's `catalog.json` (from v2; not migrated – it comes from the source) |
-| `recipe` | `recipe.toml` as `"$schema" = "…/recipe/v1.json"` (TOML; editors with Taplo can use it) |
+**Compatibility.** Each omaflake reads every version of a type from a **minimum** on, and writes the newest. A new
+feature that changes a file gets a new version; older versions stay readable. The goal **from the stable release 1.0.0
+on**: a minimum is raised only with a major release (2.0.0, …) – exceptions are possible but rare. Before 1.0.0 a
+minor release may still raise it (and says so in the changelog). A file below the minimum or
+newer than this omaflake is not read: the app and the CLI list it with a warning (VMs, images, recipes) instead of
+leaving it out silently.
 
-A recipe of another version is left out of builds and named with a hint; it needs an update from its source.
+| Type | File | Minimum (0.2.0) |
+|---|---|---|
+| `image` | `image.json` in an image package | 0 |
+| `instance` | `instance.json` in a VM package | 0 |
+| `settings` | `~/.omaflake/config.json` | 0 |
+| `installed` | `<data>/recipes/.installed.json` | 0 |
+| `macos-vm` | `config.json` of a macOS VM folder (base, image, VM) | 0 |
+| `manifest` | `manifest.json` of an exported package | 0 |
+| `catalog` | a source's `catalog.json` (`$schema` from v2; v1 had `"schema": 1`) | 1 |
+| `recipe` | `recipe.toml` as `"$schema" = "…/recipe/v1.json"` (TOML; editors with Taplo can use it) | 0 |
+
+Catalogs and recipes come from their sources and are **never migrated** by omaflake – a newer version always comes from
+its author. An older one within the minimum is read as it is (version 0/1: no `systems`, so the architectures of Apple
+silicon). After *Refresh* in the Recipes tab, newer versions of downloaded recipes are listed and can be taken over, or
+added next to the older one when older recipe versions are kept (plan B111).
 
 ## 6. Components
 

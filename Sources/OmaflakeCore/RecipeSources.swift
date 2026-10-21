@@ -188,22 +188,37 @@ public struct RecipeCatalog: Decodable, Sendable {
         }
     }
 
-    /// The catalog's version this omaflake reads – `$schema` https://omaflake.dev/schema/catalog/v2.json (2: `systems`
-    /// per recipe, plan B114). A catalog comes from its source, so it is not migrated: an older one needs a newer
-    /// tools/catalog.py there
+    /// The catalog's version this omaflake knows – `$schema` https://omaflake.dev/schema/catalog/v2.json (2: `systems`
+    /// per recipe, plan B114) – and the oldest it reads: version 1 (`"schema": 1`, before B114; its recipes ran on Apple
+    /// silicon). A catalog comes from its source and is only read, never rewritten.
     public static let version = 2
+    public static let minimum = 1
     public var source: Source
     public var recipes: [Recipe]
 
     public static func decode(_ data: Data) throws -> RecipeCatalog {
-        let object = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any]
-        guard let schema = object?["$schema"] as? String, let (type, found) = FileFormat.parse(schema), type == "catalog" else {
-            throw VMError(String(localized: "Not a recipe catalog of this omaflake (catalog.json without its $schema) – the source needs a newer tools/catalog.py"))
+        guard var object = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any] else {
+            throw VMError(String(localized: "Not a recipe catalog (catalog.json): \(String(localized: "not JSON"))"))
         }
-        guard found == version else {
-            throw VMError(found > version ? String(localized: "The catalog has version \(found) – this omaflake reads \(version); update omaflake")
-                          : String(localized: "The catalog has version \(found) – this omaflake reads \(version); the source needs a newer tools/catalog.py"))
+        let found: Int
+        if let schema = object["$schema"] as? String {
+            guard let (type, v) = FileFormat.parse(schema), type == "catalog" else {
+                throw VMError(String(localized: "Not a recipe catalog (catalog.json): \(schema)"))
+            }
+            found = v
+        } else {
+            found = (object["schema"] as? Int) ?? 0     // before B114
         }
+        _ = try FileFormat.check(found, minimum: minimum, current: version, file: "catalog.json")
+        if found < 2, let recipes = object["recipes"] as? [[String: Any]] {
+            // Version 1 has no systems: its recipes were made for Apple silicon
+            object["recipes"] = recipes.map { r -> [String: Any] in
+                var r = r
+                r["systems"] = [Platform.legacySystem(for: (r["kind"] as? String).flatMap(GuestKind.init) ?? .nixos)]
+                return r
+            }
+        }
+        let data = (try? JSONSerialization.data(withJSONObject: object)) ?? data
         do { return try JSONDecoder().decode(RecipeCatalog.self, from: data) } catch {
             throw VMError(String(localized: "Not a recipe catalog (catalog.json): \(error.localizedDescription)"))
         }
@@ -701,9 +716,14 @@ public struct RecipeLibrary: Sendable {
         return hasher.finalize().map { String(format: "%02x", $0) }.joined()
     }
 
-    /// recipe.toml's version this omaflake reads – `"$schema" = "https://omaflake.dev/schema/recipe/v1.json"`; the
-    /// image flake checks the same (plan B114)
+    /// recipe.toml's version this omaflake knows – `"$schema" = "https://omaflake.dev/schema/recipe/v1.json"` – and the
+    /// oldest it still builds (version 0: no `$schema`, the systems of Apple silicon). The image flake reads the same
+    /// range (plan B114). A recipe is never migrated here: a newer version comes from its author.
     public static let recipeVersion = 1
+    public static let recipeMinimum = 0
+
+    /// A recipe version this omaflake builds
+    static func readable(_ version: Int) -> Bool { (recipeMinimum...recipeVersion).contains(version) }
 
     /// The version a recipe.toml's `"$schema"` names (0 without one or with another schema, written before B114)
     static func version(of folder: URL) -> Int {
@@ -718,12 +738,15 @@ public struct RecipeLibrary: Sendable {
         return 0
     }
 
-    /// Available recipes of another recipe.toml version: left out of what the image flake sees (one of them would stop
-    /// every build), so they need an update from their source
-    public func unreadable(_ settings: Settings) -> [(id: String, version: Int)] {
+    /// Available recipes of a version this omaflake does not build (too old or too new): left out of what the image
+    /// flake sees – one of them would stop every build – and named with the reason
+    public func unreadable(_ settings: Settings) -> [UnreadableFile] {
         available(settings).compactMap { e in
-            let v = Self.version(of: e.folder)
-            return v == Self.recipeVersion ? nil : (e.id, v)
+            do {
+                _ = try FileFormat.check(Self.version(of: e.folder), minimum: Self.recipeMinimum, current: Self.recipeVersion,
+                                         file: "recipe.toml")
+                return nil
+            } catch { return UnreadableFile(name: e.id, reason: error.localizedDescription) }
         }
     }
 
@@ -850,8 +873,8 @@ public struct RecipeLibrary: Sendable {
     /// twice. Symbolic links and Finder files are left out.
     public func stage(_ settings: Settings) throws -> URL {
         let fm = FileManager.default
-        // Only recipes of the version this omaflake reads (`unreadable` names the others)
-        let available = available(settings).filter { Self.version(of: $0.folder) == Self.recipeVersion }
+        // Only recipes of a version this omaflake builds (`unreadable` names the others)
+        let available = available(settings).filter { Self.readable(Self.version(of: $0.folder)) }
         var files: [(rel: String, source: URL)] = []
         var mapping: [String: String] = [:]
         func place(_ entry: (id: String, folder: URL, source: String), tree: String, placed: inout Set<String>) {

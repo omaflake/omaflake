@@ -6,7 +6,8 @@ import Foundation
 /// (a change to instance.json needs no step for image.json). The schemas are in docs/schema/ and published on
 /// omaflake.dev; a version, once published, stays there. An older file is brought up to date when it is read, step by
 /// step (each step turns version n into n + 1), and the caller writes it back; a newer one (from a newer omaflake) is
-/// refused instead of misread. A file without `$schema` is version 0 (written before B114).
+/// refused instead of misread. A file without `$schema` is version 0 (written before B114). Each omaflake reads from a
+/// `minimum` version on – a file older than that is named as too old (stores list them), not read.
 public struct FileFormat: Sendable {
     public typealias Step = @Sendable (inout [String: Any]) throws -> Void
 
@@ -19,6 +20,8 @@ public struct FileFormat: Sendable {
     public let file: String
     /// steps[n] turns version n into n + 1
     let steps: [Step]
+    /// The oldest version this omaflake reads (steps below it may be dropped in a later omaflake)
+    public let minimum: Int
 
     /// The version this omaflake writes
     public var current: Int { steps.count }
@@ -26,9 +29,10 @@ public struct FileFormat: Sendable {
     /// The `$schema` this omaflake writes
     public var schema: String { Self.schema(type: type, version: current) }
 
-    public init(_ type: String, file: String, steps: [Step]) {
+    public init(_ type: String, file: String, minimum: Int = 0, steps: [Step]) {
         self.type = type
         self.file = file
+        self.minimum = minimum
         self.steps = steps
     }
 
@@ -42,15 +46,24 @@ public struct FileFormat: Sendable {
         return (String(parts[0]), n)
     }
 
-    /// The version a file says it has: 0 without `$schema`; an error for another type or a foreign schema
+    /// The version a file says it has: 0 without `$schema`; an error for another type, a foreign schema, or a version
+    /// this omaflake does not read (too old or too new)
     func version(of object: [String: Any]) throws -> Int {
-        guard let value = object["$schema"] else { return 0 }
+        guard let value = object["$schema"] else { return try Self.check(0, minimum: minimum, current: current, file: file) }
         guard let schema = value as? String, let (type, version) = Self.parse(schema) else {
             throw VMError("\(file): unknown $schema \(value)")
         }
         guard type == self.type else { throw VMError("\(file) is a \(type) file, not \(self.type)") }
+        return try Self.check(version, minimum: minimum, current: current, file: file)
+    }
+
+    /// `version` if this omaflake reads it, otherwise the error that says why not
+    static func check(_ version: Int, minimum: Int, current: Int, file: String) throws -> Int {
         guard version <= current else {
-            throw VMError("\(file) has version \(version) – this omaflake reads up to \(current); update omaflake")
+            throw VMError(String(localized: "\(file) has version \(version) – this omaflake reads up to \(current); update omaflake"))
+        }
+        guard version >= minimum else {
+            throw VMError(String(localized: "\(file) has version \(version) – too old for this omaflake, which reads \(minimum) to \(current)"))
         }
         return version
     }
@@ -100,5 +113,18 @@ public struct FileFormat: Sendable {
         guard let data = try? Data(contentsOf: url),
               let object = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any] else { return }
         _ = try version(of: object)
+    }
+}
+
+/// A file of omaflake's that cannot be read (too old, too new, damaged) – listed with a warning instead of left out
+/// silently (plan B114)
+public struct UnreadableFile: Sendable, Equatable, Hashable {
+    /// The VM, image or recipe it belongs to
+    public let name: String
+    public let reason: String
+
+    public init(name: String, reason: String) {
+        self.name = name
+        self.reason = reason
     }
 }

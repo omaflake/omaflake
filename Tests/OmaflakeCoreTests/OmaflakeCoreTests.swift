@@ -1602,6 +1602,33 @@ enum CryptoKitHex {
         #expect(RecipeLibrary.version(of: folder) == 1)
     }
 
+    @Test func olderVersionsAreReadWithinTheMinimum() throws {
+        // A type that reads from version 1 on: version 0 is too old, 2 too new – both named, not read
+        let f = FileFormat("image", file: "image.json", minimum: 1, steps: [{ _ in }])
+        #expect(throws: VMError.self) { try f.upgrade(Data(#"{"kind":"nixos"}"#.utf8)) }
+        #expect(throws: VMError.self) { try f.upgrade(Data(#"{"$schema":"https://omaflake.dev/schema/image/v2.json"}"#.utf8)) }
+        #expect(try !f.upgrade(Data(#"{"$schema":"https://omaflake.dev/schema/image/v1.json"}"#.utf8)).migrated)
+        // Recipes: version 0 (no $schema) is still built, a newer one is not
+        #expect(RecipeLibrary.readable(0) && RecipeLibrary.readable(1) && !RecipeLibrary.readable(2))
+    }
+
+    @Test func unreadableImagesAreListed() throws {
+        let p = try tempPaths()
+        let dir = p.imageDir("omaflake.nixos.minimal@new")
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        try Data(#"{"$schema":"https://omaflake.dev/schema/image/v9.json"}"#.utf8).write(to: dir.appendingPathComponent("image.json"))
+        let images = ImageStore(paths: p)
+        #expect(images.list().isEmpty)
+        #expect(images.unreadable().map(\.name) == ["omaflake.nixos.minimal@new"])
+    }
+
+    @Test func catalogVersionOneIsRead() throws {
+        let v1 = #"{"schema":1,"source":{"name":"old"},"recipes":[{"id":"a.macos.m","author":"a","kind":"macos","name":"m","path":"recipes/a/macos/m","description":"d","version":"v","files":[]}]}"#
+        let catalog = try RecipeCatalog.decode(Data(v1.utf8))
+        #expect(catalog.recipes.first?.systems == ["aarch64-darwin"])
+        #expect(throws: VMError.self) { try RecipeCatalog.decode(Data(#"{"$schema":"https://omaflake.dev/schema/catalog/v3.json","source":{"name":"x"},"recipes":[]}"#.utf8)) }
+    }
+
     @Test func recipesNeedSystems() throws {
         let without = #"{"cpus":1,"memory_gb":1,"disk_gb":1,"network":"none","share":false,"ephemeral":false}"#
         #expect(throws: (any Error).self) { try JSONDecoder().decode(RecipeDefaults.self, from: Data(without.utf8)) }

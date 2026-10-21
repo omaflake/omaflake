@@ -15,9 +15,9 @@ instance's state away and starts over from the image.
 | **NixOS** (aarch64) | NixOS modules, built as UEFI qcow2 images | QEMU with Hypervisor.framework; own build with virglrenderer for 3D (`qemu/`) |
 | **macOS** | nix-darwin modules on top of a base installed from Apple's IPSW | `omaf-runner`, one process per VM on Virtualization.framework |
 
-> **Status:** early development, not released. Everything that needs no Developer ID signature is in place; signing,
-> notarization and the first release are next (M12). See [docs/spec.md](docs/spec.md) for the design and
-> [docs/plan.md](docs/plan.md) for findings and milestones.
+> **Status:** early development – unsigned alpha releases ([changelog](docs/changelog.md)); signing, notarization and
+> the first signed release are next (M12). Developer documentation: [omaflake.dev](https://omaflake.dev); see
+> [docs/spec.md](docs/spec.md) for the design and [docs/plan.md](docs/plan.md) for findings and milestones.
 
 ## What it does
 
