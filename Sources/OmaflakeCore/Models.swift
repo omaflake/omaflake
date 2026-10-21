@@ -18,6 +18,8 @@ public enum GuestKind: String, Codable, Sendable, CaseIterable {
 public struct RecipeDefaults: Codable, Sendable, Equatable {
     /// "nixos" if missing
     public var kind: GuestKind
+    /// What it can be built for (`Platform`, plan B114), e.g. ["aarch64-linux", "x86_64-linux"]
+    public var systems: [String]
     public var cpus: Int
     public var memoryGB: Int
     public var diskGB: Int
@@ -52,21 +54,26 @@ public struct RecipeDefaults: Codable, Sendable, Equatable {
     public var license: String?
     public var homepage: String?
 
+    /// It can be built and run on this host
+    public var runsHere: Bool { Platform.hostSystem(for: kind).map(systems.contains) ?? false }
+
     /// The description in `language` ("de"), else the English one
     public func description(in language: String?) -> String? {
         language.flatMap { descriptions[$0] } ?? description
     }
 
     enum CodingKeys: String, CodingKey {
-        case kind, cpus, network, share, ephemeral, user, name, author, audio, microphone, clipboard, camera, description, lab, display, tags, license, homepage
+        case kind, systems, cpus, network, share, ephemeral, user, name, author, audio, microphone, clipboard, camera, description, lab, display, tags, license, homepage
         case descriptionDe = "description_de"
         case memoryGB = "memory_gb"
         case diskGB = "disk_gb"
     }
 
-    public init(kind: GuestKind = .nixos, cpus: Int, memoryGB: Int, diskGB: Int, network: NetworkMode, share: Bool,
-                ephemeral: Bool, user: String? = nil) {
+    /// `systems` nil = what this host runs of `kind`
+    public init(kind: GuestKind = .nixos, systems: [String]? = nil, cpus: Int, memoryGB: Int, diskGB: Int,
+                network: NetworkMode, share: Bool, ephemeral: Bool, user: String? = nil) {
         self.kind = kind
+        self.systems = systems ?? Platform.hostSystem(for: kind).map { [$0] } ?? []
         self.cpus = cpus
         self.memoryGB = memoryGB
         self.diskGB = diskGB
@@ -79,6 +86,7 @@ public struct RecipeDefaults: Codable, Sendable, Equatable {
     public init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         self.init(kind: try c.decodeIfPresent(GuestKind.self, forKey: .kind) ?? .nixos,
+                  systems: try c.decode([String].self, forKey: .systems),
                   cpus: try c.decode(Int.self, forKey: .cpus),
                   memoryGB: try c.decode(Int.self, forKey: .memoryGB),
                   diskGB: try c.decode(Int.self, forKey: .diskGB),
@@ -104,6 +112,7 @@ public struct RecipeDefaults: Codable, Sendable, Equatable {
     public func encode(to encoder: Encoder) throws {
         var c = encoder.container(keyedBy: CodingKeys.self)
         try c.encode(kind, forKey: .kind)
+        try c.encode(systems, forKey: .systems)
         try c.encode(cpus, forKey: .cpus)
         try c.encode(memoryGB, forKey: .memoryGB)
         try c.encode(diskGB, forKey: .diskGB)
@@ -130,6 +139,16 @@ public struct RecipeDefaults: Codable, Sendable, Equatable {
 /// Contents of instances/<name>/instance.json. Settings are copied from the recipe on
 /// `omaf new` and belong to the instance afterwards.
 public struct InstanceConfig: Codable, Sendable, Equatable {
+    /// instance.json, schema `instance` (plan B114). 0 → 1: "flavor" became "recipe" (plan B92), `kind` is always
+    /// there (NixOS when missing), `system` added – every VM before it was made on a Mac with Apple silicon
+    public static let fileFormat = FileFormat("instance", file: "instance.json", steps: [
+        { o in
+            FileFormat.renameKey("flavor", to: "recipe", in: &o)
+            if o["kind"] == nil { o["kind"] = GuestKind.nixos.rawValue }
+            o["system"] = (o["kind"] as? String) == GuestKind.macos.rawValue ? "aarch64-darwin" : "aarch64-linux"
+        },
+    ])
+
     public var name: String
     public var recipe: String
     /// Image name, e.g. "dev-ab12cd34ef-1a2b3c4d" (folder under ~/.omaflake/images)
@@ -148,8 +167,9 @@ public struct InstanceConfig: Codable, Sendable, Equatable {
     public var created: Date
     /// Login user inside the guest; missing in instances created before this field existed
     public var user: String?
-    /// Guest kind; missing in instances created before this field existed (= NixOS)
-    public var kind: GuestKind?
+    public var kind: GuestKind
+    /// What it runs as – its image's system (`Platform`)
+    public var system: String
     /// Sound to the Mac; nil = on
     public var audio: Bool?
     /// The Mac's microphone; nil = off
@@ -170,12 +190,12 @@ public struct InstanceConfig: Codable, Sendable, Equatable {
     /// for a copy under another name, kept by a restore
     public var identity: String?
 
-    public var guestKind: GuestKind { kind ?? .nixos }
+    public var guestKind: GuestKind { kind }
 
     /// User for SSH: the recipe's `user`, otherwise the user running omaflake on the Mac.
     public var guestUser: String { user ?? NSUserName() }
 
-    public init(name: String, recipe: String, image: String, imagePath: String,
+    public init(name: String, recipe: String, image: String, imagePath: String, system: String,
                 settings: RecipeDefaults, sshPort: Int, created: Date = Date()) {
         self.name = name
         self.recipe = recipe
@@ -191,6 +211,7 @@ public struct InstanceConfig: Codable, Sendable, Equatable {
         self.created = created
         self.user = settings.user
         self.kind = settings.kind
+        self.system = system
         self.audio = settings.audio
         self.microphone = settings.microphone
         self.clipboard = settings.clipboard

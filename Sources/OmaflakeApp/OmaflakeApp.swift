@@ -171,16 +171,17 @@ struct MainView: View {
         case .recipes:
             let all = model.imageRows
             let rows = all.filter {
-                (f.status == nil || f.status == ($0.image != nil)) && (f.kind == nil || f.kind == $0.kind)
+                (f.otherSystems || $0.runsHere) && (f.status == nil || f.status == ($0.image != nil)) && (f.kind == nil || f.kind == $0.kind)
                     && (f.tag == nil || (model.recipes[$0.recipe]?.tags ?? []).contains(f.tag!))
             }
             let tags = Array(Set(all.flatMap { model.recipes[$0.recipe]?.tags ?? [] })).sorted()
             // What the remote sources offer and is not installed (plan B107); the status filter "with image" hides them
             let offered = model.offeredRecipes.filter {
-                f.status != true && (f.kind == nil || f.kind == $0.recipe.kind) && (f.tag == nil || ($0.recipe.tags ?? []).contains(f.tag!))
+                (f.otherSystems || $0.recipe.runsHere) && f.status != true && (f.kind == nil || f.kind == $0.recipe.kind) && (f.tag == nil || ($0.recipe.tags ?? []).contains(f.tag!))
             }
             ListSection(title: "Recipes", count: rows.count, of: all.count,
-                        filter: AnyView(FilterMenu(model: model, tab: .recipes, on: "With image", off: "Without image", tags: tags))) {
+                        filter: AnyView(FilterMenu(model: model, tab: .recipes, on: "With image", off: "Without image", tags: tags,
+                                                   architectures: true))) {
                 HStack(spacing: 2) {
                     if model.loadingCatalogs {
                         ProgressView().controlSize(.small).frame(width: 26, height: 24)
@@ -216,6 +217,14 @@ struct MainView: View {
                 }
                 ForEach(offered, id: \.recipe.id) { item in
                     OfferedRecipeRow(recipe: item.recipe, source: item.source, model: model)
+                }
+                ForEach(model.unreadableRecipes, id: \.id) { r in
+                    HStack(alignment: .firstTextBaseline, spacing: 8) {
+                        Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(.orange)
+                        Text("\(RecipeID.qualified(r.id)) is written for another omaflake (recipe version \(r.version), this one reads \(RecipeLibrary.recipeVersion)) – update it from its source")
+                            .font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+                    }
+                    .padding(10)
                 }
                 ForEach(model.sources.filter { model.catalogErrors[$0.id] != nil }, id: \.id) { s in
                     HStack(alignment: .firstTextBaseline, spacing: 8) {
@@ -398,6 +407,7 @@ struct RecipeRowView: View {
                     if recipe.lab {
                         Image(systemName: "flask").font(.caption).foregroundStyle(BrandStyle.yellow).help("Development recipe (developer mode)")
                     }
+                    if !recipe.runsHere { ArchitectureBadge(systems: recipe.systems) }
                 }
                 let tags = model.recipes[recipe.recipe]?.tags ?? []
                 if !tags.isEmpty { TagList(tags: tags) }
@@ -407,7 +417,11 @@ struct RecipeRowView: View {
             IconButton(icon: "folder", help: "Show in Finder") { model.revealRecipe(recipe.recipe) }
                 .disabled(model.recipeFile(recipe.recipe) == nil)
             let blockers = model.buildBlockers(recipe.kind)
-            if !blockers.isEmpty {
+            if !recipe.runsHere {
+                IconButton(icon: "shippingbox", help: "Not for this Mac – it is built for \(recipe.systems.joined(separator: ", "))",
+                           subIcon: "hammer.fill", subIconColor: BrandStyle.cyan) {}
+                    .disabled(true)
+            } else if !blockers.isEmpty {
                 DoctorWarning(blockers: blockers)
             } else {
                 IconButton(icon: "shippingbox", help: recipe.image == nil ? "Build image" : "Build a new version of this image",
@@ -428,6 +442,7 @@ struct RecipeRowView: View {
             VStack(alignment: .leading, spacing: 3) {
                 if let d {
                     InfoLine(label: "Resources", value: Text(verbatim: "\(d.cpus) CPU · \(d.memoryGB) GB RAM · \(d.diskGB) GB"))
+                    InfoLine(label: "Architectures", value: Text(verbatim: d.systems.joined(separator: ", ")))
                     InfoLine(label: "Network", value: Text(verbatim: d.network.rawValue))
                     InfoLine(label: "New VMs", value: Text(verbatim: defaults(d)))
                 }
@@ -645,6 +660,7 @@ struct OfferedRecipeRow: View {
                         if recipe.lab == true {
                             Image(systemName: "flask").font(.caption).foregroundStyle(BrandStyle.yellow).help("Development recipe (developer mode)")
                         }
+                        if !recipe.runsHere { ArchitectureBadge(systems: recipe.systems) }
                     }
                     if let tags = recipe.tags, !tags.isEmpty { TagList(tags: tags) }
                 }
@@ -658,6 +674,7 @@ struct OfferedRecipeRow: View {
                 VStack(alignment: .leading, spacing: 3) {
                     InfoLine(label: "ID", value: Text(verbatim: RecipeID.qualified(recipe.id)))
                     InfoLine(label: "Source", value: Text(verbatim: source.displayName) + (official ? Text(verbatim: " · ") + Text("official") : Text(verbatim: "")))
+                    InfoLine(label: "Architectures", value: Text(verbatim: recipe.systems.joined(separator: ", ")))
                     if let license = recipe.license { InfoLine(label: "License", value: Text(verbatim: license)) }
                     if let requires = recipe.requires, !requires.isEmpty {
                         InfoLine(label: "Requires", value: Text(verbatim: requires.joined(separator: ", ")))
@@ -672,6 +689,19 @@ struct OfferedRecipeRow: View {
                 }
             }
         }
+    }
+}
+
+/// The architectures of a recipe that does not run on this Mac (plan B114), e.g. "x86_64"
+struct ArchitectureBadge: View {
+    let systems: [String]
+
+    var body: some View {
+        Text(verbatim: systems.map(Platform.architecture).joined(separator: ", "))
+            .font(.caption2).foregroundStyle(.orange).lineLimit(1).fixedSize()
+            .padding(.horizontal, 5).padding(.vertical, 1)
+            .background(Color.orange.opacity(0.12), in: Capsule())
+            .help("Not for this Mac – built for \(systems.joined(separator: ", "))")
     }
 }
 
@@ -878,6 +908,8 @@ struct FilterMenu: View {
     let off: LocalizedStringKey
     var tags: [String] = []
     var recipes: [(id: String, name: String)] = []
+    /// Offer "Other architectures" (the recipes list, plan B114)
+    var architectures = false
 
     private var filter: Binding<AppModel.ListFilter> {
         Binding(get: { model.filters[tab] ?? AppModel.ListFilter() }, set: { model.filters[tab] = $0 })
@@ -910,6 +942,10 @@ struct FilterMenu: View {
                     ForEach(recipes, id: \.id) { Text(verbatim: $0.name).tag(String?.some($0.id)) }
                 }
                 .pickerStyle(.inline)
+            }
+            if architectures {
+                Divider()
+                Toggle("Other Architectures", isOn: filter.otherSystems)
             }
             Divider()
             Button("Reset Filter") { model.filters[tab] = nil }.disabled(!filter.wrappedValue.isActive)

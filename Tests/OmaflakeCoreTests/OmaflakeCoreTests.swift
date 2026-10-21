@@ -20,31 +20,22 @@ func config(_ name: String = "t1", network: NetworkMode = .shared, ephemeral: Bo
     d.ephemeral = ephemeral
     d.share = share
     return InstanceConfig(name: name, recipe: "dev", image: "dev-abc-12345678", imagePath: "/img.qcow2",
-                          settings: d, sshPort: 2230, created: Date(timeIntervalSince1970: 0))
+                          system: "aarch64-linux", settings: d, sshPort: 2230, created: Date(timeIntervalSince1970: 0))
 }
 
 @Suite struct RecipeDefaultsTests {
     @Test func decodesFlakeJSON() throws {
         // Output of `nix eval --json .#lib.recipeDefaults` (shortened, 2026-10-16)
-        let json = #"{"lab":{"cpus":4,"disk_gb":60,"ephemeral":true,"memory_gb":8,"network":"isolated","share":false}}"#
+        let json = #"{"lab":{"systems":["aarch64-linux"],"cpus":4,"disk_gb":60,"ephemeral":true,"memory_gb":8,"network":"isolated","share":false}}"#
         let d = try JSONDecoder().decode([String: RecipeDefaults].self, from: Data(json.utf8))
         #expect(d["lab"] == RecipeDefaults(cpus: 4, memoryGB: 8, diskGB: 60, network: .isolated, share: false, ephemeral: true))
     }
 
     @Test func decodesKind() throws {
-        let json = #"{"omaflake.macos.minimal":{"kind":"macos","author":"omaflake","name":"minimal","cpus":4,"disk_gb":60,"ephemeral":false,"memory_gb":8,"network":"shared","share":true,"user":"me"}}"#
+        let json = #"{"omaflake.macos.minimal":{"kind":"macos","systems":["aarch64-darwin"],"author":"omaflake","name":"minimal","cpus":4,"disk_gb":60,"ephemeral":false,"memory_gb":8,"network":"shared","share":true,"user":"me"}}"#
         let d = try JSONDecoder().decode([String: RecipeDefaults].self, from: Data(json.utf8))
         #expect(d["omaflake.macos.minimal"]?.kind == .macos && d["omaflake.macos.minimal"]?.author == "omaflake")
         #expect(d["omaflake.macos.minimal"]?.user == "me")
-    }
-
-    @Test func instanceWithoutKindIsNixOS() throws {
-        var c = config()
-        c.kind = nil
-        let data = try InstanceStore.encoder.encode(c)
-        #expect(!String(decoding: data, as: UTF8.self).contains("\"kind\""))
-        #expect(try InstanceStore.decoder.decode(InstanceConfig.self, from: data).guestKind == .nixos)
-        #expect(config().kind == .nixos)
     }
 }
 
@@ -174,7 +165,7 @@ func config(_ name: String = "t1", network: NetworkMode = .shared, ephemeral: Bo
 }
 
 @Suite struct RecipeRenameTests {
-    /// instance.json and image.json from before plan B92 say "flavor"
+    /// instance.json and image.json from before plan B92 say "flavor" (and have no format, plan B114)
     @Test func oldFlavorKeyIsRead() throws {
         let paths = try tempPaths()
         let store = InstanceStore(paths: paths, qemuImg: "/usr/bin/false")
@@ -183,17 +174,19 @@ func config(_ name: String = "t1", network: NetworkMode = .shared, ephemeral: Bo
         let file = paths.instance("t1").config
         let written = try String(contentsOf: file, encoding: .utf8)
         #expect(written.contains("\"recipe\""))
-        try written.replacingOccurrences(of: "\"recipe\"", with: "\"flavor\"").write(to: file, atomically: true, encoding: .utf8)
+        try written.replacingOccurrences(of: "\"recipe\"", with: "\"flavor\"").replacingOccurrences(of: #""$schema" : "https://omaflake.dev/schema/instance/v1.json","#, with: "")
+            .write(to: file, atomically: true, encoding: .utf8)
         let loaded = try store.load("t1")
         #expect(loaded.recipe == "dev")
         #expect(loaded == config("t1"))
 
         let dir = paths.images.appendingPathComponent("img")
         try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
-        let info = ImageStore.Info(recipe: "omaflake.nixos.minimal", kind: .nixos, source: "/x", revision: "abc", storePath: nil)
+        let info = ImageStore.Info(recipe: "omaflake.nixos.minimal", kind: .nixos, system: "aarch64-linux", source: "/x", revision: "abc", storePath: nil)
         try ImageStore.writeInfo(info, to: dir)
         let json = ImageStore.infoFile(dir)
         let text = try String(contentsOf: json, encoding: .utf8).replacingOccurrences(of: "\"recipe\"", with: "\"flavor\"")
+            .replacingOccurrences(of: #""$schema" : "https://omaflake.dev/schema/image/v1.json","#, with: "")
         try text.write(to: json, atomically: true, encoding: .utf8)
         #expect(ImageStore.readInfo(dir)?.recipe == "omaflake.nixos.minimal")
     }
@@ -268,13 +261,13 @@ func config(_ name: String = "t1", network: NetworkMode = .shared, ephemeral: Bo
                 list.append(["path": f, "size": text.utf8.count, "sha256": sha])
             }
             return ["id": id, "author": author, "kind": kind.rawValue, "name": name, "path": path, "description": "d",
-                    "requires": requires, "version": "v1-\(name)", "files": list]
+                    "systems": ["aarch64-linux"], "requires": requires, "version": "v1-\(name)", "files": list]
         }
-        var recipes = [try entry("omaflake.nixos.minimal", files: ["recipe.toml": "cpus = 1", "default.nix": "{ }"]),
+        var recipes = [try entry("omaflake.nixos.minimal", files: ["recipe.toml": "\"$schema\" = \"https://omaflake.dev/schema/recipe/v1.json\"\ncpus = 1", "default.nix": "{ }"]),
                        try entry("someone.nixos.rust", requires: ["omaflake/nixos/minimal"],
-                                 files: ["recipe.toml": "cpus = 2\nrequires = [\"omaflake/nixos/minimal\"]\n", "default.nix": "{ imports = [ ../../../omaflake/nixos/minimal ]; }"])]
+                                 files: ["recipe.toml": "\"$schema\" = \"https://omaflake.dev/schema/recipe/v1.json\"\ncpus = 2\nrequires = [\"omaflake/nixos/minimal\"]\n", "default.nix": "{ imports = [ ../../../omaflake/nixos/minimal ]; }"])]
         func catalog() throws -> RecipeCatalog {
-            let json: [String: Any] = ["schema": 1, "source": ["name": "test"], "recipes": recipes]
+            let json: [String: Any] = ["$schema": "https://omaflake.dev/schema/catalog/v2.json", "source": ["name": "test"], "recipes": recipes]
             return try RecipeCatalog.decode(JSONSerialization.data(withJSONObject: json))
         }
         let source = RecipeSource(kind: .folder, location: src.path)
@@ -314,7 +307,7 @@ func config(_ name: String = "t1", network: NetworkMode = .shared, ephemeral: Bo
         #expect(try lib.stage(settings) == staged)
         let local = paths.root.appendingPathComponent("local-recipes/omaflake/nixos/minimal")
         try fm.createDirectory(at: local, withIntermediateDirectories: true)
-        try Data("cpus = 7".utf8).write(to: local.appendingPathComponent("recipe.toml"))
+        try Data("\"$schema\" = \"https://omaflake.dev/schema/recipe/v1.json\"\ncpus = 7".utf8).write(to: local.appendingPathComponent("recipe.toml"))
         try Data("{ }".utf8).write(to: local.appendingPathComponent("default.nix"))
         settings.sources = [RecipeSource(kind: .folder, location: paths.root.appendingPathComponent("local-recipes").path)]
         let withLocal = try lib.stage(settings)
@@ -323,8 +316,8 @@ func config(_ name: String = "t1", network: NetworkMode = .shared, ephemeral: Bo
         let localMinimal = try #require(lib.available(settings).first { $0.source == settings.sources![0].id }).id
         #expect(RecipeID.base(localMinimal) == "omaflake.nixos.minimal" && localMinimal != minimal)
         #expect(lib.available(settings).count == 3)
-        #expect(try String(contentsOf: withLocal.appendingPathComponent("\(localMinimal)/omaflake/nixos/minimal/recipe.toml"), encoding: .utf8) == "cpus = 7")
-        #expect(try String(contentsOf: withLocal.appendingPathComponent("\(rust)/omaflake/nixos/minimal/recipe.toml"), encoding: .utf8) == "cpus = 1")
+        #expect(try String(contentsOf: withLocal.appendingPathComponent("\(localMinimal)/omaflake/nixos/minimal/recipe.toml"), encoding: .utf8) == "\"$schema\" = \"https://omaflake.dev/schema/recipe/v1.json\"\ncpus = 7")
+        #expect(try String(contentsOf: withLocal.appendingPathComponent("\(rust)/omaflake/nixos/minimal/recipe.toml"), encoding: .utf8) == "\"$schema\" = \"https://omaflake.dev/schema/recipe/v1.json\"\ncpus = 1")
         #expect(lib.distinctions(settings)[localMinimal] != nil && lib.distinctions(settings)[rust] == nil)
 
         try lib.remove(rust)
@@ -441,7 +434,7 @@ enum SHA256Hex {
         try Data(count: 64 * 1024).write(to: file)
         let link = dir.appendingPathComponent("link.qcow2")
         try FileManager.default.createSymbolicLink(at: link, withDestinationURL: file)
-        let info = ImageStore.Info(recipe: "omaflake.nixos.minimal", kind: .nixos, source: "/x", revision: "abc", storePath: nil)
+        let info = ImageStore.Info(recipe: "omaflake.nixos.minimal", kind: .nixos, system: "aarch64-linux", source: "/x", revision: "abc", storePath: nil)
         let viaLink = ImageStore.diskUsage(ImageStore.Image(name: "a", info: info, path: link))
         #expect((viaLink ?? 0) >= 64 * 1024)
         let folder = ImageStore.diskUsage(ImageStore.Image(name: "b", info: info, path: dir))
@@ -537,7 +530,7 @@ enum SHA256Hex {
         let s = RecipeDefaults(kind: .macos, cpus: 4, memoryGB: 8, diskGB: 80, network: network, share: false,
                                ephemeral: false, user: "test")
         return InstanceConfig(name: name, recipe: "mac-minimal", image: "mac-minimal-abc-12345678",
-                              imagePath: "/img", settings: s, sshPort: 22, created: Date(timeIntervalSince1970: 0))
+                              imagePath: "/img", system: "aarch64-darwin", settings: s, sshPort: 22, created: Date(timeIntervalSince1970: 0))
     }
 
     @Test func imageRecipeFromName() {
@@ -555,7 +548,7 @@ enum SHA256Hex {
         try MacVMBundle(dir).save(MacVMConfig(cpus: 4, memoryMB: 8192, diskGB: 80, macAddress: "02:00:00:00:00:01"))
         // without image.json it is not an image
         #expect(throws: VMError.self) { try ImageStore(paths: p).image(named: name) }
-        try ImageStore.writeInfo(.init(recipe: "omaflake.macos.minimal", kind: .macos, source: "/f", revision: "abc1234567-dirty",
+        try ImageStore.writeInfo(.init(recipe: "omaflake.macos.minimal", kind: .macos, system: "aarch64-darwin", source: "/f", revision: "abc1234567-dirty",
                                        storePath: nil), to: dir)
         let image = try ImageStore(paths: p).image(named: name)
         #expect(image.kind == .macos && image.recipe == "omaflake.macos.minimal" && image.path.path == dir.path)
@@ -567,7 +560,7 @@ enum SHA256Hex {
         let p = try tempPaths()
         let vz = VZBackend(paths: p, store: InstanceStore(paths: p, qemuImg: "/usr/bin/false"), runner: "/usr/bin/false")
         let image = ImageStore.Image(name: "mac-minimal-abc-12345678",
-                                     info: .init(recipe: "omaflake.macos.minimal", kind: .macos, source: "", revision: "abc", storePath: nil),
+                                     info: .init(recipe: "omaflake.macos.minimal", kind: .macos, system: "aarch64-darwin", source: "", revision: "abc", storePath: nil),
                                      path: p.images)
         var s = RecipeDefaults(kind: .macos, cpus: 4, memoryGB: 8, diskGB: 80, network: .isolated, share: false, ephemeral: false)
         #expect(throws: VMError.self) { try vz.create(name: "m1", recipe: "mac-minimal", image: image, settings: s) }
@@ -575,7 +568,7 @@ enum SHA256Hex {
         s.network = .shared
         // a NixOS image cannot become a macOS instance
         let qcow = ImageStore.Image(name: "dev-abc-12345678",
-                                    info: .init(recipe: "omaflake.nixos.dev", kind: .nixos, source: "", revision: "abc", storePath: nil),
+                                    info: .init(recipe: "omaflake.nixos.dev", kind: .nixos, system: "aarch64-linux", source: "", revision: "abc", storePath: nil),
                                     path: p.images)
         #expect(throws: VMError.self) { try vz.create(name: "m2", recipe: "dev", image: qcow, settings: s) }
     }
@@ -740,7 +733,7 @@ enum SHA256Hex {
             let dir = p.imageDir(name)
             try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
             try MacVMBundle(dir).save(MacVMConfig(cpus: 4, memoryMB: 8192, diskGB: 80, macAddress: "02:00:00:00:00:01"))
-            try ImageStore.writeInfo(.init(recipe: "omaflake.macos.minimal", kind: .macos, source: "", revision: name,
+            try ImageStore.writeInfo(.init(recipe: "omaflake.macos.minimal", kind: .macos, system: "aarch64-darwin", source: "", revision: name,
                                            storePath: nil, created: created), to: dir)
             try FileManager.default.setAttributes([.posixPermissions: 0o555], ofItemAtPath: dir.path)
         }
@@ -1022,12 +1015,12 @@ enum SHA256Hex {
 
 @Suite struct RecipeFieldsTests {
     @Test func displayDescriptionLabFromTOMLJSON() throws {
-        let json = #"{"cpus":4,"memory_gb":4,"disk_gb":40,"network":"shared","share":true,"ephemeral":false,"#
+        let json = #"{"systems":["aarch64-linux"],"cpus":4,"memory_gb":4,"disk_gb":40,"network":"shared","share":true,"ephemeral":false,"#
             + #""display":"gpu","description":"NixOS","description_de":"NixOS (de)","lab":true}"#
         let d = try JSONDecoder().decode(RecipeDefaults.self, from: Data(json.utf8))
         #expect(d.display == .gpu && d.isLab)
         #expect(d.description(in: "de") == "NixOS (de)" && d.description(in: "fr") == "NixOS")
-        let c = InstanceConfig(name: "a", recipe: "f", image: "i", imagePath: "/i", settings: d, sshPort: 2222)
+        let c = InstanceConfig(name: "a", recipe: "f", image: "i", imagePath: "/i", system: "aarch64-linux", settings: d, sshPort: 2222)
         #expect(c.display == .gpu)
         // encoding keeps the fields (instance.json, round trip)
         let again = try JSONDecoder().decode(RecipeDefaults.self, from: JSONEncoder().encode(d))
@@ -1044,7 +1037,7 @@ enum SHA256Hex {
         for (i, name) in ["a1", "a2", "a3", "a4", "a5"].enumerated() {
             let dir = paths.imageDir(name)
             try fm.createDirectory(at: dir, withIntermediateDirectories: true)
-            var info = ImageStore.Info(recipe: "omaflake.macos.x", kind: .macos, source: "/f", revision: "r", storePath: "/nix/store/x")
+            var info = ImageStore.Info(recipe: "omaflake.macos.x", kind: .macos, system: "aarch64-darwin", source: "/f", revision: "r", storePath: "/nix/store/x")
             info.created = Date(timeIntervalSince1970: TimeInterval(1000 + i))
             try ImageStore.writeInfo(info, to: dir)
         }
@@ -1180,7 +1173,7 @@ enum CryptoKitHex {
         let nix = p.images.appendingPathComponent("omaflake.nixos.lab-abc-12345678")
         try fm.createDirectory(at: nix, withIntermediateDirectories: true)
         try fm.createSymbolicLink(at: nix.appendingPathComponent("result"), withDestinationURL: store)
-        try ImageStore.writeInfo(.init(recipe: "omaflake.nixos.lab", kind: .nixos, source: "", revision: "abc", storePath: nil), to: nix)
+        try ImageStore.writeInfo(.init(recipe: "omaflake.nixos.lab", kind: .nixos, system: "aarch64-linux", source: "", revision: "abc", storePath: nil), to: nix)
         try fm.createDirectory(at: p.currentImages, withIntermediateDirectories: true)
         try fm.createSymbolicLink(atPath: p.currentImages.appendingPathComponent("omaflake.nixos.lab").path,
                                   withDestinationPath: "../omaflake.nixos.lab-abc-12345678")
@@ -1214,7 +1207,7 @@ enum CryptoKitHex {
         let s = RecipeDefaults(kind: .macos, cpus: 4, memoryGB: 8, diskGB: 80, network: .shared, share: false,
                                ephemeral: false, user: "test")
         let c = InstanceConfig(name: name, recipe: "omaflake.macos.minimal", image: "img-1", imagePath: "/img",
-                               settings: s, sshPort: 22, created: Date(timeIntervalSince1970: 0))
+                               system: "aarch64-darwin", settings: s, sshPort: 22, created: Date(timeIntervalSince1970: 0))
         let ip = p.instance(name)
         try FileManager.default.createDirectory(at: ip.vm, withIntermediateDirectories: true)
         try Data("disk".utf8).write(to: ip.vm.appendingPathComponent("disk.img"))
@@ -1289,7 +1282,7 @@ enum CryptoKitHex {
         let dir = p.imageDir("img-1")
         try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         try MacVMBundle(dir).save(MacVMConfig(cpus: 4, memoryMB: 8192, diskGB: 80, macAddress: "02:00:00:00:00:01"))
-        try ImageStore.writeInfo(.init(recipe: "omaflake.macos.minimal", kind: .macos, source: "", revision: "r", storePath: nil), to: dir)
+        try ImageStore.writeInfo(.init(recipe: "omaflake.macos.minimal", kind: .macos, system: "aarch64-darwin", source: "", revision: "r", storePath: nil), to: dir)
         try FileManager.default.setAttributes([.posixPermissions: 0o555], ofItemAtPath: dir.path)
         let out = p.root.appendingPathComponent("stick")
         try FileManager.default.createDirectory(at: out, withIntermediateDirectories: true)
@@ -1314,7 +1307,7 @@ enum CryptoKitHex {
         for (name, req) in [("base", ""), ("desk", "requires = [\"me/nixos/base\"]")] {
             let d = src.appendingPathComponent(name)
             try FileManager.default.createDirectory(at: d, withIntermediateDirectories: true)
-            try Data("description = \"x\"\n\(req)\n".utf8).write(to: d.appendingPathComponent("recipe.toml"))
+            try Data("\"$schema\" = \"https://omaflake.dev/schema/recipe/v1.json\"\ndescription = \"x\"\n\(req)\n".utf8).write(to: d.appendingPathComponent("recipe.toml"))
             try Data("{ ... }: { }\n".utf8).write(to: d.appendingPathComponent("default.nix"))
         }
         let library = RecipeLibrary(paths: p)
@@ -1417,7 +1410,7 @@ enum CryptoKitHex {
     func recipe(_ root: URL, _ text: String) throws {
         let d = root.appendingPathComponent("me/nixos/desk")
         try FileManager.default.createDirectory(at: d, withIntermediateDirectories: true)
-        try Data("description = \"x\"\n".utf8).write(to: d.appendingPathComponent("recipe.toml"))
+        try Data("\"$schema\" = \"https://omaflake.dev/schema/recipe/v1.json\"\ndescription = \"x\"\n".utf8).write(to: d.appendingPathComponent("recipe.toml"))
         try Data(text.utf8).write(to: d.appendingPathComponent("default.nix"))
     }
 
@@ -1432,7 +1425,7 @@ enum CryptoKitHex {
         // an image built from v1
         let img = p.imageDir("me.nixos.desk@" + OmaflakeID.words(of: "/nix/store/a"))
         try FileManager.default.createDirectory(at: img, withIntermediateDirectories: true)
-        try ImageStore.writeInfo(.init(recipe: v1, recipeSource: "import", kind: .nixos, source: "", revision: "r", storePath: "/nix/store/a"), to: img)
+        try ImageStore.writeInfo(.init(recipe: v1, recipeSource: "import", kind: .nixos, system: "aarch64-linux", source: "", revision: "r", storePath: "/nix/store/a"), to: img)
         try Data().write(to: img.appendingPathComponent("disk.qcow2"))
         try recipe(src, "{ v = 2; }")
         let v2 = try lib.importRecipes(from: src)[0]
@@ -1468,7 +1461,7 @@ enum CryptoKitHex {
         #expect(FileManager.default.fileExists(atPath: p.recipes.appendingPathComponent("\(v1)/default.nix").path))
         let img = p.imageDir("me.nixos.desk@" + OmaflakeID.words(of: "/nix/store/b"))
         try FileManager.default.createDirectory(at: img, withIntermediateDirectories: true)
-        try ImageStore.writeInfo(.init(recipe: v1, recipeSource: s.sources![0].id, kind: .nixos, source: "", revision: "r", storePath: "/nix/store/b"), to: img)
+        try ImageStore.writeInfo(.init(recipe: v1, recipeSource: s.sources![0].id, kind: .nixos, system: "aarch64-linux", source: "", revision: "r", storePath: "/nix/store/b"), to: img)
         try Data().write(to: img.appendingPathComponent("disk.qcow2"))
         try recipe(folder, "{ v = 2; }")
         let list = try #require(lib.versions(s).values.first)
@@ -1477,5 +1470,154 @@ enum CryptoKitHex {
         try Disposal.delete([img])
         #expect(lib.pruneVersions() == [v1])                            // no image any more, not the newest
         #expect(throws: VMError.self) { try lib.remove(list[0].id) }    // the folder's own recipe is changed there
+    }
+}
+
+/// Versions of omaflake's files (`$schema`, docs/schema/) and the architecture of recipes, images and VMs (plan B114)
+@Suite struct FileFormatTests {
+    /// docs/schema/ of this checkout
+    static let schemaFolder = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
+        .deletingLastPathComponent().appendingPathComponent("docs/schema")
+
+    static let formats = [ImageStore.Info.fileFormat, InstanceConfig.fileFormat, Settings.fileFormat, RecipeLibrary.fileFormat,
+                          MacVMConfig.fileFormat, Package.Manifest.fileFormat]
+
+    /// The published schema of a URL of omaflake's
+    static func schema(_ url: String) throws -> [String: Any] {
+        let (type, version) = try #require(FileFormat.parse(url))
+        let file = schemaFolder.appendingPathComponent("\(type)/v\(version).json")
+        return try #require(try JSONSerialization.jsonObject(with: Data(contentsOf: file)) as? [String: Any])
+    }
+
+    /// The keys of `data` are the schema's, and its required ones are there (a shallow check of what omaflake writes)
+    static func matches(_ data: Data) throws {
+        let object = try #require(try JSONSerialization.jsonObject(with: data) as? [String: Any])
+        let schema = try schema(try #require(object["$schema"] as? String))
+        let properties = Set((schema["properties"] as? [String: Any] ?? [:]).keys)
+        let required = Set(schema["required"] as? [String] ?? [])
+        #expect(Set(object.keys).subtracting(properties).isEmpty, "keys not in the schema: \(Set(object.keys).subtracting(properties))")
+        #expect(required.subtracting(object.keys).isEmpty, "required keys missing: \(required.subtracting(object.keys))")
+    }
+
+    /// Every version up to the current one is in docs/schema/ – a published version is never removed (the catalog's
+    /// schemas start at v2: v1 was `"schema": 1`, before B114)
+    @Test func everyVersionHasItsSchema() throws {
+        var urls = Self.formats.flatMap { f in (1...f.current).map { FileFormat.schema(type: f.type, version: $0) } }
+        urls += (2...RecipeCatalog.version).map { FileFormat.schema(type: "catalog", version: $0) }
+        urls += (1...RecipeLibrary.recipeVersion).map { FileFormat.schema(type: "recipe", version: $0) }
+        for url in urls { #expect(try Self.schema(url)["$id"] as? String == url) }
+    }
+
+    @Test func whatOmaflakeWritesMatchesItsSchema() throws {
+        let enc = JSONEncoder()
+        enc.dateEncodingStrategy = .iso8601
+        let info = ImageStore.Info(recipe: "omaflake.nixos.minimal@a", recipeSource: "s", kind: .nixos, system: "aarch64-linux",
+                                   source: "/f", revision: "r", storePath: "/nix/store/x")
+        try Self.matches(ImageStore.Info.fileFormat.encode(info, encoder: enc))
+        var c = config()
+        c.identity = "a-b-c"
+        c.sharePath = "/s"
+        try Self.matches(InstanceConfig.fileFormat.encode(c, encoder: enc))
+        var s = Settings(flake: "/f")
+        s.sources = [.official]
+        s.guest = GuestOverrides(user: "u")
+        try Self.matches(Settings.fileFormat.encode(s, encoder: enc))
+        try Self.matches(MacVMConfig.fileFormat.encode(MacVMConfig(cpus: 4, memoryMB: 8192, diskGB: 80, macAddress: "02:00:00:00:00:01",
+                                                                    osBuild: "26A434"), encoder: enc))
+        try Self.matches(Package.Manifest.fileFormat.encode(Package.Manifest(kind: .vm, name: "a", guestKind: .nixos), encoder: enc))
+        let installed = RecipeLibrary.InstalledFile(recipes: ["x": .init(source: "s", version: "v", requires: nil, installed: Date())])
+        try Self.matches(RecipeLibrary.fileFormat.encode(installed, encoder: enc))
+    }
+
+    @Test func newerOrForeignSchemasAreRefused() throws {
+        let newer = Data(#"{"$schema":"https://omaflake.dev/schema/instance/v99.json"}"#.utf8)
+        #expect(throws: VMError.self) { try InstanceConfig.fileFormat.upgrade(newer) }
+        let image = Data(#"{"$schema":"https://omaflake.dev/schema/image/v1.json"}"#.utf8)
+        #expect(throws: VMError.self) { try InstanceConfig.fileFormat.upgrade(image) }      // another type
+        let foreign = Data(#"{"$schema":"https://example.org/instance/v1.json"}"#.utf8)
+        #expect(throws: VMError.self) { try InstanceConfig.fileFormat.upgrade(foreign) }
+        #expect(FileFormat.parse("https://omaflake.dev/schema/macos-vm/v12.json")! == ("macos-vm", 12))
+        #expect(FileFormat.parse("https://omaflake.dev/schema/image/1.json") == nil)
+        let p = try tempPaths()
+        try FileManager.default.createDirectory(at: p.root, withIntermediateDirectories: true)
+        try Data(#"{"$schema":"https://omaflake.dev/schema/settings/v99.json"}"#.utf8).write(to: p.configFile)
+        #expect(throws: VMError.self) { try Settings().save(p) }     // a newer omaflake's settings are not overwritten
+    }
+
+    /// instance.json before B114: no $schema, no system, maybe no kind and the old "flavor" key
+    @Test func instanceVersionZeroIsMigrated() throws {
+        let old = #"{"name":"a","flavor":"dev","image":"i","imagePath":"/i","cpus":2,"memoryGB":2,"diskGB":10,"network":"shared","share":false,"ephemeral":false,"sshPort":2222,"created":"2026-10-01T00:00:00Z"}"#
+        let read = try InstanceConfig.fileFormat.decode(InstanceConfig.self, from: Data(old.utf8), decoder: InstanceStore.decoder)
+        #expect(read.migrated)
+        #expect(read.value.recipe == "dev" && read.value.kind == .nixos && read.value.system == "aarch64-linux")
+        let current = try InstanceConfig.fileFormat.encode(read.value, encoder: InstanceStore.encoder)
+        #expect(try !InstanceConfig.fileFormat.decode(InstanceConfig.self, from: current, decoder: InstanceStore.decoder).migrated)
+    }
+
+    @Test func imageVersionZeroIsMigratedAndWrittenBack() throws {
+        let p = try tempPaths()
+        let dir = p.imageDir("omaflake.macos.minimal@a")
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        let old = #"{"flavor":"omaflake.macos.minimal","author":"omaflake","kind":"macos","name":"minimal","source":"","revision":"r","created":"2026-10-01T00:00:00Z"}"#
+        try Data(old.utf8).write(to: dir.appendingPathComponent("image.json"))
+        let info = try #require(ImageStore.readInfo(dir))
+        #expect(info.recipe == "omaflake.macos.minimal" && info.system == "aarch64-darwin")
+        let written = try Data(contentsOf: dir.appendingPathComponent("image.json"))
+        let text = String(decoding: written, as: UTF8.self)
+        #expect(text.contains("https://omaflake.dev/schema/image/v1.json") && !text.contains("flavor"))
+        try Self.matches(written)
+    }
+
+    @Test func installedIndexIsWrapped() throws {
+        let p = try tempPaths()
+        try FileManager.default.createDirectory(at: p.recipes, withIntermediateDirectories: true)
+        let old = #"{"omaflake.nixos.minimal@abcd1234":{"source":"s","version":"v","installed":"2026-10-01T00:00:00Z"}}"#
+        try Data(old.utf8).write(to: p.recipes.appendingPathComponent(".installed.json"))
+        let lib = RecipeLibrary(paths: p)
+        #expect(lib.installed()["omaflake.nixos.minimal@abcd1234"]?.version == "v")
+        try Self.matches(Data(contentsOf: p.recipes.appendingPathComponent(".installed.json")))
+        #expect(lib.installed().count == 1)
+    }
+
+    @Test func macVMVersionGivesWayToSchema() throws {
+        let p = try tempPaths()
+        let dir = p.root.appendingPathComponent("vm")
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        let old = #"{"version":1,"cpus":4,"memoryMB":8192,"diskGB":80,"display":{"width":1920,"height":1200,"ppi":80},"macAddress":"02:00:00:00:00:01"}"#
+        try Data(old.utf8).write(to: dir.appendingPathComponent("config.json"))
+        #expect(try MacVMBundle(dir).loadConfig().cpus == 4)
+        let written = try Data(contentsOf: dir.appendingPathComponent("config.json"))
+        #expect(!String(decoding: written, as: UTF8.self).contains("\"version\""))
+        try Self.matches(written)
+    }
+
+    @Test func recipeVersionIsReadFromTheToml() throws {
+        let p = try tempPaths()
+        let folder = p.root.appendingPathComponent("omaflake/nixos/minimal")
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        let toml = folder.appendingPathComponent("recipe.toml")
+        try Data("format = 1\ncpus = 1\n".utf8).write(to: toml)
+        #expect(RecipeLibrary.version(of: folder) == 0)
+        try Data("# \"$schema\" = \"https://omaflake.dev/schema/recipe/v7.json\"\n\"$schema\" = \"https://omaflake.dev/schema/recipe/v1.json\"   # the version\ncpus = 1\n".utf8).write(to: toml)
+        #expect(RecipeLibrary.version(of: folder) == 1)
+    }
+
+    @Test func recipesNeedSystems() throws {
+        let without = #"{"cpus":1,"memory_gb":1,"disk_gb":1,"network":"none","share":false,"ephemeral":false}"#
+        #expect(throws: (any Error).self) { try JSONDecoder().decode(RecipeDefaults.self, from: Data(without.utf8)) }
+        let x86 = #"{"systems":["x86_64-linux"],"cpus":1,"memory_gb":1,"disk_gb":1,"network":"none","share":false,"ephemeral":false}"#
+        let d = try JSONDecoder().decode(RecipeDefaults.self, from: Data(x86.utf8))
+        #expect(d.runsHere == (Platform.hostSystem(for: .nixos) == "x86_64-linux"))
+        #expect(Platform.architecture("x86_64-linux") == "x86_64")
+    }
+
+    @Test func otherArchitecturesDoNotRunHere() throws {
+        let foreign = Platform.hostSystem(for: .nixos) == "x86_64-linux" ? "aarch64-linux" : "x86_64-linux"
+        #expect(!Platform.runsHere(foreign))
+        var c = config()
+        c.system = foreign
+        #expect(throws: VMError.self) { try InstanceStore.checkRunsHere(c) }
+        let info = ImageStore.Info(recipe: "omaflake.nixos.minimal", kind: .nixos, system: foreign, source: "", revision: "r", storePath: nil)
+        #expect(throws: VMError.self) { try InstanceStore.checkRunsHere(ImageStore.Image(name: "x", info: info, path: URL(fileURLWithPath: "/x"))) }
     }
 }

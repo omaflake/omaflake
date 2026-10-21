@@ -166,6 +166,7 @@ public struct Transfer: Sendable {
         guard let info = ImageStore.readInfo(url), let name = named ?? Package.name(of: url, kind: .image) else {
             throw VMError("\(url.path) is not an image package (no image.json)")
         }
+        guard Platform.runsHere(info.system) else { throw Platform.notHere(name, system: info.system) }
         let dest = paths.imageDir(name)
         let exists = fm.fileExists(atPath: dest.path)
         if exists {
@@ -194,7 +195,7 @@ public struct Transfer: Sendable {
         guard let data = try? Data(contentsOf: package.appendingPathComponent("instance.json")) else {
             throw VMError("\(package.path) is not a VM package (no instance.json)")
         }
-        return try InstanceStore.decoder.decode(InstanceConfig.self, from: LegacyJSON.recipeKey(data))
+        return try InstanceConfig.fileFormat.decode(InstanceConfig.self, from: data, decoder: InstanceStore.decoder).value
     }
 
     /// The name of the registered external VM whose package is `url`
@@ -208,6 +209,7 @@ public struct Transfer: Sendable {
     func importVM(_ url: URL, name: String?, log: @escaping @Sendable (String) -> Void) throws -> Imported {
         let fm = FileManager.default
         var c = try Self.readConfig(url)
+        try InstanceStore.checkRunsHere(c)
         var notes: [String] = []
         // Taking back a VM that runs from this place: it stays registered until it is back
         let external = externalVM(at: url)
@@ -302,6 +304,7 @@ public struct Transfer: Sendable {
         let url = url.standardizedFileURL
         guard let name = Package.name(of: url, kind: .vm) else { throw VMError("\(url.path) is not a VM package") }
         var c = try Self.readConfig(url)
+        try InstanceStore.checkRunsHere(c)
         guard c.name == name else { throw VMError("The package is named \(name), the VM inside \(c.name) – rename it back first") }
         if externalVM(at: url) != nil { throw VMError("\(name) runs from there already") }
         guard !store.exists(name) else {

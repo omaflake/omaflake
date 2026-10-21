@@ -125,7 +125,8 @@ public struct MacImageBuilder: Sendable {
         // 7. Store as image: without the runner's runtime files, read-only, current/<recipe>
         try? Disposal.delete([socket, pidFile])
         let recipeSource = RecipeLibrary(paths: paths).available(Settings.load(paths)).first { $0.id == r.recipe }?.source
-        try ImageStore.writeInfo(ImageStore.Info(recipe: r.recipe, recipeSource: recipeSource, kind: .macos, source: r.flake,
+        try ImageStore.writeInfo(ImageStore.Info(recipe: r.recipe, recipeSource: recipeSource, kind: .macos,
+                                                 system: Platform.hostSystem(for: .macos) ?? "", source: r.flake,
                                                  revision: images.recipeRevision(r.recipe, flake: r.flake), storePath: system), to: work)
         try FileManager.default.moveItem(at: work, to: image)
         try Shell.check("/bin/chmod", ["-R", "a-w", image.path])

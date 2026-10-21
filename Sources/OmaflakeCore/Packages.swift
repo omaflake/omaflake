@@ -27,8 +27,10 @@ public enum Package {
     /// What a package says about itself (`manifest.json`): written on export, informational for the user and for
     /// a newer omaflake (format version). The content is self-describing too (instance.json, image.json, recipe.toml).
     public struct Manifest: Codable, Sendable, Equatable {
-        public static let currentFormat = 1
-        public var format: Int
+        /// manifest.json, schema `manifest` (plan B114). 0 → 1: `format` (always 1, plan B108) gave way to `$schema`
+        public static let fileFormat = FileFormat("manifest", file: "manifest.json", steps: [
+            { o in o.removeValue(forKey: "format") },
+        ])
         public var kind: Kind
         public var name: String
         public var exported: Date
@@ -42,7 +44,6 @@ public enum Package {
 
         public init(kind: Kind, name: String, guestKind: GuestKind? = nil, recipe: String? = nil, image: String? = nil,
                     containsImage: Bool? = nil) {
-            format = Self.currentFormat
             self.kind = kind
             self.name = name
             exported = Date()
@@ -56,14 +57,15 @@ public enum Package {
         public static func read(_ package: URL) -> Manifest? {
             let d = JSONDecoder()
             d.dateDecodingStrategy = .iso8601
-            return (try? Data(contentsOf: package.appendingPathComponent("manifest.json"))).flatMap { try? d.decode(Manifest.self, from: $0) }
+            return (try? Data(contentsOf: package.appendingPathComponent("manifest.json")))
+                .flatMap { try? fileFormat.decode(Manifest.self, from: $0, decoder: d).value }
         }
 
         public func write(_ package: URL) throws {
             let e = JSONEncoder()
             e.dateEncodingStrategy = .iso8601
             e.outputFormatting = [.prettyPrinted, .sortedKeys]
-            try e.encode(self).write(to: package.appendingPathComponent("manifest.json"), options: .atomic)
+            try Self.fileFormat.encode(self, encoder: e).write(to: package.appendingPathComponent("manifest.json"), options: .atomic)
         }
     }
 

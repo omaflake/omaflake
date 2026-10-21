@@ -53,6 +53,7 @@ struct RecipesList: ParsableCommand {
     static let configuration = CommandConfiguration(commandName: "list",
         abstract: "The recipes omaflake can build (installed and in local folders) and the state of their images.")
     @Flag(help: "Also lab recipes (development; shown by default in developer mode)") var all = false
+    @Flag(help: "Also recipes for other architectures (they cannot be built here)") var allSystems = false
     @Flag(help: "With each recipe's description") var long = false
     @Flag(help: "Evaluate each recipe and mark images it has outgrown (a few seconds per recipe)") var check = false
 
@@ -60,18 +61,21 @@ struct RecipesList: ParsableCommand {
         let env = Env()
         let showLab = all || (env.settings.developerMode ?? false)
         let flake = try env.settings.flakePath()
-        let defaults = try env.images.recipeDefaults(flake: flake).filter { showLab || !$0.value.isLab }
-        let outdated = check ? env.images.outdated(defaults, flake: flake) : []
+        let all = try env.images.recipeDefaults(flake: flake).filter { showLab || !$0.value.isLab }
+        let defaults = all.filter { allSystems || $0.value.runsHere }
+        let outdated = check ? env.images.outdated(defaults.filter { $0.value.runsHere }, flake: flake) : []
         let distinctions = RecipeLibrary(paths: env.paths).distinctions(env.settings)
         let lengths = OmaflakeID.Lengths.current(env.paths)
-        print(pad("RECIPE", 13) + pad("AUTHOR", 10) + pad("KIND", 7) + pad("CPU", 4) + pad("RAM", 6) + pad("DISK", 6) + pad("NETWORK", 9) + pad("SHARE", 6) + pad("EPHEMERAL", 10) + "IMAGE")
+        print(pad("RECIPE", 13) + pad("AUTHOR", 10) + pad("KIND", 7) + pad("ARCH", 16) + pad("CPU", 4) + pad("RAM", 6) + pad("DISK", 6) + pad("NETWORK", 9) + pad("SHARE", 6) + pad("EPHEMERAL", 10) + "IMAGE")
         for (id, d) in defaults.sorted(by: { ($0.value.kind.rawValue, $0.key) < ($1.value.kind.rawValue, $1.key) }) {
             let name = RecipeID.displayName(id, d)
             let arg = shortestArgument(id, in: defaults)
-            let image = env.images.currentName(recipe: id).map { outdated.contains(id) ? "\($0)  ← recipe changed, rebuild: omaf build \(arg)" : $0 }
+            let image = !d.runsHere ? "– (not for this computer)"
+                : env.images.currentName(recipe: id).map { outdated.contains(id) ? "\($0)  ← recipe changed, rebuild: omaf build \(arg)" : $0 }
                 ?? "– (omaf build \(arg))"
             let label = (d.isLab ? name + " ⚗" : name) + (distinctions[id].map { " (\($0))" } ?? "")
-            print(pad(label, 13) + pad(d.author ?? "–", 10) + pad(d.kind.rawValue, 7) + pad("\(d.cpus)", 4) + pad("\(d.memoryGB)G", 6) + pad("\(d.diskGB)G", 6)
+            let arch = d.systems.map(Platform.architecture).joined(separator: ",")
+            print(pad(label, 13) + pad(d.author ?? "–", 10) + pad(d.kind.rawValue, 7) + pad(arch, 16) + pad("\(d.cpus)", 4) + pad("\(d.memoryGB)G", 6) + pad("\(d.diskGB)G", 6)
                   + pad(d.network.rawValue, 9) + pad(d.share ? "yes" : "no", 6) + pad(d.ephemeral ? "yes" : "no", 10) + image)
             if long {
                 print("    \(OmaflakeID.recipe(id, words: lengths.recipe))")
@@ -79,7 +83,14 @@ struct RecipesList: ParsableCommand {
                 if let origin = origins[id] { print("    from \(origin)") }
             }
         }
-        if defaults.isEmpty {
+        for (id, version) in RecipeLibrary(paths: env.paths).unreadable(env.settings) {
+            let found = version == 0 ? "no recipe $schema" : "recipe version \(version)"
+            print("\(RecipeID.qualified(id)): recipe.toml has \(found), this omaflake reads version \(RecipeLibrary.recipeVersion) – update it from its source")
+        }
+        if defaults.count < all.count {
+            print("\(all.count - defaults.count) more for other architectures: omaf recipes --all-systems")
+        }
+        if all.isEmpty {
             print("No recipes yet – install some: omaf recipes available, then omaf recipes install <author>/<kind>/<name>")
         }
     }
@@ -111,6 +122,9 @@ struct Build: ParsableCommand {
         let defaults = try env.images.recipeDefaults(flake: flake)
         let recipe = try RecipeID.resolve(self.recipe, in: defaults, choose: chooseRecipe(env))
         let d = defaults[recipe]!
+        guard d.runsHere else {
+            throw VMError("\(RecipeID.qualified(recipe)) is for \(d.systems.joined(separator: ", ")) – not for this computer")
+        }
         // Routine lines of the disk image tool are left out (BuildLog.isNoise, plan B83); --verbose shows everything
         let verbose = self.verbose
         let stderr: @Sendable (String) -> Void = { line in
@@ -207,6 +221,7 @@ struct ImagesList: ParsableCommand {
             print("\(image.name)\(current)")
             print("    ID:        \(OmaflakeID.image(image, words: lengths.image))")
             print("    Recipe:    \(RecipeID.qualified(image.recipe))   revision \(image.info.revision), \(fmt.string(from: image.info.created))")
+            print("    System:    \(image.info.system)")
             print("    Instances: \(used)")
         }
     }

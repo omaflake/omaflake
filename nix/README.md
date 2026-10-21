@@ -25,7 +25,7 @@ or nix-darwin module); its fields and rules are in omaflake/recipes' CONTRIBUTIN
 cd nix
 R=../../recipes/recipes                      # a checkout of omaflake/recipes, or any folder of recipe folders
 nix eval --json "path:$PWD#lib.recipeDefaults" --override-input omaflake-recipes "path:$R"
-nix build "path:$PWD#images.omaflake.nixos.minimal" --override-input omaflake-recipes "path:$R"
+nix build "path:$PWD#images.aarch64-linux.\"omaflake.nixos.minimal\"" --override-input omaflake-recipes "path:$R"
 nix flake check "path:$PWD"                  # without recipes
 ```
 
@@ -57,7 +57,7 @@ the folder as a `path:` flake when it has no `.git` of its own – this folder i
 
 | | |
 |---|---|
-| `flake.nix` | outputs `images.<id>`, `lib.recipeDefaults`, `nixosConfigurations.vm-<id>`, `darwinConfigurations.{linux-builder,linux-builder-bootstrap,<id>}` |
+| `flake.nix` | outputs `images.<system>.<id>`, `lib.recipeDefaults`, `nixosConfigurations.vm-<system>-<id>`, `darwinConfigurations.{linux-builder,linux-builder-bootstrap,<id>}` |
 | `guest/`, `no-recipes/` | the two inputs' defaults (above) |
 | `modules/vm-guest.nix` | guest hardware for omaflake: UEFI, virtio, labels, 9p share, the omaflake agent (also root output `nixosModules.vm-guest`) |
 | `modules/darwin-guest.nix` | macOS guests: primary user, language/region/keyboard, key-only SSH, shutdown without password, widgets/sleep/updates off, the clipboard helper |

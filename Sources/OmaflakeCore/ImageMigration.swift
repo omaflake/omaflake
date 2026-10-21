@@ -27,7 +27,7 @@ extension ImageStore {
                     try fm.moveItem(at: entry, to: parked)
                     try fm.createDirectory(at: entry, withIntermediateDirectories: true)
                     try Shell.check("nix", ["build", dest, "--out-link", entry.appendingPathComponent("result").path])
-                    try Self.writeInfo(Info(recipe: Self.legacyRecipeID(legacy, kind: .nixos), kind: .nixos, source: "",
+                    try Self.writeInfo(Info(recipe: Self.legacyRecipeID(legacy, kind: .nixos), kind: .nixos, system: "aarch64-linux", source: "",
                                             revision: revision, storePath: dest, created: created), to: entry)
                     try? Disposal.delete([parked])   // only the old symlink; the store path has its new GC root
                     notes.append("image \(name): folder with image.json")
@@ -40,7 +40,7 @@ extension ImageStore {
                     notes.append("image \(name): not migrated (\(error))")
                 }
             } else if fm.fileExists(atPath: MacVMBundle(entry).config.path) {
-                try? Self.writeInfo(Info(recipe: Self.legacyRecipeID(legacy, kind: .macos), kind: .macos, source: "",
+                try? Self.writeInfo(Info(recipe: Self.legacyRecipeID(legacy, kind: .macos), kind: .macos, system: "aarch64-darwin", source: "",
                                          revision: revision, storePath: nil, created: created), to: entry)
                 notes.append("image \(name): image.json")
             }

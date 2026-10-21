@@ -37,6 +37,9 @@ final class AppModel {
         /// Author when it is not omaflake's preset (shown next to the name)
         var author: String?
         var kind: GuestKind
+        /// What it can be built for, and whether this Mac is one of them (plan B114)
+        var systems: [String] = []
+        var runsHere = true
         /// Development recipe (only in developer mode), and what the recipe is for
         var lab = false
         var description: String?
@@ -59,7 +62,7 @@ final class AppModel {
             let versions = recipeVersions[line] ?? []
             guard let name = versions.first(where: { visible[$0.id] != nil })?.id ?? ids.sorted().first, let d = visible[name] else { return nil }
             return ImageRow(recipe: name, name: RecipeID.displayName(name, d), author: d.author == "omaflake" ? nil : d.author,
-                     kind: d.kind, lab: d.isLab, description: d.description(in: Self.uiLanguage), image: currentImages[name],
+                     kind: d.kind, systems: d.systems, runsHere: d.runsHere, lab: d.isLab, description: d.description(in: Self.uiLanguage), image: currentImages[name],
                      instances: rows.filter { self.line(of: $0.config.recipe) == line }.map(\.id),
                      instancesOnCurrent: rows.filter { $0.config.image == currentImages[name] }.map(\.id),
                      distinction: recipeDistinctions[name], versions: versions, line: line)
@@ -246,7 +249,9 @@ final class AppModel {
         var kind: GuestKind?
         var tag: String?
         var recipe: String?
-        var isActive: Bool { status != nil || kind != nil || tag != nil || recipe != nil }
+        /// Recipes: also those for other architectures (plan B114)
+        var otherSystems = false
+        var isActive: Bool { status != nil || kind != nil || tag != nil || recipe != nil || otherSystems }
     }
     var filters: [HomeTab: ListFilter] = [:]
 
@@ -486,7 +491,8 @@ final class AppModel {
                 let library = RecipeLibrary(paths: paths)
                 let origins = Dictionary(library.available(settings).map { ($0.id, $0.source) }, uniquingKeysWith: { a, _ in a })
                 return (try ImageStore(paths: paths).recipeDefaults(flake: flake), gl, origins, library.installed(),
-                        library.distinctions(settings), library.versions(settings), OmaflakeID.Lengths.current(paths))
+                        library.distinctions(settings), library.versions(settings), OmaflakeID.Lengths.current(paths),
+                        library.unreadable(settings))
             }.value
             recipes = result.0
             qemuHasGL = result.1
@@ -495,6 +501,7 @@ final class AppModel {
             recipeDistinctions = result.4
             recipeVersions = result.5
             idLengths = result.6
+            unreadableRecipes = result.7
         } catch {
             message = "\(error)"
         }
@@ -506,6 +513,8 @@ final class AppModel {
     var sources: [RecipeSource] { Settings.load(paths).recipeSources }
     /// Where each available recipe comes from: RecipeSource.id
     private(set) var recipeOrigins: [String: String] = [:]
+    /// Recipes of another recipe.toml version – not built until they are updated (plan B114)
+    private(set) var unreadableRecipes: [(id: String, version: Int)] = []
     /// What tells recipes of the same author, kind and name apart (plan B110)
     private(set) var recipeDistinctions: [String: String] = [:]
     /// Every line's versions (plan B111)
@@ -583,7 +592,7 @@ final class AppModel {
 
     /// The official recipes (by omaflake from omaflake/recipes, no lab ones) – suggested at the first start
     var suggestedRecipes: [(recipe: RecipeCatalog.Recipe, source: RecipeSource)] {
-        offeredRecipes.filter { $0.source.isOfficial && $0.recipe.author == "omaflake" && !($0.recipe.lab ?? false) }
+        offeredRecipes.filter { $0.source.isOfficial && $0.recipe.author == "omaflake" && !($0.recipe.lab ?? false) && $0.recipe.runsHere }
     }
 
     func installSuggested() {
@@ -1152,7 +1161,8 @@ final class AppModel {
     /// Queues a build of a recipe's image. macOS recipes need the guest user's password once (sudo in the build VM;
     /// kept in memory only until the build starts). Starts at once unless a build of the same guest kind runs.
     func build(_ recipe: String, password: String? = nil) {
-        guard activeJob(for: recipe) == nil, let kind = recipes[recipe]?.kind else { return }
+        guard activeJob(for: recipe) == nil, let d = recipes[recipe], d.runsHere else { return }
+        let kind = d.kind
         let job = BuildJob(recipe: recipe, kind: kind, password: password, logs: paths.logs)
         builds.removeAll { $0.recipe == recipe && !$0.isActive }   // the recipe's previous log goes
         builds.append(job)

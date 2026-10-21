@@ -103,7 +103,8 @@ the settings file always stays at `~/.omaflake/config.json` and records the data
   bases/mac-base-<os-build>/       macOS: base (automatic, `omaf macos install`), same layout, read-only
   ipsw/<os-build>.ipsw             downloaded restore images
   instances/<name>.omaflake-vm/    one package per VM (§11.10) – what makes up the VM, nothing that only lives while it runs
-    instance.json                  recipe, kind, image, CPU/RAM, network, share, ephemeral, user, SSH port (NixOS)
+                                   (every JSON file omaflake writes names its JSON Schema in `$schema`, §5.1; older ones are migrated when read)
+    instance.json                  recipe, kind, system, image, CPU/RAM, network, share, ephemeral, user, SSH port (NixOS)
     disk.qcow2, efivars.fd         NixOS only (overlay – its backing file a path relative to the package –, UEFI variables)
     vm/                            macOS only: clone of the image folder
     known_hosts                    the guest's SSH host key
@@ -130,6 +131,27 @@ macOS VM folder (own format, modeled on Apple's sample code):
   disk.img           system disk, RAW, sparse (VZDiskImageStorageDeviceAttachment supports RAW only, plan BM9)
 ```
 
+### 5.1 File versions (plan B114)
+
+Every JSON file omaflake writes starts with `"$schema": "https://omaflake.dev/schema/<type>/v<n>.json"` – what the file
+is and its version, one count per type. The JSON Schemas are in `docs/schema/` and published on omaflake.dev (GitHub
+Pages from `docs/`); a published version is never removed. omaflake brings an older file up to date when it reads it
+(step by step, v<n> → v<n+1>, and writes it back) and refuses a newer one or another type. A file without `$schema` is
+version 0 (before B114).
+
+| Type | File |
+|---|---|
+| `image` | `image.json` in an image package |
+| `instance` | `instance.json` in a VM package |
+| `settings` | `~/.omaflake/config.json` |
+| `installed` | `<data>/recipes/.installed.json` |
+| `macos-vm` | `config.json` of a macOS VM folder (base, image, VM) |
+| `manifest` | `manifest.json` of an exported package |
+| `catalog` | a source's `catalog.json` (from v2; not migrated – it comes from the source) |
+| `recipe` | `recipe.toml` as `"$schema" = "…/recipe/v1.json"` (TOML; editors with Taplo can use it) |
+
+A recipe of another version is left out of builds and named with a hint; it needs an update from its source.
+
 ## 6. Components
 
 ### 6.1 Image flake and recipes (Nix)
@@ -142,7 +164,7 @@ The image flake `nix/` (this repo, shipped in the app – nix/README.md):
   `home/` – desktop and styling of every NixOS image
 - **macOS:** `modules/darwin-guest.nix` (guest user as `system.primaryUser`, Nix, SSH, widgets off)
 - inputs `omaflake-guest` (who you are) and `omaflake-recipes` (the recipes of the sources, staged by omaflake);
-  outputs `images.<id>`, `nixosConfigurations.vm-<id>`, `darwinConfigurations.<id>`, `lib.recipeDefaults`
+  outputs `images.<system>.<id>`, `nixosConfigurations.vm-<system>-<id>`, `darwinConfigurations.<id>`, `lib.recipeDefaults`
 
 The recipes (omaflake/recipes and other sources, §11.3): `default.nix` per recipe on top of these modules (apps via
 packages or, for macOS, `homebrew.casks`; Dock via `system.defaults.dock.persistent-apps`, settings via
@@ -158,7 +180,7 @@ External tools via `Process`: `nix`, `qemu-img`, `qemu-system-aarch64`, `ssh`. N
 |---|---|
 | `omaf recipes` | recipes (their `recipe.toml`, with `kind`) + image status |
 | `omaf macos install [--ipsw <file>]` | base from Apple's IPSW (default: latest supported), ready to build images from |
-| `omaf build <recipe>` | NixOS: `nix build .#images.<recipe>`, the qcow2 copied into the image package, symlink. macOS: image pipeline §6.5 |
+| `omaf build <recipe>` | NixOS: `nix build .#images.<system>.<recipe>`, the qcow2 copied into the image package, symlink. macOS: image pipeline §6.5 |
 | `omaf export vm\|image\|recipe …` / `omaf import <package>` / `omaf external add <package>` | packages to and from an external disk, a NAS or a folder; a VM run from where it is (§11.10) |
 | `omaf new <name> --recipe <f> [--ephemeral] [--user <u>]` | instance folder + overlay (NixOS) or APFS clone with new machine identifier (macOS) |
 | `omaf start <name>` | start backend (window or headless); state can be reconstructed from files |
@@ -318,12 +340,14 @@ for NixOS and macOS guests. Order: first finish the core feature set (M11), then
 ### 11.1 Recipe interface (DECIDED 2026-10-18, plan B105/B107)
 
 A recipe is not a flake but a module with its metadata: a folder `<author>/<kind>/<name>/` with `recipe.toml` and
-`default.nix` (format: omaflake/recipes, CONTRIBUTING.md; `catalog.json` schema 1 lists a source's recipes). omaflake
+`default.nix` (format: omaflake/recipes, CONTRIBUTING.md; `recipe.toml` (`"$schema"` recipe/v1, §5.1) names the architectures it
+is built for in `systems`, a `<system>.nix` next to `default.nix` is its variant for one of them; `catalog.json` schema 2 lists a
+source's recipes). omaflake
 builds them with its own **image flake** (`nix/`, shipped in the app), which takes the recipes as its input
 `omaflake-recipes` and gives
 
 ```nix
-images."<author>.<kind>.<name>@<words>"                # kind nixos: the UEFI qcow2
+images.<system>."<author>.<kind>.<name>@<words>"       # kind nixos: the UEFI qcow2 (aarch64-linux, x86_64-linux)
 darwinConfigurations."<author>.<kind>.<name>@<words>"  # kind macos: activated on a clone of the base
 lib.recipeDefaults."<author>.<kind>.<name>@<words>"    # each recipe.toml plus author, kind, name
 ```

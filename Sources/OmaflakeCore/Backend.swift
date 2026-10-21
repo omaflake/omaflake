@@ -73,7 +73,8 @@ public struct QEMUBackend: VMBackend {
     }
 
     public func start(_ c: InstanceConfig, options: StartOptions) throws -> pid_t {
-        try runtime.start(c, display: options.display, gl: options.gl)
+        try InstanceStore.checkRunsHere(c)
+        return try runtime.start(c, display: options.display, gl: options.gl)
     }
 
     public func stop(_ c: InstanceConfig, timeout: TimeInterval) throws -> StopResult {
@@ -85,6 +86,7 @@ public struct QEMUBackend: VMBackend {
     public func reset(_ c: InstanceConfig) throws { try store.reset(c.name) }
 
     public func upgrade(_ c: InstanceConfig, to image: ImageStore.Image) throws {
+        try InstanceStore.checkRunsHere(image)
         try store.upgrade(c.name, to: image)
     }
 

@@ -16,12 +16,23 @@ public struct ImageStore: Sendable {
 
     /// Contents of `image.json`
     public struct Info: Codable, Sendable, Equatable {
+        /// image.json, schema `image` (plan B114). 0 → 1: "flavor" became "recipe" (plan B92), `system` added – every
+        /// image before it was built on a Mac with Apple silicon
+        public static let fileFormat = FileFormat("image", file: "image.json", steps: [
+            { o in
+                FileFormat.renameKey("flavor", to: "recipe", in: &o)
+                o["system"] = (o["kind"] as? String) == GuestKind.macos.rawValue ? "aarch64-darwin" : "aarch64-linux"
+            },
+        ])
+
         /// Recipe ID "<author>.<kind>.<name>@<hash>" (plan B110; older images: without the hash)
         public var recipe: String
         /// The recipe source it was built from (`RecipeSource.id`) – with the recipe's base its line (plan B110)
         public var recipeSource: String?
         public var author: String
         public var kind: GuestKind
+        /// What it was built for (`Platform`): "aarch64-linux", "x86_64-linux", "aarch64-darwin"
+        public var system: String
         public var name: String
         /// Flake the image was built from (folder or URL)
         public var source: String
@@ -36,13 +47,14 @@ public struct ImageStore: Sendable {
         /// The recipe's line: images of one line replace each other (current, outdated, upgrade, retention)
         public var line: String { RecipeID.lineKey(base: recipe, source: recipeSource ?? "") }
 
-        public init(recipe: String, recipeSource: String? = nil, kind: GuestKind, source: String, revision: String,
-                    storePath: String?, created: Date = Date()) {
+        public init(recipe: String, recipeSource: String? = nil, kind: GuestKind, system: String, source: String,
+                    revision: String, storePath: String?, created: Date = Date()) {
             let p = RecipeID.parts(recipe)
             self.recipe = recipe
             self.recipeSource = recipeSource
             self.author = p?.author ?? "local"
             self.kind = kind
+            self.system = system
             self.name = p?.name ?? recipe
             self.source = source
             self.revision = revision
@@ -69,10 +81,14 @@ public struct ImageStore: Sendable {
         return e
     }
 
+    /// image.json, brought up to date (and written back) if it is older; nil if there is none or it cannot be read
     public static func readInfo(_ dir: URL) -> Info? {
         let d = JSONDecoder()
         d.dateDecodingStrategy = .iso8601
-        return (try? Data(contentsOf: infoFile(dir))).flatMap { try? d.decode(Info.self, from: LegacyJSON.recipeKey($0)) }
+        guard let data = try? Data(contentsOf: infoFile(dir)),
+              let read = try? Info.fileFormat.decode(Info.self, from: data, decoder: d) else { return nil }
+        if read.migrated { try? writeInfo(read.value, to: dir) }
+        return read.value
     }
 
     /// Writes image.json; a read-only (macOS) folder is opened for it and closed again.
@@ -81,7 +97,7 @@ public struct ImageStore: Sendable {
         let readOnly = !fm.isWritableFile(atPath: dir.path)
         if readOnly { try fm.setAttributes([.posixPermissions: 0o755], ofItemAtPath: dir.path) }
         defer { if readOnly { try? fm.setAttributes([.posixPermissions: 0o555], ofItemAtPath: dir.path) } }
-        try encoder().encode(info).write(to: infoFile(dir), options: .atomic)
+        try Info.fileFormat.encode(info, encoder: encoder()).write(to: infoFile(dir), options: .atomic)
         if readOnly { try fm.setAttributes([.posixPermissions: 0o444], ofItemAtPath: infoFile(dir).path) }
     }
 
@@ -94,7 +110,7 @@ public struct ImageStore: Sendable {
     /// The store path a build of `recipe` would produce now – evaluation only, nothing is built. NixOS: the disk image,
     /// macOS: the darwin system; both are what image.json records as `storePath` (plan B82).
     public func expectedStorePath(recipe: String, kind: GuestKind, flake: String) throws -> String {
-        let attr = kind == .macos ? "darwinConfigurations.\"\(recipe)\".system" : "images.\"\(recipe)\""
+        let attr = kind == .macos ? "darwinConfigurations.\"\(recipe)\".system" : try Self.imageAttribute(recipe)
         return try Shell.check("nix", ["eval", "--raw", "\(Self.flakeRef(flake))#\(attr).outPath"] + guestArguments(flake: flake))
             .trimmingCharacters(in: .whitespacesAndNewlines)
     }
@@ -122,12 +138,19 @@ public struct ImageStore: Sendable {
         var value: Bool { lock.withLock { hit } }
     }
 
-    /// `nix build <flake>#images.<recipe>`, create the GC root, switch `current/<recipe>`.
+    /// The flake output of a NixOS recipe's image for this host: `images.<system>."<recipe>"` (plan B114)
+    static func imageAttribute(_ recipe: String) throws -> String {
+        guard let system = Platform.hostSystem(for: .nixos) else { throw VMError("NixOS guests do not run on this computer") }
+        return "images.\(system).\"\(recipe)\""
+    }
+
+    /// `nix build <flake>#images.<system>.<recipe>`, create the GC root, switch `current/<recipe>`.
     /// The build log goes line by line to `log`; `started` hands over the nix process for cancelling.
     public func build(recipe: String, flake: String, started: (Process) -> Void = { _ in },
                       log: @escaping @Sendable (String) -> Void) throws -> Image {
         // The Linux builder collects garbage when it runs low on space (min-free) – mid-build that has removed paths
         // the build still needed ("dependencies failed", "is not valid"); a second run then finds the space (plan B79)
+        let attribute = try Self.imageAttribute(recipe)
         let gcHit = GCWatch()
         var r = Shell.Result(status: -1, stdout: "", stderr: "")
         for run in 1...2 {
@@ -136,7 +159,7 @@ public struct ImageStore: Sendable {
                 log("The Linux builder cleaned up during the build – building again")
             }
             r = try KeepAwake.during("Building a NixOS image") {
-                try Shell.stream("nix", ["build", "\(Self.flakeRef(flake))#images.\"\(recipe)\"", "--no-link", "--print-out-paths", "-L"]
+                try Shell.stream("nix", ["build", "\(Self.flakeRef(flake))#\(attribute)", "--no-link", "--print-out-paths", "-L"]
                                         + guestArguments(flake: flake),
                                  started: started) { line in
                     if line.contains("running auto-GC") { gcHit.set() }
@@ -160,7 +183,8 @@ public struct ImageStore: Sendable {
         if Self.readInfo(dir) == nil {
             log("Copying the image out of the Nix store")
             try Self.copyDisk(fromStore: URL(fileURLWithPath: storePath), into: dir)
-            try Self.writeInfo(Info(recipe: recipe, recipeSource: recipeSource, kind: .nixos, source: flake, revision: rev,
+            try Self.writeInfo(Info(recipe: recipe, recipeSource: recipeSource, kind: .nixos,
+                                    system: Platform.hostSystem(for: .nixos) ?? "", source: flake, revision: rev,
                                     storePath: storePath), to: dir)
         }
         try setCurrent(imageName: name)

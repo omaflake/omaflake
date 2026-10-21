@@ -138,7 +138,7 @@ public enum SourceTokens {
 
 // MARK: Catalog
 
-/// catalog.json, schema 1 (omaflake/recipes, tools/catalog.py). Everything in it comes from the source – untrusted:
+/// catalog.json, version 2 (omaflake/recipes, tools/catalog.py). Everything in it comes from the source – untrusted:
 /// paths and names are checked before anything is written.
 public struct RecipeCatalog: Decodable, Sendable {
     public struct Source: Decodable, Sendable { public var name: String; public var description: String?; public var homepage: String? }
@@ -154,12 +154,17 @@ public struct RecipeCatalog: Decodable, Sendable {
         public var tags: [String]?
         public var license: String?
         public var lab: Bool?
+        /// What it can be built for (`Platform`, schema 2)
+        public var systems: [String]
         public var requires: [String]?
         public var homepage: String?
         public var version: String
         public var files: [File]
 
         public func description(in language: String?) -> String { language.flatMap { descriptions?[$0] } ?? description }
+
+        /// It can be built and run on this host
+        public var runsHere: Bool { Platform.hostSystem(for: kind).map(systems.contains) ?? false }
 
         /// The recipe's content hash from the catalog's file list – the same as `RecipeLibrary.contentHash` of its
         /// folder, so whether a recipe is here already is known before it is downloaded (plan B110)
@@ -183,20 +188,25 @@ public struct RecipeCatalog: Decodable, Sendable {
         }
     }
 
-    public static let schema = 1
-    public var schema: Int
+    /// The catalog's version this omaflake reads – `$schema` https://omaflake.dev/schema/catalog/v2.json (2: `systems`
+    /// per recipe, plan B114). A catalog comes from its source, so it is not migrated: an older one needs a newer
+    /// tools/catalog.py there
+    public static let version = 2
     public var source: Source
     public var recipes: [Recipe]
 
     public static func decode(_ data: Data) throws -> RecipeCatalog {
-        let catalog: RecipeCatalog
-        do { catalog = try JSONDecoder().decode(RecipeCatalog.self, from: data) } catch {
+        let object = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any]
+        guard let schema = object?["$schema"] as? String, let (type, found) = FileFormat.parse(schema), type == "catalog" else {
+            throw VMError(String(localized: "Not a recipe catalog of this omaflake (catalog.json without its $schema) – the source needs a newer tools/catalog.py"))
+        }
+        guard found == version else {
+            throw VMError(found > version ? String(localized: "The catalog has version \(found) – this omaflake reads \(version); update omaflake")
+                          : String(localized: "The catalog has version \(found) – this omaflake reads \(version); the source needs a newer tools/catalog.py"))
+        }
+        do { return try JSONDecoder().decode(RecipeCatalog.self, from: data) } catch {
             throw VMError(String(localized: "Not a recipe catalog (catalog.json): \(error.localizedDescription)"))
         }
-        guard catalog.schema == schema else {
-            throw VMError(String(localized: "The catalog has schema \(catalog.schema) – this omaflake reads \(schema); update omaflake"))
-        }
-        return catalog
     }
 }
 
@@ -341,6 +351,16 @@ public struct RecipeLibrary: Sendable {
 
     var manifestFile: URL { paths.recipes.appendingPathComponent(".installed.json") }
 
+    /// .installed.json, schema `installed`: `{"$schema": …, "recipes": {<id>: Installed}}` (plan B114). 0 → 1: the
+    /// map was the whole file
+    public static let fileFormat = FileFormat("installed", file: ".installed.json", steps: [
+        { o in o = ["recipes": o] },
+    ])
+
+    struct InstalledFile: Codable {
+        var recipes: [String: Installed]
+    }
+
     /// Downloaded recipes by ID
     public func installed() -> [String: Installed] {
         guard let data = try? Data(contentsOf: manifestFile) else { return [:] }
@@ -355,7 +375,9 @@ public struct RecipeLibrary: Sendable {
             }
             return date
         }
-        return (try? d.decode([String: Installed].self, from: data)) ?? [:]
+        guard let read = try? Self.fileFormat.decode(InstalledFile.self, from: data, decoder: d) else { return [:] }
+        if read.migrated { try? saveManifest(read.value.recipes) }
+        return read.value.recipes
     }
 
     func saveManifest(_ m: [String: Installed]) throws {
@@ -368,7 +390,8 @@ public struct RecipeLibrary: Sendable {
             try c.encode(f.string(from: date))
         }
         e.outputFormatting = [.prettyPrinted, .sortedKeys]
-        try e.encode(m).write(to: manifestFile, options: .atomic)
+        try Self.fileFormat.checkWritable(manifestFile)
+        try Self.fileFormat.encode(InstalledFile(recipes: m), encoder: e).write(to: manifestFile, options: .atomic)
     }
 
     /// Where a downloaded or imported recipe lives: `<data>/recipes/<id>/` (plan B110; one folder per ID, so versions
@@ -678,6 +701,32 @@ public struct RecipeLibrary: Sendable {
         return hasher.finalize().map { String(format: "%02x", $0) }.joined()
     }
 
+    /// recipe.toml's version this omaflake reads – `"$schema" = "https://omaflake.dev/schema/recipe/v1.json"`; the
+    /// image flake checks the same (plan B114)
+    public static let recipeVersion = 1
+
+    /// The version a recipe.toml's `"$schema"` names (0 without one or with another schema, written before B114)
+    static func version(of folder: URL) -> Int {
+        guard let toml = try? String(contentsOf: folder.appendingPathComponent("recipe.toml"), encoding: .utf8) else { return 0 }
+        for line in toml.split(separator: "\n") {
+            let parts = line.split(separator: "=", maxSplits: 1)
+            guard parts.count == 2, parts[0].trimmingCharacters(in: .whitespaces) == "\"$schema\"",
+                  let value = parts[1].trimmingCharacters(in: .whitespaces).split(separator: "\"").first.map(String.init),
+                  let (type, version) = FileFormat.parse(value), type == "recipe" else { continue }
+            return version
+        }
+        return 0
+    }
+
+    /// Available recipes of another recipe.toml version: left out of what the image flake sees (one of them would stop
+    /// every build), so they need an update from their source
+    public func unreadable(_ settings: Settings) -> [(id: String, version: Int)] {
+        available(settings).compactMap { e in
+            let v = Self.version(of: e.folder)
+            return v == Self.recipeVersion ? nil : (e.id, v)
+        }
+    }
+
     /// `requires = ["author/kind/name", …]` of a recipe.toml → recipe IDs
     static func requires(of folder: URL) -> [String] {
         guard let toml = try? String(contentsOf: folder.appendingPathComponent("recipe.toml"), encoding: .utf8),
@@ -801,7 +850,8 @@ public struct RecipeLibrary: Sendable {
     /// twice. Symbolic links and Finder files are left out.
     public func stage(_ settings: Settings) throws -> URL {
         let fm = FileManager.default
-        let available = available(settings)
+        // Only recipes of the version this omaflake reads (`unreadable` names the others)
+        let available = available(settings).filter { Self.version(of: $0.folder) == Self.recipeVersion }
         var files: [(rel: String, source: URL)] = []
         var mapping: [String: String] = [:]
         func place(_ entry: (id: String, folder: URL, source: String), tree: String, placed: inout Set<String>) {

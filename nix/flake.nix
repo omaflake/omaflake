@@ -3,7 +3,7 @@
   description = "omaflake – builds VM images from recipes (the recipes themselves come from recipe sources)";
 
   # Use this flake as a `path:` reference (omaflake does that automatically for this folder):
-  #   nix build path:$PWD#images.omaflake.nixos.minimal --override-input omaflake-recipes path:<recipes>
+  #   nix build 'path:$PWD#images.aarch64-linux."omaflake.nixos.minimal"' --override-input omaflake-recipes path:<recipes>
   # A `path:` flake sees every file in this folder, including the git-ignored local/ folder with
   # your personal settings. A plain `.#…` (git) reference would silently ignore local/.
 
@@ -60,20 +60,32 @@
       # Its ID names outputs, images and instances (plan B110: "<author>.<kind>.<name>@<content hash>" when staged).
       readToml = f: builtins.fromTOML (builtins.readFile f);
       kinds = [ "nixos" "macos" ];
+      # What a recipe of each kind can be built for (plan B114, Platform.swift); recipe.toml lists its own in `systems`
+      kindSystems = { nixos = [ "aarch64-linux" "x86_64-linux" ]; macos = [ "aarch64-darwin" ]; };
+      # recipe.toml's version (plan B114): the "$schema" this flake reads (docs/schema/recipe/)
+      recipeSchema = "https://omaflake.dev/schema/recipe/v1.json";
       validName = what: s: lib.assertMsg (builtins.match "[a-z0-9][a-z0-9-]*" s != null)
         "recipe ${what} \"${s}\" – use lowercase letters, digits and -";
       dirsIn = dir: if builtins.pathExists dir
         then builtins.attrNames (lib.filterAttrs (_: t: t == "directory") (builtins.readDir dir)) else [ ];
       # One recipe: its folder …/<author>/<kind>/<name>/ and the ID it is known by
       recipeEntry = id: author: kind: name: folder:
-        let d = readToml (folder + "/recipe.toml"); in
+        let
+          d = readToml (folder + "/recipe.toml");
+          where = "${author}/${kind}/${name}";
+          systems = d.systems or [ ];
+        in
         assert validName "author" author && validName "name" name;
         assert lib.assertMsg ((d.author or author) == author)
-          "${author}/${kind}/${name}: author = \"${d.author or ""}\" in recipe.toml, but the folder says ${author}";
+          "${where}: author = \"${d.author or ""}\" in recipe.toml, but the folder says ${author}";
+        assert lib.assertMsg ((d."$schema" or "") == recipeSchema)
+          "${where}: recipe.toml needs \"$schema\" = \"${recipeSchema}\" (it has ${d."$schema" or "none"})";
+        assert lib.assertMsg (builtins.isList systems && systems != [ ] && lib.all (s: builtins.elem s kindSystems.${kind}) systems)
+          "${where}: systems in recipe.toml must list some of ${lib.concatStringsSep ", " kindSystems.${kind}}";
         {
-          inherit id folder;
+          inherit id folder systems;
           defaults = { user = if kind == "macos" then settings.macUser else settings.user; }
-            // builtins.removeAttrs d [ "author" "kind" "name" ] // { inherit author kind name; };
+            // builtins.removeAttrs d [ "author" "kind" "name" "$schema" ] // { inherit author kind name; };
         };
       # Staged by omaflake (plan B110): recipes.json names each recipe – ID "<author>.<kind>.<name>@<content hash>" →
       # "<tree>/<author>/<kind>/<name>", every recipe in a tree of its own with the recipes it requires next to it.
@@ -95,11 +107,15 @@
       recipeDefaults = lib.listToAttrs (map (e: lib.nameValuePair e.id e.defaults) recipeEntries);
       recipeFolders = lib.listToAttrs (map (e: lib.nameValuePair e.id e.folder) recipeEntries);
       recipesOfKind = kind: builtins.attrNames (lib.filterAttrs (_: d: d.kind == kind) recipeDefaults);
-      recipes = recipesOfKind "nixos";
-      macRecipes = recipesOfKind "macos";
+      # The recipes of a kind that can be built for `system`
+      recipesFor = kind: system: builtins.filter (id: builtins.elem system recipeDefaults.${id}.systems) (recipesOfKind kind);
+      macRecipes = recipesFor "macos" "aarch64-darwin";
 
-      # What is inside a recipe: its folder's default.nix
-      recipeModule = id: recipeFolders.${id} + "/default.nix";
+      # What is inside a recipe: its folder's default.nix, and <system>.nix next to it when there is one – the
+      # recipe's variant for that architecture (plan B114)
+      recipeModules = id: system:
+        let variant = recipeFolders.${id} + "/${system}.nix"; in
+        [ (recipeFolders.${id} + "/default.nix") ] ++ lib.optional (builtins.pathExists variant) variant;
 
       homeManager = [
         home-manager.nixosModules.home-manager
@@ -112,32 +128,34 @@
         }
       ];
 
-      # A recipe VM = guest hardware (also the root flake's nixosModules.vm-guest) + base + desktop + the recipe + your local extras
-      mkVm = recipe: nixpkgs.lib.nixosSystem {
+      # A recipe VM for one system = guest hardware (also the root flake's nixosModules.vm-guest) + base + desktop +
+      # the recipe (and its variant for the system) + your local extras
+      mkVm = system: recipe: nixpkgs.lib.nixosSystem {
         specialArgs = { inherit settings; };
         modules = [
           ./modules/vm-guest.nix
           ./modules/base.nix
           ./modules/hyprland.nix
-          (recipeModule recipe)
-        ] ++ optionalLocal "nixos.nix" ++ homeManager;
+          { nixpkgs.hostPlatform = system; }
+        ] ++ recipeModules recipe system ++ optionalLocal "nixos.nix" ++ homeManager;
       };
 
-      vms = lib.genAttrs recipes mkVm;
+      # Per system the VMs of the recipes that can be built for it
+      vms = lib.genAttrs kindSystems.nixos (system: lib.genAttrs (recipesFor "nixos" system) (mkVm system));
 
       # UEFI qcow2 per recipe (nixpkgs variant "qemu-efi", labels nixos/ESP).
       # Size "auto" keeps the image small; the CLI applies disk_gb from recipe.toml to the overlay.
-      imageOf = f: vms.${f}.config.system.build.images.qemu-efi;
+      imageOf = vm: vm.config.system.build.images.qemu-efi;
     in
     {
-      nixosConfigurations = lib.mapAttrs' (f: vm: lib.nameValuePair "vm-${f}" vm) vms;
+      nixosConfigurations = lib.concatMapAttrs (system: lib.mapAttrs' (f: vm: lib.nameValuePair "vm-${system}-${f}" vm)) vms;
 
-      # What omaflake expects: images.<recipe> and lib.recipeDefaults
-      images = lib.genAttrs recipes imageOf;
+      # What omaflake expects: images.<system>.<recipe> and lib.recipeDefaults
+      images = lib.mapAttrs (_: lib.mapAttrs (_: imageOf)) vms;
       lib = { inherit recipeDefaults; };
 
-      # nix build path:$PWD#packages.aarch64-linux.<recipe>-image (same as images.<recipe>)
-      packages.aarch64-linux = lib.mapAttrs' (f: _: lib.nameValuePair "${f}-image" (imageOf f)) vms;
+      # nix build path:$PWD#packages.<system>.<recipe>-image (same as images.<system>.<recipe>)
+      packages = lib.mapAttrs (_: lib.mapAttrs' (f: vm: lib.nameValuePair "${f}-image" (imageOf vm))) vms;
 
       darwinConfigurations =
         # nix-darwin host with a Linux builder for the images (docs/linux-builder.md)
@@ -155,7 +173,7 @@
         # macOS guests: darwin-guest + the recipe, activated on a clone of the base (spec §6.5, M9)
         // lib.genAttrs macRecipes (f: nix-darwin.lib.darwinSystem {
           specialArgs = { inherit settings nix-homebrew; };
-          modules = [ ./modules/darwin-guest.nix (recipeModule f) ] ++ optionalLocal "darwin-guest.nix";
+          modules = [ ./modules/darwin-guest.nix ] ++ recipeModules f "aarch64-darwin" ++ optionalLocal "darwin-guest.nix";
         });
     };
 }

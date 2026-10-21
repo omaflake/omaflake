@@ -133,6 +133,7 @@ struct RecipesAvailable: AsyncParsableCommand {
     static let configuration = CommandConfiguration(commandName: "available",
         abstract: "What the remote sources offer (fetches their catalogs), and what is installed or has an update.")
     @Flag(help: "Also lab recipes") var all = false
+    @Flag(help: "Also recipes for other architectures") var allSystems = false
 
     func run() async throws {
         let env = Env()
@@ -146,11 +147,12 @@ struct RecipesAvailable: AsyncParsableCommand {
                 continue
             }
             print("\(catalog.source.name) – \(s.displayName)\(s.isOfficial ? " (official)" : "")")
-            for r in catalog.recipes where showLab || !(r.lab ?? false) {
+            for r in catalog.recipes where (showLab || !(r.lab ?? false)) && (allSystems || r.runsHere) {
                 // By ID (plan B110): the same content is here (from any source), or an older version of this source
                 let state = here.contains(RecipeID.make(base: r.id, contentHash: r.contentHash)) ? "installed"
                     : installed.contains(where: { RecipeID.base($0.key) == r.id && $0.value.source == s.id }) ? "update available" : ""
-                print("  \(pad("\(r.author)/\(r.kind.rawValue)/\(r.name)", 34))\(pad(state, 18))\(r.description)")
+                let shown = r.runsHere ? state : "for \(r.systems.map(Platform.architecture).joined(separator: ","))"
+                print("  \(pad("\(r.author)/\(r.kind.rawValue)/\(r.name)", 34))\(pad(shown, 18))\(r.description)")
             }
         }
     }

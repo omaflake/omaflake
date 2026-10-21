@@ -156,6 +156,9 @@ public struct InstancePaths: Sendable {
 
 /// Settings in ~/.omaflake/config.json (optional).
 public struct Settings: Codable, Sendable {
+    /// config.json, schema `settings` (plan B114); 0 → 1 changes nothing
+    public static let fileFormat = FileFormat("settings", file: "config.json", steps: [{ _ in }])
+
     /// The image flake – omaflake's Nix side that builds images from recipes (folder or flake URL, e.g. <checkout>/nix)
     public var flake: String?
     /// Recipe sources in their order (spec §11.3, plan B107); nil = omaflake/recipes on GitHub
@@ -190,9 +193,13 @@ public struct Settings: Codable, Sendable {
 
     public static func load(_ paths: Paths) -> Settings { load(file: paths.configFile) }
 
+    /// The settings, brought up to date (and written back) if older (plan B114); defaults if there are none or they
+    /// cannot be read – a file of a newer format is then left alone (`save` refuses it)
     public static func load(file: URL) -> Settings {
-        guard let data = try? Data(contentsOf: file) else { return Settings() }
-        return (try? JSONDecoder().decode(Settings.self, from: data)) ?? Settings()
+        guard let data = try? Data(contentsOf: file),
+              let read = try? fileFormat.decode(Settings.self, from: data) else { return Settings() }
+        if read.migrated { try? read.value.save(file: file) }
+        return read.value
     }
 
     public func save(_ paths: Paths) throws { try save(file: paths.configFile) }
@@ -218,10 +225,11 @@ public struct Settings: Codable, Sendable {
     }
 
     public func save(file: URL) throws {
+        try Self.fileFormat.checkWritable(file)
         try FileManager.default.createDirectory(at: file.deletingLastPathComponent(), withIntermediateDirectories: true)
         let enc = JSONEncoder()
         enc.outputFormatting = [.prettyPrinted, .sortedKeys]
-        try enc.encode(self).write(to: file, options: .atomic)
+        try Self.fileFormat.encode(self, encoder: enc).write(to: file, options: .atomic)
     }
 
     /// Flake path: VM_FLAKE > config.json

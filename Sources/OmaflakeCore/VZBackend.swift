@@ -48,13 +48,14 @@ public struct VZBackend: VMBackend {
         try store.validate(name: name)
         guard !store.exists(name) else { throw VMError("Instance \"\(name)\" already exists") }
         guard image.kind == .macos else { throw VMError("\(image.name) is not a macOS image") }
+        try InstanceStore.checkRunsHere(image)
         try Self.checkNetwork(settings.network)
         let ip = paths.instance(name)
         try FileManager.default.createDirectory(at: ip.dir, withIntermediateDirectories: true)
         try FileManager.default.createDirectory(at: ip.run, withIntermediateDirectories: true)
         // The SSH port of a macOS guest is 22 on its own NAT address; no port forwarding
         var config = InstanceConfig(name: name, recipe: image.recipe.isEmpty ? recipe : image.recipe, image: image.name,
-                                    imagePath: image.path.path, settings: settings, sshPort: 22)
+                                    imagePath: image.path.path, system: image.info.system, settings: settings, sshPort: 22)
         config.identity = OmaflakeID.randomWords()
         do {
             // Ephemeral instances get their clone at every start
@@ -76,6 +77,7 @@ public struct VZBackend: VMBackend {
     public func upgrade(_ c: InstanceConfig, to image: ImageStore.Image) throws {
         guard c.image != image.name else { throw VMError("\"\(c.name)\" already uses \(image.name)") }
         guard image.kind == .macos else { throw VMError("\(image.name) is not a macOS image") }
+        try InstanceStore.checkRunsHere(image)
         let ip = paths.instance(c.name)
         try Disposal.delete([ip.vm, ip.knownHosts])
         var config = c
@@ -117,6 +119,7 @@ public struct VZBackend: VMBackend {
     public func start(_ c: InstanceConfig, options: StartOptions) throws -> pid_t {
         let ip = paths.instance(c.name)
         guard pid(c) == nil else { throw VMError("\"\(c.name)\" is already running") }
+        try InstanceStore.checkRunsHere(c)
         try Self.checkNetwork(c.network)
         let running = store.list().filter { $0.guestKind == .macos && $0.name != c.name && pid($0) != nil }
         guard running.count < Self.maxRunning else {

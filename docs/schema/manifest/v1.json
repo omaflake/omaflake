@@ -1,0 +1,53 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://omaflake.dev/schema/manifest/v1.json",
+  "title": "omaflake package manifest",
+  "description": "manifest.json of an exported package – informational.",
+  "type": "object",
+  "properties": {
+    "$schema": {
+      "const": "https://omaflake.dev/schema/manifest/v1.json"
+    },
+    "kind": {
+      "enum": [
+        "omaflake-vm",
+        "omaflake-image",
+        "omaflake-recipe"
+      ]
+    },
+    "name": {
+      "type": "string"
+    },
+    "exported": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "omaflake": {
+      "type": "string",
+      "description": "omaflake's version that wrote it"
+    },
+    "guestKind": {
+      "enum": [
+        "nixos",
+        "macos"
+      ],
+      "description": "Guest kind"
+    },
+    "recipe": {
+      "type": "string"
+    },
+    "image": {
+      "type": "string"
+    },
+    "containsImage": {
+      "type": "boolean"
+    }
+  },
+  "required": [
+    "$schema",
+    "kind",
+    "name",
+    "exported"
+  ],
+  "additionalProperties": false
+}

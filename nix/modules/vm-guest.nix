@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
-# Hardware abstraction for QEMU/HVF guests (aarch64, UEFI, virtio)
+# Hardware abstraction for QEMU guests (UEFI, virtio; aarch64 with HVF on a Mac, the system set by the image flake)
 # Replaces a machine-specific hardware-configuration.nix for images.
 { config, lib, pkgs, ... }:
 

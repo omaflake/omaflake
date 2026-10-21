@@ -1,0 +1,129 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://omaflake.dev/schema/recipe/v1.json",
+  "title": "omaflake recipe",
+  "description": "recipe.toml of a recipe folder <author>/<kind>/<name>/ (TOML, checked as data).",
+  "type": "object",
+  "properties": {
+    "$schema": {
+      "const": "https://omaflake.dev/schema/recipe/v1.json"
+    },
+    "systems": {
+      "type": "array",
+      "items": {
+        "enum": [
+          "aarch64-linux",
+          "x86_64-linux",
+          "aarch64-darwin"
+        ],
+        "description": "Architecture as Nix names a system"
+      },
+      "minItems": 1,
+      "uniqueItems": true,
+      "description": "What it can be built for: aarch64-linux, x86_64-linux (nixos) or aarch64-darwin (macos)"
+    },
+    "author": {
+      "type": "string",
+      "description": "The folder's author"
+    },
+    "license": {
+      "type": "string",
+      "description": "SPDX identifier"
+    },
+    "description": {
+      "type": "string",
+      "description": "English"
+    },
+    "tags": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "minItems": 1
+    },
+    "homepage": {
+      "type": "string"
+    },
+    "requires": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "pattern": "^[a-z0-9][a-z0-9-]*/(nixos|macos)/[a-z0-9][a-z0-9-]*$"
+      }
+    },
+    "lab": {
+      "type": "boolean",
+      "description": "A development recipe"
+    },
+    "user": {
+      "type": "string",
+      "description": "Login user inside the guest"
+    },
+    "cpus": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "memory_gb": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "disk_gb": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "network": {
+      "enum": [
+        "shared",
+        "isolated",
+        "none"
+      ]
+    },
+    "share": {
+      "type": "boolean"
+    },
+    "ephemeral": {
+      "type": "boolean"
+    },
+    "display": {
+      "enum": [
+        "none",
+        "window",
+        "gpu"
+      ],
+      "description": "How a plain start shows the VM: headless, a window, a window with 3D"
+    },
+    "audio": {
+      "type": "boolean"
+    },
+    "microphone": {
+      "type": "boolean"
+    },
+    "clipboard": {
+      "type": "boolean"
+    },
+    "camera": {
+      "type": "boolean"
+    }
+  },
+  "required": [
+    "$schema",
+    "systems",
+    "author",
+    "license",
+    "description",
+    "tags",
+    "cpus",
+    "memory_gb",
+    "disk_gb",
+    "network",
+    "share",
+    "ephemeral"
+  ],
+  "additionalProperties": false,
+  "patternProperties": {
+    "^description_[a-z]{2,3}$": {
+      "type": "string",
+      "description": "The description in a language"
+    }
+  }
+}

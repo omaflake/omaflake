@@ -1,0 +1,63 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://omaflake.dev/schema/macos-vm/v1.json",
+  "title": "omaflake macOS VM folder",
+  "description": "config.json of a macOS VM folder (base, image, instance).",
+  "type": "object",
+  "properties": {
+    "$schema": {
+      "const": "https://omaflake.dev/schema/macos-vm/v1.json"
+    },
+    "cpus": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "memoryMB": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "diskGB": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "display": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "width",
+        "height",
+        "ppi"
+      ],
+      "properties": {
+        "width": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "height": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "ppi": {
+          "type": "integer",
+          "minimum": 1
+        }
+      }
+    },
+    "macAddress": {
+      "type": "string"
+    },
+    "osBuild": {
+      "type": "string",
+      "description": "Build of the installed IPSW"
+    }
+  },
+  "required": [
+    "$schema",
+    "cpus",
+    "memoryMB",
+    "diskGB",
+    "display",
+    "macAddress"
+  ],
+  "additionalProperties": false
+}

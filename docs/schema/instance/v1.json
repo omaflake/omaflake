@@ -1,0 +1,125 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://omaflake.dev/schema/instance/v1.json",
+  "title": "omaflake VM",
+  "description": "instance.json in a VM package (<name>.omaflake-vm): what makes up the VM.",
+  "type": "object",
+  "properties": {
+    "$schema": {
+      "const": "https://omaflake.dev/schema/instance/v1.json"
+    },
+    "name": {
+      "type": "string"
+    },
+    "recipe": {
+      "type": "string",
+      "description": "Recipe ID its image was built from"
+    },
+    "kind": {
+      "enum": [
+        "nixos",
+        "macos"
+      ],
+      "description": "Guest kind"
+    },
+    "system": {
+      "enum": [
+        "aarch64-linux",
+        "x86_64-linux",
+        "aarch64-darwin"
+      ],
+      "description": "Architecture as Nix names a system"
+    },
+    "image": {
+      "type": "string",
+      "description": "Name of its image"
+    },
+    "imagePath": {
+      "type": "string",
+      "description": "Where the image was when the VM was made (informational)"
+    },
+    "cpus": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "memoryGB": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "diskGB": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "network": {
+      "enum": [
+        "shared",
+        "isolated",
+        "none"
+      ]
+    },
+    "share": {
+      "type": "boolean"
+    },
+    "ephemeral": {
+      "type": "boolean"
+    },
+    "sshPort": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "created": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "user": {
+      "type": "string",
+      "description": "Login user inside the guest; missing = the user running omaflake"
+    },
+    "audio": {
+      "type": "boolean"
+    },
+    "microphone": {
+      "type": "boolean"
+    },
+    "clipboard": {
+      "type": "boolean"
+    },
+    "camera": {
+      "type": "boolean"
+    },
+    "display": {
+      "enum": [
+        "none",
+        "window",
+        "gpu"
+      ],
+      "description": "How a plain start shows the VM: headless, a window, a window with 3D"
+    },
+    "sharePath": {
+      "type": "string",
+      "description": "Share folder the user chose"
+    },
+    "identity": {
+      "type": "string",
+      "description": "The VM's identity as words"
+    }
+  },
+  "required": [
+    "$schema",
+    "name",
+    "recipe",
+    "kind",
+    "system",
+    "image",
+    "imagePath",
+    "cpus",
+    "memoryGB",
+    "diskGB",
+    "network",
+    "share",
+    "ephemeral",
+    "sshPort",
+    "created"
+  ],
+  "additionalProperties": false
+}

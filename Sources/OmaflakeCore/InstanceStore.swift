@@ -30,14 +30,19 @@ public struct InstanceStore: Sendable {
         FileManager.default.fileExists(atPath: paths.instance(name).config.path)
     }
 
+    /// instance.json, brought up to date (and written back) if it is older (plan B114)
     public func load(_ name: String) throws -> InstanceConfig {
         let file = paths.instance(name).config
         guard let data = try? Data(contentsOf: file) else { throw VMError("Instance \"\(name)\" does not exist") }
-        return try Self.decoder.decode(InstanceConfig.self, from: LegacyJSON.recipeKey(data))
+        let read = try InstanceConfig.fileFormat.decode(InstanceConfig.self, from: data, decoder: Self.decoder)
+        if read.migrated { try? save(read.value) }
+        return read.value
     }
 
     public func save(_ config: InstanceConfig) throws {
-        try Self.encoder.encode(config).write(to: paths.instance(config.name).config, options: .atomic)
+        let file = paths.instance(config.name).config
+        try InstanceConfig.fileFormat.checkWritable(file)
+        try InstanceConfig.fileFormat.encode(config, encoder: Self.encoder).write(to: file, options: .atomic)
     }
 
     /// The VMs: packages in the data folder and the external ones whose volume is there
@@ -105,12 +110,14 @@ public struct InstanceStore: Sendable {
                        settings: RecipeDefaults, sshPort: Int? = nil) throws -> InstanceConfig {
         try validate(name: name)
         guard !exists(name) else { throw VMError("Instance \"\(name)\" already exists") }
+        try Self.checkRunsHere(image)
         let ip = paths.instance(name)
         try FileManager.default.createDirectory(at: ip.dir, withIntermediateDirectories: true)
         try FileManager.default.createDirectory(at: ip.run, withIntermediateDirectories: true)
         // The recipe its image was built from (with its words, plan B110) and a new identity
         var config = InstanceConfig(name: name, recipe: image.recipe.isEmpty ? recipe : image.recipe, image: image.name,
-                                    imagePath: image.path.path, settings: settings, sshPort: sshPort ?? nextSSHPort())
+                                    imagePath: image.path.path, system: image.info.system, settings: settings,
+                                    sshPort: sshPort ?? nextSSHPort())
         config.identity = OmaflakeID.randomWords()
         try createDisks(config)
         try save(config)
@@ -182,6 +189,16 @@ public struct InstanceStore: Sendable {
         guard let entries = try? FileManager.default.contentsOfDirectory(atPath: dir.path),
               entries.allSatisfy({ shareMetadata.contains($0) }) else { return false }
         return (try? Disposal.delete([dir])) != nil
+    }
+
+    /// An image built for another architecture (plan B114) gives no VM here
+    static func checkRunsHere(_ image: ImageStore.Image) throws {
+        guard Platform.runsHere(image.info.system) else { throw Platform.notHere(image.name, system: image.info.system) }
+    }
+
+    /// A VM of another architecture does not start here
+    static func checkRunsHere(_ c: InstanceConfig) throws {
+        guard Platform.runsHere(c.system) else { throw Platform.notHere("\"\(c.name)\"", system: c.system) }
     }
 
     static let encoder: JSONEncoder = {

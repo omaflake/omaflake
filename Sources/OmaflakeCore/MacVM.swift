@@ -17,8 +17,11 @@ public struct MacVMConfig: Codable, Sendable, Equatable {
         }
     }
 
-    /// Format version of the folder
-    public var version: Int
+    /// The folder's config.json, schema `macos-vm` (plan B114). 0 → 1: `version` (always 1) gave way to `$schema`
+    public static let fileFormat = FileFormat("macos-vm", file: "config.json of a macOS VM", steps: [
+        { o in o.removeValue(forKey: "version") },
+    ])
+
     public var cpus: Int
     public var memoryMB: Int
     public var diskGB: Int
@@ -30,7 +33,6 @@ public struct MacVMConfig: Codable, Sendable, Equatable {
 
     public init(cpus: Int, memoryMB: Int, diskGB: Int, display: Display = Display(),
                 macAddress: String, osBuild: String? = nil) {
-        self.version = 1
         self.cpus = cpus
         self.memoryMB = memoryMB
         self.diskGB = diskGB
@@ -60,13 +62,17 @@ public struct MacVMBundle: Sendable {
         guard let data = try? Data(contentsOf: config) else {
             throw VMError("Not a macOS VM (config.json missing): \(dir.path)")
         }
-        return try JSONDecoder().decode(MacVMConfig.self, from: data)
+        let read = try MacVMConfig.fileFormat.decode(MacVMConfig.self, from: data)
+        // Bases and images are read-only: those are brought up to date at every read instead
+        if read.migrated, FileManager.default.isWritableFile(atPath: dir.path) { try? save(read.value) }
+        return read.value
     }
 
     public func save(_ c: MacVMConfig) throws {
+        try MacVMConfig.fileFormat.checkWritable(config)
         let enc = JSONEncoder()
         enc.outputFormatting = [.prettyPrinted, .sortedKeys]
-        try enc.encode(c).write(to: config, options: .atomic)
+        try MacVMConfig.fileFormat.encode(c, encoder: enc).write(to: config, options: .atomic)
     }
 
     /// The files that make up a VM (runtime files like sockets and logs are not part of it).
