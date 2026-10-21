@@ -13,7 +13,7 @@ Homebrew QEMU lacks `virtio-gpu-gl-pci` (plan B6). `build.sh` therefore builds:
 | Part | Version | Source | Patch origin |
 |---|---|---|---|
 | ANGLE | nixpkgs `angle` | built from source, BSD-3-Clause (package.nix, plan B55); `build.sh` still uses startergo's prebuilt bottle | – |
-| libepoxy | `1b6d7db` | github.com/anholt/libepoxy | EGL 1.5 patch (akihikodaki) from startergo/homebrew-libepoxy v1.0.5 |
+| libepoxy | `1b6d7db` | github.com/anholt/libepoxy | EGL 1.5 patch (akihikodaki) from startergo/homebrew-libepoxy v1.0.5, kept in `patches/startergo/` (the tap's tag was moved later) |
 | virglrenderer | 1.3.0 | gitlab.freedesktop.org | 21 patches from startergo/homebrew-virglrenderer v1.0.42 + `virgl-native-opengl.patch` (try-omarchy) |
 | QEMU | 11.1.2 | download.qemu.org | 6 patches from [try-omarchy](https://github.com/omacom/try-omarchy) (`patches/try-omarchy/`, MIT) |
 

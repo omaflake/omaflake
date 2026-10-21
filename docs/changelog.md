@@ -13,6 +13,12 @@ are collected under *Unreleased*. Releases: [GitHub](https://github.com/omaflake
 
 ## [Unreleased]
 
+### Fixed
+
+- **omaflake's QEMU builds again** (`nix build github:omaflake/omaflake#qemu`): the libepoxy EGL 1.5 patch is now part
+  of omaflake instead of a download from its Homebrew tap, whose release tag was moved – the hash check stopped every
+  fresh build. The patch itself is unchanged.
+
 ## [0.2.0] – 2026-10-22
 
 Alpha, unsigned. **Update from 0.1.0:** omaflake 0.1.0 cannot read the new official recipe catalog. Your images, VMs

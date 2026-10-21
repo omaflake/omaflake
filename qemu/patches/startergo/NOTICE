@@ -1,8 +1,9 @@
 virglrenderer-1.3.0-macos.patch is derived from the macOS patches of startergo's Homebrew tap
 https://github.com/startergo/homebrew-virglrenderer (tag v1.0.42). That repository has no LICENSE file; its README
 ("## License – MIT") and its formula (license "MIT") state the MIT License, under which these patches are used here.
-The libepoxy EGL 1.5 patch comes from https://github.com/startergo/homebrew-libepoxy (v1.0.5, also stated MIT) and
-originates from Akihiko Odaki's libepoxy work; libepoxy itself is MIT licensed.
+libepoxy-akihikodaki-egl15.patch is the libepoxy EGL 1.5 patch from https://github.com/startergo/homebrew-libepoxy
+(tag v1.0.5, also stated MIT), unchanged; it originates from Akihiko Odaki's libepoxy work; libepoxy itself is MIT
+licensed.
 
 MIT License
 

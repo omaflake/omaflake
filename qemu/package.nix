@@ -8,7 +8,6 @@
   lib,
   stdenv,
   fetchurl,
-  runCommand,
   buildPackages,
   qemu,
   virglrenderer,
@@ -21,16 +20,6 @@
 }:
 
 let
-  # startergo's libepoxy tap (sha256 as in qemu/build.sh), unpacked once
-  tap = name: url: sha256: runCommand name { } ''
-    mkdir -p $out
-    tar -xzf ${fetchurl { inherit url sha256; }} -C $out --strip-components=1
-  '';
-  homebrewEpoxy = tap "homebrew-libepoxy-1.0.5"
-    "https://github.com/startergo/homebrew-libepoxy/archive/refs/tags/v1.0.5.tar.gz"
-    "24a1d98c0c4900f385bbfe8fc70d725ba8c994c5fac1544aa4e464a083481d59";
-
-
   # libepoxy at the commit qemu/build.sh uses, with EGL 1.5 (akihikodaki), EGL from ANGLE
   epoxy = libepoxy.overrideAttrs (old: {
     version = "1.5.10-1b6d7db";
@@ -38,7 +27,8 @@ let
       url = "https://github.com/anholt/libepoxy/archive/1b6d7db184bb1a0d9af0e200e06a0331028eaaae.tar.gz";
       sha256 = "15f769a8f24c361c8de28d72625daf07d0107b683fa0a5118d0aa8b0c5fc9eab";
     };
-    patches = [ "${homebrewEpoxy}/patches/libepoxy-akihikodaki-egl15.patch" ];
+    # The EGL 1.5 patch from startergo's tap (v1.0.5), kept here: the tap's tag was moved later (plan B116)
+    patches = [ ./patches/startergo/libepoxy-akihikodaki-egl15.patch ];
     # epoxy opens ANGLE by bare name ("libEGL.dylib"), which dyld does not find outside Homebrew's prefix –
     # QEMU aborted with --gl es (plan B55): load ANGLE's libraries by their store paths
     postPatch = ''

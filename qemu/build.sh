@@ -35,7 +35,6 @@ qemu-$qemu_version.tar.xz	https://download.qemu.org/qemu-$qemu_version.tar.xz	73
 virglrenderer-$virgl_version.tar.gz	https://gitlab.freedesktop.org/virgl/virglrenderer/-/archive/$virgl_version/virglrenderer-$virgl_version.tar.gz	065bc56e89e6f631f96101cd62eba0748e48eb888b434edc86e89d05395e76f3
 homebrew-virglrenderer-1.0.42.tar.gz	https://codeload.github.com/startergo/homebrew-virglrenderer/tar.gz/refs/tags/v1.0.42	950273fbba46905b6112ee2bd0598c1da706c25319a7347058cbc52f04ba96dd
 libepoxy-${epoxy_commit:0:7}.tar.gz	https://github.com/anholt/libepoxy/archive/$epoxy_commit.tar.gz	15f769a8f24c361c8de28d72625daf07d0107b683fa0a5118d0aa8b0c5fc9eab
-homebrew-libepoxy-1.0.5.tar.gz	https://github.com/startergo/homebrew-libepoxy/archive/refs/tags/v1.0.5.tar.gz	24a1d98c0c4900f385bbfe8fc70d725ba8c994c5fac1544aa4e464a083481d59
 angle-$angle_version.arm64_sequoia.bottle.tar.gz	https://github.com/startergo/homebrew-angle/releases/download/v$angle_version/angle-$angle_version.arm64_sequoia.bottle.tar.gz	29fe2175b157a65f12879f9a12b5c8f94d0a76fafdf41ff009a2fdb4e9df525c
 EOF
 )
@@ -100,7 +99,6 @@ tar -xf "$downloads/qemu-$qemu_version.tar.xz"
 tar -xzf "$downloads/virglrenderer-$virgl_version.tar.gz"
 tar -xzf "$downloads/homebrew-virglrenderer-1.0.42.tar.gz"
 tar -xzf "$downloads/libepoxy-${epoxy_commit:0:7}.tar.gz"
-tar -xzf "$downloads/homebrew-libepoxy-1.0.5.tar.gz"
 tar -xzf "$downloads/angle-$angle_version.arm64_sequoia.bottle.tar.gz"
 
 # pyyaml for virglrenderer (gallium), in its own venv
@@ -121,7 +119,8 @@ sed -i '' "s|^prefix=.*|prefix=$prefix|" "$prefix"/lib/pkgconfig/{egl,glesv1_cm,
 # --- libepoxy ----------------------------------------------------------------
 log "Building libepoxy (${epoxy_commit:0:7})"
 epoxy=$work/libepoxy-$epoxy_commit
-patch -d "$epoxy" -p1 -f -s -i "$work/homebrew-libepoxy-1.0.5/patches/libepoxy-akihikodaki-egl15.patch"
+# The EGL 1.5 patch from startergo's tap (v1.0.5) lives in this repository: the tap's tag was moved later (plan B116)
+patch -d "$epoxy" -p1 -f -s -i "$here/patches/startergo/libepoxy-akihikodaki-egl15.patch"
 meson setup "$epoxy/build" "$epoxy" --prefix="$prefix" --libdir=lib --buildtype=release \
   -Dc_args="-I$prefix/include" -Degl=yes -Dx11=false -Dtests=false
 ninja -j "$jobs" -C "$epoxy/build" && meson install -C "$epoxy/build" --quiet
