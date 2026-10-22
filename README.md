@@ -121,7 +121,7 @@ Details: [docs/cli.md](docs/cli.md), [docs/macos-base.md](docs/macos-base.md).
 
 omaflake is free software: you can redistribute it and/or modify it under the terms of the **GNU Affero General
 Public License, version 3 or (at your option) any later version** (`AGPL-3.0-or-later`), see [LICENSE](LICENSE).
-Copyright © 2026 Falcon Lake Open Source Software gUG (haftungsbeschränkt) i.G. and the omaflake contributors – omaflake
+Copyright © 2026 falkOSS – Falcon Lake Open Source Software gUG (haftungsbeschränkt) i. G. and the omaflake contributors – omaflake
 is a project of [falkOSS](https://falkoss.org). The recipes in [omaflake/recipes](https://github.com/omaflake/recipes) are MIT
 licensed, so they can be copied and adapted freely. Third-party parts keep their licenses:
 the QEMU patches in `qemu/patches/` modify QEMU and are GPL-2.0-or-later like QEMU itself;

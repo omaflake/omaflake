@@ -9,7 +9,7 @@ Two marks:
 Regenerate everything from code (including `Sources/OmaflakeCore/BrandAssets.swift`): `python3 generate.py` (needs `rsvg-convert` from Homebrew `librsvg`
 and macOS `iconutil`). Edit `generate.py`, not the exported files.
 
-omaflake's name and brand belong to falkOSS (Falcon Lake Open Source Software gUG (haftungsbeschränkt) i.G.), the
+omaflake's name and brand belong to falkOSS – Falcon Lake Open Source Software gUG (haftungsbeschränkt) i. G., the
 publisher of omaflake. The look stays omaflake's own – falkOSS's design is not used here; project pages say "a falkOSS
 project" at most. The artwork may be used to refer to omaflake; not for other products or in a way that suggests
 endorsement.

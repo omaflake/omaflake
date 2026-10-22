@@ -762,8 +762,8 @@ paths as before.
   - **ANGLE:** from nixpkgs, built from source, BSD-3-Clause (2026-10-17, plan B55) – the prebuilt bottle is gone.
   - **startergo patches** (virglrenderer macOS patch, libepoxy EGL patch): no LICENSE file, but his README and formulae state MIT (checked 2026-10-17) – used under MIT with attribution (`qemu/patches/startergo/NOTICE`). Nice to have: ask him to add a LICENSE file.
   - try-omarchy (MIT): carry over its notices.
-- **Owner (DIRECTION 2026-10-19):** omaflake becomes a project of **falkOSS** (Falcon Lake Open Source Software gUG
-  (haftungsbeschränkt), a non-profit in formation, github.com/falkoss). The gUG signs the app as an Apple organization
+- **Owner (DIRECTION 2026-10-19):** omaflake becomes a project of **falkOSS** (falkOSS – Falcon Lake Open Source
+  Software gUG (haftungsbeschränkt) i. G., a non-profit, github.com/falkoss). The gUG signs the app as an Apple organization
   before the first public release, so the Team ID does not change after it (a later change means re-signing; users
   grant camera, microphone and the helper once more).
 - **Signing/notarization (OPEN):** Developer ID, entitlements `com.apple.security.hypervisor` (QEMU) and `com.apple.security.virtualization` (`omaf-runner`); distribution e.g. via Homebrew cask.

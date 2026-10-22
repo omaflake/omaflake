@@ -490,8 +490,8 @@ maintainer – clicks, passwords, decisions – or the signature:
   build `macos/lab` (guest password) and try clipboard and "omaflake Test" there; M5 acceptance (`dev` smooth by
   click); setup by click on a Mac without Nix (B54); optional: camera at 30 fps (B37/B49).
 - *Decided 2026-10-17:* minimum macOS 27 (Package.swift, Info.plist); startergo's patches under MIT (stated in his README, NOTICE added). Trademark search 2026-10-19: DPMA and TMview without hits for "omaflake".
-- *Decided 2026-10-19:* omaflake is a project of **falkOSS** (Falcon Lake Open Source Software gUG
-  (haftungsbeschränkt), in formation); the gUG's Apple Developer organization signs the releases; domains:
+- *Decided 2026-10-19:* omaflake is a project of **falkOSS** (falkOSS – Falcon Lake Open Source Software
+  gUG (haftungsbeschränkt) i. G.); the gUG's Apple Developer organization signs the releases; domains:
   **omaflake.app** (main), omaflake.org/.com/.dev forward to it. omaflake keeps its own name, logo and design – falkOSS
   appears only as the publisher (copyright, "a falkOSS project"). Wording stays VM / image (Vorlage) / recipe (Rezept) / flake, actions "start / create / build" –
   no baking terms. Direction for own icons (later, no hurry): play with snow, the logo being a flake – VM = snowman,

@@ -160,6 +160,6 @@
 	<string>https://omaflake.app/update.json</string>
 	<!-- omaflake is a project of falkOSS -->
 	<key>NSHumanReadableCopyright</key>
-	<string>© 2026 Falcon Lake Open Source Software gUG (haftungsbeschränkt) i.G. – a falkOSS project. AGPL-3.0-or-later.</string>
+	<string>© 2026 falkOSS – Falcon Lake Open Source Software gUG (haftungsbeschränkt) i. G. – a falkOSS project. AGPL-3.0-or-later.</string>
 </dict>
 </plist>

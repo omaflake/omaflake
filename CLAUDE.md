@@ -4,8 +4,8 @@
 
 omaflake: clean NixOS and macOS VMs on Apple silicon (menu bar app, CLI `omaf`, runner
 `omaf-runner`). Free software under **AGPL-3.0-or-later** (SPDX header in every own source file; the recipes in
-`omaflake/recipes` stay MIT), GitHub organization `omaflake`, repository `omaflake`. A project of falkOSS (Falcon Lake
-Open Source Software gUG, in formation).
+`omaflake/recipes` stay MIT), GitHub organization `omaflake`, repository `omaflake`. A project of
+falkOSS – Falcon Lake Open Source Software gUG (haftungsbeschränkt) i. G.
 Design and milestones: **docs/spec.md**; findings and checklists: **docs/plan.md** – read before
 any work and keep them up to date.
 
