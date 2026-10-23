@@ -376,7 +376,6 @@
 "%@ is no longer running." = "%@ läuft nicht mehr.";
 "%@ has ended" = "%@ wurde beendet";
 "Notifications" = "Mitteilungen";
-"Only while the menu window is closed: VM ready, image built or failed, VM ended. macOS asks once whether omaflake may send them." = "Nur bei geschlossenem Menüfenster: VM startklar, Vorlage fertig oder fehlgeschlagen, VM beendet. macOS fragt einmal, ob omaflake Mitteilungen senden darf.";
 "outdated" = "veraltet";
 "recipe %@" = "Rezept %@";
 "Hide details" = "Details ausblenden";
@@ -588,3 +587,12 @@
 "Not an omaflake package" = "Kein omaflake-Paket";
 "Other check" = "Weitere Prüfung";
 "Core" = "Kern";
+"Show omaflake in" = "omaflake zeigen in";
+"Menu Bar" = "Menüleiste";
+"Window" = "Fenster";
+"Both" = "beides";
+"Menu bar: a window at the omaflake icon, no Dock icon. Window: a regular window with a Dock icon. Both: the menu bar icon and the window." = "Menüleiste: ein Fenster am omaflake-Symbol, kein Dock-Symbol. Fenster: ein normales Fenster mit Dock-Symbol. Beides: das Symbol in der Menüleiste und das Fenster.";
+"Open in Window" = "Im Fenster öffnen";
+"omaflake is in the menu bar too – Settings → Show omaflake in" = "omaflake ist auch in der Menüleiste – Einstellungen → omaflake zeigen in";
+"Settings…" = "Einstellungen …";
+"Only while omaflake is not in front: VM ready, image built or failed, VM ended. macOS asks once whether omaflake may send them." = "Nur wenn omaflake nicht vorne ist: VM startklar, Vorlage fertig oder fehlgeschlagen, VM beendet. macOS fragt einmal, ob omaflake Mitteilungen senden darf.";

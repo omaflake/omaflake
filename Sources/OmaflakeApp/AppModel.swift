@@ -234,7 +234,7 @@ final class AppModel {
             if tab == .activity { unseenActivity = false }
         }
     }
-    // Navigation inside the menu window: the open pages, the last one is shown; empty = the main page
+    // Navigation inside the window (menu and app window share it): the open pages, the last one is shown; empty = the main page
     enum Page: Hashable {
         case doctor, settings, newVM, build, macBase, guide
 
@@ -276,14 +276,15 @@ final class AppModel {
                                       updateFeed: feed.flatMap { $0.isEmpty ? nil : $0 })
         let launcher: CoreClient.Launcher
         if let omaf = CoreClient.locateServer() {
-            launcher = CoreClient.processLauncher(executable: omaf)
+            // The core service shared with the CLI and other interfaces; a private server if it cannot be reached (B120)
+            launcher = CoreClient.automaticLauncher(executable: omaf)
         } else {
             launcher = { _ in throw APIError(message: "omaf not found – it belongs next to the app (Contents/MacOS/omaf); for development set OMAF_BIN or run cargo build") }
         }
         client = CoreClient(launcher: launcher, initialize: params)
         // The tab used last; the very first time (no VM yet: see `loadAll`) the recipes, where one starts
         if let saved = UserDefaults.standard.string(forKey: "homeTab").flatMap(HomeTab.init(rawValue:)) { tab = saved }
-        // The first time, the menu window opens on the Doctor
+        // The first time, the window (menu or app window, plan B119) opens on the Doctor
         if Self.firstLaunch { path = [.doctor] }
         // Packages opened in the Finder before the model existed, and from now on
         AppDelegate.open = { [weak self] urls in self?.openPackages(urls) }
@@ -1059,7 +1060,8 @@ final class AppModel {
 
     // MARK: Questions and panels
 
-    /// A question inside the menu window (an alert window would close the menu window, plan B59)
+    /// A question inside omaflake's window – the menu window or the app window (an alert window would close the menu
+    /// window, plan B59)
     struct Confirmation: Identifiable {
         let id = UUID()
         let title: String
@@ -1081,7 +1083,7 @@ final class AppModel {
     }
     var confirmation: Confirmation?
 
-    /// Asks in the menu window and waits for the answer.
+    /// Asks in the open window (menu or app window) and waits for the answer.
     private func confirm(_ title: String, _ text: String, button: String = String(localized: "Continue"), destructive: Bool = false) async -> Bool {
         await choose(title, text, button: button, destructive: destructive) == 0
     }
@@ -1089,7 +1091,7 @@ final class AppModel {
     /// Asks with several answers: nil = cancelled, 0 = `button`, 1… = `others`
     private func choose(_ title: String, _ text: String, button: String, others: [String] = [], destructive: Bool = false,
                         input: TextInput? = nil) async -> Int? {
-        // Without the menu window (a package double-clicked in the Finder) the question comes as an alert
+        // Without an open window (a package double-clicked in the Finder) the question comes as an alert
         if !NSApp.windows.contains(where: { $0.isVisible && $0.canBecomeKey }) {
             NSApp.activate()
             let alert = NSAlert()
@@ -1115,8 +1117,8 @@ final class AppModel {
         }
     }
 
-    /// Shows a file picker as a sheet on the menu window: a separate panel window would close it (plan B59/B69).
-    /// Without a visible menu window (e.g. called early) it falls back to a modal panel.
+    /// Shows a file picker as a sheet on the key window – the menu window (a separate panel window would close it, plan
+    /// B59/B69) or the app window (plan B119). Without a visible window (e.g. called early) it falls back to a modal panel.
     private func present(_ panel: NSOpenPanel, _ done: @escaping (URL) -> Void) {
         NSApp.activate()
         let window = NSApp.keyWindow ?? NSApp.windows.first { $0.isVisible && $0.canBecomeKey }

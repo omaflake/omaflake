@@ -62,8 +62,12 @@ git-ignored settings (`nix/local/`); flake URLs are used as given. Recipes come 
 | `omaf doctor` | checks what the Mac brings (spec §11.2): macOS/Apple silicon, Nix, flakes, nix-darwin, Linux builder, QEMU (3D or not), image flake, SSH key, git; then the preflight for NixOS (builder answers, recipes evaluate, space in the Nix store) and macOS (IPSW, base, space); prints hints and the official install command; exit code 1 if something required is missing |
 | `omaf builder setup` | on a Mac with Nix but without nix-darwin: nix-darwin with omaflake's Linux builder host in two stages (default builder from the cache, then the full host), via sudo |
 | `omaf builder apply [--force]` / `omaf builder clean-up` | Linux builder via `sudo`: build the image flake's `#linux-builder` host as the user, then activate it as root like `darwin-rebuild switch` (refused without `--force` when this Mac's nix-darwin system is not omaflake's), or `nix-store --gc` in the builder with free space before/after; log `<data>/logs/linux-builder.log` |
-| `omaf serve` | the core API (JSON-RPC 2.0, one JSON object per line) on stdin/stdout – how the app and other UIs talk to the core (docs/api.md) |
-| `omaf call <method> [<params as JSON>]` | one API request without a session; prints the result as JSON (exit 1 and the error's message on error) – for scripts and tests |
+| `omaf serve` | the core API (JSON-RPC 2.0, one JSON object per line) on stdin/stdout – a private server for a UI or a test (docs/api.md) |
+| `omaf serve --socket[=<path>] [--idle-exit <secs>]` | the **core service** (plan B120): the same API on a Unix socket (default `<data folder>/run/omaf.sock`, a short path under `$TMPDIR`/`$XDG_RUNTIME_DIR` when that is too long – api.md §1), shared by the app, the other interfaces and the CLI: one build queue, one job list, events for every client. One per data folder (a second one exits at once, status 0); `--idle-exit` ends it when no client has been connected and no job has run for that long |
+| `omaf service install` / `uninstall` | the service as a user agent: macOS launchd `~/Library/LaunchAgents/app.omaflake.serve.plist` (at login, again after a crash; it runs this `omaf`), Linux systemd `~/.config/systemd/user/omaflake.service`; refused with `VM_HOME` set / stopped and removed |
+| `omaf service start [--json]` | start the service unless it runs: the agent if installed, else `omaf serve --socket --idle-exit 300` on its own; restarts an older service once idle (api.md §1); prints its socket and version |
+| `omaf service stop` / `omaf service status [--json]` | end the service once its jobs are done (`service.restart`) / agent installed?, socket, running, version, jobs waiting or running |
+| `omaf call [--socket[=<path>]] <method> [<params as JSON>]` | one API request; prints the result as JSON (exit 1 and the error's message on error) – for scripts and tests. Without `--socket` in this process without a session; with it through the service (started on demand). A method that starts a job waits for it and prints the ended job (Ctrl-C cancels it through the service) |
 | `omaf config [--flake p] [--qemu p] [--runner p] [--nix p] [--guest-user u] [--guest-full-name n] [--guest-locale l] [--guest-keyboard k] [--guest-time-zone z] [--home <dir>\|default]` | show/set settings (`~/.omaflake/config.json`); `--guest-…` override the Mac's values passed to the recipes (empty value = the Mac's again, spec §11.1); `--home` moves the data folder (VMs stopped, same volume; overlays name their image relatively, paths in instance.json and settings are rewritten); `--keep-recipe-versions on\|off` keeps older versions of a recipe line (default off: the newest and those images use) |
 
 Guest user for SSH: `--user` on `omaf new`, otherwise `user = "…"` from the recipe's `recipe.toml`, otherwise the Mac user name.
@@ -107,6 +111,12 @@ For window starts `omaf` passes `OMAFLAKE_DOCK_ICON` to QEMU (omaflake Dock icon
   `org.omaflake.camera` (`cam.sock`). macOS asks for camera permission the first time, for the app that started the VM
   (omaflake or Terminal). `OMAFLAKE_CAMERA_TEST_PATTERN=1 omaf start …` sends a test pattern instead (no camera, no
   permission; `OMAFLAKE_CAMERA_TEST_FPS` sets its rate). macOS guests: after M12 (plan §8).
+- **Builds and the service (plan B120):** when the core service runs, `omaf build` runs as its job – the app and
+  other clients see it, it waits in the same queue as theirs, and an already running build of the recipe is followed
+  instead of started twice; the command prints its log (routine lines left out; `--verbose` names the log file that
+  has them) and Ctrl-C cancels the job. Without a running service it builds in this process, as before. The other
+  long commands (`macos install`, `builder …`, `import`, `export`, `config --home`) still run in-process (OPEN, plan
+  B120).
 - **Cancelling a build:** Ctrl-C during `omaf build` stops the running step (`nix build`, `nix copy`, SSH), forces
   a macOS build VM off and deletes the half-built folder. One build per image at a time (lock
   `images/.build-<image>.lock`, shared by app and CLI); a second one is refused.

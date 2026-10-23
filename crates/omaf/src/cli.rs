@@ -103,12 +103,19 @@ pub enum Command {
     },
     /// New in the Rust CLI (docs/api.md §1)
     #[command(
-        about = "Serve the core API (JSON-RPC 2.0, one object per line) on stdin/stdout – for the app and other \
-                       UIs (docs/api.md)."
+        about = "Serve the core API (JSON-RPC 2.0, one object per line) on stdin/stdout, or with --socket as the \
+                       core service every interface shares (docs/api.md)."
     )]
-    Serve,
+    Serve(Serve),
+    /// Plan B120
+    #[command(about = "The core service (omaf serve --socket): install it as a user agent, start, stop, status.")]
+    #[command(subcommand_required = true, arg_required_else_help = true)]
+    Service {
+        #[command(subcommand)]
+        command: ServiceCommand,
+    },
     /// New in the Rust CLI (docs/api.md §1)
-    #[command(about = "Run a single core API request without a session and print its result as JSON (docs/api.md).")]
+    #[command(about = "Run a single core API request and print its result as JSON (docs/api.md).")]
     Call(Call),
 }
 
@@ -636,4 +643,53 @@ pub struct Call {
     pub method: String,
     #[arg(value_name = "params", help = "Its params as one JSON value, e.g. '{\"name\":\"dev\"}' (default: none)")]
     pub params: Option<String>,
+    #[arg(
+        long,
+        value_name = "path",
+        num_args = 0..=1,
+        require_equals = true,
+        help = "Through the core service (started when it does not run), on its socket or this one \
+                (--socket=<path>); without: in this process, without a session"
+    )]
+    pub socket: Option<Option<std::path::PathBuf>>,
+}
+
+#[derive(Debug, Args)]
+pub struct Serve {
+    #[arg(
+        long,
+        value_name = "path",
+        num_args = 0..=1,
+        require_equals = true,
+        help = "Serve as the core service on a Unix socket (default: <data folder>/run/omaf.sock) instead of \
+                stdin/stdout; a path is given as --socket=<path>"
+    )]
+    pub socket: Option<Option<std::path::PathBuf>>,
+    #[arg(
+        long,
+        value_name = "secs",
+        requires = "socket",
+        help = "With --socket: end when no client has been connected and no job has run for this long"
+    )]
+    pub idle_exit: Option<u64>,
+}
+
+#[derive(Debug, Subcommand)]
+pub enum ServiceCommand {
+    #[command(about = "Install the service as a user agent (macOS: launchd; Linux: systemd --user) and start it.")]
+    Install,
+    #[command(about = "Stop the user agent and remove it.")]
+    Uninstall,
+    #[command(about = "Is the service installed and running; its socket, version and jobs.")]
+    Status {
+        #[arg(long, help = "As JSON")]
+        json: bool,
+    },
+    #[command(about = "Start the service unless it runs (the user agent if installed, else on its own until idle).")]
+    Start {
+        #[arg(long, help = "Print {socket, version, started} as JSON")]
+        json: bool,
+    },
+    #[command(about = "Stop the service once its jobs are done (service.restart).")]
+    Stop,
 }

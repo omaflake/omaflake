@@ -6,7 +6,8 @@ permalink: /app/
 
 # omaflake – menu bar app (spec M4, M11)
 
-SwiftUI `MenuBarExtra`, a client of omaflake's Rust core. No Dock icon (`LSUIElement`), no App Sandbox, ad-hoc signed.
+SwiftUI `MenuBarExtra` and an app window, a client of omaflake's Rust core. By default no Dock icon (`LSUIElement`), no
+App Sandbox, ad-hoc signed.
 Deliberately **without an Xcode project**: SwiftPM executable + `scripts/bundle-app.sh` (a hand-written `.pbxproj` would be error-prone).
 
 ```sh
@@ -28,12 +29,29 @@ follows the events (`vms.changed`, `images.changed`, `recipes.changed`, `jobs.ch
 `vm.ready`, `vm.ended`, `message`) – there is no polling in the app. Everything that takes minutes (builds, the IPSW
 download, the macOS base, Linux builder tasks, imports, exports, moving the data folder) is a job in the server; the
 build queue, the Doctor's blockers, the recipes' freshness and what the sources offer come from the server. What the
-app keeps: pages, filters, questions (confirmations inside the menu window), the activity list, notifications, launch
+app keeps: pages, filters, questions (confirmations inside the open window), the activity list, notifications, launch
 at login, the app's language, Terminal via AppleScript, open panels (their content checked by `packages.inspect`).
+
+## Menu bar, window or both (plan B119)
+
+Settings → **Show omaflake in** chooses the frame; the pages inside are the same `MainView` (tabs, pages, questions,
+file pickers), only the frame differs. The choice is a per-user UI preference in the app's UserDefaults (`appFrame`), not
+a core setting, and applies at once – no relaunch.
+
+| Choice | What you get |
+|---|---|
+| **Menu Bar** (default) | The `MenuBarExtra` window at the omaflake icon (500 × 600 pt), no Dock icon (activation policy `.accessory`, like `LSUIElement`), no app menu. |
+| **Window** | A regular window (`Window` scene `main`): resizable from 500 × 600 pt, remembers its frame, Cmd+W closes it, a click on the Dock icon opens it again. Dock icon and app menu (activation policy `.regular`; Settings… opens the Settings page, Quit asks like the power button when VMs run). Closing the window keeps omaflake running; it quits with Cmd+Q. No menu bar icon. |
+| **Both** | The menu bar icon and the window. The menu window has *Open in Window*; the window shows that omaflake is in the menu bar too. Both show the same page. |
+
+At launch the window opens when the choice includes it (`defaultLaunchBehavior`, no state restoration); the first
+launch's Doctor opens in whichever frame is shown. Questions appear inside the open window (both frames show them),
+file pickers as a sheet on the key window; with no window open, as an alert or a modal panel. Notifications come only
+while omaflake is not in front (menu window closed, app window hidden or in the background).
 
 ## Features
 
-- One window, one size (500 × 600 pt), content 20 pt from the edge: the menu bar window. Doctor, Settings, New VM, Build Image, Create macOS Base
+- One window, one size (500 × 600 pt; the app window can grow), content 20 pt from the edge: the menu bar window. Doctor, Settings, New VM, Build Image, Create macOS Base
   and the guide open one level deeper inside it with a back arrow (also Esc) – no extra windows, which used to close
   the menu window when they were closed. Closing the menu window keeps the page; long work keeps running. The first
   launch opens on the Doctor. Look: omaflake's brand colours (dark `#121212` with a faint red/cyan glow, cyan accent,
@@ -65,7 +83,7 @@ at login, the app's language, Terminal via AppleScript, open panels (their conte
   - **Activity** (badge: dot for unread messages): what happened in this session, newest first, "Clear History"
 - The newest message also shows for 6 s at the bottom of the main window (a click opens Activity)
 - Notifications (Settings → Notifications, on by default; macOS asks once): VM ready (SSH answers), image ready, build
-  failed, VM ended on its own – only while the menu window is closed
+  failed, VM ended on its own – only while omaflake is not in front
 - Wording: recipe (Rezept) → image (Vorlage) → VM, the same in the app, the CLI, the files and the docs; until plan
   B92 recipes were called flavors; tooltips appear after 150 ms
 - Doctor (the first page on the first launch; omaflake's version at the top): requirements, NixOS preflight (Linux builder answers, recipes
@@ -105,7 +123,7 @@ at login, the app's language, Terminal via AppleScript, open panels (their conte
   (the open panel offers only that kind and checks the content before it closes), and double-click on a package in the
   Finder or dropping it on the app. What is here already is asked about first: a VM of the same name – cancel or a new
   name (a second VM with its own identity); the same image – cancel or replace; recipes of the same ID with other
-  content – cancel or replace (identical ones are simply there already). Without the menu window open, questions come as
+  content – cancel or replace (identical ones are simply there already). Without a window open, questions come as
   an alert
 - omaflake IDs (spec §11.11, plan B110, B111): the details of a VM and an image show its omaflake ID, with as few words
   as tell the objects of its kind apart (the whole ID in the tooltip). The Recipes tab has one row per recipe line, by

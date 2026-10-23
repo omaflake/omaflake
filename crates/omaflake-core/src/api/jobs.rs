@@ -590,6 +590,11 @@ impl Jobs {
             .cloned()
     }
 
+    /// Any job waits or runs
+    pub fn any_running(&self) -> bool {
+        self.lock().iter().any(|j| j.is_active())
+    }
+
     /// Any waiting or running job of these kinds
     pub fn any_active(&self, kinds: &[JobKind]) -> Option<Arc<Job>> {
         self.lock().iter().find(|j| kinds.contains(&j.kind) && j.is_active()).cloned()
@@ -678,8 +683,9 @@ mod tests {
 
     fn jobs() -> (Arc<Jobs>, crate::api::events::tests::Recorded) {
         let (sink, got) = recorder();
-        let events = Arc::new(Events::new(sink));
-        events.subscribe([Topic::Jobs].into());
+        let events = Arc::new(Events::new());
+        events.attach(0, sink);
+        events.subscribe(0, [Topic::Jobs].into());
         (Jobs::new(events), got)
     }
 

@@ -236,9 +236,10 @@ pub(crate) fn build(ctx: &Ctx, page: &PageRef) -> Result<Value, RpcError> {
 // MARK: The server's side
 
 impl Server {
-    /// Gathers what `pages` need (the settings' system lists and an image's size only when asked for)
-    pub(crate) fn views_ctx(&self, pages: &[PageRef]) -> Result<Ctx, RpcError> {
-        let state = self.state().map_err(RpcError::from)?;
+    /// Gathers what `pages` need (the settings' system lists and an image's size only when asked for), recipe texts
+    /// in `language`
+    pub(crate) fn views_ctx(&self, language: Option<String>, pages: &[PageRef]) -> Result<Ctx, RpcError> {
+        let state = self.state_in(language).map_err(RpcError::from)?;
         let view = state.view();
         let vms = view.vms();
         let mut images = view.images();
@@ -316,7 +317,7 @@ impl Server {
         if page.page == "doctor" || page.page == "macBase" {
             self.check_doctor_if_never();
         }
-        build(&self.views_ctx(std::slice::from_ref(page))?, page)
+        build(&self.views_ctx(self.language(), std::slice::from_ref(page))?, page)
     }
 
     /// The Doctor's page shows its checks: run them once in the background when they never ran
@@ -333,7 +334,7 @@ impl Server {
         });
     }
 
-    /// `views.subscribe`: replaces the subscribed pages; each gets its model at once
+    /// `views.subscribe`: replaces this connection's subscribed pages; each gets its model at once
     pub(crate) fn views_subscribe(&self, pages: Vec<PageRef>) -> Result<(), RpcError> {
         for p in &pages {
             if !PAGES.contains(&p.page.as_str()) {
@@ -343,42 +344,62 @@ impl Server {
         if pages.iter().any(|p| p.page == "doctor" || p.page == "macBase") {
             self.check_doctor_if_never();
         }
-        self.events().subscribe_views(pages);
-        lock(&self.inner.views_last).clear();
+        let conn = self.conn.id;
+        self.events().subscribe_views(conn, pages);
+        lock(&self.inner.views_last).retain(|(c, _), _| *c != conn);
         if self.events().any() {
             self.start_watcher(&HashSet::new());
         }
         Ok(())
     }
 
-    /// Rebuilds the subscribed pages and sends those that changed (`view.changed`) – from the watcher
+    /// Rebuilds every connection's subscribed pages and sends each connection those that changed (`view.changed`) –
+    /// from the watcher. Pages are built once per language; the activity list is the same for every connection.
     pub(crate) fn send_views(&self) {
-        let pages = self.events().views();
-        if pages.is_empty() {
-            return;
+        let subs = self.events().view_subscriptions();
+        {
+            // Forget what was sent to connections that are gone or unsubscribed pages
+            let live: HashSet<(u64, String)> =
+                subs.iter().flat_map(|s| s.pages.iter().map(move |p| (s.conn, p.key()))).collect();
+            lock(&self.inner.views_last).retain(|k, _| live.contains(k));
         }
-        let ctx = match self.views_ctx(&pages) {
-            Ok(c) => c,
-            Err(e) => {
-                eprintln!("omaf serve: views: {}", e.message);
-                return;
+        let mut contexts: Vec<(Option<String>, Result<Ctx, RpcError>)> = Vec::new();
+        for sub in &subs {
+            if !contexts.iter().any(|(l, _)| *l == sub.language) {
+                let pages: Vec<PageRef> =
+                    subs.iter().filter(|s| s.language == sub.language).flat_map(|s| s.pages.clone()).collect();
+                contexts.push((sub.language.clone(), self.views_ctx(sub.language.clone(), &pages)));
             }
-        };
-        for page in pages {
-            let model = if page.page == "import" { self.view(&page) } else { build(&ctx, &page) };
-            let model = match model {
-                Ok(m) => m,
-                Err(e) => json!({"error": {"message": e.message, "kind": e.kind}}),
-            };
-            let key = page.key();
-            {
-                let mut last = lock(&self.inner.views_last);
-                if last.get(&key) == Some(&model) {
+        }
+        for sub in subs {
+            let Some((_, ctx)) = contexts.iter().find(|(l, _)| *l == sub.language) else { continue };
+            let ctx = match ctx {
+                Ok(c) => c,
+                Err(e) => {
+                    eprintln!("omaf serve: views: {}", e.message);
                     continue;
                 }
-                last.insert(key, model.clone());
+            };
+            for page in sub.pages {
+                let model = if page.page == "import" { self.view(&page) } else { build(ctx, &page) };
+                let model = match model {
+                    Ok(m) => m,
+                    Err(e) => json!({"error": {"message": e.message, "kind": e.kind}}),
+                };
+                let key = (sub.conn, page.key());
+                {
+                    let mut last = lock(&self.inner.views_last);
+                    if last.get(&key) == Some(&model) {
+                        continue;
+                    }
+                    last.insert(key, model.clone());
+                }
+                self.events().send_to(
+                    sub.conn,
+                    "view.changed",
+                    json!({"page": page.page, "params": page.params, "model": model}),
+                );
             }
-            self.events().send("view.changed", json!({"page": page.page, "params": page.params, "model": model}));
         }
     }
 }

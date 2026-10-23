@@ -63,9 +63,16 @@ impl Server {
             // Session and settings
             "initialize" => self.initialize(params(p)?),
             "events.subscribe" => self.subscribe(p),
+            // Ends this connection's session (the stdio server ends with it; the service goes on for the others)
             "shutdown" => {
-                self.inner.shut_down.store(true, Ordering::SeqCst);
+                self.conn.ended.store(true, Ordering::SeqCst);
                 Ok(Answer::Value(Value::Null))
+            }
+            "service.restart" => {
+                self.inner.restart.store(true, Ordering::SeqCst);
+                Answer::of(ServiceRestart {
+                    jobs: self.inner.jobs.list().iter().filter(|j| j.state.is_active()).count(),
+                })
             }
             "settings.get" => Answer::of(self.settings_answer()?),
             "settings.set" => self.settings_set(p),
@@ -183,19 +190,20 @@ impl Server {
             }
         }
         {
-            let mut s = lock(&self.inner.session);
+            let mut s = lock(&self.conn.session);
             s.language = p.language.map(|l| l.chars().take(2).collect());
             s.update_feed = p.update_feed.filter(|f| !f.is_empty());
+            self.inner.events.set_language(self.conn.id, s.language.clone());
         }
         let paths = self.paths();
-        if self.inner.migrate_at_start && !self.inner.initialized.load(Ordering::SeqCst) {
+        if self.inner.migrate_at_start && !self.inner.migrated.swap(true, Ordering::SeqCst) {
             // Older layouts (before image.json, before packages – plan B108); first, so the lists see the result
             let _ = super::jobs::guarded(|| {
                 ImageStore::new(paths.clone()).migrate_legacy();
                 Ok(())
             });
         }
-        self.inner.initialized.store(true, Ordering::SeqCst);
+        self.conn.initialized.store(true, Ordering::SeqCst);
         Answer::of(InitializeResult {
             api_version: API_VERSION,
             omaf_version: crate::VERSION.into(),
@@ -213,7 +221,7 @@ impl Server {
         let p: P = params(p)?;
         // Unknown topics are left out (a newer client may know more)
         let topics: HashSet<Topic> = p.topics.iter().filter_map(|t| Topic::parse(t)).collect();
-        let fresh = self.events().subscribe(topics);
+        let fresh = self.events().subscribe(self.conn.id, topics);
         if !fresh.is_empty() {
             self.start_watcher(&fresh);
         }
@@ -228,8 +236,9 @@ impl Server {
             });
         }
         if fresh.contains(&Topic::Jobs) {
+            // Only to this connection – the others have them
             for job in self.inner.jobs.list() {
-                self.events().emit(Topic::Jobs, "jobs.changed", &JobChanged { job });
+                self.events().emit_to(self.conn.id, Topic::Jobs, "jobs.changed", &JobChanged { job });
             }
         }
         Ok(Answer::Value(Value::Null))
@@ -713,10 +722,11 @@ impl Server {
         self.inner.jobs.drop_ended(JobKind::Build, &p.recipe);
         let recipe = p.recipe.clone();
         let s = self.clone();
+        let mac = MacOptions { base: p.base.filter(|b| !b.is_empty()).map(PathBuf::from), keep_failed: p.keep_failed };
         let mut spec = JobSpec::new(
             JobKind::Build,
             format!("Build {name}"),
-            Box::new(move |ctx: &JobCtx| s.run_build(ctx, &recipe, kind, password)),
+            Box::new(move |ctx: &JobCtx| s.run_build(ctx, &recipe, kind, password, mac)),
         );
         spec.recipe = Some(p.recipe.clone());
         spec.guest_kind = Some(kind);
@@ -746,7 +756,14 @@ impl Server {
         Ok(Answer::Job(self.inner.jobs.submit(spec)))
     }
 
-    fn run_build(&self, ctx: &JobCtx, recipe: &str, kind: GuestKind, password: Option<String>) -> crate::Result<Value> {
+    fn run_build(
+        &self,
+        ctx: &JobCtx,
+        recipe: &str,
+        kind: GuestKind,
+        password: Option<String>,
+        mac: MacOptions,
+    ) -> crate::Result<Value> {
         let paths = self.paths();
         let cancel = ctx.cancellation();
         let log = ctx.log_sink();
@@ -769,8 +786,8 @@ impl Server {
                     flake: flake.clone(),
                     user,
                     password,
-                    base: None,
-                    keep_failed: false,
+                    base: mac.base,
+                    keep_failed: mac.keep_failed,
                 };
                 MacImageBuilder::new(paths.clone(), vz).build(&request, cancel, &*log)?
             }
@@ -1393,7 +1410,7 @@ impl Server {
         ctx.log("Waiting for the Linux builder …");
         let pre = Prerequisites::new(self.paths());
         for _ in 0..60 {
-            if pre.builder_running().status == PrerequisiteStatus::Ok || self.is_shut_down() {
+            if pre.builder_running().status == PrerequisiteStatus::Ok || self.is_closing() {
                 return;
             }
             std::thread::sleep(Duration::from_secs(2));
@@ -1433,7 +1450,7 @@ pub(crate) fn check_update(server: &Server) -> Result<UpdateAnswer, RpcError> {
     if Settings::load(&paths).check_for_updates == Some(false) {
         return Ok(UpdateAnswer { state: UpdateState::Off, release: None });
     }
-    let feed = lock(&server.inner.session).update_feed.clone();
+    let feed = lock(&server.conn.session).update_feed.clone();
     let Some(feed) = UpdateCheck::feed_url(feed.as_deref()) else {
         return Ok(UpdateAnswer { state: UpdateState::NoFeed, release: None });
     };
@@ -1669,10 +1686,23 @@ struct ExternalParams {
 }
 
 #[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
 struct BuildParams {
     recipe: String,
     #[serde(default)]
     password: Option<String>,
+    /// macOS: the base folder (default: the newest base)
+    #[serde(default)]
+    base: Option<String>,
+    /// macOS: keep a failed build folder for inspection
+    #[serde(default)]
+    keep_failed: bool,
+}
+
+/// What `images.build` takes for a macOS build besides the password
+struct MacOptions {
+    base: Option<PathBuf>,
+    keep_failed: bool,
 }
 
 #[derive(Deserialize)]

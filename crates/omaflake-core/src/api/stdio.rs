@@ -2,8 +2,11 @@
 //! The stdio transport of `omaf serve` (docs/api.md §1): one JSON object per line in and out. A reader thread reads
 //! stdin, each request runs on a thread of its own, and one writer (a mutex around stdout) keeps lines whole. It ends
 //! when stdin closes or after `shutdown`; jobs still running are cancelled then, VMs keep running.
+//!
+//! `session` is the part the socket service (service.rs) shares: one connection's lines, without ending the server.
 
 use std::io::{BufRead, Write};
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc;
 use std::sync::{Arc, Condvar, Mutex};
 use std::time::{Duration, Instant};
@@ -18,31 +21,49 @@ use crate::paths::Paths;
 /// How long the end waits for requests still running (their answers go out if they make it)
 const DRAIN: Duration = Duration::from_secs(5);
 /// How long the end waits for cancelled jobs to stop (a build deletes its half-built image)
-const JOBS_STOP: Duration = Duration::from_secs(30);
+pub(crate) const JOBS_STOP: Duration = Duration::from_secs(30);
 
 enum Input {
     Line(String),
     End,
 }
 
-/// The single writer: whole lines, flushed one by one
+/// What a writer does when its client cannot take a line (gone, or too slow): e.g. close the socket
+type OnBroken = Arc<dyn Fn() + Send + Sync>;
+
+/// The single writer: whole lines, flushed one by one. After a failed write it writes nothing more.
 #[derive(Clone)]
 pub(crate) struct Writer {
     out: Arc<Mutex<Box<dyn Write + Send>>>,
+    broken: Arc<AtomicBool>,
+    on_broken: Option<OnBroken>,
 }
 
 impl Writer {
     pub fn new(out: impl Write + Send + 'static) -> Self {
-        Writer { out: Arc::new(Mutex::new(Box::new(out))) }
+        Writer { out: Arc::new(Mutex::new(Box::new(out))), broken: Arc::default(), on_broken: None }
+    }
+
+    /// A writer that calls `on_broken` once when a line cannot be written
+    pub fn with_on_broken(out: impl Write + Send + 'static, on_broken: impl Fn() + Send + Sync + 'static) -> Self {
+        Writer { on_broken: Some(Arc::new(on_broken)), ..Self::new(out) }
     }
 
     pub fn line(&self, value: &Value) {
+        if self.broken.load(Ordering::SeqCst) {
+            return;
+        }
         // serde_json never writes a newline inside compact JSON
         let Ok(mut text) = serde_json::to_string(value) else { return };
         text.push('\n');
         let mut out = lock(&self.out);
-        if out.write_all(text.as_bytes()).and_then(|_| out.flush()).is_err() {
-            // The client is gone; stdin closes too and the loop ends
+        if out.write_all(text.as_bytes()).and_then(|_| out.flush()).is_err()
+            && !self.broken.swap(true, Ordering::SeqCst)
+        {
+            // The client is gone (its input closes too and the loop ends) or does not read (a socket's write timeout)
+            if let Some(f) = &self.on_broken {
+                f();
+            }
         }
     }
 }
@@ -58,6 +79,13 @@ pub(crate) fn serve(paths: Paths, input: impl BufRead + Send + 'static, output: 
 }
 
 pub(crate) fn run(server: Server, writer: Writer, input: impl BufRead + Send + 'static) {
+    session(&server, writer, input);
+    server.close(JOBS_STOP);
+}
+
+/// One connection: its requests until its input ends or it sent `shutdown` (or the server ends); answers still being
+/// worked on get a moment. The server goes on – the caller ends it (stdio) or not (the socket service).
+pub(crate) fn session(server: &Server, writer: Writer, input: impl BufRead + Send + 'static) {
     let (tx, rx) = mpsc::channel::<Input>();
     let reader_tx = tx.clone();
     std::thread::spawn(move || {
@@ -69,7 +97,7 @@ pub(crate) fn run(server: Server, writer: Writer, input: impl BufRead + Send + '
                     }
                 }
                 Err(e) => {
-                    eprintln!("omaf serve: reading stdin: {e}");
+                    eprintln!("omaf serve: reading a request: {e}");
                     break;
                 }
             }
@@ -94,7 +122,7 @@ pub(crate) fn run(server: Server, writer: Writer, input: impl BufRead + Send + '
             }
         });
     }
-    // The end: answers still being worked on get a moment, then jobs are cancelled
+    // The end: answers still being worked on get a moment
     let deadline = Instant::now() + DRAIN;
     let mut n = lock(&in_flight.0);
     while *n > 0 {
@@ -105,7 +133,6 @@ pub(crate) fn run(server: Server, writer: Writer, input: impl BufRead + Send + '
         n = in_flight.1.wait_timeout(n, left).unwrap_or_else(|e| e.into_inner()).0;
     }
     drop(n);
-    server.close(JOBS_STOP);
 }
 
 #[cfg(test)]

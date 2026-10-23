@@ -19,3 +19,6 @@ libc.workspace = true
 serde_json.workspace = true
 # The CLI's own parser (swift-argument-parser in the Swift CLI); not a workspace dependency – only omaf uses it
 clap = { version = "4.6.7", features = ["derive"] }
+
+[dev-dependencies]
+tempfile.workspace = true

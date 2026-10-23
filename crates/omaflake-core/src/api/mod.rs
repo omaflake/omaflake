@@ -5,15 +5,19 @@
 //! macOS limit, free names, import conflicts, the clipboard agent of macOS guests.
 //!
 //! - `serve_stdio()` is `omaf serve`: a session over stdin/stdout until stdin closes or `shutdown`.
+//! - `service::serve_socket()` is `omaf serve --socket`: the core service, one per user, every client a session on
+//!   the same server (plan B120); `client::Client` talks to it.
 //! - `call_once(method, params)` is `omaf call`: one request without a session (no events); a method that starts a
 //!   job waits for it and returns the ended job.
 //! - `Server` is the same dispatcher in-process (a Rust UI): `Server::new(paths, notify)`, then `handle`/`call`.
 //!
 //! Files: `protocol` (JSON-RPC framing, errors), `types` (the API's types – the contract), `events` (topics, the
 //! sink), `jobs` (the job queue), `model` (AppModel's derived state and the lists), `server` (state, watcher),
-//! `methods` (the methods), `stdio` (the transport), `contract` (golden JSON files shared with the Swift tests),
-//! `views` (the presentation model: what each page of a UI shows, `views.get`/`views.subscribe`, plan B121).
+//! `methods` (the methods), `stdio` (the transport), `service` (the socket service), `client` (its client),
+//! `contract` (golden JSON files shared with the Swift tests), `views` (the presentation model: what each page of a UI
+//! shows, `views.get`/`views.subscribe`, plan B121).
 
+pub mod client;
 #[cfg(test)]
 mod contract;
 pub mod events;
@@ -22,6 +26,7 @@ mod methods;
 mod model;
 pub mod protocol;
 mod server;
+pub mod service;
 mod stdio;
 pub mod types;
 pub mod views;

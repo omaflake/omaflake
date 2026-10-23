@@ -15,6 +15,14 @@ are collected under *Unreleased*. Releases: [GitHub](https://github.com/omaflake
 
 ### Added
 
+- **omaflake in a window.** Settings → *Show omaflake in*: Menu Bar (as before), Window (a regular window with a Dock
+  icon and the app menu) or Both. The pages are the same; the change applies at once.
+- **One core service for every interface.** `omaf serve --socket` runs omaflake's core once per user on a Unix
+  socket; the app, `omaf build` and `omaf call --socket` all use it, so a build started in the terminal shows up in
+  the app's jobs (and waits in the same queue), and every client gets the same events. The app starts the service on
+  demand and leaves it running when it quits (it ends five minutes after its last client, unless installed as a user
+  agent with `omaf service install`; `omaf service start|stop|status|uninstall`). Without the service everything works
+  as before. A newer omaf restarts an older running service once it is idle.
 - **The core says what each page shows** (`views.get`, `views.subscribe`, docs/api.md §10): rows, actions with why
   they are not possible now, the questions they ask, filters, form defaults and validation, and the activity list –
   in English with message keys, so every interface (the macOS app, the coming Linux app and `omaf ui`) shows the same.
