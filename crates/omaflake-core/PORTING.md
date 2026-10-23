@@ -131,11 +131,11 @@ packages F1–F5 fill in the bodies **in parallel** – the signatures are the c
 | GuestSettings.swift | `guest_settings` | skeleton (types done) | F3 recipes |
 | GuestChoices.swift | `guest_choices` | skeleton (tables done) | F3 recipes |
 | UpdateCheck.swift | `update_check` | skeleton | F3 recipes |
-| MacVM.swift | `mac_vm` | skeleton (types, paths done) | F4 macOS |
-| VZBackend.swift | `vz_backend` | skeleton | F4 macOS |
-| IPSWDownloader.swift | `ipsw_downloader` | skeleton (`gigabytes`, file names done) | F4 macOS |
-| MacBaseInstaller.swift | `mac_base_installer` | skeleton (`is_ready`, `fresh`, `base`, `BaseRequest::new` done) | F4 macOS |
-| MacImageBuilder.swift | `mac_image_builder` | skeleton | F4 macOS |
+| MacVM.swift | `mac_vm` | done | F4 macOS |
+| VZBackend.swift | `vz_backend` | done | F4 macOS |
+| IPSWDownloader.swift | `ipsw_downloader` | done | F4 macOS |
+| MacBaseInstaller.swift | `mac_base_installer` | done | F4 macOS |
+| MacImageBuilder.swift | `mac_image_builder` | done | F4 macOS |
 | Prerequisites.swift | `prerequisites` | skeleton (types done) | F5 doctor |
 | BuilderMaintenance.swift | `builder_maintenance` | skeleton (`shell_quote`, `nix_installer_url`, constants done) | F5 doctor |
 | Brand.swift, BrandAssets.swift | – | stay in Swift (AppKit) | – |
