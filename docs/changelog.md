@@ -13,6 +13,11 @@ are collected under *Unreleased*. Releases: [GitHub](https://github.com/omaflake
 
 ## [Unreleased]
 
+### Added
+
+- **omaflake in a window.** Settings → *Show omaflake in*: Menu Bar (as before), Window (a regular window with a Dock
+  icon and the app menu) or Both. The pages are the same; the change applies at once.
+
 ### Changed
 
 - **The menu bar app is a client of omaflake's new Rust core**: it starts `omaf serve` (bundled next to the app) and

@@ -7,8 +7,11 @@ struct OmaflakeApp: App {
     @State private var model = AppModel()
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var delegate
 
+    /// Menu bar, window or both (plan B119); `SettingsView` applies a change
+    @AppStorage(AppFrame.key) private var frame: AppFrame = .menuBar
+
     var body: some Scene {
-        MenuBarExtra {
+        MenuBarExtra(isInserted: Binding(get: { frame.showsMenuBar }, set: { _ in })) {
             MainView(model: model)
                 .environment(model)
                 // omaflake's look: dark brand background, cyan accent (brand/README.md)
@@ -23,6 +26,23 @@ struct OmaflakeApp: App {
             Image(nsImage: Brand.menuBarImage())
         }
         .menuBarExtraStyle(.window)
+
+        // The same pages in a regular window with a Dock icon (plan B119). Opened at launch when the choice includes
+        // it; no state restoration, so the choice alone decides what opens.
+        Window("omaflake", id: AppFrame.windowID) {
+            MainView(model: model, inWindow: true)
+                .environment(model)
+                .preferredColorScheme(.dark)
+                .tint(BrandStyle.cyan)
+                .buttonBorderShape(.roundedRectangle(radius: BrandStyle.radius))
+                .containerBackground(for: .window) { BrandStyle.background }
+                .background(MainWindowHook())
+        }
+        .defaultSize(width: 640, height: 720)
+        .windowResizability(.contentMinSize)
+        .defaultLaunchBehavior(frame.showsWindow ? .presented : .suppressed)
+        .restorationBehavior(.disabled)
+        .commands { MainCommands(model: model) }
     }
 }
 
@@ -35,10 +55,27 @@ struct OmaflakeApp: App {
     /// Ends the core's server when the app quits (running VMs keep running)
     static var terminate: (() -> Void)?
 
+    /// Opens the app window (set by `MainView` once it is shown somewhere; used for a click on the Dock icon)
+    static var openMain: (() -> Void)?
+
     func applicationWillTerminate(_ notification: Notification) { Self.terminate?() }
+
+    /// Closing the window keeps omaflake running, like a normal Mac app (it quits with Cmd+Q or the power button)
+    func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { false }
+
+    /// A click on the Dock icon with no window open opens the app window again
+    func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
+        if !flag, AppFrame.current.showsWindow { Self.openMain?() }
+        return true
+    }
 
     func applicationWillFinishLaunching(_ notification: Notification) { takeOpenEvents() }
     func applicationDidFinishLaunching(_ notification: Notification) {
+        // The app starts as `LSUIElement` (no Dock icon); with the window it becomes a regular app (plan B119)
+        if AppFrame.current.showsWindow {
+            AppFrame.current.applyActivationPolicy()
+            NSApp.activate()
+        }
         takeOpenEvents()
         // Once more after SwiftUI has set up its scenes, in case it installs its handler then (OPEN, plan B108)
         DispatchQueue.main.async { [weak self] in self?.takeOpenEvents() }
@@ -68,6 +105,10 @@ struct OmaflakeApp: App {
 
 struct MainView: View {
     @Bindable var model: AppModel
+    /// In the app window (resizable) rather than the menu bar window (fixed size)
+    var inWindow = false
+    @AppStorage(AppFrame.key) private var frame: AppFrame = .menuBar
+    @Environment(\.openWindow) private var openWindow
 
     /// Pages open one level deeper inside this window (no extra windows: those closed the menu window, plan B42)
     /// One fixed size for every page, so the window neither grows nor jumps when navigating
@@ -92,8 +133,10 @@ struct MainView: View {
                 }
             }
         }
-        .frame(width: Self.size.width, height: Self.size.height)
+        .frame(minWidth: Self.size.width, idealWidth: Self.size.width, maxWidth: inWindow ? .infinity : Self.size.width,
+               minHeight: Self.size.height, idealHeight: Self.size.height, maxHeight: inWindow ? .infinity : Self.size.height)
         .overlay { if let c = model.confirmation { ConfirmationOverlay(confirmation: c) } }
+        .onAppear { AppDelegate.openMain = { [openWindow] in openWindow(id: AppFrame.windowID); NSApp.activate() } }
     }
 
     @ViewBuilder private func pageView(_ page: AppModel.Page) -> some View {
@@ -254,6 +297,14 @@ struct MainView: View {
             Image(nsImage: Brand.menuBarImage())
             Wordmark()
             Spacer()
+            if frame == .both {
+                if inWindow {
+                    Image(systemName: "menubar.arrow.up.rectangle").foregroundStyle(.secondary)
+                        .help("omaflake is in the menu bar too – Settings → Show omaflake in")
+                } else {
+                    IconButton(icon: "macwindow", help: "Open in Window") { openWindow(id: AppFrame.windowID); NSApp.activate() }
+                }
+            }
             IconButton(icon: "stethoscope", help: "Doctor – requirements and preflight", badge: model.doctorIssues) { model.show(.doctor) }
             IconButton(icon: "gearshape", help: "Settings") { model.show(.settings) }
             IconButton(icon: "folder", help: "Show Data Folder in Finder") { NSWorkspace.shared.open(URL(fileURLWithPath: model.dataFolder)) }
@@ -2209,15 +2260,26 @@ enum RequirementText {
 
 struct SettingsView: View {
     @Bindable var model: AppModel
+    @AppStorage(AppFrame.key) private var frame: AppFrame = .menuBar
+    @Environment(\.openWindow) private var openWindow
+    @Environment(\.dismissWindow) private var dismissWindow
 
     var body: some View {
         Form {
             RecipeSourcesSection(model: model)
             Section("General") {
+                VStack(alignment: .leading, spacing: BrandTokens.Spacing.xxs) {
+                    Picker("Show omaflake in", selection: $frame) {
+                        ForEach(AppFrame.allCases) { Text($0.title).tag($0) }
+                    }
+                    .onChange(of: frame) { _, new in new.apply(openWindow: openWindow, dismissWindow: dismissWindow) }
+                    Text("Menu bar: a window at the omaflake icon, no Dock icon. Window: a regular window with a Dock icon. Both: the menu bar icon and the window.")
+                        .font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+                }
                 Toggle("Launch at Login", isOn: $model.launchAtLogin)
                 VStack(alignment: .leading, spacing: BrandTokens.Spacing.xxs) {
                     Toggle("Notifications", isOn: $model.notifications)
-                    Text("Only while the menu window is closed: VM ready, image built or failed, VM ended. macOS asks once whether omaflake may send them.")
+                    Text("Only while omaflake is not in front: VM ready, image built or failed, VM ended. macOS asks once whether omaflake may send them.")
                         .font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
                 }
                 VStack(alignment: .leading, spacing: BrandTokens.Spacing.xxs) {
