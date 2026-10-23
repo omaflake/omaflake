@@ -37,6 +37,12 @@ are collected under *Unreleased*. Releases: [GitHub](https://github.com/omaflake
   every row, button, question and message. Looks and works as before; a macOS build asks the guest user's password,
   the macOS base its password (twice) and a private source its token in a question when you start it. Adding a
   recipe source is in the activity list.
+- **omaflake on Linux: a native app** (`omaflake`, iced; docs/linux.md): the same pages, rows, actions and questions as
+  the macOS app, drawn from what the core describes, in omaflake's look. It connects to the core service (started on
+  demand), opens files and folders with the desktop's apps, SSH in your terminal emulator, asks for files through the
+  desktop portal and posts notifications. A tray icon (StatusNotifierItem: KDE, Cinnamon, XFCE, waybar) lists the VMs
+  with start/stop, running builds and Quit; with it, closing the window keeps omaflake running – switch it off in
+  Settings. Nix: `nix run github:omaflake/omaflake#omaflake-gui` (with `omaf`, desktop entry and icon).
 
 ### Changed
 
@@ -53,9 +59,6 @@ are collected under *Unreleased*. Releases: [GitHub](https://github.com/omaflake
   `nixos/emacs-minimal` is new. Images and VMs made from the old names stay as they are; new images come from the renamed recipes.
 
 ### Fixed
-
-- **The core service no longer hangs** once the recipe sources were looked into: building a page took the catalogs'
-  lock twice, so every page and request waited forever.
 
 - **macOS images build again with long recipe IDs**: the build VM's runner socket lived in `images/.build-<name>/`,
   which a twelve-word recipe ID made longer than a Unix socket path may be ("Socket path too long"); it is in

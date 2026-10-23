@@ -1,0 +1,12 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+[Desktop Entry]
+Type=Application
+Name=omaflake
+GenericName=Virtual Machines
+Comment=Clean, disposable NixOS VMs
+Exec=omaflake
+Icon=omaflake
+Terminal=false
+Categories=System;Emulator;
+Keywords=vm;nixos;virtual machine;qemu;
+StartupWMClass=omaflake

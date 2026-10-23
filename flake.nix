@@ -14,9 +14,15 @@
     nixosModules.default = self.nixosModules.vm-guest;
 
     # QEMU with 3D for NixOS guests (spec §11.2): nix profile install github:omaflake/omaflake#qemu
-    packages.aarch64-darwin = let pkgs = nixpkgs.legacyPackages.aarch64-darwin; in {
-      qemu = pkgs.callPackage ./qemu/package.nix { };
-      default = self.packages.aarch64-darwin.qemu;
-    };
+    packages = {
+      aarch64-darwin = let pkgs = nixpkgs.legacyPackages.aarch64-darwin; in {
+        qemu = pkgs.callPackage ./qemu/package.nix { };
+        default = self.packages.aarch64-darwin.qemu;
+      };
+    }
+    # The Linux app (iced) with the CLI omaf (plan B119, docs/linux.md): nix run github:omaflake/omaflake#omaflake-gui
+    // nixpkgs.lib.genAttrs [ "aarch64-linux" "x86_64-linux" ] (system: {
+      omaflake-gui = nixpkgs.legacyPackages.${system}.callPackage ./linux/package.nix { };
+    });
   };
 }
