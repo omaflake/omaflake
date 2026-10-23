@@ -10,6 +10,7 @@ pub mod error;
 pub mod json;
 
 pub mod agent_protocol;
+pub mod api;
 pub mod backend;
 pub mod build_progress;
 pub mod builder_maintenance;
