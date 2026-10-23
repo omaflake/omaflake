@@ -48,6 +48,21 @@ pub enum Model {
     Error(String),
 }
 
+/// Does a model (its JSON) show something working: a lamp in state `working`, a `busy` action, `loading`, a job that
+/// waits or runs
+pub fn pulses(v: &Value) -> bool {
+    match v {
+        Value::Object(o) => o.iter().any(|(k, x)| match (k.as_str(), x) {
+            ("busy" | "loading", Value::Bool(true)) => true,
+            ("state", Value::String(s)) if matches!(s.as_str(), "working" | "running" | "queued" | "checking") => true,
+            _ => pulses(x),
+        }),
+        Value::Array(a) => a.iter().any(pulses),
+        Value::String(s) => s == "working",
+        _ => false,
+    }
+}
+
 /// A page's model from its JSON
 pub fn decode(page: &str, v: Value) -> Model {
     if let Some(e) = v.get("error") {
@@ -251,6 +266,9 @@ pub struct App {
     pub notifications: bool,
     pub catalogs_asked: bool,
     pub pulse: bool,
+    /// The pages whose model shows something working (a pulsing lamp, a busy action, loading, a running job): only
+    /// then – or with a toast – the app ticks; an idle window is not redrawn (plan B123)
+    pub animated: HashSet<String>,
     pub subscribed: Vec<PageRef>,
     /// Actions waiting for the one on its way (the imports of several packages, each with its question)
     pub pending: VecDeque<Action>,
@@ -309,6 +327,7 @@ impl App {
             notifications: true,
             catalogs_asked: false,
             pulse: false,
+            animated: HashSet::new(),
             subscribed: Vec::new(),
             pending: VecDeque::new(),
             demo: false,
@@ -328,6 +347,16 @@ impl App {
         }
     }
 
+    /// Stores a page's model from its JSON and notes whether it shows something working
+    pub fn set_model(&mut self, key: String, page: &str, v: Value) {
+        if pulses(&v) {
+            self.animated.insert(key.clone());
+        } else {
+            self.animated.remove(&key);
+        }
+        self.models.insert(key, decode(page, v));
+    }
+
     pub fn subscription(&self) -> Subscription<Message> {
         #[allow(unused_mut)]
         let mut subs = vec![
@@ -343,8 +372,12 @@ impl App {
                 }) => Some(Message::Back),
                 _ => None,
             }),
-            iced::time::every(Duration::from_millis(600)).map(Message::Tick),
         ];
+        // The pulse and the toast's end – not when nothing moves: every tick redraws the window, which costs a core
+        // with software or virtualised GPUs (plan B123)
+        if self.toast.is_some() || !self.animated.is_empty() {
+            subs.push(iced::time::every(Duration::from_millis(600)).map(Message::Tick));
+        }
         #[cfg(target_os = "linux")]
         if self.prefs.tray {
             subs.push(Subscription::run(tray::stream).map(Message::Tray));
@@ -445,7 +478,7 @@ impl App {
                 .find_map(|x| read(&format!("{page}.{x}.json")))
                 .or_else(|| read(&format!("{page}.json")));
             if let Some(v) = v {
-                self.models.insert(page_ref(page, json!({})).key(), decode(page, v));
+                self.set_model(page_ref(page, json!({})).key(), page, v);
             }
         }
         if let Ok(tab) = std::env::var("OMAFLAKE_DEMO_TAB") {
@@ -456,7 +489,7 @@ impl App {
             let name = page.split('.').next().unwrap_or_default().to_string();
             if let Some(v) = read(&format!("{page}.json")) {
                 let r = page_ref(&name, json!({}));
-                self.models.insert(r.key(), decode(&name, v));
+                self.set_model(r.key(), &name, v);
                 self.stack.push(r);
             }
         }
@@ -796,8 +829,7 @@ impl App {
             "view.changed" => {
                 let page = params["page"].as_str().unwrap_or_default().to_string();
                 let r = page_ref(&page, params["params"].clone());
-                let model = decode(&page, params["model"].clone());
-                self.models.insert(r.key(), model);
+                self.set_model(r.key(), &page, params["model"].clone());
                 self.after_model(&page)
             }
             "jobs.changed" => {

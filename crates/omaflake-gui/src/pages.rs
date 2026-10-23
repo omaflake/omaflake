@@ -1421,4 +1421,21 @@ pub mod tests {
         assert!(items.iter().any(|i| i.value == network.value));
         assert!(items.iter().all(|i| !i.to_string().is_empty()));
     }
+
+    /// The app ticks (and redraws) only while a page shows something working (plan B123)
+    #[test]
+    fn only_working_pages_tick() {
+        let v = |n: &str| -> Value { golden(n) };
+        assert!(crate::app::pulses(&v("build")));
+        assert!(crate::app::pulses(&serde_json::json!({"rows": [{"lamp": {"state": "working"}}]})));
+        assert!(crate::app::pulses(&serde_json::json!({"actions": [{"id": "stop", "busy": true}]})));
+        assert!(crate::app::pulses(&serde_json::json!({"loading": true})));
+        assert!(!crate::app::pulses(&serde_json::json!({"rows": [{"lamp": {"state": "on"}}], "loading": false})));
+        assert!(!crate::app::pulses(&v("settings")));
+        let (mut app, _) = App::boot();
+        app.set_model("a".into(), "build", v("build"));
+        assert!(app.animated.contains("a"));
+        app.set_model("a".into(), "settings", v("settings"));
+        assert!(app.animated.is_empty());
+    }
 }
