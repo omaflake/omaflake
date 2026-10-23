@@ -103,5 +103,9 @@
   },
   "name": "base",
   "recipe": "lab.macos.base@ocean-maple",
-  "state": "idle"
+  "state": "idle",
+  "title": {
+    "key": "Build Image",
+    "text": "Build Image"
+  }
 }

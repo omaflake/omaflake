@@ -15,6 +15,8 @@ use crate::prerequisites::{PrerequisiteItem as I, PrerequisiteStatus as S};
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct DoctorPage {
+    /// The page's title ("Doctor")
+    pub title: Text,
     /// "omaflake" (the UI's own version) and "Core" (this server's)
     pub versions: Vec<InfoLine>,
     pub update: UpdateLine,
@@ -311,6 +313,7 @@ pub(crate) fn page(ctx: &Ctx) -> DoctorPage {
         items: list.map(|l| l.iter().map(|p| item(ctx, p)).collect()).unwrap_or_default(),
     };
     DoctorPage {
+        title: Text::new("Doctor"),
         versions: vec![InfoLine::new("Core", Text::verbatim(&ctx.omaf_version))],
         update: update_line(ctx),
         intro: Text::new("omaflake uses what your Mac already has. Set up missing parts here or enter their path."),
@@ -375,6 +378,8 @@ fn update_line(ctx: &Ctx) -> UpdateLine {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct MacBasePage {
+    /// "Create macOS Base"
+    pub title: Text,
     pub intro: Text,
     /// The base as the Doctor sees it: ready (success) or unfinished (warning)
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -500,6 +505,7 @@ pub(crate) fn mac_base_page(ctx: &Ctx, p: &MacBaseParams) -> MacBasePage {
         .enabled_if(!user.is_empty(), Some(Text::new("Guest user")))
         .enabled_if(base_item.is_none_or(|b| b.status != S::Ok), base_item.map(|b| Text::verbatim(&b.detail)));
     MacBasePage {
+        title: Text::new("Create macOS Base"),
         intro: Text::new("Creates your macOS base from the IPSW: your guest user, automatic login, SSH with your keys from ~/.ssh. No manual steps; a missing IPSW is downloaded first."),
         base,
         ipsw: IpswLine {

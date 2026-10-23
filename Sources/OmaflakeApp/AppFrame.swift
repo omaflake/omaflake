@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 import SwiftUI
+import OmaflakeKit
 
 /// Where omaflake shows itself (plan B119): the menu bar window, a regular app window with a Dock icon, or both.
 /// A per-user UI preference in UserDefaults, not one of the core's settings. The pages are the same `MainView` in
@@ -78,7 +79,7 @@ struct MainCommands: Commands {
     var body: some Commands {
         CommandGroup(replacing: .appSettings) {
             Button("Settings…") {
-                model.show(.settings)
+                model.show(PageRef("settings"))
                 openWindow(id: AppFrame.windowID)
                 NSApp.activate()
             }

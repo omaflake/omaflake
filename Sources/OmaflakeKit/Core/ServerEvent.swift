@@ -24,6 +24,8 @@ public enum ServerEvent: Sendable {
     /// Something the user should read in the activity list that the client cannot tell from the other events (English;
     /// api.md §6) – job ends, `vm.ended` and `vm.ready` come without one, the client words those itself
     case message(text: String, level: Level)
+    /// A page this connection subscribed with `views.subscribe` looks different now (api.md §10): its whole model
+    case viewChanged(page: String, params: JSONValue, model: PageModel)
     /// An event this client does not know (api.md §2: ignore it)
     case unknown(method: String)
     /// A known event whose params did not decode
@@ -31,6 +33,9 @@ public enum ServerEvent: Sendable {
 
     /// The topics `events.subscribe` takes
     public static let topics = ["vms", "images", "recipes", "jobs", "doctor", "messages"]
+    /// What a UI drawing the core's pages needs besides `view.changed` (which comes without a topic): the jobs'
+    /// log lines (`job.log`) for the build page and the macOS base
+    public static let viewTopics = ["jobs"]
 
     private struct Notification<P: Decodable>: Decodable { let params: P }
     struct Ended: Decodable { let name: String; let requested: Bool }
@@ -62,6 +67,9 @@ public enum ServerEvent: Sendable {
             case "message":
                 let p = try params(MessageParams.self)
                 return .message(text: p.text, level: p.level)
+            case "view.changed":
+                let p = try params(ViewChanged.self)
+                return .viewChanged(page: p.page, params: p.params, model: p.model)
             default: return .unknown(method: method)
             }
         } catch {

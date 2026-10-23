@@ -381,6 +381,10 @@
       }
     }
   ],
+  "title": {
+    "key": "Doctor",
+    "text": "Doctor"
+  },
   "update": {
     "actions": [
       {

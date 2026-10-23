@@ -68,16 +68,18 @@ pub struct ActivityPage {
     #[serde(flatten)]
     pub head: ListHead,
     pub entries: Vec<ActivityEntry>,
+    /// The user wants system notifications (Settings): a UI posts an entry's `notification` only then
+    pub notifications: bool,
 }
 
-pub fn page(entries: &[ActivityEntry]) -> ActivityPage {
+pub fn page(entries: &[ActivityEntry], notifications: bool) -> ActivityPage {
     let mut head = ListHead::new("Activity", entries.len(), entries.len());
     head.actions = vec![Action::call("clear", Text::new("Clear History"), Some("trash"), "activity.clear", json!({}))
         .enabled_if(!entries.is_empty(), None)];
     if entries.is_empty() {
         head.empty = Some(Hint::new("activity", Text::new("Nothing happened yet in this session."), Tone::Normal));
     }
-    ActivityPage { head, entries: entries.to_vec() }
+    ActivityPage { head, entries: entries.to_vec(), notifications }
 }
 
 fn notification(title: &str, body: Text) -> Option<Notification> {
@@ -237,6 +239,12 @@ pub fn call_done(method: &str, params: &Value, outcome: &Result<Value, RpcError>
             tf!("%@ runs from %@", vm, parent)
         }
         "images.remove" => tf!("Image %@ deleted", &name),
+        // The check's note names the source ("acme/recipes: 3 recipes")
+        "sources.add" => {
+            let note = ok.get("note").and_then(Value::as_str).filter(|n| !n.is_empty());
+            let shown = ok.pointer("/source/displayName").and_then(Value::as_str).unwrap_or_default();
+            Text::verbatim(note.unwrap_or(shown))
+        }
         "recipes.remove" => {
             let id = params.get("id").and_then(Value::as_str).unwrap_or_default();
             tf!("%@ removed", RecipeId::qualified(id))
@@ -256,13 +264,14 @@ pub fn call_done(method: &str, params: &Value, outcome: &Result<Value, RpcError>
 }
 
 /// The methods a page's actions send whose refusal goes into the activity list (besides `vms.*`)
-const ACTIONS: [&str; 17] = [
+const ACTIONS: [&str; 18] = [
     "images.remove",
     "recipes.install",
     "recipes.installSuggested",
     "recipes.installUpdates",
     "recipes.remove",
     "recipes.removeLine",
+    "sources.add",
     "sources.remove",
     "sources.setEnabled",
     "sources.move",
@@ -317,6 +326,8 @@ mod tests {
         let t = call_done("recipes.removeLine", &json!({"line": "omaflake.nixos.dev@src"}), &Ok(removed)).unwrap().1;
         assert_eq!(t.text, "dev: 2 versions removed, 1 kept");
         assert_eq!(t.key.as_deref(), Some("%@: %lld versions removed, %lld kept"));
+        let added = json!({"source": {"displayName": "acme/recipes"}, "note": "acme/recipes: 3 recipes"});
+        assert_eq!(call_done("sources.add", &json!({}), &Ok(added)).unwrap().1.text, "acme/recipes: 3 recipes");
         assert!(
             is_action("vms.start")
                 && !is_action("vms.list")

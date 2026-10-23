@@ -48,6 +48,7 @@
       "time": "2026-10-23T09:41:00Z"
     }
   ],
+  "notifications": false,
   "title": {
     "key": "Activity",
     "text": "Activity"

@@ -106,8 +106,8 @@
       {
         "enabled": true,
         "help": {
-          "key": "Only while the menu window is closed: VM ready, image built or failed, VM ended. macOS asks once whether omaflake may send them.",
-          "text": "Only while the menu window is closed: VM ready, image built or failed, VM ended. macOS asks once whether omaflake may send them."
+          "key": "Only while omaflake is not in front: VM ready, image built or failed, VM ended. macOS asks once whether omaflake may send them.",
+          "text": "Only while omaflake is not in front: VM ready, image built or failed, VM ended. macOS asks once whether omaflake may send them."
         },
         "id": "notifications",
         "kind": "toggle",
@@ -682,5 +682,9 @@
       "key": "Recipe Sources",
       "text": "Recipe Sources"
     }
+  },
+  "title": {
+    "key": "Settings",
+    "text": "Settings"
   }
 }

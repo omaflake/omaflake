@@ -596,3 +596,10 @@
 "omaflake is in the menu bar too – Settings → Show omaflake in" = "omaflake ist auch in der Menüleiste – Einstellungen → omaflake zeigen in";
 "Settings…" = "Einstellungen …";
 "Only while omaflake is not in front: VM ready, image built or failed, VM ended. macOS asks once whether omaflake may send them." = "Nur wenn omaflake nicht vorne ist: VM startklar, Vorlage fertig oder fehlgeschlagen, VM beendet. macOS fragt einmal, ob omaflake Mitteilungen senden darf.";
+
+/* Presentation model of the core (docs/api.md §10, plan B121): keys the core's pages use */
+"A name is needed" = "Ein Name ist nötig";
+"Earlier" = "Nach oben";
+"Enabled" = "Aktiv";
+"Package" = "Paket";
+"Refresh" = "Aktualisieren";

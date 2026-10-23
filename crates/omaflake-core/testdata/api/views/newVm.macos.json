@@ -251,6 +251,10 @@
     "key": "recipe %@",
     "text": "recipe dev"
   },
+  "title": {
+    "key": "New VM",
+    "text": "New VM"
+  },
   "valid": false,
   "warnings": []
 }

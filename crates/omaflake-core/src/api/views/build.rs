@@ -15,6 +15,8 @@ use crate::models::GuestKind;
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct BuildPage {
+    /// "Build Image"
+    pub title: Text,
     pub recipe: String,
     pub name: String,
     pub kind: Badge,
@@ -226,6 +228,7 @@ pub(crate) fn page(ctx: &Ctx, p: &BuildParams) -> BuildPage {
         }),
     });
     BuildPage {
+        title: Text::new("Build Image"),
         recipe: p.recipe.clone(),
         name: if p.recipe.is_empty() { "–".into() } else { recipe_name(ctx, &p.recipe) },
         kind: kind_badge(kind),

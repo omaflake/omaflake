@@ -32,6 +32,11 @@ are collected under *Unreleased*. Releases: [GitHub](https://github.com/omaflake
   core service, so it shows what the app and the CLI do. English only for now.
 - **`omaf status [--waybar] [--follow]`**: running VMs and builds in one line, or as JSON for a waybar `custom`
   module that updates itself (snippet in the CLI docs).
+- **The macOS app draws the core's pages.** Every tab and page – VMs, images, recipes, activity, the Doctor, Settings,
+  New VM, Build Image, the macOS base – shows what the core says, so the app, the Linux app and `omaf ui` agree on
+  every row, button, question and message. Looks and works as before; a macOS build asks the guest user's password,
+  the macOS base its password (twice) and a private source its token in a question when you start it. Adding a
+  recipe source is in the activity list.
 
 ### Changed
 
@@ -48,6 +53,9 @@ are collected under *Unreleased*. Releases: [GitHub](https://github.com/omaflake
   `nixos/emacs-minimal` is new. Images and VMs made from the old names stay as they are; new images come from the renamed recipes.
 
 ### Fixed
+
+- **The core service no longer hangs** once the recipe sources were looked into: building a page took the catalogs'
+  lock twice, so every page and request waited forever.
 
 - **macOS images build again with long recipe IDs**: the build VM's runner socket lived in `images/.build-<name>/`,
   which a twelve-word recipe ID made longer than a Unix socket path may be ("Socket path too long"); it is in

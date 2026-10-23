@@ -228,7 +228,7 @@ pub(crate) fn build(ctx: &Ctx, page: &PageRef) -> Result<Value, RpcError> {
             let answer = ctx.settings_answer.as_ref().ok_or_else(|| RpcError::internal("settings not gathered"))?;
             to_value(settings::page(ctx, answer, &page_params(p)?))
         }
-        "activity" => to_value(activity::page(&ctx.activity)),
+        "activity" => to_value(activity::page(&ctx.activity, ctx.settings.notifications)),
         other => Err(RpcError::invalid_params(format!("page \"{other}\": {}", PAGES.join(", ")))),
     }
 }
@@ -345,8 +345,10 @@ impl Server {
             self.check_doctor_if_never();
         }
         let conn = self.conn.id;
+        // A page that stays subscribed with the same params is sent again only when it changes; new ones come at once
+        let keep: HashSet<String> = pages.iter().map(PageRef::key).collect();
         self.events().subscribe_views(conn, pages);
-        lock(&self.inner.views_last).retain(|(c, _), _| *c != conn);
+        lock(&self.inner.views_last).retain(|(c, key), _| *c != conn || keep.contains(key));
         if self.events().any() {
             self.start_watcher(&HashSet::new());
         }
