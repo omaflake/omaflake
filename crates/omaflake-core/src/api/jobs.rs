@@ -331,13 +331,13 @@ impl JobCtx {
     }
 
     /// A log callback for the core (`&Log`)
-    pub fn log_sink(&self) -> Arc<Log> {
+    pub fn log_sink(&self) -> Arc<Log<'static>> {
         let job = self.job.clone();
         Arc::new(move |line: &str| job.append(line))
     }
 
     /// A progress callback for the core (`&Progress`): done/of in units
-    pub fn progress_sink(&self, title: &str) -> Arc<Progress> {
+    pub fn progress_sink(&self, title: &str) -> Arc<Progress<'static>> {
         let job = self.job.clone();
         let title = title.to_string();
         Arc::new(move |done: i64, of: i64| job.set_progress(done, of, Some(&title)))

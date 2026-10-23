@@ -4,7 +4,6 @@
 //! codes – 0 on success, 1 for an error ("Error: …" on stderr), 64 for a usage error, a command's own code where Swift
 //! threw `ExitCode` (doctor, sources check, sudo).
 
-mod api_shim;
 mod cli;
 mod commands;
 mod tty;

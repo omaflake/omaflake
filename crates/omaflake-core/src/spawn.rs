@@ -51,7 +51,9 @@ pub fn spawn_detached<S: AsRef<str>>(exe: &str, args: &[S], log: &Path, environm
 pub fn wait_for_exit(pid: Pid, timeout: Duration) -> bool {
     let deadline = Instant::now() + timeout;
     while Instant::now() < deadline {
-        if !is_alive(pid) {
+        // A child of this process (e.g. QEMU started by `omaf serve`) stays a zombie – and `kill(pid, 0)` keeps
+        // succeeding – until it is reaped; other processes are not affected
+        if reap_if_exited(pid) || !is_alive(pid) {
             return true;
         }
         std::thread::sleep(Duration::from_millis(200));

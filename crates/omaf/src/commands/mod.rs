@@ -10,9 +10,9 @@ pub mod sources;
 
 use omaflake_core::Error;
 
-use crate::api_shim as api;
 use crate::cli::*;
 use crate::util::Outcome;
+use omaflake_core::api;
 
 pub fn run(command: Command) -> Outcome {
     match command {
