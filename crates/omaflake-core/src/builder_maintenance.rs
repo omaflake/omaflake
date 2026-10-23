@@ -174,6 +174,7 @@ impl AdminShell {
     }
 
     /// osascript's arguments: a fixed script that takes the command and the prompt from `argv`
+    #[cfg_attr(not(target_os = "macos"), allow(dead_code))] // used on macOS only
     pub(crate) fn arguments(command: &str, prompt: &str) -> Vec<String> {
         [
             "-e",
@@ -190,6 +191,7 @@ impl AdminShell {
     }
 
     /// osascript's result: its output, "Cancelled" for "User canceled." (-128), else its error text
+    #[cfg_attr(not(target_os = "macos"), allow(dead_code))] // used on macOS only
     pub(crate) fn outcome(status: i32, stdout: &str, stderr: &str) -> Result<String> {
         if status != 0 {
             // -128: "User canceled."

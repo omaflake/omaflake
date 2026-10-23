@@ -581,7 +581,7 @@ pub(crate) mod tests {
         let (_t, p) = temp_paths();
         let c = mac_config("m1", NetworkMode::Shared);
         let args = SshCommand::arguments(&c, &p, "192.168.64.5", Some(22), &["uptime".into()]);
-        assert_eq!(args[0], "/usr/bin/ssh");
+        assert_eq!(args[0], crate::platform::host_tool("/usr/bin/ssh"));
         assert_eq!(args[1..3], ["-p", "22"]);
         assert_eq!(args[args.len() - 2..], ["test@192.168.64.5", "uptime"]);
         // NixOS default unchanged: port forwarding on 127.0.0.1
@@ -590,7 +590,18 @@ pub(crate) mod tests {
 
         let vz = backend(&p, "/usr/bin/false");
         let batch = vz.ssh_arguments_to(&c, "192.168.64.5", &["true".into()], true);
-        assert_eq!(batch[..7], ["/usr/bin/ssh", "-o", "BatchMode=yes", "-o", "ConnectTimeout=10", "-p", "22"]);
+        assert_eq!(
+            batch[..7],
+            [
+                crate::platform::host_tool("/usr/bin/ssh").as_str(),
+                "-o",
+                "BatchMode=yes",
+                "-o",
+                "ConnectTimeout=10",
+                "-p",
+                "22"
+            ]
+        );
         // no lease yet (no clone, so no MAC address): a host that cannot resolve
         let plain = vz.ssh_arguments(&c, &["uptime".into()]);
         assert_eq!(plain[1..3], ["-p", "22"]);

@@ -291,8 +291,8 @@ mod tests {
     fn runs_and_collects() {
         let r = Shell::run("/bin/sh", &["-c", "echo out; echo err >&2; exit 3"], &RunOptions::default()).unwrap();
         assert_eq!((r.status, r.stdout.as_str(), r.stderr.as_str()), (3, "out\n", "err\n"));
-        let r = Shell::run("/bin/cat", &[] as &[&str], &RunOptions { input: Some(b"secret"), ..Default::default() })
-            .unwrap();
+        let r =
+            Shell::run("cat", &[] as &[&str], &RunOptions { input: Some(b"secret"), ..Default::default() }).unwrap();
         assert_eq!(r.stdout, "secret");
         let env = [("OMAFLAKE_TEST", "x")];
         let r = Shell::run(
@@ -337,9 +337,9 @@ mod tests {
             t.cancel();
         });
         let t0 = Instant::now();
-        let r = Shell::run("/bin/sleep", &["10"], &RunOptions { cancel: Some(&token), ..Default::default() }).unwrap();
+        let r = Shell::run("sleep", &["10"], &RunOptions { cancel: Some(&token), ..Default::default() }).unwrap();
         assert!(r.status != 0 && t0.elapsed() < Duration::from_secs(5));
         assert_eq!(r.status, 15); // SIGTERM, as Swift's terminationStatus says
-        assert!(Shell::run("/bin/echo", &["x"], &RunOptions { cancel: Some(&token), ..Default::default() }).is_err());
+        assert!(Shell::run("echo", &["x"], &RunOptions { cancel: Some(&token), ..Default::default() }).is_err());
     }
 }

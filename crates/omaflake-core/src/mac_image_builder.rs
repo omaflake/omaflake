@@ -253,7 +253,11 @@ impl MacImageBuilder {
         );
         ImageStore::write_info(&info, &work)?;
         fs::rename(&work, &image).with_path(&image)?;
-        Shell::check("/bin/chmod", &["-R", "a-w", &path_string(&image)], &RunOptions::default())?;
+        Shell::check(
+            &crate::platform::host_tool("/bin/chmod"),
+            &["-R", "a-w", &path_string(&image)],
+            &RunOptions::default(),
+        )?;
         images.set_current(&name)?;
         library.keep(&r.recipe, &settings);
         library.prune_versions();
@@ -634,8 +638,11 @@ impl BuildVm {
     pub(crate) fn ssh(&self, command: &str, input: Option<&[u8]>) -> Result<ShellResult> {
         let target = format!("{}@{}", self.user, self.ip.as_deref().unwrap_or(""));
         let args: Vec<&str> = Self::SSH_OPTIONS.iter().copied().chain([target.as_str(), command]).collect();
-        let r =
-            Shell::run("/usr/bin/ssh", &args, &RunOptions { input, cancel: Some(&self.cancel), ..Default::default() })?;
+        let r = Shell::run(
+            &crate::platform::host_tool("/usr/bin/ssh"),
+            &args,
+            &RunOptions { input, cancel: Some(&self.cancel), ..Default::default() },
+        )?;
         self.append_log(&format!("{}{}", r.stdout, r.stderr));
         Ok(r)
     }
@@ -815,6 +822,8 @@ mod tests {
         assert!(e.is_cancelled() && t0.elapsed() < Duration::from_secs(5));
     }
 
+    // curl and shasum of macOS (the Nix installer tarball for macOS guests)
+    #[cfg(target_os = "macos")]
     #[test]
     fn downloads_are_cached_and_checked() {
         let (_t, p) = temp_paths();
@@ -850,7 +859,7 @@ mod tests {
         let (_t, p) = temp_paths();
         fs::create_dir_all(p.logs()).unwrap();
         let log_file = p.logs().join("build-x.log");
-        let child = spawn::spawn_detached("/bin/sleep", &["30"], &log_file, &[]).unwrap();
+        let child = spawn::spawn_detached("sleep", &["30"], &log_file, &[]).unwrap();
         let mut vm = BuildVm::new(child, &p.root, p.root.join("none.sock"), "u", log_file.clone(), Cancellation::new());
         assert!(!vm.exited());
         vm.force_off();

@@ -303,6 +303,7 @@ mod tests {
     use std::io::BufRead;
     use std::os::unix::net::UnixListener;
 
+    #[cfg_attr(not(target_os = "macos"), allow(dead_code))] // its tests are macOS only
     fn bundle_with_files(dir: &Path, mac: &str) -> MacVmBundle {
         let b = MacVmBundle::new(dir);
         std::fs::create_dir_all(dir).unwrap();

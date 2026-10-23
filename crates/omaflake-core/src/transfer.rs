@@ -568,6 +568,7 @@ mod tests {
         &|_| {}
     }
 
+    #[cfg_attr(not(target_os = "macos"), allow(dead_code))] // its tests are macOS only
     fn mac_vm(p: &Paths, name: &str) -> InstanceConfig {
         let mut s = RecipeDefaults::new(GuestKind::Macos, None, 4, 8, 80, NetworkMode::Shared, false, false, None);
         s.user = Some("test".into());
@@ -588,11 +589,14 @@ mod tests {
         c
     }
 
+    #[cfg_attr(not(target_os = "macos"), allow(dead_code))] // its tests are macOS only
     fn names(store: &InstanceStore) -> Vec<String> {
         store.list().into_iter().map(|c| c.name).collect()
     }
 
     /// Backup and back: a stopped VM goes out as a package and comes back as the same VM
+    // A macOS guest package: only a Mac runs it (create/import refuse another system)
+    #[cfg(target_os = "macos")]
     #[test]
     fn vm_goes_out_and_comes_back() {
         let (_t, p) = temp_paths();
@@ -635,6 +639,8 @@ mod tests {
     }
 
     /// A VM package registered in place shows up while its folder is there and can be forgotten while it is not
+    // A macOS guest package: only a Mac runs it (create/import refuse another system)
+    #[cfg(target_os = "macos")]
     #[test]
     fn external_vm_is_listed_while_there() {
         let (_t, p) = temp_paths();
@@ -667,6 +673,8 @@ mod tests {
 
     /// Swift `images.currentName(recipe:)` goes through the recipe's line (F3's `RecipeLibrary::available`); here the
     /// line of the image itself is asked, which is what the import sets.
+    // A macOS guest package: only a Mac runs it (create/import refuse another system)
+    #[cfg(target_os = "macos")]
     #[test]
     fn image_goes_out_and_comes_back() {
         let (_t, p) = temp_paths();

@@ -35,7 +35,8 @@ impl SshCommand {
                 "StrictHostKeyChecking=accept-new".into(),
             ]
         };
-        let mut args = vec!["/usr/bin/ssh".to_string(), "-p".into(), port.unwrap_or(c.ssh_port).to_string()];
+        let mut args =
+            vec![crate::platform::host_tool("/usr/bin/ssh"), "-p".into(), port.unwrap_or(c.ssh_port).to_string()];
         args.extend(host_keys);
         args.push(format!("{}@{host}", c.guest_user()));
         args.extend(command.iter().cloned());
@@ -62,7 +63,7 @@ mod tests {
         assert_eq!(
             a,
             vec![
-                "/usr/bin/ssh",
+                crate::platform::host_tool("/usr/bin/ssh").as_str(),
                 "-p",
                 "2230",
                 "-o",

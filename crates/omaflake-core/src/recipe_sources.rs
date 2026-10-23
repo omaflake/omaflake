@@ -1023,7 +1023,12 @@ impl RecipeLibrary {
             let requires = r.requires.as_ref().map(|list| list.iter().filter_map(|x| RecipeRef::id(x)).collect());
             manifest.insert(
                 full.clone(),
-                Installed { source: client.source.id(), version: r.version.clone(), requires, installed: Utc::now() },
+                Installed {
+                    source: client.source.id(),
+                    version: r.version.clone(),
+                    requires,
+                    installed: Self::install_time(&manifest),
+                },
             );
             self.save_manifest(&manifest)?;
             written.push(full);
@@ -1091,6 +1096,17 @@ impl RecipeLibrary {
         })();
         let _ = Disposal::delete(&[&work]);
         result
+    }
+
+    /// When a recipe version is added: now, but always after every version already here – the newest version of a
+    /// line is the last that came, and two imports within one millisecond must not tie (seen on a fast Linux host)
+    fn install_time(manifest: &BTreeMap<String, Installed>) -> DateTime<Utc> {
+        // Whole milliseconds: `.installed.json` keeps no more, so a later time within the same millisecond would tie
+        let now = DateTime::from_timestamp_millis(Utc::now().timestamp_millis()).unwrap_or_else(Utc::now);
+        match manifest.values().map(|i| i.installed).max() {
+            Some(last) if last >= now => last + chrono::Duration::milliseconds(1),
+            _ => now,
+        }
     }
 
     // MARK: Versions (plan B111)
@@ -1208,7 +1224,7 @@ impl RecipeLibrary {
                 source: entry.source.clone(),
                 version: RecipeId::words(&entry.id).unwrap_or("").to_string(),
                 requires: Some(Self::requires_of(&target)),
-                installed: Utc::now(),
+                installed: Self::install_time(manifest),
             },
         );
         for req in Self::requires_of(&entry.folder) {
@@ -1542,7 +1558,7 @@ impl RecipeLibrary {
                     source: Self::IMPORTED_SOURCE.into(),
                     version: RecipeId::words(&id).unwrap_or("").to_string(),
                     requires: Some(Self::requires_of(&target)),
-                    installed: Utc::now(),
+                    installed: Self::install_time(&manifest),
                 },
             );
             self.save_manifest(&manifest)?;

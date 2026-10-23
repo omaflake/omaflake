@@ -416,7 +416,11 @@ impl MacBaseInstaller {
                 ));
             }
             let target = format!("{}@{ip}", r.user);
-            let key_login = Shell::run("/usr/bin/ssh", &ssh_args(&[&target, "true"]), &RunOptions::default())?;
+            let key_login = Shell::run(
+                &crate::platform::host_tool("/usr/bin/ssh"),
+                &ssh_args(&[&target, "true"]),
+                &RunOptions::default(),
+            )?;
             if key_login.status != 0 {
                 return Err(Error::with_code(
                     codes::AUTH,
@@ -428,7 +432,7 @@ impl MacBaseInstaller {
             log("Shutting down");
             let input = format!("{password}\n");
             let _ = Shell::run(
-                "/usr/bin/ssh",
+                &crate::platform::host_tool("/usr/bin/ssh"),
                 &ssh_args(&[&target, "sudo -S -p '' /sbin/shutdown -h now"]),
                 &RunOptions { input: Some(input.as_bytes()), ..Default::default() },
             );
@@ -449,7 +453,11 @@ impl MacBaseInstaller {
         let _ = Disposal::delete(&[&socket, &pid_file]);
         // The marker carries the guest user: image builds log in as this user (and must match the recipes' macUser)
         let _ = fs::write(dir.join(Self::READY_MARKER), format!("{}\n", r.user));
-        Shell::check("/bin/chmod", &["-R", "a-w", &path_string(dir)], &RunOptions::default())?;
+        Shell::check(
+            &crate::platform::host_tool("/bin/chmod"),
+            &["-R", "a-w", &path_string(dir)],
+            &RunOptions::default(),
+        )?;
         log(&format!("Base ready: {} (read-only)", dir.display()));
         Ok(())
     }
@@ -490,7 +498,7 @@ impl MacBaseInstaller {
             ("OMAFLAKE_ASKPASS", password),
         ];
         Shell::run(
-            "/usr/bin/ssh",
+            &crate::platform::host_tool("/usr/bin/ssh"),
             &args,
             &RunOptions { input: Some(input), environment: &environment, ..Default::default() },
         )
@@ -528,7 +536,11 @@ impl MacBaseInstaller {
             log(&format!("{} existed already – using it; the new installation was deleted", file_name(&dir)));
         } else {
             fs::rename(&tmp, &dir).with_path(&dir)?;
-            Shell::check("/bin/chmod", &["-R", "a-w", &path_string(&dir)], &RunOptions::default())?;
+            Shell::check(
+                &crate::platform::host_tool("/bin/chmod"),
+                &["-R", "a-w", &path_string(&dir)],
+                &RunOptions::default(),
+            )?;
             log(&format!("Installed: {} (read-only, never started)", dir.display()));
         }
         Ok(dir)

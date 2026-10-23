@@ -228,7 +228,7 @@ pub fn resolve_image(input: &str, env: &Env) -> Result<String> {
 /// with sudo's status.
 pub fn sudo(script: &str) -> Outcome {
     use std::os::unix::process::ExitStatusExt;
-    let status = std::process::Command::new("/usr/bin/sudo")
+    let status = std::process::Command::new(omaflake_core::platform::host_tool("/usr/bin/sudo"))
         .args(["/bin/sh", "-c", script])
         .status()
         .map_err(|e| Error::new(omaflake_core::error::os_text(&e)))?;

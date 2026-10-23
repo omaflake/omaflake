@@ -349,7 +349,7 @@ pub fn ssh(a: &cli::Ssh) -> Outcome {
     let command: Vec<String> = a.command.iter().skip_while(|s| *s == "--").cloned().collect();
     let args = backends.backend_for(&c)?.ssh_arguments(&c, &command);
     let Some((first, rest)) = args.split_first() else { return Err(Error::new("Could not start ssh").into()) };
-    let e = std::process::Command::new("/usr/bin/ssh").arg0(first).args(rest).exec();
+    let e = std::process::Command::new(first).arg0("ssh").args(rest).exec();
     Err(Error::new(format!("Could not start ssh: {}", omaflake_core::error::os_text(&e))).into())
 }
 
@@ -470,7 +470,8 @@ pub fn log(a: &cli::Log) -> Outcome {
         args.push("-f".into());
     }
     args.push(file.to_string_lossy().into_owned());
-    let _ = std::process::Command::new("/usr/bin/tail").arg0("/usr/bin/tail").args(&args).exec();
+    let _ =
+        std::process::Command::new(omaflake_core::platform::host_tool("/usr/bin/tail")).arg0("tail").args(&args).exec();
     Err(Error::new("Could not start tail").into())
 }
 

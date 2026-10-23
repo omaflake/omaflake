@@ -32,6 +32,8 @@ are collected under *Unreleased*. Releases: [GitHub](https://github.com/omaflake
 - **macOS images build again with long recipe IDs**: the build VM's runner socket lived in `images/.build-<name>/`,
   which a twelve-word recipe ID made longer than a Unix socket path may be ("Socket path too long"); it is in
   `run/build-<hash>/` now.
+- **Recipe versions imported or installed within the same millisecond** no longer tie: the newest one could be taken
+  for an older one and removed.
 - **The Build Image page says how a build ended**: image ready (with "New VM …"), failed with its error, or cancelled –
   before, a finished build only showed its Build button again. Finished builds in the Images list have a check mark.
 

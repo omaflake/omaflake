@@ -88,6 +88,8 @@ struct Pending {
 
 struct JobData {
     state: JobState,
+    /// Ended and its `on_end` ran: `wait` returns
+    settled: bool,
     started: Option<DateTime<Utc>>,
     finished: Option<DateTime<Utc>>,
     last_output: Option<DateTime<Utc>>,
@@ -266,7 +268,15 @@ impl Job {
     }
 
     /// The end: a last line, the note about hidden lines, the state; wakes those waiting
-    fn finish(&self, state: JobState, line: Option<&str>, result: Option<Value>, error: Option<String>) {
+    /// `on_end` runs before those waiting wake up – `wait` (e.g. `omaf call images.build`) returns only once it is done
+    fn finish(
+        &self,
+        state: JobState,
+        line: Option<&str>,
+        result: Option<Value>,
+        error: Option<String>,
+        on_end: Option<OnEnd>,
+    ) {
         if let Some(line) = line {
             self.append(line);
         }
@@ -293,13 +303,17 @@ impl Job {
             d.dirty = true;
         }
         self.flush();
+        if let Some(on_end) = on_end {
+            on_end(&self.dto());
+        }
+        self.lock().settled = true;
         self.ended.notify_all();
     }
 
     /// Blocks until the job ended; returns it
     pub fn wait(&self) -> JobDto {
         let mut d = self.lock();
-        while d.state.is_active() {
+        while !d.settled {
             d = self.ended.wait(d).unwrap_or_else(|e| e.into_inner());
         }
         self.dto_of(&d)
@@ -309,7 +323,7 @@ impl Job {
     pub fn wait_timeout(&self, timeout: Duration) -> bool {
         let deadline = Instant::now() + timeout;
         let mut d = self.lock();
-        while d.state.is_active() {
+        while !d.settled {
             let now = Instant::now();
             if now >= deadline {
                 return false;
@@ -403,6 +417,7 @@ impl Jobs {
             cancel: Cancellation::new(),
             data: Mutex::new(JobData {
                 state: JobState::Queued,
+                settled: false,
                 started: None,
                 finished: None,
                 last_output: None,
@@ -492,10 +507,13 @@ impl Jobs {
                     return;
                 }
                 if let Err(e) = checked {
-                    job.finish(JobState::Failed, Some(e.message()), None, Some(e.message().to_string()));
-                    if let Some(on_end) = pending.on_end {
-                        on_end(&job.dto());
-                    }
+                    job.finish(
+                        JobState::Failed,
+                        Some(e.message()),
+                        None,
+                        Some(e.message().to_string()),
+                        pending.on_end,
+                    );
                     self.schedule();
                     return;
                 }
@@ -508,16 +526,19 @@ impl Jobs {
         job.flush();
         let outcome = guarded(|| (pending.work)(&ctx));
         match outcome {
-            Ok(value) => job.finish(JobState::Finished, None, Some(value), None),
+            Ok(value) => job.finish(JobState::Finished, None, Some(value), None, pending.on_end),
             Err(e) => {
                 let cancelled = job.cancel.is_cancelled() || e.is_cancelled();
                 let line = format!("✗ {e}");
                 let error = (!cancelled).then(|| e.message().to_string());
-                job.finish(if cancelled { JobState::Cancelled } else { JobState::Failed }, Some(&line), None, error);
+                job.finish(
+                    if cancelled { JobState::Cancelled } else { JobState::Failed },
+                    Some(&line),
+                    None,
+                    error,
+                    pending.on_end,
+                );
             }
-        }
-        if let Some(on_end) = pending.on_end {
-            on_end(&job.dto());
         }
         if job.queue.is_some() {
             self.schedule();
@@ -581,7 +602,7 @@ impl Jobs {
             JobState::Queued | JobState::Checking => {
                 // Dropping the closures also drops a password a build was given
                 drop(job.pending.lock().unwrap().take());
-                job.finish(JobState::Cancelled, Some("Removed from the queue"), None, None);
+                job.finish(JobState::Cancelled, Some("Removed from the queue"), None, None, None);
                 self.schedule();
             }
             JobState::Running if job.cancellable && !job.cancel.is_cancelled() => {

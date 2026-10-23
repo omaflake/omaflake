@@ -205,7 +205,7 @@ mod tests {
         assert_eq!(b.stop(&c, Duration::from_secs(1)).unwrap(), StopResult::AlreadyStopped);
         assert_eq!(b.agent_state(&c), None);
         let args = b.ssh_arguments(&c, &["uptime".to_string()]);
-        assert_eq!(&args[..3], ["/usr/bin/ssh", "-p", "2230"]);
+        assert_eq!(&args[..3], [crate::platform::host_tool("/usr/bin/ssh").as_str(), "-p", "2230"]);
         assert!(args.last().unwrap() == "uptime" && args[args.len() - 2].ends_with("@127.0.0.1"));
     }
 

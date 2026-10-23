@@ -243,6 +243,16 @@ pub fn machine() -> String {
     }
 }
 
+/// A system tool: on macOS its fixed path (`/usr/bin/ssh` – not whatever comes first in PATH, as in Swift); elsewhere
+/// its name, found in PATH – NixOS has no /usr/bin/ssh, /bin/chmod or /usr/bin/sudo (`/run/wrappers/bin`, profiles)
+pub fn host_tool(macos_path: &str) -> String {
+    if cfg!(target_os = "macos") {
+        macos_path.to_string()
+    } else {
+        Path::new(macos_path).file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default()
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

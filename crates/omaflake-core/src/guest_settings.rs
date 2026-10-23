@@ -249,6 +249,7 @@ impl GuestSettings {
     }
 
     /// The "KeyboardLayout Name"s of `AppleSelectedInputSources` as JSON, in their order
+    #[cfg_attr(not(target_os = "macos"), allow(dead_code))] // used on macOS only
     pub(crate) fn layout_names_in(json: &[u8]) -> Vec<String> {
         let Ok(serde_json::Value::Array(sources)) = serde_json::from_slice::<serde_json::Value>(json) else {
             return Vec::new();
