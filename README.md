@@ -68,8 +68,8 @@ command line:
 ```sh
 omaf recipes available                     # what the sources offer
 omaf recipes install omaflake/nixos/neovim-minimal
-omaf build minimal
-omaf new test --recipe minimal
+omaf build neovim-minimal
+omaf new test --recipe neovim-minimal
 omaf start test --wait
 omaf ssh test
 omaf sources add ~/src/my-recipes          # a folder: its recipes are used as they are on disk

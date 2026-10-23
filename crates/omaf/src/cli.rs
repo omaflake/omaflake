@@ -177,7 +177,7 @@ pub struct RecipesAvailable {
 
 #[derive(Debug, Args)]
 pub struct RecipesInstall {
-    #[arg(value_name = "recipe", help = "<author>/<kind>/<name>, e.g. omaflake/nixos/minimal")]
+    #[arg(value_name = "recipe", help = "<author>/<kind>/<name>, e.g. omaflake/nixos/neovim-minimal")]
     pub recipe: String,
 }
 
