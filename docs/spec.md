@@ -86,8 +86,13 @@ recipe sources (§11.3) → <author>/<kind>/<name>/{recipe.toml,default.nix} (do
            omaf new → clonefile image folder + new VZMacMachineIdentifier + new MAC
            omaf start → omaf-runner <instance> [--window] (own process, socket, VZVirtualMachineView)
         ▲
-Menu bar app (SwiftUI) + CLI `omaf` ── shared core library OmaflakeCore, one backend per guest kind
+Rust core `omaflake-core` (crates/, one backend per guest kind) ── CLI `omaf` (linked)
+        ▲  JSON-RPC 2.0 over stdio: `omaf serve` (docs/api.md)
+Menu bar app (SwiftUI, OmaflakeKit's CoreClient) – later the Linux UIs
 ```
+
+The logic lives in the Rust core; every UI is a client of `omaf serve` and holds only presentation (plan B117).
+`omaf-runner` stays Swift (Virtualization.framework) and is started by the core.
 
 **Principle:** The image is immutable. "Reset" = discard the instance and create it anew.
 "Update" = rebuild the image and switch the instance to the new image. This applies to both guest kinds.
@@ -189,8 +194,11 @@ license, optional `user`; a recipe may build on another of its kind (`requires`,
 
 ### 6.2 Core library + CLI `omaf`
 
-**Swift package** (repo root, `Package.swift`) with `OmaflakeCore` (logic), `omaf` (CLI), `omaf-runner` (runner for macOS guests), app `omaflake`.
-External tools via `Process`: `nix`, `qemu-img`, `qemu-system-aarch64`, `ssh`. No dependency on tart.
+**Rust workspace** (repo root, `Cargo.toml`): `crates/omaflake-core` (logic) and `crates/omaf` (the CLI and, with
+`omaf serve`, the JSON-RPC interface every UI uses – docs/api.md). **Swift package** (`Package.swift`): `OmaflakeKit`
+(the client of `omaf serve` with the API's types, the agent protocol and macOS VM bundle for the runner, the brand
+images), `omaf-runner` (runner for macOS guests), app `omaflake`.
+External tools as child processes: `nix`, `qemu-img`, `qemu-system-aarch64`, `ssh`. No dependency on tart.
 
 | Command | Effect |
 |---|---|

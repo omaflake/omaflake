@@ -6,7 +6,7 @@ Two marks:
 - **Glyph** (the hero flake in one colour: same tilt, no RGB split, no glitch bands, no background) –
   monochrome use. **Small glyph** (same tilt, one chevron per arm, heavy stroke) – menu bar, favicon, 16–48 px.
 
-Regenerate everything from code (including `Sources/OmaflakeCore/BrandAssets.swift`): `python3 generate.py` (needs `rsvg-convert` from Homebrew `librsvg`
+Regenerate everything from code (including `Sources/OmaflakeKit/Brand/BrandAssets.swift`): `python3 generate.py` (needs `rsvg-convert` from Homebrew `librsvg`
 and macOS `iconutil`). Edit `generate.py`, not the exported files.
 
 omaflake's name and brand belong to falkOSS – Falcon Lake Open Source Software gUG (haftungsbeschränkt) i. G., the
@@ -19,7 +19,7 @@ endorsement.
 | Use | File |
 |---|---|
 | macOS app icon | `macos/omaflake.icns` (16/32 px slots: small glyph on the icon background); copied into the bundle by `scripts/bundle-app.sh` |
-| Swift targets (menu bar, runner/QEMU Dock icon) | `Sources/OmaflakeCore/BrandAssets.swift` – generated, embeds `png/icon/omaflake-icon-512.png` and `png/menubar/`; API in `Brand.swift` |
+| Swift targets (menu bar, runner/QEMU Dock icon) | `Sources/OmaflakeKit/Brand/BrandAssets.swift` – generated, embeds `png/icon/omaflake-icon-512.png` and `png/menubar/`; API in `Brand.swift` |
 | Menu bar (template image, macOS tints it) | `png/menubar/omaflakeTemplate.png`, `@2x`, `@3x` or `svg/omaflake-menubarTemplate.svg` |
 | GitHub org avatar | `social/github-avatar-500.png` |
 | GitHub social preview (repo settings) | `social/omaflake-social-1280x640.png` |

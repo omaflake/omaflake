@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 import Foundation
 import Virtualization
-import OmaflakeCore
+import OmaflakeKit
 
 /// Fresh macOS installation from an IPSW into a new VM folder (spec §6.5 step 1).
 @MainActor

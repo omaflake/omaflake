@@ -3,7 +3,7 @@ import AVFoundation
 import CoreVideo
 import Darwin
 import Foundation
-import OmaflakeCore
+import OmaflakeKit
 
 /// Mac side of the camera channel: captures the Mac's camera only while the guest asks for it and sends 1280×720 NV12
 /// frames. Two transports: the omaflake agent (images from plan B106 on – frames only against the guest's credits,

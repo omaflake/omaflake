@@ -6,7 +6,7 @@ permalink: /app/
 
 # omaflake – menu bar app (spec M4, M11)
 
-SwiftUI `MenuBarExtra` on top of `OmaflakeCore`. No Dock icon (`LSUIElement`), no App Sandbox, ad-hoc signed.
+SwiftUI `MenuBarExtra`, a client of omaflake's Rust core. No Dock icon (`LSUIElement`), no App Sandbox, ad-hoc signed.
 Deliberately **without an Xcode project**: SwiftPM executable + `scripts/bundle-app.sh` (a hand-written `.pbxproj` would be error-prone).
 
 ```sh
@@ -14,6 +14,22 @@ scripts/bundle-app.sh             # → build/omaflake.app
 scripts/bundle-app.sh --install   # additionally to ~/Applications (old bundle → ~/.omaflake/_to_delete)
 open build/omaflake.app
 ```
+
+## Architecture
+
+The app holds no logic of its own beyond presentation (plan B117): it starts **`omaf serve`** – the Rust `omaf` next
+to its executable, `Contents/MacOS/omaf` (development: `OMAF_BIN`, or the repository's `target/{debug,release}/omaf`
+above the SwiftPM build) – and talks JSON-RPC 2.0 with it over stdio (docs/api.md). `OmaflakeKit`'s `CoreClient`
+sends `initialize` (client `omaflake-macos`, the app's version, API version 1, the UI language, the update feed from
+Info.plist), subscribes to every event topic, matches responses to requests by id and starts the server again when it
+ends on its own; quitting the app ends it (`shutdown`, then its stdin closes). `AppModel` loads the lists once
+(`vms.list`, `images.list`, `recipes.list`, `sources.list`, `settings.get`, `jobs.list`, `doctor.check`) and then
+follows the events (`vms.changed`, `images.changed`, `recipes.changed`, `jobs.changed`, `job.log`, `doctor.changed`,
+`vm.ready`, `vm.ended`, `message`) – there is no polling in the app. Everything that takes minutes (builds, the IPSW
+download, the macOS base, Linux builder tasks, imports, exports, moving the data folder) is a job in the server; the
+build queue, the Doctor's blockers, the recipes' freshness and what the sources offer come from the server. What the
+app keeps: pages, filters, questions (confirmations inside the menu window), the activity list, notifications, launch
+at login, the app's language, Terminal via AppleScript, open panels (their content checked by `packages.inspect`).
 
 ## Features
 
@@ -67,7 +83,7 @@ open build/omaflake.app
   Checks run at launch, when the Doctor opens, on "Check Again", after every action and right before a build – not
   while idle
 - Instance list of both guest kinds with status dot and guest-kind icon (snowflake = NixOS, Apple logo = macOS),
-  read from `~/.omaflake` every 2 s → also shows VMs started via the CLI; SSH port (NixOS) or NAT address (macOS, while running)
+  from the core's `vms.changed` events (it watches `~/.omaflake`) → also shows VMs started via the CLI; SSH port (NixOS) or NAT address (macOS, while running)
 - per instance, always in the same places: share folder (folder icon), start without window (terminal with a play
   sub-symbol; the terminal with SSH while running), start in a window (monitor with a play sub-symbol, NixOS: 3D if the
   QEMU supports it; shut down while running). Small icons next to the name show what is on (clipboard, sound,
@@ -131,7 +147,8 @@ open build/omaflake.app
   data folder (default `~/.omaflake`, move it elsewhere or back; `DataFolder.move`)
 
 UI languages: English (development language and fallback) and German, `App/Resources/<lang>.lproj/Localizable.strings`
-(keys are the English texts). Messages from `OmaflakeCore` (errors) stay English, like the CLI.
+(keys are the English texts). Messages from the core (errors, `message` events) are English, like the CLI; where an
+error has a `kind` the app has its own text for (e.g. `vm-running`), it shows that.
 
 `omaf-runner` is embedded as its own helper app (`Contents/Helpers/omaf-runner.app`, shown as "omaflake VM"; inside
 `Contents/MacOS` a runner with a VM window made macOS take it for omaflake.app, plan B65), signed by `bundle-app.sh` with its entitlement
@@ -139,7 +156,8 @@ UI languages: English (development language and fallback) and German, `App/Resou
 
 Icons: the menu bar shows the omaflake template image, the bundle carries `brand/macos/omaflake.icns`
 (`CFBundleIconFile`), and VM windows started from the app get the omaflake Dock icon (QEMU patch
-`qemu-cocoa-dock-icon`, plan B27). The image data comes from `OmaflakeCore/Brand.swift`.
+`qemu-cocoa-dock-icon`, plan B27). The image data comes from `OmaflakeKit/Brand/Brand.swift`; the app writes QEMU's
+Dock icon to `<data folder>/cache/dock-icon.png`, where the core looks for it.
 
 Quitting the app leaves running VMs running (QEMU in its own session, as with the CLI).
 "Terminal (SSH)" controls Terminal.app via AppleScript – macOS asks for permission the first time.

@@ -578,3 +578,11 @@
 "Add Version" = "Version hinzufügen";
 "The new version is added; the older ones stay (Settings: keep older recipe versions)." = "Die neue Version kommt dazu; die älteren bleiben (Einstellungen: Ältere Rezept-Versionen behalten).";
 "The new version takes over; the older one goes unless an image is built from it." = "Die neue Version ersetzt die ältere; die ältere geht, außer eine Vorlage ist daraus gebaut.";
+
+/* The app as a client of omaflake's core (omaf serve, docs/api.md) */
+"omaflake's core runs again" = "Der omaflake-Kern läuft wieder";
+"macOS downloaded" = "macOS geladen";
+"Failed" = "Fehlgeschlagen";
+"Not an omaflake package" = "Kein omaflake-Paket";
+"Other check" = "Weitere Prüfung";
+"Core" = "Kern";
