@@ -6,15 +6,20 @@ permalink: /cli/
 
 # omaf – CLI (spec M3)
 
-Swift package (repo root, `Package.swift`): `OmaflakeCore` (logic, shared with the app) + `omaf` (CLI, swift-argument-parser).
+Rust workspace (repo root, `Cargo.toml`): `omaflake-core` (logic, shared with every UI through `omaf serve`,
+docs/api.md) + `omaf` (`crates/omaf`, the CLI on clap). It ports the Swift CLI (`Sources/omaf`, swift-argument-parser)
+command for command: same options, output and exit codes (0; 1 for an error, "Error: …" on stderr; 64 for a usage
+error; `doctor` and `sources check` 1 when something is missing or failed; `builder` passes on sudo's code).
 Runs headless or 2D with Homebrew QEMU; with the own build (`qemu/`, `omaf config --qemu …`) also with 3D.
 
 ## Build & test
 
 ```sh
-swift test                 # unit tests (QEMU arguments, stores, deletion, QMP)
-swift build -c release     # → .build/release/omaf
+cargo test                       # unit tests (core and CLI: argument parsing, output formatting, exit codes)
+cargo build -p omaf --release    # → target/release/omaf
 ```
+
+The Swift CLI (`swift build -c release` → `.build/release/omaf`) stays until the port is complete.
 
 In a checkout once: `omaf config --flake <checkout>/nix` (writes `~/.omaflake/config.json`; the app ships its own
 copy and uses it when nothing is set). A folder without its own `.git` is used as `path:<folder>`, so Nix sees
@@ -57,6 +62,8 @@ git-ignored settings (`nix/local/`); flake URLs are used as given. Recipes come 
 | `omaf doctor` | checks what the Mac brings (spec §11.2): macOS/Apple silicon, Nix, flakes, nix-darwin, Linux builder, QEMU (3D or not), image flake, SSH key, git; then the preflight for NixOS (builder answers, recipes evaluate, space in the Nix store) and macOS (IPSW, base, space); prints hints and the official install command; exit code 1 if something required is missing |
 | `omaf builder setup` | on a Mac with Nix but without nix-darwin: nix-darwin with omaflake's Linux builder host in two stages (default builder from the cache, then the full host), via sudo |
 | `omaf builder apply [--force]` / `omaf builder clean-up` | Linux builder via `sudo`: build the image flake's `#linux-builder` host as the user, then activate it as root like `darwin-rebuild switch` (refused without `--force` when this Mac's nix-darwin system is not omaflake's), or `nix-store --gc` in the builder with free space before/after; log `<data>/logs/linux-builder.log` |
+| `omaf serve` | the core API (JSON-RPC 2.0, one JSON object per line) on stdin/stdout – how the app and other UIs talk to the core (docs/api.md) |
+| `omaf call <method> [<params as JSON>]` | one API request without a session; prints the result as JSON (exit 1 and the error's message on error) – for scripts and tests |
 | `omaf config [--flake p] [--qemu p] [--runner p] [--nix p] [--guest-user u] [--guest-full-name n] [--guest-locale l] [--guest-keyboard k] [--guest-time-zone z] [--home <dir>\|default]` | show/set settings (`~/.omaflake/config.json`); `--guest-…` override the Mac's values passed to the recipes (empty value = the Mac's again, spec §11.1); `--home` moves the data folder (VMs stopped, same volume; overlays name their image relatively, paths in instance.json and settings are rewritten); `--keep-recipe-versions on\|off` keeps older versions of a recipe line (default off: the newest and those images use) |
 
 Guest user for SSH: `--user` on `omaf new`, otherwise `user = "…"` from the recipe's `recipe.toml`, otherwise the Mac user name.
