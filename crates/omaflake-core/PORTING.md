@@ -242,10 +242,9 @@ SetupCommandTests, NixInstallerPinTests.
 - **Brand**: the Dock icon moved into the core: `QemuRuntime::start` writes the embedded 512 px PNG (`DOCK_ICON`,
   `include_bytes!` from `brand/`) to `Paths::dock_icon()` and sets `OMAFLAKE_DOCK_ICON` to it; the app writes nothing
   into the data folder.
-- **Screen size**: `QEMURuntime.mainScreenResolution` used CoreGraphics. The UI passes the main screen's pixels with
-  `qemu_runtime::set_main_screen_resolution` (OPEN: no API param passes it yet); until then macOS asks `system_profiler
-  SPDisplaysDataType -json` once (pixels and points – Swift's result). Pixels alone are computed with factor 1 (a few
-  pixels off Swift's size). OPEN: system_profiler's JSON keys are not an API.
+- **Screen size**: `QEMURuntime.mainScreenResolution` used CoreGraphics. On macOS the core asks `system_profiler
+  SPDisplaysDataType -json` once (pixels and points – Swift's result); the UIs pass nothing (decided: pixels alone would
+  be a few pixels off). `qemu_runtime::set_main_screen_resolution` stays for an in-process UI or another host. OPEN: system_profiler's JSON keys are not an API.
 - **Foundation locale data**: `GuestChoices` (`Locale.availableIdentifiers`, `TimeZone.knownTimeZoneIdentifiers`,
   localized names) and `GuestSettings.mac()` (current time zone, locale, HIToolbox keyboard) – OPEN, see the module docs.
 - **URLSession downloads**: the IPSW downloader resumes with HTTP `Range` from `<build>.ipsw.partial` instead of

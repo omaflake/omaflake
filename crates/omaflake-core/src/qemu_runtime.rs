@@ -6,8 +6,8 @@
 //! embedded (`DOCK_ICON`) and written to `<data>/cache/dock-icon.png` (`Paths::dock_icon`) when QEMU starts with a
 //! window; QEMU gets `OMAFLAKE_DOCK_ICON` pointing at it.
 //!
-//! The main screen: a UI can tell the core its size with `set_main_screen_resolution`, process-wide (OPEN: the API has
-//! no param for it yet). Until then – the CLI, a UI that passes nothing – macOS asks `system_profiler SPDisplaysDataType -json` once (cached for the process): the main display's pixels
+//! The main screen: a UI can tell the core its size with `set_main_screen_resolution`, process-wide; the API passes
+//! none (decided: the core's own reading is exact). Without it macOS asks `system_profiler SPDisplaysDataType -json` once (cached for the process): the main display's pixels
 //! and its "looks like" size in points give the Retina factor, so the result is Swift's. Elsewhere there is no
 //! screen (None: QEMU picks its default size).
 //!
