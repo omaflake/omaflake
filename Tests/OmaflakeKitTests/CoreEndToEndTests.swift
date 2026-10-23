@@ -107,4 +107,68 @@ struct CoreEndToEndTests {
         #expect(undecodable.isEmpty, "events this app cannot read: \(undecodable)")
         #expect(!events.all.contains { if case .disconnected = $0 { true } else { false } })
     }
+
+    /// Runs `omaf <arguments>` with `environment`; its output
+    static func omaf(_ omaf: URL, _ arguments: [String], environment: [String: String]) throws -> Data {
+        let process = Process()
+        process.executableURL = omaf
+        process.arguments = arguments
+        process.environment = environment
+        let output = Pipe()
+        process.standardOutput = output
+        try process.run()
+        let data = output.fileHandleForReading.readDataToEndOfFile()
+        process.waitUntilExit()
+        return data
+    }
+
+    /// The core service (plan B120): two clients on its socket share one server – the same data folder, the same jobs,
+    /// events for both – and a client that stops leaves the service running for the other
+    @Test func twoClientsShareTheService() async throws {
+        let environment = ProcessInfo.processInfo.environment
+        let omaf = try #require(CoreClient.locateServer(environment: environment))
+        let (home, flake) = try Self.sandbox()
+        var env = environment
+        env["VM_HOME"] = home.path
+        env["VM_FLAKE"] = flake.path
+        env.removeValue(forKey: "OMAFLAKE_UPDATE_FEED")
+        func client(_ name: String) -> CoreClient {
+            CoreClient(launcher: CoreClient.serviceLauncher(executable: omaf, environment: env),
+                       initialize: InitializeParams(client: name, clientVersion: "0", language: "de"),
+                       topics: ["vms", "jobs"], restartDelays: [.seconds(60)])
+        }
+        let a = client("e2e-a"), b = client("e2e-b")
+        let eventsA = EventLog(a), eventsB = EventLog(b)
+        a.start()
+        try await eventsA.wait("connected a") { if case .connected = $0 { true } else { false } }
+        b.start()
+        try await eventsB.wait("connected b") { if case .connected = $0 { true } else { false } }
+        defer {
+            a.stop()
+            b.stop()
+            _ = try? Self.omaf(omaf, ["service", "stop"], environment: env)
+        }
+        let sa = try #require(a.session), sb = try #require(b.session)
+        #expect(sa.dataFolder == sb.dataFolder)
+        #expect(URL(fileURLWithPath: sa.dataFolder).standardizedFileURL.path == home.standardizedFileURL.path)
+
+        // Both get the lists; both see the same (empty) jobs
+        try await eventsA.wait("vms.changed a") { if case .vmsChanged = $0 { true } else { false } }
+        try await eventsB.wait("vms.changed b") { if case .vmsChanged = $0 { true } else { false } }
+        let jobsA: [Job] = try await a.call("jobs.list")
+        let jobsB: [Job] = try await b.call("jobs.list")
+        #expect(jobsA == jobsB && jobsA.isEmpty)
+
+        // One client leaves: the service stays for the other, and keeps running without clients
+        a.stop()
+        try await Task.sleep(for: .milliseconds(300))
+        let still: [Job] = try await b.call("jobs.list")
+        #expect(still.isEmpty)
+        #expect(!eventsB.all.contains { if case .disconnected = $0 { true } else { false } })
+        b.stop()
+        try await Task.sleep(for: .milliseconds(300))
+        struct Status: Decodable { let running: Bool }
+        let status = try JSONDecoder().decode(Status.self, from: Self.omaf(omaf, ["service", "status", "--json"], environment: env))
+        #expect(status.running)
+    }
 }

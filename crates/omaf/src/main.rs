@@ -31,7 +31,7 @@ fn main() {
             }
         },
     };
-    if !matches!(cli.command, cli::Command::Serve) {
+    if !matches!(cli.command, cli::Command::Serve(_)) {
         // Output into a closed pipe (`omaf list | head`) ends the process quietly, as it did in Swift; the server
         // keeps Rust's default and sees the error instead
         // SAFETY: setting a signal's disposition to the default
@@ -148,7 +148,25 @@ mod tests {
     fn call_and_serve() {
         let Cli { command: cli::Command::Call(c) } = parse(&["call", "vm.list", "{}"]).unwrap() else { panic!() };
         assert_eq!((c.method.as_str(), c.params.as_deref()), ("vm.list", Some("{}")));
-        assert!(matches!(parse(&["serve"]).unwrap().command, cli::Command::Serve));
+        assert!(matches!(parse(&["serve"]).unwrap().command, cli::Command::Serve(cli::Serve { socket: None, .. })));
+        let Cli { command: cli::Command::Serve(s) } = parse(&["serve", "--socket", "--idle-exit", "300"]).unwrap()
+        else {
+            panic!()
+        };
+        assert!(matches!(s.socket, Some(None)) && s.idle_exit == Some(300));
+        let Cli { command: cli::Command::Serve(s) } = parse(&["serve", "--socket=/tmp/x.sock"]).unwrap() else {
+            panic!()
+        };
+        assert_eq!(s.socket, Some(Some("/tmp/x.sock".into())));
+        assert!(parse(&["serve", "--idle-exit", "3"]).is_err());
+        let Cli { command: cli::Command::Call(c) } = parse(&["call", "--socket", "jobs.list"]).unwrap() else {
+            panic!()
+        };
+        assert_eq!((c.socket, c.method.as_str()), (Some(None), "jobs.list"));
+        assert!(matches!(
+            parse(&["service", "status", "--json"]).unwrap().command,
+            cli::Command::Service { command: cli::ServiceCommand::Status { json: true } }
+        ));
     }
 
     #[test]

@@ -39,6 +39,29 @@ pub mod codes {
     pub const AUTH: &str = "auth";
     /// A bug or an unexpected state
     pub const INTERNAL: &str = "internal";
+
+    /// Every kind above
+    pub const ALL: [&str; 14] = [
+        NOT_FOUND,
+        EXISTS,
+        VM_RUNNING,
+        VM_STOPPED,
+        IN_USE,
+        MAC_LIMIT,
+        UNSUPPORTED_SYSTEM,
+        UNREADABLE_FILE,
+        NEWER_FILE,
+        CANCELLED,
+        PREREQUISITE,
+        NETWORK,
+        AUTH,
+        INTERNAL,
+    ];
+
+    /// The kind of this name (an API client reading `data.kind`); None for one this omaflake does not know
+    pub fn known(kind: &str) -> Option<&'static str> {
+        ALL.into_iter().find(|k| *k == kind)
+    }
 }
 
 /// omaflake's error: a message (Swift `VMError.description`) and an optional code for the API.

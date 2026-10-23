@@ -1,21 +1,27 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! The server: one per UI session (`omaf serve`) or per in-process UI. It holds what the app's `AppModel` held –
-//! the recipe list, the Doctor's results, the catalogs, the VMs it is acting on or was asked to stop – and runs the
-//! jobs and the watcher. Requests are dispatched in `methods.rs`.
+//! The server: one per user as the core service (`omaf serve --socket`, plan B120), one per UI session (`omaf serve`
+//! on stdio) or per in-process UI. It holds what the app's `AppModel` held – the recipe list, the Doctor's results,
+//! the catalogs, the VMs it is acting on or was asked to stop – and runs the jobs and the watcher. Requests are
+//! dispatched in `methods.rs`.
+//!
+//! A `Server` value is one **connection** to that shared state: `Server::new` makes the state and its first
+//! connection, `connect` adds one (each socket client of the service), `disconnect` ends it. A connection has its own
+//! session (`initialize`, language, update feed) and subscription; jobs, the watcher, the build queue and the caches
+//! are shared, and events go to every connection subscribed to their topic.
 //!
 //! Every method runs on the caller's thread and blocks until it is done; the stdio transport gives each request its
 //! own thread, so a slow request never holds up a fast one. Shared state sits behind short-lived mutexes.
 
 use std::collections::{HashMap, HashSet};
 use std::panic::{catch_unwind, AssertUnwindSafe};
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Condvar, Mutex, MutexGuard, RwLock};
 use std::time::{Duration, Instant, SystemTime};
 
 use serde::Serialize;
 use serde_json::Value;
 
-use super::events::{Events, Notify, Topic};
+use super::events::{ConnId, Events, Notify, Topic};
 use super::jobs::{panic_text, Job, Jobs};
 use super::model::{self, Doctor, RecipeCache, Snapshot, View};
 use super::protocol::{self, Incoming, RpcError};
@@ -87,8 +93,8 @@ struct Clipboard {
 #[derive(Default)]
 struct Watch {
     running: bool,
-    /// The last list sent per topic (as JSON, to compare)
-    last: HashMap<Topic, Value>,
+    /// The last list sent per topic and language (as JSON, to compare); the language only for recipes
+    last: HashMap<(Topic, Option<String>), Value>,
     /// VM statuses of the last look (for `vm.ended`)
     statuses: Option<Vec<(String, VmStatus)>>,
     poked: bool,
@@ -98,7 +104,6 @@ pub(crate) struct Inner {
     pub paths: RwLock<Paths>,
     pub events: Arc<Events>,
     pub jobs: Arc<Jobs>,
-    pub session: Mutex<Session>,
     pub busy: Mutex<HashSet<String>>,
     /// VMs this server was asked to stop – their end is no news
     pub stop_requested: Mutex<HashSet<String>>,
@@ -110,18 +115,34 @@ pub(crate) struct Inner {
     clipboard: Mutex<Clipboard>,
     watch: Mutex<Watch>,
     wake: Condvar,
-    pub initialized: AtomicBool,
+    /// The first `initialize` ran (it migrates older layouts once)
+    pub migrated: AtomicBool,
+    /// The server ends: jobs are cancelled, the watcher and waits stop
     pub shut_down: AtomicBool,
+    /// `service.restart` was asked: the socket service ends once no job runs (api.md §1)
+    pub restart: AtomicBool,
+    next_conn: AtomicU64,
     /// `initialize` migrates older layouts (`ImageStore::migrate_legacy`) – off in protocol tests
     pub migrate_at_start: bool,
 }
 
-/// The core API in-process: the methods and JSON shapes of docs/api.md without the pipe. A Rust UI (Tauri) creates
+/// One connection's session: what `initialize` said, and whether it ended (`shutdown`)
+#[derive(Default)]
+pub(crate) struct Conn {
+    pub id: ConnId,
+    pub session: Mutex<Session>,
+    pub initialized: AtomicBool,
+    pub ended: AtomicBool,
+}
+
+/// The core API in-process: the methods and JSON shapes of docs/api.md without the pipe. A Rust UI (iced) creates
 /// one with its own `notify`, sends `initialize` first and `events.subscribe` when it wants events. Cloning is cheap
-/// (shared state). `notify` is called from the server's threads and must not block on the server.
+/// (shared state, the same connection). `notify` is called from the server's threads and must not block on the
+/// server.
 #[derive(Clone)]
 pub struct Server {
     pub(crate) inner: Arc<Inner>,
+    pub(crate) conn: Arc<Conn>,
 }
 
 pub(crate) fn lock<T>(m: &Mutex<T>) -> MutexGuard<'_, T> {
@@ -169,13 +190,14 @@ impl Drop for BusyGuard<'_> {
 impl Server {
     /// A server on `paths` (`Paths::standard()` for the user's data folder); notifications go to `notify`
     pub fn new(paths: Paths, notify: Arc<Notify>) -> Server {
-        let events = Arc::new(Events::new(notify));
+        let events = Arc::new(Events::new());
+        events.attach(0, notify);
         Server {
+            conn: Arc::new(Conn::default()),
             inner: Arc::new(Inner {
                 paths: RwLock::new(paths),
                 jobs: Jobs::new(events.clone()),
                 events,
-                session: Mutex::default(),
                 busy: Mutex::default(),
                 stop_requested: Mutex::default(),
                 recipes: Mutex::default(),
@@ -186,8 +208,10 @@ impl Server {
                 clipboard: Mutex::default(),
                 watch: Mutex::default(),
                 wake: Condvar::new(),
-                initialized: AtomicBool::new(false),
+                migrated: AtomicBool::new(false),
                 shut_down: AtomicBool::new(false),
+                restart: AtomicBool::new(false),
+                next_conn: AtomicU64::new(1),
                 migrate_at_start: true,
             }),
         }
@@ -198,6 +222,22 @@ impl Server {
         let mut s = Self::new(paths, notify);
         Arc::get_mut(&mut s.inner).unwrap().migrate_at_start = false;
         s
+    }
+
+    /// A new connection to the same state (a client of the service): its own session and subscription, the same
+    /// jobs, watcher and caches. Its events go to `notify`.
+    pub fn connect(&self, notify: Arc<Notify>) -> Server {
+        let id = self.inner.next_conn.fetch_add(1, Ordering::SeqCst);
+        self.inner.events.attach(id, notify);
+        Server { inner: self.inner.clone(), conn: Arc::new(Conn { id, ..Conn::default() }) }
+    }
+
+    /// The connection is gone: no more events go to it. What it started (jobs, VM actions) goes on.
+    pub fn disconnect(&self) {
+        self.conn.ended.store(true, Ordering::SeqCst);
+        self.inner.events.detach(self.conn.id);
+        // The watcher ends by itself when nobody is subscribed any more
+        self.inner.wake.notify_all();
     }
 
     /// Answers one JSON-RPC request object (None for a notification, which gets no answer)
@@ -238,7 +278,7 @@ impl Server {
     }
 
     fn dispatch_guarded(&self, method: &str, params: Value) -> Reply {
-        if !self.inner.initialized.load(Ordering::SeqCst) && !matches!(method, "initialize" | "shutdown") {
+        if !self.conn.initialized.load(Ordering::SeqCst) && !matches!(method, "initialize" | "shutdown") {
             return Err(RpcError::not_initialized());
         }
         match catch_unwind(AssertUnwindSafe(|| self.dispatch(method, params))) {
@@ -247,9 +287,24 @@ impl Server {
         }
     }
 
-    /// `shutdown` was answered (or stdin closed): the transport ends
+    /// `shutdown` was answered on this connection, or the server ends: the transport ends this session
     pub fn is_shut_down(&self) -> bool {
+        self.conn.ended.load(Ordering::SeqCst) || self.is_closing()
+    }
+
+    /// The whole server ends (`close`): background work stops
+    pub(crate) fn is_closing(&self) -> bool {
         self.inner.shut_down.load(Ordering::SeqCst)
+    }
+
+    /// `service.restart` was asked
+    pub(crate) fn restart_requested(&self) -> bool {
+        self.inner.restart.load(Ordering::SeqCst)
+    }
+
+    /// A job waits or runs
+    pub(crate) fn busy(&self) -> bool {
+        self.inner.jobs.any_running()
     }
 
     /// Ends the session: jobs are cancelled (waiting up to `timeout` for them to stop), the watcher stops. VMs keep
@@ -270,8 +325,9 @@ impl Server {
         *self.inner.paths.write().unwrap_or_else(|e| e.into_inner()) = paths;
     }
 
+    /// This connection's language (`initialize`)
     pub(crate) fn language(&self) -> Option<String> {
-        lock(&self.inner.session).language.clone()
+        lock(&self.conn.session).language.clone()
     }
 
     pub(crate) fn events(&self) -> &Events {
@@ -384,15 +440,20 @@ impl Server {
         self.check_freshness();
     }
 
-    /// The lists as they are now
+    /// The lists as they are now, in this connection's language
     pub(crate) fn state(&self) -> Result<State, Error> {
+        self.state_in(self.language())
+    }
+
+    /// The lists as they are now, recipe texts in `language`
+    pub(crate) fn state_in(&self, language: Option<String>) -> Result<State, Error> {
         let paths = self.paths();
         let recipes = self.recipes().unwrap_or_else(|_| lock(&self.inner.recipes).clone());
         let snap = Snapshot::read(&paths, &recipes)?;
         Ok(State {
             busy: lock(&self.inner.busy).clone(),
             expected: lock(&self.inner.freshness).expected.clone(),
-            language: self.language(),
+            language,
             developer_mode: Settings::load(&paths).developer_mode.unwrap_or(false),
             paths,
             snap,
@@ -458,7 +519,7 @@ impl Server {
                 let mut running = None;
                 for _ in 0..60 {
                     std::thread::sleep(Duration::from_secs(2));
-                    if s.is_shut_down() {
+                    if s.is_closing() {
                         return Ok(());
                     }
                     if let Ok(c) = backends.store.load(&name) {
@@ -542,9 +603,7 @@ impl Server {
     pub(crate) fn start_watcher(&self, fresh: &HashSet<Topic>) {
         {
             let mut w = lock(&self.inner.watch);
-            for t in fresh {
-                w.last.remove(t);
-            }
+            w.last.retain(|(t, _), _| !fresh.contains(t));
             w.poked = true;
             if w.running {
                 drop(w);
@@ -556,7 +615,7 @@ impl Server {
         let s = self.clone();
         std::thread::spawn(move || {
             loop {
-                if s.is_shut_down() || !s.events().any() {
+                if s.is_closing() || !s.events().any() {
                     break;
                 }
                 if let Err(e) = super::jobs::guarded(|| {
@@ -569,7 +628,7 @@ impl Server {
                 let (mut w, _) = s
                     .inner
                     .wake
-                    .wait_timeout_while(w, WATCH_INTERVAL, |w| !w.poked && !s.is_shut_down())
+                    .wait_timeout_while(w, WATCH_INTERVAL, |w| !w.poked && !s.is_closing())
                     .unwrap_or_else(|e| e.into_inner());
                 w.poked = false;
             }
@@ -584,7 +643,7 @@ impl Server {
         if lock(&self.inner.recipes).loaded {
             self.reload_recipes_if_changed();
         }
-        let Ok(state) = self.state() else { return };
+        let Ok(mut state) = self.state_in(None) else { return };
         let view = state.view();
         let statuses: Vec<(String, VmStatus)> =
             state.snap.rows.iter().map(|r| (r.config.name.clone(), r.status)).collect();
@@ -602,23 +661,45 @@ impl Server {
         if events.is_subscribed(Topic::Images) {
             self.send_if_changed(Topic::Images, "images.changed", &view.images());
         }
-        if events.is_subscribed(Topic::Recipes) && state.recipes.loaded {
-            self.send_if_changed(Topic::Recipes, "recipes.changed", &view.recipes(false));
-        }
         self.ensure_clipboard_agents(&state.snap);
+        if state.recipes.loaded {
+            // Recipe descriptions come in each client's language
+            for language in events.languages(Topic::Recipes) {
+                state.language = language.clone();
+                let list = state.view().recipes(false);
+                self.send_if_changed_in(Topic::Recipes, language, "recipes.changed", &list);
+            }
+        }
     }
 
     /// Sends a topic's whole list when it differs from the last one sent
     pub(crate) fn send_if_changed<T: Serialize>(&self, topic: Topic, method: &str, list: &T) -> bool {
         let Ok(value) = serde_json::to_value(list) else { return false };
-        {
-            let mut w = lock(&self.inner.watch);
-            if w.last.get(&topic) == Some(&value) {
-                return false;
-            }
-            w.last.insert(topic, value.clone());
+        if !self.remember(topic, None, &value) {
+            return false;
         }
         self.events().emit(topic, method, &value);
+        true
+    }
+
+    /// The same for a list in one language, sent to the clients of that language
+    fn send_if_changed_in<T: Serialize>(&self, topic: Topic, language: Option<String>, method: &str, list: &T) -> bool {
+        let Ok(value) = serde_json::to_value(list) else { return false };
+        if !self.remember(topic, language.clone(), &value) {
+            return false;
+        }
+        self.events().emit_in(&language, topic, method, &value);
+        true
+    }
+
+    /// Keeps `value` as the last list sent; false when it is that already
+    fn remember(&self, topic: Topic, language: Option<String>, value: &Value) -> bool {
+        let mut w = lock(&self.inner.watch);
+        let key = (topic, language);
+        if w.last.get(&key) == Some(value) {
+            return false;
+        }
+        w.last.insert(key, value.clone());
         true
     }
 
@@ -643,13 +724,13 @@ mod tests {
         let (_dir, paths) = temp_paths();
         let (sink, got) = recorder();
         let server = Server::for_tests(paths, sink);
-        server.events().subscribe([Topic::Images].into());
+        server.events().subscribe(0, [Topic::Images].into());
         assert!(server.send_if_changed(Topic::Images, "images.changed", &json!({"images": []})));
         assert!(!server.send_if_changed(Topic::Images, "images.changed", &json!({"images": []})));
         assert!(server.send_if_changed(Topic::Images, "images.changed", &json!({"images": [1]})));
         assert_eq!(got.lock().unwrap().len(), 2);
         // A new subscription sends the list again
-        lock(&server.inner.watch).last.remove(&Topic::Images);
+        lock(&server.inner.watch).last.remove(&(Topic::Images, None));
         assert!(server.send_if_changed(Topic::Images, "images.changed", &json!({"images": [1]})));
     }
 

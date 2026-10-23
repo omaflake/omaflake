@@ -276,7 +276,8 @@ final class AppModel {
                                       updateFeed: feed.flatMap { $0.isEmpty ? nil : $0 })
         let launcher: CoreClient.Launcher
         if let omaf = CoreClient.locateServer() {
-            launcher = CoreClient.processLauncher(executable: omaf)
+            // The core service shared with the CLI and other interfaces; a private server if it cannot be reached (B120)
+            launcher = CoreClient.automaticLauncher(executable: omaf)
         } else {
             launcher = { _ in throw APIError(message: "omaf not found – it belongs next to the app (Contents/MacOS/omaf); for development set OMAF_BIN or run cargo build") }
         }

@@ -2,10 +2,12 @@
 import Darwin
 import Foundation
 
-/// The client of omaflake's Rust core: starts `omaf serve` and talks JSON-RPC 2.0 with it over stdio, one JSON object
-/// per line (docs/api.md). Requests run concurrently and are matched to their responses by id; the server's
-/// notifications come as `events`. When the server ends on its own, open requests fail and the client starts it again
-/// (`.disconnected`, then `.connected`); `stop()` ends it for good.
+/// The client of omaflake's Rust core: talks JSON-RPC 2.0 with `omaf serve`, one JSON object per line (docs/api.md) –
+/// on the core service's socket, which every interface and the CLI share (`automaticLauncher`, plan B120), or over the
+/// stdio of a private server. Requests run concurrently and are matched to their responses by id; the server's
+/// notifications come as `events`. When the connection ends (the server ended, the service restarted), open requests
+/// fail and the client connects again (`.disconnected`, then `.connected`); `stop()` ends it for good – a private
+/// server ends with it, the service goes on for its other clients.
 public final class CoreClient: @unchecked Sendable {
     /// The API version this client speaks
     public static let apiVersion = 1
@@ -73,8 +75,8 @@ public final class CoreClient: @unchecked Sendable {
         if go { Task.detached { await self.connect() } }
     }
 
-    /// Ends the server for good (the app quits): `shutdown`, then its stdin closes – it ends either way (api.md §1).
-    /// Open requests fail. Does not wait.
+    /// Ends the session for good (the app quits): `shutdown`, then the connection closes – a private server ends, the
+    /// service keeps running for its other clients and its jobs (api.md §1). Open requests fail. Does not wait.
     public func stop() {
         let (conn, open, waiters) = lock.withLock { () -> (Connection?, [CheckedContinuation<Data, Error>], [CheckedContinuation<Void, Error>]) in
             let wasReady = phase == .ready
@@ -317,6 +319,59 @@ public final class CoreClient: @unchecked Sendable {
             dir = d.deletingLastPathComponent()
         }
         return nil
+    }
+
+    /// The core service, else a private server: `serviceLauncher`, and when that fails (an omaf without the service,
+    /// a socket that cannot be reached) `processLauncher` – tried in this order at every (re)connect
+    public static func automaticLauncher(executable: URL, environment: [String: String]? = nil) -> Launcher {
+        let service = serviceLauncher(executable: executable, environment: environment)
+        let process = processLauncher(executable: executable, environment: environment)
+        return { ended in
+            do {
+                return try service(ended)
+            } catch {
+                FileHandle.standardError.write(Data("omaflake: the core service is not available (\(error.localizedDescription)) – using a private one\n".utf8))
+                return try process(ended)
+            }
+        }
+    }
+
+    /// Connects to the core service (plan B120): `<executable> service start --json` starts it when it does not run (the
+    /// user agent if installed, else on its own until idle; a service older than that omaf is restarted once idle)
+    /// and names its socket. `stop()` ends only this connection.
+    public static func serviceLauncher(executable: URL, environment: [String: String]? = nil) -> Launcher {
+        { _ in
+            let process = Process()
+            process.executableURL = executable
+            process.arguments = ["service", "start", "--json"]
+            if let environment { process.environment = environment }
+            let output = Pipe()
+            process.standardOutput = output
+            process.standardInput = FileHandle.nullDevice
+            try process.run()
+            let data = output.fileHandleForReading.readDataToEndOfFile()
+            process.waitUntilExit()
+            guard process.terminationStatus == 0 else {
+                throw APIError(message: "omaf service start ended with status \(process.terminationStatus)")
+            }
+            struct Started: Decodable { let socket: String }
+            let socket = try JSONDecoder().decode(Started.self, from: data).socket
+            return try connection(socket: socket)
+        }
+    }
+
+    /// A connection on the service's socket: one descriptor for reading, a copy for writing (closing it ends nothing);
+    /// `terminate` shuts the socket down, which ends the reader
+    public static func connection(socket path: String) throws -> Connection {
+        let fd = try connectUnix(path, timeout: 0)
+        var on: Int32 = 1
+        setsockopt(fd, SOL_SOCKET, SO_NOSIGPIPE, &on, socklen_t(MemoryLayout<Int32>.size))
+        let writeFD = dup(fd)
+        guard writeFD >= 0 else { close(fd); throw APIError(message: "dup failed for \(path)") }
+        _ = fcntl(writeFD, F_SETFD, FD_CLOEXEC)
+        let reading = FileHandle(fileDescriptor: fd, closeOnDealloc: true)
+        let writing = FileHandle(fileDescriptor: writeFD, closeOnDealloc: true)
+        return Connection(toServer: writing, fromServer: reading, terminate: { _ = Darwin.shutdown(reading.fileDescriptor, SHUT_RDWR) })
     }
 
     /// Starts `<executable> serve` as a child process; its stderr goes where this process' goes
