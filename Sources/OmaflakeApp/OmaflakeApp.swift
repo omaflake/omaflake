@@ -1707,6 +1707,8 @@ struct BuildView: View {
                 } else {
                     BuildProgressView(progress: job.progress ?? Job.Progress(), started: job.started, lastOutput: job.lastOutput)
                 }
+            } else if let job, job.isDone {
+                BuildOutcome(job: job, model: model)
             } else if let newest = r?.image {
                 Text("newest image: \(newest)").font(.caption).foregroundStyle(.secondary).lineLimit(1).truncationMode(.middle)
             }
@@ -1724,6 +1726,55 @@ struct BuildView: View {
         .task(id: job?.id) { if let job { await model.loadLog(job) } }
         .onAppear { recipe = model.buildRecipe ?? "" }
         .onChange(of: model.buildRecipe) { _, f in if let f { recipe = f } }
+    }
+}
+
+/// How the recipe's last build ended, said plainly above its log – without it a finished build only showed its Build
+/// button again and the log simply stopped
+struct BuildOutcome: View {
+    let job: Job
+    let model: AppModel
+
+    private var image: String? { job.result(as: BuildResult.self)?.image }
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 8) {
+            switch job.state {
+            case .finished:
+                Image(systemName: "checkmark.circle.fill").foregroundStyle(BrandStyle.cyan)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Image ready").font(.callout.weight(.semibold))
+                    if let image {
+                        Text(verbatim: model.images.first { $0.name == image }?.label ?? image)
+                            .font(.caption).foregroundStyle(.secondary).lineLimit(1).truncationMode(.middle)
+                    }
+                }
+                Spacer()
+                if let image, model.images.contains(where: { $0.name == image }) {
+                    Button("New VM …") {
+                        model.newVMImage = image
+                        model.show(.newVM)
+                    }
+                }
+            case .failed:
+                Image(systemName: "xmark.octagon.fill").foregroundStyle(BrandStyle.red)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Build failed").font(.callout.weight(.semibold))
+                    if let error = job.error {
+                        Text(verbatim: error).font(.caption).foregroundStyle(.secondary).lineLimit(3).textSelection(.enabled)
+                    }
+                }
+                Spacer()
+            case .cancelled:
+                Image(systemName: "minus.circle").foregroundStyle(.secondary)
+                Text("Build cancelled").font(.callout.weight(.semibold))
+                Spacer()
+            default:
+                EmptyView()
+            }
+        }
+        .padding(10)
+        .background(BrandStyle.card, in: RoundedRectangle(cornerRadius: 8))
     }
 }
 
@@ -2545,6 +2596,7 @@ struct BuildJobRow: View {
                 case .queued: Image(systemName: "clock").foregroundStyle(.secondary)
                 case .checking, .running: ProgressView().controlSize(.mini)
                 case .failed: Image(systemName: "xmark.octagon.fill").foregroundStyle(BrandStyle.red)
+                case .finished: Image(systemName: "checkmark.circle.fill").foregroundStyle(BrandStyle.cyan)
                 default: Image(systemName: "minus.circle").foregroundStyle(.secondary)
                 }
             }

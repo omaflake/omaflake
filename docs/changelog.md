@@ -29,6 +29,12 @@ are collected under *Unreleased*. Releases: [GitHub](https://github.com/omaflake
 
 ### Fixed
 
+- **macOS images build again with long recipe IDs**: the build VM's runner socket lived in `images/.build-<name>/`,
+  which a twelve-word recipe ID made longer than a Unix socket path may be ("Socket path too long"); it is in
+  `run/build-<hash>/` now.
+- **The Build Image page says how a build ended**: image ready (with "New VM …"), failed with its error, or cancelled –
+  before, a finished build only showed its Build button again. Finished builds in the Images list have a check mark.
+
 - **omaflake's QEMU builds again** (`nix build github:omaflake/omaflake#qemu`): the libepoxy EGL 1.5 patch is now part
   of omaflake instead of a download from its Homebrew tap, whose release tag was moved – the hash check stopped every
   fresh build. The patch itself is unchanged.

@@ -188,7 +188,11 @@ impl MacImageBuilder {
         let with_cancel = RunOptions { cancel: Some(cancel), ..Default::default() };
         Shell::check(&self.vz.runner, &["clone".into(), path_string(&base), path_string(&work)], &with_cancel)
             .map_err(|e| if cancel.is_cancelled() { cancelled() } else { e })?;
-        let socket = work.join("runner.sock");
+        // The socket lives in a short run folder: `.build-<name>/runner.sock` with a recipe ID of twelve words is longer
+        // than a Unix socket path may be (103 bytes)
+        let run = build_run_folder(paths, &name);
+        fs::create_dir_all(&run).with_path(&run)?;
+        let socket = run.join("runner.sock");
         let pid_file = work.join("runner.pid");
         let run_args = ["run".into(), path_string(&work), "--socket".into(), path_string(&socket)];
         let run_args: Vec<String> = run_args.into_iter().chain(["--pid-file".into(), path_string(&pid_file)]).collect();
@@ -214,7 +218,7 @@ impl MacImageBuilder {
         }
         let _disarm = Disarm(armed);
 
-        let mut vm = BuildVm::new(child, socket.clone(), &r.user, log_file.clone(), cancel.clone());
+        let mut vm = BuildVm::new(child, &work, socket.clone(), &r.user, log_file.clone(), cancel.clone());
         if let Err(e) = self.provision(&mut vm, r, &system, cancel, log) {
             vm.force_off();
             let was_cancelled = cancel.is_cancelled();
@@ -228,11 +232,12 @@ impl MacImageBuilder {
                     format!("Failed build deleted (log: {}; --keep-failed keeps it for inspection)", log_file.display())
                 });
             }
+            let _ = Disposal::delete(&[&run]);
             return Err(if was_cancelled { cancelled() } else { e });
         }
 
         // 7. Store as image: without the runner's runtime files, read-only, current/<recipe>
-        let _ = Disposal::delete(&[&socket, &pid_file]);
+        let _ = Disposal::delete(&[&run, &pid_file]);
         let settings = Settings::load(paths);
         let library = RecipeLibrary::new(paths.clone());
         let recipe_source = library.available(&settings).into_iter().find(|a| a.id == r.recipe).map(|a| a.source);
@@ -412,7 +417,7 @@ impl MacImageBuilder {
         log: &LogFn<'_>,
     ) -> Result<()> {
         log("Waiting for the VM");
-        let mac = MacVmBundle::new(vm.socket.parent().unwrap_or(Path::new("."))).load_config()?.mac_address;
+        let mac = MacVmBundle::new(&vm.dir).load_config()?.mac_address;
         let deadline = Instant::now() + Duration::from_secs(600);
         let ip = loop {
             cancel.check()?;
@@ -558,6 +563,8 @@ impl MacImageBuilder {
 #[derive(Debug)]
 pub(crate) struct BuildVm {
     pub child: Pid,
+    /// The build VM's folder (`images/.build-<name>`)
+    pub dir: PathBuf,
     pub socket: PathBuf,
     pub user: String,
     pub log_file: PathBuf,
@@ -582,8 +589,15 @@ impl BuildVm {
         "LogLevel=ERROR",
     ];
 
-    pub(crate) fn new(child: Pid, socket: PathBuf, user: &str, log_file: PathBuf, cancel: Cancellation) -> Self {
-        BuildVm { child, socket, user: user.into(), log_file, ip: None, cancel, done: false }
+    pub(crate) fn new(
+        child: Pid,
+        dir: &Path,
+        socket: PathBuf,
+        user: &str,
+        log_file: PathBuf,
+        cancel: Cancellation,
+    ) -> Self {
+        BuildVm { child, dir: dir.to_path_buf(), socket, user: user.into(), log_file, ip: None, cancel, done: false }
     }
 
     /// True once the runner has exited (reaps it, so no zombie is left).
@@ -643,6 +657,14 @@ impl BuildVm {
             let _ = f.write_all(text.as_bytes());
         }
     }
+}
+
+/// The build VM's runtime folder (its runner socket): `run/build-<16 hex digits of the name's SHA-256>` – short, so the
+/// socket path stays within the 103 bytes a Unix socket allows
+fn build_run_folder(paths: &Paths, name: &str) -> PathBuf {
+    use sha2::{Digest, Sha256};
+    let hash = hex::encode(Sha256::digest(name.as_bytes()));
+    paths.run().join(format!("build-{}", &hash[..16]))
 }
 
 /// The build VM's folder while it is built: `images/.build-<name>`
@@ -829,7 +851,7 @@ mod tests {
         fs::create_dir_all(p.logs()).unwrap();
         let log_file = p.logs().join("build-x.log");
         let child = spawn::spawn_detached("/bin/sleep", &["30"], &log_file, &[]).unwrap();
-        let mut vm = BuildVm::new(child, p.root.join("none.sock"), "u", log_file.clone(), Cancellation::new());
+        let mut vm = BuildVm::new(child, &p.root, p.root.join("none.sock"), "u", log_file.clone(), Cancellation::new());
         assert!(!vm.exited());
         vm.force_off();
         assert!(vm.exited());
@@ -843,5 +865,16 @@ mod tests {
     fn work_folder_is_hidden_in_images() {
         let (_t, p) = temp_paths();
         assert_eq!(work_folder(&p, "x"), p.images().join(".build-x"));
+    }
+
+    #[test]
+    fn the_build_socket_fits_a_unix_socket_path() {
+        // A twelve-word recipe ID in the default data folder of a long user name
+        let p = Paths::new(PathBuf::from("/Users/a-rather-long-user-name/.omaflake"), None);
+        let name =
+            "omaflake.macos.minimal@bring-action-column-pattern-before-long-proof-similar-warfare-napkin-mom-benefit";
+        let socket = build_run_folder(&p, name).join("runner.sock");
+        assert!(socket.as_os_str().len() <= 103, "{}", socket.display());
+        assert_ne!(build_run_folder(&p, name), build_run_folder(&p, "omaflake.macos.minimal@other"));
     }
 }
