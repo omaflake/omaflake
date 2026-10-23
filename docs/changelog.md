@@ -15,6 +15,9 @@ are collected under *Unreleased*. Releases: [GitHub](https://github.com/omaflake
 
 ### Added
 
+- **omaflake in the lab VM.** The development recipe `nixos/lab` brings the Linux app, `omaf` and `omaf ui`, with
+  omaflake's status and the tray in waybar – to try the Linux interfaces on a Mac (VMs cannot start inside it). Built
+  from a checkout, the lab gets omaflake's code as it is on disk. Recipes can use omaflake as `pkgs.omaflake`.
 - **The `omaf` command from the Doctor.** A new, optional check says whether `omaf` is on your PATH and is this
   omaflake's (another or older one is named with its path and version). *Install …* links `/usr/local/bin/omaf` to the
   app's `omaf` (macOS asks for an administrator), *Uninstall …* removes the link; on Linux the link goes to
@@ -69,6 +72,9 @@ are collected under *Unreleased*. Releases: [GitHub](https://github.com/omaflake
 
 ### Fixed
 
+- **Linux app: no redraws while idle.** It redrew its window every 0.6 s, which kept a core busy in VMs and with
+  software rendering; now only while something works or a message is shown.
+- **waybar snippet:** waybar 0.15 shows nothing with `"format": "{icon} {}"` – use `"{icon} {text}"`.
 - **macOS images build again with long recipe IDs**: the build VM's runner socket lived in `images/.build-<name>/`,
   which a twelve-word recipe ID made longer than a Unix socket path may be ("Socket path too long"); it is in
   `run/build-<hash>/` now.

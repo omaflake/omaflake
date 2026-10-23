@@ -24,7 +24,8 @@ nix profile install github:omaflake/omaflake#omaflake-gui
 The package holds the app `omaflake` and the CLI `omaf`, a desktop entry (`omaflake.desktop`) and the icon in the
 hicolor theme, so it shows up in the desktop's app list. It needs a GPU driver with Vulkan (or OpenGL), Wayland or X11;
 the wrapper brings the libraries iced loads at run time (Vulkan loader, libGL, Wayland, xkbcommon, the X11 libraries,
-fontconfig).
+fontconfig). In a VM without a Vulkan GPU (virgl, as in omaflake's NixOS guests) wgpu may pick Mesa's software Vulkan
+(lavapipe), which is slow and busy: `WGPU_BACKEND=gl` makes it draw with OpenGL (the lab VM sets it).
 
 From a checkout (development): `cargo run -p omaflake-gui` – on a Mac too, as a development aid (the macOS app stays the
 SwiftUI one; there the tray does not exist). `VM_HOME=<folder>` points it at another data folder.
@@ -75,7 +76,30 @@ waybar shows the tray icon with its `tray` module:
 "tray": { "spacing": 8 }
 ```
 
-A `custom` module fed by `omaf status --waybar` (VM and build counts as JSON) is planned (plan B119) – OPEN.
+and omaflake's own status (running VMs, builds) with a `custom` module fed by `omaf status --waybar --follow` – the
+snippet is in the [CLI reference](cli.md#waybar).
+
+## Trying it in the lab VM
+
+The development recipe `omaflake/nixos/lab` (developer mode) brings omaflake itself: the app `omaflake`, the CLI `omaf`
+and its TUI `omaf ui`, plus waybar's `custom/omaflake` and `tray` modules (plan B123). So the Linux interfaces can be
+tried on a real Linux desktop (Hyprland, aarch64) on a Mac:
+
+```sh
+omaf build nixos/lab
+omaf new lab-omaflake --recipe nixos/lab
+omaf start lab-omaflake --window
+```
+
+In the VM: Cmd+D → *omaflake* opens the app (its icon appears in waybar's tray), a click on the ❄ in waybar opens
+`omaf ui` in WezTerm, and `omaf doctor` / `omaf status` work in the terminal. The core service is started on demand (by
+the app, `omaf ui` or the waybar module) – no unit is installed. **VMs cannot start inside the lab**: the VM has no
+nested virtualisation, and omaflake as a Linux host is still being brought up (issue #2); the pages, the tray, the
+Doctor and the settings can be looked at, recipes listed and sources managed.
+
+Which omaflake the lab gets: built from a checkout (the image flake is the checkout's `nix/` folder), the code as it is
+on disk – omaflake passes `--override-input omaflake <checkout>` (tracked files with their changes; a new file must at
+least be `git add`ed); from the app's bundled flake, the revision of `github:omaflake/omaflake` in its `flake.lock`.
 
 ## Development
 

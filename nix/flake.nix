@@ -26,9 +26,16 @@
     };
     # Homebrew itself, declaratively (macOS recipes that want `brew`, e.g. macos/research)
     nix-homebrew.url = "github:zhaofengli/nix-homebrew";
+    # omaflake itself, for recipes that bring it (`pkgs.omaflake`: the Linux app and `omaf`, e.g. nixos/lab). In a
+    # checkout omaflake replaces it with the checkout (`--override-input omaflake <checkout>`), so a lab gets the code
+    # as it is on disk; fetched only when a recipe uses `pkgs.omaflake` (plan B123).
+    omaflake = {
+      url = "github:omaflake/omaflake";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
   };
 
-  outputs = { nixpkgs, home-manager, nix-darwin, nix-homebrew, omaflake-guest, omaflake-recipes, ... }:
+  outputs = { nixpkgs, home-manager, nix-darwin, nix-homebrew, omaflake, omaflake-guest, omaflake-recipes, ... }:
     let
       inherit (nixpkgs) lib;
 
@@ -134,6 +141,12 @@
 
       # A recipe VM for one system = guest hardware (also the root flake's nixosModules.vm-guest) + base + desktop +
       # editor line (the recipe picks it) + the recipe (and its variant for the system) + your local extras
+      # pkgs.omaflake for recipes: the root flake's Linux package (app `omaflake`, CLI `omaf`; plan B123) – the input is
+      # only fetched when a recipe uses it
+      omaflakeOverlay = final: _: {
+        omaflake = omaflake.packages.${final.stdenv.hostPlatform.system}.omaflake-gui;
+      };
+
       mkVm = system: recipe: nixpkgs.lib.nixosSystem {
         specialArgs = { inherit settings; };
         modules = [
@@ -141,7 +154,7 @@
           ./modules/base.nix
           ./modules/hyprland.nix
           ./modules/editor.nix
-          { nixpkgs.hostPlatform = system; }
+          { nixpkgs.hostPlatform = system; nixpkgs.overlays = [ omaflakeOverlay ]; }
         ] ++ recipeModules recipe system ++ optionalLocal "nixos.nix" ++ homeManager;
       };
 

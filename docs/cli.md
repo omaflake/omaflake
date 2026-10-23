@@ -109,7 +109,7 @@ activity (a VM ready, a build done or failed) shows in the status line and on th
 "custom/omaflake": {
   "exec": "omaf status --waybar --follow",
   "return-type": "json",
-  "format": "{icon} {}",
+  "format": "{icon} {text}",
   "format-icons": {"idle": "❄", "running": "❄", "building": "⚒"},
   "on-click": "foot -e omaf ui"
 }

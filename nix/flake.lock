@@ -92,6 +92,26 @@
         "type": "github"
       }
     },
+    "omaflake": {
+      "inputs": {
+        "nixpkgs": [
+          "nixpkgs"
+        ]
+      },
+      "locked": {
+        "lastModified": 1792699935,
+        "narHash": "sha256-N7epeC1GBlCJQr2BSfeTab+VJn0BcYubglQns5Y4MUY=",
+        "owner": "omaflake",
+        "repo": "omaflake",
+        "rev": "403d548afa0389dae6dd10cab1e71882fb9ca1cc",
+        "type": "github"
+      },
+      "original": {
+        "owner": "omaflake",
+        "repo": "omaflake",
+        "type": "github"
+      }
+    },
     "omaflake-guest": {
       "flake": false,
       "locked": {
@@ -122,6 +142,7 @@
         "nix-darwin": "nix-darwin",
         "nix-homebrew": "nix-homebrew",
         "nixpkgs": "nixpkgs",
+        "omaflake": "omaflake",
         "omaflake-guest": "omaflake-guest",
         "omaflake-recipes": "omaflake-recipes"
       }

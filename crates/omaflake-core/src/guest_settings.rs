@@ -322,7 +322,8 @@ pub struct GuestOverrides {
 impl ImageStore {
     /// Arguments for a `nix` call on the image flake: the guest values as its `omaflake-guest` input and the recipes
     /// of the sources as `omaflake-recipes` (RecipeLibrary::stage), without writing the lock file (it would get the
-    /// data folder's paths). For a local folder an input is passed only when its flake.nix declares it.
+    /// data folder's paths). For a local folder an input is passed only when its flake.nix declares it; the `nix/`
+    /// folder of an omaflake checkout also gets the checkout as its `omaflake` input (`omaflake_checkout_arguments`).
     /// `["--override-input", "omaflake-guest", "path:<dir>", "--override-input", "omaflake-recipes", "path:<dir>",
     /// "--no-write-lock-file"]`, or nothing.
     pub fn guest_arguments(&self, flake: &str) -> Vec<String> {
@@ -332,7 +333,7 @@ impl ImageStore {
             guest = nix.contains("omaflake-guest");
             recipes = nix.contains("omaflake-recipes");
         }
-        let mut args: Vec<String> = Vec::new();
+        let mut args = Self::omaflake_checkout_arguments(flake);
         if guest {
             if let Ok(dir) = GuestSettings::write(&self.paths) {
                 args.extend(["--override-input".into(), "omaflake-guest".into(), format!("path:{}", dir.display())]);
@@ -348,6 +349,30 @@ impl ImageStore {
         }
         args.push("--no-write-lock-file".into());
         args
+    }
+
+    /// The image flake as the `nix/` folder of an omaflake checkout (its parent has the root flake.nix and crates/,
+    /// its flake.nix declares the input `omaflake`): `["--override-input", "omaflake", <checkout>]`, so recipes that
+    /// bring omaflake (`pkgs.omaflake`, nixos/lab) get the code as it is on disk (plan B123). A checkout with its own
+    /// git repository is passed as a plain path – Nix takes the tracked files with their changes, not `target/` or
+    /// other build output –, else as `path:`. Any other flake (the app's bundled copy) keeps its locked default.
+    pub fn omaflake_checkout_arguments(flake: &str) -> Vec<String> {
+        let flake = flake.strip_prefix("path:").unwrap_or(flake);
+        if !flake.starts_with('/') {
+            return Vec::new();
+        }
+        let nix = std::fs::read_to_string(Path::new(flake).join("flake.nix")).unwrap_or_default();
+        let declares = nix.contains("omaflake = {") || nix.contains("omaflake.url");
+        let Some(checkout) = Path::new(flake.trim_end_matches('/')).parent() else { return Vec::new() };
+        if !declares || !checkout.join("flake.nix").is_file() || !checkout.join("crates").is_dir() {
+            return Vec::new();
+        }
+        let reference = if checkout.join(".git").exists() {
+            checkout.display().to_string()
+        } else {
+            format!("path:{}", checkout.display())
+        };
+        vec!["--override-input".into(), "omaflake".into(), reference]
     }
 }
 
@@ -457,5 +482,43 @@ mod tests {
         let store = ImageStore::new(p.clone());
         assert!(store.guest_arguments(&with_input.to_string_lossy()).contains(&"--no-write-lock-file".to_string()));
         assert!(store.guest_arguments(&without.to_string_lossy()).is_empty());
+    }
+
+    /// The `nix/` folder of a checkout gets the checkout as its `omaflake` input; other flakes do not (plan B123)
+    #[test]
+    fn omaflake_input_from_the_checkout() {
+        let (_t, p) = temp_paths();
+        let checkout = p.root.join("checkout");
+        let nix = checkout.join("nix");
+        std::fs::create_dir_all(nix.join("guest")).unwrap();
+        std::fs::create_dir_all(checkout.join("crates")).unwrap();
+        std::fs::write(checkout.join("flake.nix"), "{ }").unwrap();
+        std::fs::write(
+            nix.join("flake.nix"),
+            "{ inputs.omaflake = { url = \"github:omaflake/omaflake\"; inputs.nixpkgs.follows = \"nixpkgs\"; }; }",
+        )
+        .unwrap();
+        let args = |f: &Path| ImageStore::omaflake_checkout_arguments(&f.to_string_lossy());
+        let expected = |r: String| vec!["--override-input".to_string(), "omaflake".into(), r];
+        // without git: path:, with git: the folder (Nix takes the tracked files)
+        assert_eq!(args(&nix), expected(format!("path:{}", checkout.display())));
+        assert_eq!(
+            ImageStore::omaflake_checkout_arguments(&format!("path:{}/", nix.display())),
+            expected(format!("path:{}", checkout.display()))
+        );
+        std::fs::create_dir_all(checkout.join(".git")).unwrap();
+        assert_eq!(args(&nix), expected(checkout.display().to_string()));
+        // part of the arguments of every nix call, before the lock-file flag
+        let all = ImageStore::new(p.clone()).guest_arguments(&nix.to_string_lossy());
+        assert_eq!(all[..3], expected(checkout.display().to_string())[..]);
+        assert_eq!(all.last().map(String::as_str), Some("--no-write-lock-file"));
+        // a bundled copy (no checkout around it), a flake without the input, a flake URL: nothing
+        let bundled = p.root.join("Resources").join("nix");
+        std::fs::create_dir_all(&bundled).unwrap();
+        std::fs::copy(nix.join("flake.nix"), bundled.join("flake.nix")).unwrap();
+        assert!(args(&bundled).is_empty());
+        std::fs::write(nix.join("flake.nix"), "{ inputs.omaflake-recipes.url = \"path:./no-recipes\"; }").unwrap();
+        assert!(args(&nix).is_empty());
+        assert!(ImageStore::omaflake_checkout_arguments("github:omaflake/omaflake?dir=nix").is_empty());
     }
 }

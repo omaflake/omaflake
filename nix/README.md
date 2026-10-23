@@ -14,6 +14,13 @@ Two inputs are replaced by omaflake on every `nix` call (`--override-input`, wit
 | `omaflake-guest` | `guest/` – neutral values (user `guest`, no keys) | **who you are**: user, full name, keys, locale, keyboard, time zone from your Mac (overridable in the app's settings or with `omaf config --guest-…`); the macOS guest user is always the one of your macOS base |
 | `omaflake-recipes` | `no-recipes/` – empty, so the flake evaluates on its own | the recipes of the sources (enabled local folders as they are on disk, downloaded and imported ones), each in a tree of its own with the recipes it requires, and `recipes.json` naming them (spec §11.11) |
 
+A third input is replaced only in development: `omaflake` (default `github:omaflake/omaflake`, its `nixpkgs` follows
+this flake's) gives recipes `pkgs.omaflake` – the Linux app `omaflake` and the CLI `omaf` (the root flake's
+`omaflake-gui`), used by `nixos/lab` (plan B123). When this folder is the `nix/` folder of an omaflake checkout (the
+folder above it has the root `flake.nix` and `crates/`), omaflake passes `--override-input omaflake <checkout>`, so the
+lab gets the code as it is on disk (the tracked files with their changes – not `target/`); the app's bundled copy keeps
+the locked revision. Nix fetches the input only when a recipe uses `pkgs.omaflake`.
+
 A recipe is a folder `<author>/<kind>/<name>/` with `recipe.toml` (how a VM from it runs) and `default.nix` (a NixOS
 or nix-darwin module); its fields and rules are in omaflake/recipes' CONTRIBUTING.md. Staged by omaflake its ID is
 `<author>.<kind>.<name>@<words>` (the words spell its content hash) – the attribute names of `images` and
@@ -27,6 +34,9 @@ R=../../recipes/recipes                      # a checkout of omaflake/recipes, o
 nix eval --json "path:$PWD#lib.recipeDefaults" --override-input omaflake-recipes "path:$R"
 nix build "path:$PWD#images.aarch64-linux.\"omaflake.nixos.neovim-minimal\"" --override-input omaflake-recipes "path:$R"
 nix flake check "path:$PWD"                  # without recipes
+# a recipe with pkgs.omaflake, from this checkout:
+nix eval --raw "path:$PWD#nixosConfigurations.\"vm-aarch64-linux-omaflake.nixos.lab\".config.system.build.toplevel.drvPath" \
+  --override-input omaflake-recipes "path:$R" --override-input omaflake "$PWD/.."
 ```
 
 ## Developer extras: `local/` (optional, git-ignored)
