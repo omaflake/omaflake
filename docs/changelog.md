@@ -13,6 +13,15 @@ are collected under *Unreleased*. Releases: [GitHub](https://github.com/omaflake
 
 ## [Unreleased]
 
+### Added
+
+- **One core service for every interface.** `omaf serve --socket` runs omaflake's core once per user on a Unix
+  socket; the app, `omaf build` and `omaf call --socket` all use it, so a build started in the terminal shows up in
+  the app's jobs (and waits in the same queue), and every client gets the same events. The app starts the service on
+  demand and leaves it running when it quits (it ends five minutes after its last client, unless installed as a user
+  agent with `omaf service install`; `omaf service start|stop|status|uninstall`). Without the service everything works
+  as before. A newer omaf restarts an older running service once it is idle.
+
 ### Changed
 
 - **The menu bar app is a client of omaflake's new Rust core**: it starts `omaf serve` (bundled next to the app) and

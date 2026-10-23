@@ -50,6 +50,12 @@ pub struct InitializeResult {
     pub config_file: String,
 }
 
+/// `service.restart`: the service ends once these jobs (waiting or running) are done – at once when 0
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ServiceRestart {
+    pub jobs: usize,
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Host {
     /// "aarch64-darwin", "aarch64-linux", …

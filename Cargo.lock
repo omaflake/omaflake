@@ -669,6 +669,7 @@ dependencies = [
  "libc",
  "omaflake-core",
  "serde_json",
+ "tempfile",
 ]
 
 [[package]]

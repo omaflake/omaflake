@@ -6,6 +6,7 @@ pub mod instances;
 pub mod macos;
 pub mod packages;
 pub mod recipes;
+pub mod service;
 pub mod sources;
 
 use omaflake_core::Error;
@@ -68,15 +69,44 @@ pub fn run(command: Command) -> Outcome {
             BuilderCommand::Apply { force } => instances::builder_apply(force),
             BuilderCommand::CleanUp => instances::builder_clean_up(),
         },
-        Command::Serve => Ok(api::serve_stdio()?),
+        Command::Serve(a) => service::serve(&a),
+        Command::Service { command } => service::run(&command),
         Command::Call(a) => call(&a),
     }
 }
 
-/// `omaf call`: the params as JSON (none → null), the result pretty-printed
+/// `omaf call`: the params as JSON (none → null), the result pretty-printed. With `--socket` through the service: a
+/// job is followed until it ended (Ctrl-C cancels it) and printed then, as without.
 fn call(a: &Call) -> Outcome {
     let params = parse_params(a.params.as_deref())?;
-    let result = api::call_once(&a.method, params)?;
+    let Some(socket) = &a.socket else {
+        let result = api::call_once(&a.method, params)?;
+        println!("{}", pretty(&result));
+        return Ok(());
+    };
+    let client = match socket {
+        Some(path) => {
+            service::connect(path).ok_or_else(|| Error::new(format!("No service answers on {}", path.display())))?.0
+        }
+        None => service::ensure_running(&omaflake_core::Paths::standard())?.client,
+    };
+    let rpc = |method: &str, params: serde_json::Value| client.call(method, params).map_err(Error::from);
+    rpc("events.subscribe", serde_json::json!({"topics": ["jobs"]}))?;
+    let result = rpc(&a.method, params)?;
+    let mut quiet = |_: &[String]| {};
+    // A method that starts work answers with its job(s) – waited for, as without --socket; `jobs.*` only report them
+    let starts_jobs = !a.method.starts_with("jobs.");
+    let result = if starts_jobs && service::is_job(&result) {
+        serde_json::to_value(service::follow(&client, &result, &mut quiet)?).unwrap_or_default()
+    } else if starts_jobs && result.as_array().is_some_and(|a| !a.is_empty() && a.iter().all(service::is_job)) {
+        let mut ended = Vec::new();
+        for job in result.as_array().into_iter().flatten() {
+            ended.push(serde_json::to_value(service::follow(&client, job, &mut quiet)?).unwrap_or_default());
+        }
+        serde_json::Value::Array(ended)
+    } else {
+        result
+    };
     println!("{}", pretty(&result));
     Ok(())
 }

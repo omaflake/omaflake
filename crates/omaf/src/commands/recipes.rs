@@ -12,6 +12,13 @@ use omaflake_core::{
     RecipeLibrary, RecipeRef, RecipeSourceKind, SourceClient,
 };
 
+use omaflake_core::api::client::Client;
+use omaflake_core::api::service::socket_path;
+use omaflake_core::api::types::{BuildResult, JobState};
+use omaflake_core::error::codes;
+use serde_json::{json, Value};
+
+use super::service;
 use crate::cli;
 use crate::tty::Interrupts;
 use crate::util::{choose_recipe, folder_path, local_date, pad, read_password, shortest_argument, usage, Env, Outcome};
@@ -139,6 +146,54 @@ fn origins(env: &Env) -> HashMap<String, String> {
         .collect()
 }
 
+/// `omaf build` as a job of the core service: Ctrl-C cancels the job; its log lines go to stderr as without
+fn build_in_service(
+    client: &Client,
+    env: &Env,
+    recipe: &str,
+    password: Option<String>,
+    base: Option<String>,
+    a: &cli::Build,
+) -> Outcome {
+    let rpc = |method: &str, params: Value| client.call(method, params).map_err(Error::from);
+    rpc("events.subscribe", json!({"topics": ["jobs"]}))?;
+    let mut params = json!({"recipe": recipe, "keepFailed": a.keep_failed});
+    if let Some(p) = password {
+        params["password"] = json!(p);
+    }
+    if let Some(b) = base {
+        params["base"] = json!(b);
+    }
+    let job = rpc("images.build", params)?;
+    eprintln!("Building in the omaflake service (job {}) – Ctrl-C cancels it", job["id"].as_str().unwrap_or("?"));
+    let mut print = |lines: &[String]| {
+        for line in lines {
+            eprintln!("{line}");
+        }
+    };
+    let ended = service::follow(client, &job, &mut print)?;
+    if a.verbose && ended.hidden_lines > 0 {
+        if let Some(file) = &ended.log_file {
+            eprintln!("({} routine lines are only in {file})", ended.hidden_lines);
+        }
+    }
+    match ended.state {
+        JobState::Finished => {
+            let result: BuildResult = serde_json::from_value(ended.result.unwrap_or_default())
+                .map_err(|e| Error::new(format!("The service's build result: {e}")))?;
+            let n = Lengths::current(&env.paths);
+            let image = match env.images().image(&result.image) {
+                Ok(image) => OmaflakeId::image(&image, n.image),
+                Err(_) => result.image.clone(),
+            };
+            println!("Image {image} ready – new VMs of {} use it.", OmaflakeId::recipe(recipe, n.recipe));
+            Ok(())
+        }
+        JobState::Cancelled => Err(Error::with_code(codes::CANCELLED, "Build cancelled").into()),
+        _ => Err(Error::new(ended.error.unwrap_or_else(|| "The build failed".into())).into()),
+    }
+}
+
 pub fn build(a: &cli::Build) -> Outcome {
     let env = Env::new();
     let flake = env.settings().flake_path()?;
@@ -178,6 +233,13 @@ pub fn build(a: &cli::Build) -> Outcome {
         let password =
             read_password(&format!("Password of {user} in {base_name} (for sudo): "), a.password_stdin, false)?;
         mac = Some((builder, base, user, password));
+    }
+    // With the core service running, the build is its job: the app and other clients see it, it waits in the same
+    // queue (plan B120); this command follows its log
+    if let Some((client, _)) = service::connect(&socket_path(&env.paths)) {
+        let password = mac.as_ref().map(|(_, _, _, p)| p.clone());
+        let base = mac.as_ref().map(|(_, b, _, _)| b.to_string_lossy().into_owned());
+        return build_in_service(&client, &env, &recipe, password, base, a);
     }
     // From here Ctrl-C cancels cleanly: the running step stops, a macOS build VM is forced off, its folder deleted
     let token = Cancellation::new();

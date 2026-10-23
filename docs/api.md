@@ -12,10 +12,11 @@ with iced, plan B119, issue #4), a terminal interface (`omaf ui`, macOS and Linu
 image or a recipe is, what may be done with it and what happens then is decided in the core.
 
 ```
-SwiftUI app (macOS) ─┐                          ┌─ omaf-runner (Swift, Virtualization.framework, macOS guests)
-Linux UI (later)  ───┼─ JSON-RPC 2.0 ─ omaf serve ─ omaflake-core (Rust) ─┼─ qemu-system-*, qemu-img, nix, ssh
-scripts, tests    ───┘   (stdio, NDJSON)        └─ ~/.omaflake (data folder, spec §5)
-CLI omaf ───────────────────────────────────────── omaflake-core (linked)
+SwiftUI app (macOS) ─┐                                   ┌─ omaf-runner (Swift, Virtualization.framework, macOS guests)
+Linux UI, TUI     ───┼─ JSON-RPC 2.0 ─ omaf serve --socket ─ omaflake-core (Rust) ─┼─ qemu-system-*, qemu-img, nix, ssh
+CLI (omaf build …) ──┤  (Unix socket, NDJSON;            └─ ~/.omaflake (data folder, spec §5)
+scripts, tests    ───┘   one service per user)
+CLI omaf (other commands) ───────────────────────── omaflake-core (linked)
 ```
 
 The core reads every state from the data folder (spec §5): VMs started by the CLI show up in a UI and the other way
@@ -23,22 +24,67 @@ round, and a UI that quits leaves running VMs alone.
 
 ## 1. Transport
 
-- A UI starts **`omaf serve`** as a child process and talks to it over **stdin/stdout**: one JSON object per line
-  (UTF-8, `\n`-terminated, no newline inside an object – NDJSON). stderr carries the server's own diagnostics only.
+The server runs in one of two ways, with the same messages:
+
+- **The core service** (plan B120): **`omaf serve --socket`**, one per user and data folder, on a **Unix socket**.
+  Every interface – the macOS app, the Linux app, the TUI, `omaf build`, `omaf call --socket` – connects to it, so
+  they share **one server**: one build queue, one job list, the events for everyone. Each connection is a session of
+  its own (`initialize`, `events.subscribe`, its language); jobs, the data-folder watcher and the caches are shared,
+  and an event goes to every connection subscribed to its topic (a list with translated texts – `recipes.changed` – in
+  each connection's language).
+- **A private server**: a UI starts **`omaf serve`** as a child process and talks to it over **stdin/stdout** – for
+  tests, and as the fallback of a UI that cannot reach the service.
+
+Lines: one JSON object per line (UTF-8, `\n`-terminated, no newline inside an object – NDJSON). The server's
+stderr carries its own diagnostics only.
+
+**The socket.** `<data folder>/run/omaf.sock`; when that path is longer than a Unix socket takes (103 bytes on
+macOS, 107 on Linux), `$TMPDIR/omaflake-<hash>.sock` (macOS) or `$XDG_RUNTIME_DIR/omaflake-<hash>.sock` (Linux), and
+when that is too long or unset `/tmp/omaflake-<uid>-<hash>.sock` – `<hash>`: the first 16 hex digits of the SHA-256
+of the data folder's path, so two data folders (`VM_HOME`) never share a service. `omaf serve --socket=<path>` takes
+another. The socket is mode 0600, and a connection of another user is closed at once (peer credentials). A lock file
+next to it (`<socket>.lock`, flock) refuses a second service; a socket file without a service behind it is replaced.
+
+**Starting it.** `omaf service install` makes it a user agent (macOS: launchd `~/Library/LaunchAgents/
+app.omaflake.serve.plist`, started at login and again after a crash, diagnostics in `~/Library/Logs/omaflake/
+service.log`; Linux: systemd `~/.config/systemd/user/omaflake.service`, `Restart=on-failure`). A client that finds no
+service starts it on demand: `omaf service start` – the installed agent (`launchctl kickstart`, `systemctl --user
+start`) unless `VM_HOME` is set (the agent serves the standard data folder), else `omaf serve --socket --idle-exit
+300` in a session of its own (setsid, diagnostics in `<data folder>/logs/service.log`) – and waits up to 10 s for
+the socket to answer. The macOS app runs the bundled `omaf service start --json` (it prints `{socket, version,
+started}`) and connects; when that fails, it starts a private `omaf serve` instead – at every (re)connect, in that
+order.
+
+**Its end.** The service ends: after `service.restart` once no job waits or runs; after the data folder moved
+(its socket moved with it; once the move job ended); with `--idle-exit <secs>` when no client has been connected and
+no job has run for that long. Connected clients see their connection close and connect again (starting the service
+anew). A client's `shutdown` ends only its own session.
+
+**Updating.** `initialize` answers with the server's `omafVersion`. A client whose omaf is **newer** than the
+service's asks it to restart: `service.restart`, which ends the service once no job waits or runs; the next start
+(the agent, or the client) runs the new omaf. `omaf service start` does this once per call, and only when the restart
+brings the newer omaf (no agent installed, or the agent runs this omaf – after an update in place of the app; an agent
+of another omaf is left alone: run `omaf service install` again). A client older than the service uses it as it is
+(API versions are additive, §2).
+
+The rest holds for both:
 - Messages follow **JSON-RPC 2.0**: requests (`id`, `method`, `params`), responses (`result` or `error`) and
   notifications (no `id`) from the server – the events (§6). The client sends no notifications.
 - Requests run **concurrently**: the server answers each one when it is done, so responses may arrive in another
   order than the requests (match them by `id`). A slow request (stopping a VM) never blocks a fast one (listing).
-- The server ends when stdin closes or after `shutdown`. Long work it still runs (jobs, §5) is cancelled then;
-  VMs keep running (they live in their own session).
+- A private server ends when stdin closes or after `shutdown`. Long work it still runs (jobs, §5) is cancelled then;
+  VMs keep running (they live in their own session). The service's jobs outlive the client that started them.
 - `omaf call <method> [<params as JSON>]` runs a single request without a session and prints the result – for
   scripts and tests. It initializes itself and sends no events; a method that starts a job waits for it and prints
-  the ended job (its `state` tells whether it finished).
+  the ended job (its `state` tells whether it finished). `omaf call --socket[=<path>] …` sends it to the service
+  instead (started on demand) and follows a job the same way – Ctrl-C cancels it.
 - The same dispatcher is a Rust API (`omaflake_core::api`), so a Rust UI (the Linux app, iced) can link it in-process with exactly
   these methods and JSON shapes: `Server::new(paths, notify)` (`notify: Fn(method, params)` receives the events, from
   the server's threads – it must not block on the server), then `server.handle(request)` (a JSON-RPC object in, the
-  response out) or `server.call(method, params)` (the result or an `RpcError`). `serve_stdio()` and
-  `call_once(method, params)` are what `omaf serve` and `omaf call` run.
+  response out) or `server.call(method, params)` (the result or an `RpcError`); `server.connect(notify)` adds a
+  connection with its own session to the same state. `serve_stdio()`, `service::serve_socket(options)` and
+  `call_once(method, params)` are what `omaf serve`, `omaf serve --socket` and `omaf call` run; `client::Client` is a
+  blocking client of the socket.
 - JSON-RPC batches (arrays) are not supported (`-32600`).
 
 ## 2. Session
@@ -60,7 +106,10 @@ The first request is `initialize`; anything before it is refused with `-32002`.
 - An `apiVersion` the server does not serve is refused with `-32602`. `initialize` migrates older data folder layouts
   (plan B108) before anything else reads them.
 - `events.subscribe` `{topics: [...]}` starts the events (§6); without it the server sends none.
-- `shutdown` → `null`, then the server exits.
+- `shutdown` → `null`, then this session ends: a private server exits; the service closes this connection and goes
+  on for its other clients and its jobs.
+- `service.restart` → `{jobs}`: the service ends once no job waits or runs (`jobs`: how many it waits for; 0 – at
+  once). For updates (§1) and `omaf service stop`. A private server only notes it.
 
 ## 3. Errors
 
@@ -213,7 +262,8 @@ move writes `data-move.log` next to config.json, as `logs/` moves along). Downlo
 - `images.build` for a recipe with a waiting or running build returns that job; a new build of a recipe replaces the
   recipe's ended build in the list. `recipes.install` likewise returns a running install of the same recipe.
 - The log keeps the newest 5000 lines (`jobs.log` starts at the oldest kept); a build's full log is its `logFile`.
-- Jobs live as long as the server. A UI that restarts its server loses them (their log files stay).
+- Jobs live as long as the server: in the service they outlive the client that started them, and every client sees
+  them. A private server that restarts loses them (their log files stay).
 
 ## 6. Events
 
@@ -226,7 +276,7 @@ job); `events.subscribe` replaces the subscription, unknown topics are left out,
 | Event | Params | When |
 |---|---|---|
 | `vms.changed` | `{vms: [Vm], unreadable: [Unreadable]}` | a VM came, went, started, stopped, changed |
-| `vm.ended` | `{name, requested}` | a running VM is off; `requested` = it was stopped through this server |
+| `vm.ended` | `{name, requested}` | a running VM is off; `requested` = it was stopped through this server (in the service: by any client) |
 | `vm.ready` | `{name, via}` | after a start through this server: the agent reported in (`agent`) or SSH answers (`ssh`) |
 | `images.changed` | `{images: [Image], unreadable: [Unreadable]}` | images built, imported, removed |
 | `recipes.changed` | `{recipes: [Recipe], …}` (as `recipes.list`) | recipes installed or removed, a source or the flake changed on disk, freshness re-evaluated |
@@ -249,7 +299,8 @@ Params and results in short; the types are those of §4.
 |---|---|---|
 | `initialize` | `client, clientVersion, apiVersion, language?, updateFeed?` | `apiVersion, omafVersion, host: {system, os}, dataFolder, configFile` |
 | `events.subscribe` | `topics` | `null` |
-| `shutdown` | – | `null` |
+| `shutdown` | – | `null` – ends this session (§2) |
+| `service.restart` | – | `{jobs}` – the service ends once no job waits or runs (§1, §2) |
 | `settings.get` | – | `{settings, guestDefaults, choices: {timeZones, locales, keyboards: [{code, locale}]}, isDefaultDataFolder}` – `settings`: config.json's values with their defaults applied (`developerMode, checkForUpdates, notifications, keepRecipeVersions, guest: {user?, fullName?, email?, timeZone?, locale?, keyboard?}, flake?, qemu?, nix?, runner?, flakeInUse?, dataFolder`); `guestDefaults`: this computer's values the guest overrides fall back to |
 | `settings.set` | any of `developerMode, checkForUpdates, notifications, keepRecipeVersions, guest, flake, qemu, nix, runner` (`null` or `""` = back to the default; keys not given stay) | `settings` – turning `keepRecipeVersions` off prunes older recipe versions |
 | `dataFolder.move` | `target` | Job `data-move` (all VMs must be stopped) |
@@ -283,7 +334,7 @@ Params and results in short; the types are those of §4.
 |---|---|---|
 | `images.list` | – | `{images: [Image], unreadable}` |
 | `images.get` | `name` | `Image` with `sizeBytes` |
-| `images.build` | `recipe, password?` | Job `build` (macOS recipes need the guest user's password once – kept in memory only until the build VM uses it; without it `-32602`) |
+| `images.build` | `recipe, password?, base?, keepFailed?` | Job `build` (macOS recipes need the guest user's password once – kept in memory only until the build VM uses it; without it `-32602`; `base`: the base folder, default the newest; `keepFailed`: keep a failed build folder) |
 | `images.remove` | `name` | `null` – refused while VMs use it (`in-use`) |
 
 ### Recipes and sources
@@ -334,7 +385,7 @@ Params and results in short; the types are those of §4.
 ## 8. Secrets
 
 Passwords (`images.build`, `macos.installBase`) and tokens (`sources.add`) travel only over the pipe between the UI
-and its own `omaf serve`. The server never logs params of these methods, keeps a password only until it is used and
+and its own `omaf serve`, or over the service's socket (mode 0600, this user's connections only, §1). The server never logs params of these methods, keeps a password only until it is used and
 stores tokens only in the system keychain (macOS Keychain; Linux: OPEN).
 
 ## 9. Status
