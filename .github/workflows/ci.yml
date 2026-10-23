@@ -31,6 +31,23 @@ jobs:
           for f in nix/modules/*.py; do python3 -I -c "import ast,sys; ast.parse(open(sys.argv[1]).read())" "$f"; done
           for f in scripts/*.sh; do bash -n "$f"; done
 
+  rust:
+    name: Rust core (fmt, clippy, test)
+    if: ${{ !github.event.repository.private || github.event_name == 'workflow_dispatch' }}
+    # The core drives macOS (Keychain, Virtualization through omaf-runner): built and tested on macOS
+    runs-on: ${{ vars.MACOS_RUNNER || 'xcode-27' }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      - name: Format
+        run: cargo fmt --all --check
+      - name: Clippy
+        run: cargo clippy --all-targets --locked
+      - name: Test
+        run: cargo test --locked
+
   swift:
     name: Build and test (macOS)
     if: ${{ !github.event.repository.private || github.event_name == 'workflow_dispatch' }}
@@ -55,6 +72,8 @@ jobs:
         run: swift build
       - name: Test
         run: swift test
+      # The bundle carries the Rust `omaf` (the app's core, `omaf serve`)
+      - uses: dtolnay/rust-toolchain@stable
       - name: App bundle (ad hoc)
         run: scripts/bundle-app.sh
       - uses: actions/upload-artifact@v4

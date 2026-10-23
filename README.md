@@ -128,5 +128,5 @@ the QEMU patches in `qemu/patches/` modify QEMU and are GPL-2.0-or-later like QE
 patches taken from try-omarchy are MIT ([qemu/patches/try-omarchy/LICENSE](qemu/patches/try-omarchy/LICENSE)),
 startergo's virglrenderer/libepoxy patches are MIT ([qemu/patches/startergo/NOTICE](qemu/patches/startergo/NOTICE)).
 omaflake IDs use BIP-39's English word list (bitcoin/bips, MIT), unchanged in
-[Sources/OmaflakeCore/WordList.swift](Sources/OmaflakeCore/WordList.swift).
+[crates/omaflake-core/src/word_list.rs](crates/omaflake-core/src/word_list.rs).
 ANGLE comes from nixpkgs (BSD-3-Clause); see [qemu/README.md](qemu/README.md) for all versions.

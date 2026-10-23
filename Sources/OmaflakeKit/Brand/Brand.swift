@@ -23,15 +23,15 @@ public enum Brand {
         return image
     }
 
-    /// App icon as a file for QEMU (OMAFLAKE_DOCK_ICON, patch qemu-cocoa-dock-icon); rewritten when it differs.
-    public static func dockIconFile(_ paths: Paths) throws -> URL {
+    /// App icon as a file for QEMU's Dock icon (OMAFLAKE_DOCK_ICON, patch qemu-cocoa-dock-icon): the app writes it to
+    /// `<data folder>/cache/dock-icon.png`, where the Rust core looks for it (`Paths::dock_icon`); rewritten when it
+    /// differs.
+    public static func writeDockIcon(to url: URL) throws {
         guard let data = decode(BrandAssets.appIcon512) else { throw VMError("Embedded app icon is not valid base64") }
-        let url = paths.dockIcon
         if (try? Data(contentsOf: url)) != data {
             try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
             try data.write(to: url, options: .atomic)
         }
-        return url
     }
 
     static func decode(_ base64: String) -> Data? {

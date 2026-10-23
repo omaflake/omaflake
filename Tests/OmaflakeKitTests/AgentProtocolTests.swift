@@ -2,7 +2,7 @@
 import Darwin
 import Foundation
 import Testing
-@testable import OmaflakeCore
+@testable import OmaflakeKit
 
 /// The agent protocol (spec §11.9): frames shared with the Rust agent, and the Mac side's link.
 struct AgentProtocolTests {

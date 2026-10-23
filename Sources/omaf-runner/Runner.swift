@@ -4,7 +4,7 @@ import Darwin
 import ArgumentParser
 import Foundation
 import Virtualization
-import OmaflakeCore
+import OmaflakeKit
 
 // omaf-runner – runner for macOS guests on Virtualization.framework (spec §6.4, plan §7.4).
 // Requires the entitlement com.apple.security.virtualization (App/omaf-runner.entitlements, scripts/sign-runner.sh).
@@ -56,7 +56,7 @@ struct Install: ParsableCommand {
     func run() throws {
         let request = Installer.Request(
             target: url(target), ipsw: ipsw.map(url), latest: latest, cpus: cpus, memoryGB: memoryGb,
-            diskGB: diskGb, ipswDir: Paths.standard().root.appendingPathComponent("ipsw", isDirectory: true))
+            diskGB: diskGb, ipswDir: dataFolder().appendingPathComponent("ipsw", isDirectory: true))
         _ = MainActor.assumeIsolated {
             Task { @MainActor in
                 do {
@@ -171,4 +171,17 @@ struct IP: ParsableCommand {
 
 func url(_ path: String) -> URL {
     URL(fileURLWithPath: (path as NSString).expandingTildeInPath).standardizedFileURL
+}
+
+/// The data folder as the core finds it (`Paths::standard`): VM_HOME, otherwise `home` in ~/.omaflake/config.json,
+/// otherwise ~/.omaflake – here only for the IPSW folder of `omaf-runner install --latest`.
+func dataFolder() -> URL {
+    if let custom = ProcessInfo.processInfo.environment["VM_HOME"], !custom.isEmpty {
+        return URL(fileURLWithPath: custom, isDirectory: true)
+    }
+    let standard = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".omaflake", isDirectory: true)
+    guard let data = try? Data(contentsOf: standard.appendingPathComponent("config.json")),
+          let object = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any],
+          let home = object["home"] as? String, !home.isEmpty else { return standard }
+    return URL(fileURLWithPath: (home as NSString).expandingTildeInPath, isDirectory: true)
 }

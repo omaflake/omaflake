@@ -12,8 +12,7 @@ let package = Package(
     // macOS 27 (decided 2026-10-17): the only version tested, guest provisioning needs it
     platforms: [.macOS("27.0")],
     products: [
-        .library(name: "OmaflakeCore", targets: ["OmaflakeCore"]),
-        .executable(name: "omaf", targets: ["omaf"]),
+        .library(name: "OmaflakeKit", targets: ["OmaflakeKit"]),
         .executable(name: "omaf-runner", targets: ["omaf-runner"]),
         .executable(name: "OmaflakeApp", targets: ["OmaflakeApp"]),
     ],
@@ -21,20 +20,15 @@ let package = Package(
         .package(url: "https://github.com/apple/swift-argument-parser.git", from: "1.8.0"),
     ],
     targets: [
-        // Shared logic for the CLI, the runner and the menu bar app
-        .target(name: "OmaflakeCore"),
-        .executableTarget(
-            name: "omaf",
-            dependencies: [
-                "OmaflakeCore",
-                .product(name: "ArgumentParser", package: "swift-argument-parser"),
-            ]
-        ),
+        // The Swift side of omaflake: the client of the Rust core (`omaf serve`, docs/api.md) with its types, what
+        // omaf-runner needs (agent protocol, macOS VM bundle, sockets) and the brand images. The logic lives in the
+        // Rust core (crates/); the CLI `omaf` is crates/omaf.
+        .target(name: "OmaflakeKit"),
         // One process per macOS guest (Virtualization.framework); sign with scripts/sign-runner.sh
         .executableTarget(
             name: "omaf-runner",
             dependencies: [
-                "OmaflakeCore",
+                "OmaflakeKit",
                 .product(name: "ArgumentParser", package: "swift-argument-parser"),
             ],
             linkerSettings: [
@@ -45,8 +39,8 @@ let package = Package(
                               "-Xlinker", packageRoot + "/App/omaf-runner-Info.plist"]),
             ]
         ),
-        // Menu bar app; scripts/bundle-app.sh wraps it into omaflake.app
-        .executableTarget(name: "OmaflakeApp", dependencies: ["OmaflakeCore"]),
-        .testTarget(name: "OmaflakeCoreTests", dependencies: ["OmaflakeCore"]),
+        // Menu bar app, a client of `omaf serve`; scripts/bundle-app.sh wraps it (and the Rust `omaf`) into omaflake.app
+        .executableTarget(name: "OmaflakeApp", dependencies: ["OmaflakeKit"]),
+        .testTarget(name: "OmaflakeKitTests", dependencies: ["OmaflakeKit"]),
     ]
 )

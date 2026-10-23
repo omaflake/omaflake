@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 import SwiftUI
-import OmaflakeCore
+import OmaflakeKit
 
 @main
 struct OmaflakeApp: App {
@@ -32,6 +32,10 @@ struct OmaflakeApp: App {
 @MainActor final class AppDelegate: NSObject, NSApplicationDelegate {
     static var open: (([URL]) -> Void)?
     static var waiting: [URL] = []
+    /// Ends the core's server when the app quits (running VMs keep running)
+    static var terminate: (() -> Void)?
+
+    func applicationWillTerminate(_ notification: Notification) { Self.terminate?() }
 
     func applicationWillFinishLaunching(_ notification: Notification) { takeOpenEvents() }
     func applicationDidFinishLaunching(_ notification: Notification) {
@@ -110,7 +114,7 @@ struct MainView: View {
         switch model.tab {
         case .vms:
             let rows = model.rows.filter {
-                (f.status == nil || f.status == ($0.status == .running)) && (f.kind == nil || f.kind == $0.config.guestKind)
+                (f.status == nil || f.status == ($0.status == .running)) && (f.kind == nil || f.kind == $0.kind)
             }
             ListSection(title: "Virtual Machines", count: rows.count, of: model.rows.count,
                         filter: AnyView(FilterMenu(model: model, tab: .vms, on: "Running", off: "Stopped"))) {
@@ -127,26 +131,26 @@ struct MainView: View {
                     FilteredOut(model: model)
                 }
                 ForEach(rows) { row in
-                    InstanceRow(row: row, busy: model.busy.contains(row.id), model: model)
+                    InstanceRow(row: row, busy: model.isBusy(row), model: model)
                 }
-                ForEach(model.unreadableVMs, id: \.self) { UnreadableHint(name: $0.name, reason: $0.reason) }
+                ForEach(model.unreadableVMs, id: \.self) { UnreadableHint(name: $0.displayName, reason: $0.reason) }
             }
         case .images:
             // Every built image on its own row (plan B93); builds that wait, run or failed on top
             let all = model.allImages
-            let used = Set(model.rows.map(\.config.image))
+            let used = Set(model.rows.map(\.image))
             let images = all.filter {
                 (f.status == nil || f.status == used.contains($0.name)) && (f.kind == nil || f.kind == $0.kind)
                     && (f.recipe == nil || f.recipe == $0.recipe)
             }
             let jobs = model.builds.filter {
-                $0.state != .finished && (f.kind == nil || f.kind == $0.kind) && (f.recipe == nil || f.recipe == $0.recipe)
+                $0.state != .finished && (f.kind == nil || f.kind == $0.guestKind) && (f.recipe == nil || f.recipe == $0.recipe)
                     && f.status != true
             }
-            let recipes = Array(Set(all.map(\.recipe))).sorted { RecipeID.name(ofID: $0) < RecipeID.name(ofID: $1) }
+            let recipes = Array(Set(all.map(\.recipe))).sorted { RecipeText.name($0) < RecipeText.name($1) }
             ListSection(title: "Images", count: images.count, of: all.count,
                         filter: AnyView(FilterMenu(model: model, tab: .images, on: "In use", off: "Not in use",
-                                                   recipes: recipes.map { ($0, RecipeID.displayName($0, model.recipes[$0])) }))) {
+                                                   recipes: recipes.map { ($0, model.recipeName($0)) }))) {
                 HStack(spacing: 2) {
                     IconButton(icon: "square.and.arrow.down", help: "Import an image – a copy into the data folder") { model.chooseImport(.image) }
                 }
@@ -162,24 +166,24 @@ struct MainView: View {
                         show("build")
                     }
                 }
-                ForEach(images, id: \.name) { image in
+                ForEach(images) { image in
                     ImageRowView(image: image, model: model) {
                         model.newVMImage = image.name
                         show("new")
                     }
                 }
-                ForEach(model.unreadableImages, id: \.self) { UnreadableHint(name: $0.name, reason: $0.reason) }
+                ForEach(model.unreadableImages, id: \.self) { UnreadableHint(name: $0.displayName, reason: $0.reason) }
             }
         case .recipes:
-            let all = model.imageRows
+            let all = model.recipeRows
             let rows = all.filter {
                 (f.otherSystems || $0.runsHere) && (f.status == nil || f.status == ($0.image != nil)) && (f.kind == nil || f.kind == $0.kind)
-                    && (f.tag == nil || (model.recipes[$0.recipe]?.tags ?? []).contains(f.tag!))
+                    && (f.tag == nil || $0.tags.contains(f.tag!))
             }
-            let tags = Array(Set(all.flatMap { model.recipes[$0.recipe]?.tags ?? [] })).sorted()
+            let tags = Array(Set(all.flatMap(\.tags))).sorted()
             // What the remote sources offer and is not installed (plan B107); the status filter "with image" hides them
             let offered = model.offeredRecipes.filter {
-                (f.otherSystems || $0.recipe.runsHere) && f.status != true && (f.kind == nil || f.kind == $0.recipe.kind) && (f.tag == nil || ($0.recipe.tags ?? []).contains(f.tag!))
+                (f.otherSystems || $0.runsHere) && f.status != true && (f.kind == nil || f.kind == $0.kind) && (f.tag == nil || $0.tags.contains(f.tag!))
             }
             ListSection(title: "Recipes", count: rows.count, of: all.count,
                         filter: AnyView(FilterMenu(model: model, tab: .recipes, on: "With image", off: "Without image", tags: tags,
@@ -215,24 +219,24 @@ struct MainView: View {
                 }
                 ForEach(rows) { recipe in
                     RecipeRowView(recipe: recipe, model: model) {
-                        model.buildRecipe = recipe.recipe
+                        model.buildRecipe = recipe.id
                         show("build")
                     }
                 }
-                ForEach(offered, id: \.recipe.id) { item in
-                    OfferedRecipeRow(recipe: item.recipe, source: item.source, model: model)
+                ForEach(offered) { recipe in
+                    OfferedRecipeRow(recipe: recipe, model: model)
                 }
-                ForEach(model.unreadableRecipes, id: \.self) { UnreadableHint(name: RecipeID.qualified($0.name), reason: $0.reason) }
-                ForEach(model.sources.filter { model.catalogErrors[$0.id] != nil }, id: \.id) { s in
+                ForEach(model.unreadableRecipes, id: \.self) { UnreadableHint(name: RecipeText.qualified($0.displayName), reason: $0.reason) }
+                ForEach(model.available.errors.sorted { $0.key < $1.key }, id: \.key) { id, error in
                     HStack(alignment: .firstTextBaseline, spacing: 8) {
                         Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(.orange)
-                        Text(verbatim: "\(s.displayName): \(model.catalogErrors[s.id] ?? "")").font(.caption)
+                        Text(verbatim: "\(model.source(id)?.displayName ?? id): \(error)").font(.caption)
                             .foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
                     }
                     .padding(10)
                 }
             }
-            .onAppear { if model.catalogs.isEmpty { model.refreshCatalogs() } }
+            .onAppear { if !model.catalogsLoaded { model.refreshCatalogs() } }
         case .activity:
             ListSection(title: "Activity", count: model.activities.count) {
                 IconButton(icon: "trash", help: "Clear History") { model.clearActivities() }
@@ -252,7 +256,7 @@ struct MainView: View {
             Spacer()
             IconButton(icon: "stethoscope", help: "Doctor – requirements and preflight", badge: model.doctorIssues) { model.show(.doctor) }
             IconButton(icon: "gearshape", help: "Settings") { model.show(.settings) }
-            IconButton(icon: "folder", help: "Show Data Folder in Finder") { NSWorkspace.shared.open(model.paths.root) }
+            IconButton(icon: "folder", help: "Show Data Folder in Finder") { NSWorkspace.shared.open(URL(fileURLWithPath: model.dataFolder)) }
             IconButton(icon: "power", help: "Quit omaflake") { model.quit() }
         }
     }
@@ -298,12 +302,12 @@ struct HomeTabBar: View {
             tab(.images, "Images", icon: "shippingbox") {
                 if model.anyBuildRunning {
                     ProgressView().controlSize(.mini).help("A build is running")
-                } else if model.imageRows.contains(where: { model.latestJob(for: $0.recipe)?.state == .failed }) {
+                } else if model.builds.contains(where: { $0.state == .failed }) {
                     Image(systemName: "xmark.circle.fill").font(.caption2).foregroundStyle(BrandStyle.red).help("A build failed")
                 }
             }
             tab(.recipes, "Recipes", icon: "book.closed") {
-                if model.imageRows.contains(where: { model.isOutdated($0.recipe) }) {
+                if model.recipeRows.contains(where: { $0.image != nil && $0.outdated }) {
                     Circle().fill(.orange).frame(width: 6, height: 6).help("A recipe changed since its image was built")
                 }
             }
@@ -375,7 +379,7 @@ struct FooterMessage: View {
 
 /// One recipe (recipe): what it is for, whether its image is up to date, and building it.
 struct RecipeRowView: View {
-    let recipe: AppModel.ImageRow
+    let recipe: Recipe
     let model: AppModel
     let build: () -> Void
 
@@ -393,9 +397,9 @@ struct RecipeRowView: View {
             GuestKindIcon(kind: recipe.kind).frame(width: 16)
             VStack(alignment: .leading, spacing: 2) {
                 HStack(spacing: 4) {
-                    Text(recipe.name).fontWeight(.medium)
-                    if let author = model.recipes[recipe.recipe]?.author {
-                        Text(verbatim: "· \(author)").font(.caption).foregroundStyle(.secondary)
+                    Text(recipe.displayName).fontWeight(.medium)
+                    if recipe.author != "omaflake", !recipe.author.isEmpty {
+                        Text(verbatim: "· \(recipe.author)").font(.caption).foregroundStyle(.secondary)
                     }
                     // Only when another recipe has the same author, kind and name (plan B110)
                     if let d = recipe.distinction {
@@ -406,13 +410,12 @@ struct RecipeRowView: View {
                     }
                     if !recipe.runsHere { ArchitectureBadge(systems: recipe.systems) }
                 }
-                let tags = model.recipes[recipe.recipe]?.tags ?? []
-                if !tags.isEmpty { TagList(tags: tags) }
+                if !recipe.tags.isEmpty { TagList(tags: recipe.tags) }
             }
             Spacer()
-            // Its file in the Finder – to look at it, or to change or remove it by hand
-            IconButton(icon: "folder", help: "Show in Finder") { model.revealRecipe(recipe.recipe) }
-                .disabled(model.recipeFile(recipe.recipe) == nil)
+            // Its folder in the Finder – to look at it, or to change or remove it by hand
+            IconButton(icon: "folder", help: "Show in Finder") { model.revealRecipe(recipe.id) }
+                .disabled(recipe.folder == nil)
             let blockers = model.buildBlockers(recipe.kind)
             if !recipe.runsHere {
                 IconButton(icon: "shippingbox", help: "Not for this Mac – it is built for \(recipe.systems.joined(separator: ", "))",
@@ -423,38 +426,34 @@ struct RecipeRowView: View {
             } else {
                 IconButton(icon: "shippingbox", help: recipe.image == nil ? "Build image" : "Build a new version of this image",
                            subIcon: "hammer.fill", subIconColor: BrandStyle.cyan, action: build)
-                    .disabled(model.activeJob(for: recipe.recipe) != nil)
+                    .disabled(model.activeJob(for: recipe.id) != nil)
             }
         }
     }
 
-    /// The whole description, the recipe's ID and the defaults a new VM gets from it, and its images
+    /// The whole description, the defaults a new VM gets from it, its images and versions
     private var detail: some View {
-        let d = model.recipes[recipe.recipe]
-        let images = model.versions(recipe.recipe)
+        let images = model.images(ofLine: recipe.line)
         return DetailBox {
             if let description = recipe.description {
                 Text(description).font(.caption).fixedSize(horizontal: false, vertical: true)
             }
             VStack(alignment: .leading, spacing: 3) {
-                if let d {
-                    InfoLine(label: "Resources", value: Text(verbatim: "\(d.cpus) CPU · \(d.memoryGB) GB RAM · \(d.diskGB) GB"))
-                    InfoLine(label: "Architectures", value: Text(verbatim: d.systems.joined(separator: ", ")))
-                    InfoLine(label: "Network", value: Text(verbatim: d.network.rawValue))
-                    InfoLine(label: "New VMs", value: Text(verbatim: defaults(d)))
-                }
+                InfoLine(label: "Resources", value: Text(verbatim: "\(recipe.cpus) CPU · \(recipe.memoryGB) GB RAM · \(recipe.diskGB) GB"))
+                InfoLine(label: "Architectures", value: Text(verbatim: recipe.systems.joined(separator: ", ")))
+                InfoLine(label: "Network", value: Text(verbatim: recipe.network.rawValue))
+                InfoLine(label: "New VMs", value: Text(verbatim: defaults(recipe.settings)))
                 InfoLine(label: "Images", value: images.isEmpty ? Text("not built yet")
-                         : Text("\(images.count) built, the newest \(images[0].info.created.formatted(date: .abbreviated, time: .shortened))"))
-                if model.recipeOrigins[recipe.recipe] == RecipeLibrary.importedSource {
-                    InfoLine(label: "Source", value: Text("imported (a package or a folder)") + Text(verbatim: " · ")
-                         + Text(verbatim: (model.paths.recipes.path as NSString).abbreviatingWithTildeInPath))
-                } else if let origin = model.recipeOrigins[recipe.recipe] {
+                         : Text("\(images.count) built, the newest \((images[0].created ?? Date()).formatted(date: .abbreviated, time: .shortened))"))
+                if recipe.source == "import" {
+                    InfoLine(label: "Source", value: Text("imported (a package or a folder)"))
+                } else if let origin = recipe.source {
                     let s = model.source(origin)
                     InfoLine(label: "Source", value: Text(verbatim: s?.displayName ?? origin)
                              + (s?.kind == .folder ? Text(verbatim: " · ") + Text("used as it is in the folder") : Text(verbatim: "")),
                              full: s?.location ?? origin)
                 }
-                if let d, let license = d.license { InfoLine(label: "License", value: Text(verbatim: license)) }
+                if let license = recipe.license { InfoLine(label: "License", value: Text(verbatim: license)) }
             }
             .textSelection(.enabled)
             // The line's versions (plan B111), always as sub-rows – so the words, export and remove are always in the
@@ -467,12 +466,12 @@ struct RecipeRowView: View {
             }
             .background(Color.white.opacity(0.03), in: RoundedRectangle(cornerRadius: BrandStyle.radius - 4, style: .continuous))
             HStack(spacing: 8) {
-                if let u = model.update(for: recipe.recipe) {
-                    ActionButton(icon: "arrow.down.circle", title: "Update") { model.installRecipe(recipe.recipe, from: u.source) }
+                if let u = model.update(for: recipe.id) {
+                    ActionButton(icon: "arrow.down.circle", title: "Update") { model.installRecipe(u) }
                 }
                 Spacer()
                 ActionButton(icon: "trash", title: "Remove All Versions …", color: BrandStyle.red) {
-                    model.removeAllVersions(recipe.line, name: recipe.name)
+                    model.removeAllVersions(recipe.line, name: recipe.displayName)
                 }
                 .disabled(!recipe.versions.contains { !$0.isLive && $0.images.isEmpty })
             }
@@ -480,21 +479,21 @@ struct RecipeRowView: View {
     }
 
     /// The switches a new VM starts with, in words
-    private func defaults(_ d: RecipeDefaults) -> String {
+    private func defaults(_ d: RecipeSettings) -> String {
         var on: [String] = []
-        if d.clipboard ?? true { on.append(String(localized: "Clipboard")) }
-        if d.audio ?? true { on.append(String(localized: "Sound")) }
-        if d.microphone ?? false { on.append(String(localized: "Microphone")) }
-        if d.camera ?? false, d.kind == .nixos { on.append(String(localized: "Camera")) }
+        if d.clipboard { on.append(String(localized: "Clipboard")) }
+        if d.audio { on.append(String(localized: "Sound")) }
+        if d.microphone { on.append(String(localized: "Microphone")) }
+        if d.camera, d.kind == .nixos { on.append(String(localized: "Camera")) }
         if d.share { on.append(String(localized: "Share folder")) }
         if d.ephemeral { on.append(String(localized: "Ephemeral")) }
         return on.isEmpty ? "–" : on.joined(separator: " · ")
     }
 
     private var lampState: StatusLamp.State {
-        if model.activeJob(for: recipe.recipe) != nil { return .working }
+        if model.activeJob(for: recipe.id) != nil { return .working }
         if recipe.image == nil { return .off }
-        return model.isOutdated(recipe.recipe) ? .attention : .on
+        return recipe.outdated ? .attention : .on
     }
 
     private var lampHelp: LocalizedStringKey {
@@ -510,18 +509,18 @@ struct RecipeRowView: View {
 /// One version of a recipe's line (plan B111): its words (as many as tell the versions apart, the whole omaflake ID as
 /// tooltip), where it is, the images built from it; export, and remove when nothing keeps it
 struct RecipeVersionRow: View {
-    let version: RecipeLibrary.Version
+    let version: Recipe.Version
     let model: AppModel
 
     var body: some View {
         HStack(spacing: 8) {
-            let words = OmaflakeID.short(RecipeID.words(version.id) ?? "?", model.idLengths.recipe)
-            Text(verbatim: words).font(.caption.monospaced()).help(Text(verbatim: OmaflakeID.recipe(version.id)))
+            let words = version.label ?? String(IDText.short("@" + (RecipeText.words(version.id) ?? "?"), model.idLengths.recipe).dropFirst())
+            Text(verbatim: words).font(.caption.monospaced()).help(Text(verbatim: version.id))
                 .textSelection(.enabled)
             Text(verbatim: state).font(.caption).foregroundStyle(.secondary).lineLimit(1)
             Spacer()
             IconButton(icon: "square.and.arrow.up", help: "Export …") { model.exportRecipe(version.id) }
-            IconButton(icon: "trash", help: LocalizedStringKey(removeHelp), iconColor: BrandStyle.red) { model.removeRecipe(version.id) }
+            IconButton(icon: "trash", help: LocalizedStringKey(removeHelp), iconColor: BrandStyle.red) { model.removeRecipe(version) }
                 .disabled(version.isLive || !version.images.isEmpty)
         }
         .padding(.horizontal, 8)
@@ -546,17 +545,23 @@ struct RecipeVersionRow: View {
 
 /// Settings → Recipe Sources (spec §11.3, plan B107): where recipes come from, in their order (an earlier source wins
 /// when two have the same recipe). Add: a GitHub repository (with "Private repository": a fine-grained token, checked
-/// and kept in the Keychain), the HTTPS URL of a catalog.json, or a folder.
+/// by the core and kept in the Keychain), the HTTPS URL of a catalog.json, or a folder.
 struct RecipeSourcesSection: View {
     let model: AppModel
     @State private var input = ""
     @State private var isPrivate = false
     @State private var token = ""
     @State private var checking = false
-    @State private var result: Result<String, VMError>?
+    @State private var result: Result<String, APIError>?
 
-    /// What the input would be, for the private switch (GitHub only)
-    private var parsed: RecipeSource? { try? RecipeSource.parse(input) }
+    /// The input names a GitHub repository ("owner/repo", a github.com URL) – only those can be private. The core
+    /// checks the input itself; this only decides whether the switch shows.
+    private var looksLikeGitHub: Bool {
+        let t = input.trimmingCharacters(in: .whitespaces)
+        if t.contains("github.com/") { return true }
+        guard !t.hasPrefix("/"), !t.hasPrefix("~"), !t.contains("://") else { return false }
+        return t.split(separator: "/").count == 2
+    }
 
     var body: some View {
         Section {
@@ -568,11 +573,11 @@ struct RecipeSourcesSection: View {
                     VStack(alignment: .leading, spacing: 1) {
                         HStack(spacing: 4) {
                             Text(verbatim: s.displayName).lineLimit(1).truncationMode(.middle).help(s.location)
-                            if s.isOfficial { Image(systemName: "checkmark.seal.fill").font(.caption).foregroundStyle(BrandStyle.cyan).help("Official recipes") }
-                            if s.isPrivateRepository {
-                                Image(systemName: SourceTokens.token(for: s) == nil ? "lock.trianglebadge.exclamationmark" : "lock.fill")
+                            if s.official { Image(systemName: "checkmark.seal.fill").font(.caption).foregroundStyle(BrandStyle.cyan).help("Official recipes") }
+                            if s.private {
+                                Image(systemName: s.hasToken == false ? "lock.trianglebadge.exclamationmark" : "lock.fill")
                                     .font(.caption).foregroundStyle(.secondary)
-                                    .help(SourceTokens.token(for: s) == nil ? "Private – no token in the Keychain" : "Private – token in the Keychain")
+                                    .help(s.hasToken == false ? "Private – no token in the Keychain" : "Private – token in the Keychain")
                             }
                         }
                         Text(s.kind == .folder ? "used as it is – changes count at once" : s.kind == .github ? "GitHub" : "HTTPS")
@@ -581,7 +586,7 @@ struct RecipeSourcesSection: View {
                     Spacer()
                     IconButton(icon: "arrow.up", help: "Earlier: wins when two sources have the same recipe") { model.moveSource(s.id, up: true) }
                         .disabled(i == 0)
-                    Toggle("", isOn: Binding(get: { s.isEnabled }, set: { model.setSource(s.id, enabled: $0) })).labelsHidden()
+                    Toggle("", isOn: Binding(get: { s.enabled }, set: { model.setSource(s.id, enabled: $0) })).labelsHidden()
                         .toggleStyle(.switch).controlSize(.mini)
                     IconButton(icon: "trash", help: "Remove this source", iconColor: BrandStyle.red) { model.removeSource(s.id) }
                 }
@@ -593,7 +598,7 @@ struct RecipeSourcesSection: View {
                         .onChange(of: input) { result = nil }
                     Button("Folder …") { model.chooseRecipeFolder { input = $0 } }
                 }
-                if parsed?.kind == .github {
+                if looksLikeGitHub {
                     Toggle("Private repository", isOn: $isPrivate)
                     if isPrivate {
                         SecureField("Fine-grained token (Contents: Read-only on this repository)", text: $token)
@@ -605,7 +610,7 @@ struct RecipeSourcesSection: View {
                 HStack {
                     switch result {
                     case .success(let note)?: Label(note, systemImage: "checkmark.circle.fill").font(.caption).foregroundStyle(.green)
-                    case .failure(let e)?: Label(e.localizedDescription, systemImage: "xmark.octagon.fill").font(.caption)
+                    case .failure(let e)?: Label(e.message, systemImage: "xmark.octagon.fill").font(.caption)
                         .foregroundStyle(BrandStyle.red).fixedSize(horizontal: false, vertical: true)
                     case nil: EmptyView()
                     }
@@ -613,14 +618,14 @@ struct RecipeSourcesSection: View {
                     if checking { ProgressView().controlSize(.small) }
                     Button("Check and Add") {
                         checking = true
-                        let (i, p, t) = (input, isPrivate && parsed?.kind == .github, token)
+                        let (i, p, t) = (input, isPrivate && looksLikeGitHub, token)
                         Task {
                             result = await model.addSource(i, isPrivate: p, token: t)
                             checking = false
                             if case .success = result { input = ""; token = ""; isPrivate = false }
                         }
                     }
-                    .disabled(input.isEmpty || checking || (isPrivate && parsed?.kind == .github && token.isEmpty))
+                    .disabled(input.isEmpty || checking || (isPrivate && looksLikeGitHub && token.isEmpty))
                 }
             }
         } header: {
@@ -634,12 +639,13 @@ struct RecipeSourcesSection: View {
 
 /// A recipe a remote source offers that is not installed: its lamp is off, the action downloads it (plan B107)
 struct OfferedRecipeRow: View {
-    let recipe: RecipeCatalog.Recipe
-    let source: RecipeSource
+    let recipe: CatalogRecipe
     let model: AppModel
 
+    private var source: Source? { model.source(recipe.source) }
+    private var sourceName: String { source?.displayName ?? recipe.source }
     /// Official: by omaflake *and* from omaflake/recipes – an author name alone is not enough
-    private var official: Bool { source.isOfficial && recipe.author == "omaflake" }
+    private var official: Bool { source?.official == true && recipe.author == "omaflake" }
 
     var body: some View {
         ExpandableRow {
@@ -654,29 +660,29 @@ struct OfferedRecipeRow: View {
                         if official {
                             Image(systemName: "checkmark.seal.fill").font(.caption).foregroundStyle(BrandStyle.cyan).help("Official recipe")
                         }
-                        if recipe.lab == true {
+                        if recipe.lab {
                             Image(systemName: "flask").font(.caption).foregroundStyle(BrandStyle.yellow).help("Development recipe (developer mode)")
                         }
                         if !recipe.runsHere { ArchitectureBadge(systems: recipe.systems) }
                     }
-                    if let tags = recipe.tags, !tags.isEmpty { TagList(tags: tags) }
+                    if !recipe.tags.isEmpty { TagList(tags: recipe.tags) }
                 }
                 Spacer()
-                IconButton(icon: "arrow.down.circle", help: "Install from \(source.displayName)") { model.installRecipe(recipe.id, from: source) }
+                IconButton(icon: "arrow.down.circle", help: "Install from \(sourceName)") { model.installRecipe(recipe) }
                     .disabled(model.installingRecipes.contains(recipe.id))
             }
         } detail: {
             DetailBox {
                 Text(recipe.description(in: AppModel.uiLanguage)).font(.caption).fixedSize(horizontal: false, vertical: true)
                 VStack(alignment: .leading, spacing: 3) {
-                    InfoLine(label: "ID", value: Text(verbatim: RecipeID.qualified(recipe.id)))
-                    InfoLine(label: "Source", value: Text(verbatim: source.displayName) + (official ? Text(verbatim: " · ") + Text("official") : Text(verbatim: "")))
+                    InfoLine(label: "ID", value: Text(verbatim: recipe.qualified))
+                    InfoLine(label: "Source", value: Text(verbatim: sourceName) + (official ? Text(verbatim: " · ") + Text("official") : Text(verbatim: "")))
                     InfoLine(label: "Architectures", value: Text(verbatim: recipe.systems.joined(separator: ", ")))
                     if let license = recipe.license { InfoLine(label: "License", value: Text(verbatim: license)) }
-                    if let requires = recipe.requires, !requires.isEmpty {
-                        InfoLine(label: "Requires", value: Text(verbatim: requires.joined(separator: ", ")))
+                    if !recipe.requires.isEmpty {
+                        InfoLine(label: "Requires", value: Text(verbatim: recipe.requires.joined(separator: ", ")))
                     }
-                    InfoLine(label: "Files", value: Text("\(recipe.files.count) files, \(ByteCountFormatter.string(fromByteCount: Int64(recipe.files.reduce(0) { $0 + $1.size }), countStyle: .file))"))
+                    InfoLine(label: "Files", value: Text("\(recipe.files.count) files, \(ByteCountFormatter.string(fromByteCount: recipe.files.reduce(0) { $0 + $1.size }, countStyle: .file))"))
                     if let homepage = recipe.homepage, !homepage.isEmpty { InfoLine(label: "Homepage", value: Text(verbatim: homepage), full: homepage) }
                 }
                 .textSelection(.enabled)
@@ -707,7 +713,7 @@ struct UnreadableHint: View {
 /// Newer versions of downloaded recipes, found when the sources are looked into (plan B111, B114): taken over – the
 /// older one goes unless an image uses it – or added next to it when older versions are kept
 struct RecipeUpdates: View {
-    let updates: [(id: String, recipe: RecipeCatalog.Recipe, source: RecipeSource)]
+    let updates: [AvailableRecipes.Update]
     let model: AppModel
 
     var body: some View {
@@ -719,18 +725,18 @@ struct RecipeUpdates: View {
                 Spacer()
                 if updates.count > 1 {
                     ActionButton(icon: "arrow.down.circle", title: keep ? "Add All" : "Update All") {
-                        for u in updates { model.installRecipe(u.recipe.id, from: u.source) }
+                        for u in updates { model.installRecipe(u.recipe) }
                     }
                 }
             }
             ForEach(updates, id: \.id) { u in
                 HStack(spacing: 8) {
                     GuestKindIcon(kind: u.recipe.kind).frame(width: 16)
-                    Text(verbatim: RecipeID.qualified(u.id)).font(.caption)
-                    Text(verbatim: "· \(u.source.displayName)").font(.caption).foregroundStyle(.secondary).lineLimit(1)
+                    Text(verbatim: RecipeText.qualified(u.id)).font(.caption)
+                    Text(verbatim: "· \(model.source(u.recipe.source)?.displayName ?? u.recipe.source)").font(.caption).foregroundStyle(.secondary).lineLimit(1)
                     Spacer()
                     ActionButton(icon: "arrow.down.circle", title: keep ? "Add Version" : "Update") {
-                        model.installRecipe(u.recipe.id, from: u.source)
+                        model.installRecipe(u.recipe)
                     }
                     .disabled(model.installingRecipes.contains(u.recipe.id))
                 }
@@ -748,7 +754,7 @@ struct ArchitectureBadge: View {
     let systems: [String]
 
     var body: some View {
-        Text(verbatim: systems.map(Platform.architecture).joined(separator: ", "))
+        Text(verbatim: systems.map { String($0.split(separator: "-").first ?? Substring($0)) }.joined(separator: ", "))
             .font(.caption2).foregroundStyle(.orange).lineLimit(1).fixedSize()
             .padding(.horizontal, 5).padding(.vertical, 1)
             .background(Color.orange.opacity(0.12), in: Capsule())
@@ -898,17 +904,17 @@ struct FeatureChip: View {
 /// What a VM has switched on, at a glance in its row: clipboard, sound, microphone (orange: it listens), camera,
 /// ephemeral, network other than shared. Off means no icon – a missing microphone shows by its absence.
 struct FeatureIcons: View {
-    let config: InstanceConfig
+    let vm: Vm
 
     var body: some View {
         HStack(spacing: 4) {
-            if config.clipboardOn { icon("doc.on.clipboard", "Shared clipboard on") }
-            if config.soundOn { icon("speaker.wave.2.fill", "Sound on") }
-            if config.microphoneOn { icon("mic.fill", "Microphone on", .orange) }
-            if config.cameraOn && config.guestKind == .nixos { icon("camera.fill", "Camera on", .orange) }
-            if config.ephemeral { icon("sparkles", "Ephemeral instance") }
-            if config.network == .isolated { icon("lock.shield", "Network isolated") }
-            if config.network == .none { icon("wifi.slash", "No network") }
+            if vm.clipboard { icon("doc.on.clipboard", "Shared clipboard on") }
+            if vm.audio { icon("speaker.wave.2.fill", "Sound on") }
+            if vm.microphone { icon("mic.fill", "Microphone on", .orange) }
+            if vm.camera && vm.kind == .nixos { icon("camera.fill", "Camera on", .orange) }
+            if vm.ephemeral { icon("sparkles", "Ephemeral instance") }
+            if vm.network == .isolated { icon("lock.shield", "Network isolated") }
+            if vm.network == .none { icon("wifi.slash", "No network") }
         }
     }
 
@@ -1191,7 +1197,7 @@ struct StatusLamp: View {
 }
 
 struct InstanceRow: View {
-    let row: AppModel.Row
+    let row: Vm
     let busy: Bool
     let model: AppModel
 
@@ -1207,26 +1213,26 @@ struct InstanceRow: View {
         HStack(spacing: 10) {
             StatusLamp(state: busy ? .working : row.status == .running ? .on : .off)
                 .help(busy ? "Starting or stopping …" : row.status == .running ? "Running" : "Stopped")
-            GuestKindIcon(kind: row.config.guestKind).frame(width: 16)
+            GuestKindIcon(kind: row.kind).frame(width: 16)
             VStack(alignment: .leading, spacing: 2) {
                 HStack(spacing: 6) {
-                    Text(row.config.name).fontWeight(.medium)
+                    Text(row.name).fontWeight(.medium)
                     if let location = row.location {
                         Image(systemName: "externaldrive").font(.caption).foregroundStyle(.secondary)
                             .help(Text(verbatim: (location as NSString).abbreviatingWithTildeInPath))
                     }
-                    FeatureIcons(config: row.config)
+                    FeatureIcons(vm: row)
                     if row.upgradable {
                         Image(systemName: "arrow.up.circle.fill").font(.caption).foregroundStyle(.orange).help("Newer image available")
                     }
                 }
-                Text(verbatim: ([RecipeID.name(ofID: row.config.recipe) + (model.distinction(row.config.recipe).map { " (\($0))" } ?? ""), "\(row.config.cpus) CPU", "\(row.config.memoryGB) GB"] + [ssh].compactMap { $0 })
+                Text(verbatim: ([model.recipeName(row.recipe), "\(row.cpus) CPU", "\(row.memoryGB) GB"] + [ssh].compactMap { $0 })
                     .joined(separator: " · "))
                     .font(.caption).foregroundStyle(.secondary)
             }
             Spacer()
             // The share folder is there whether or not the VM runs
-            if row.config.share {
+            if row.share {
                 IconButton(icon: "folder", help: "Show Share Folder") { model.revealShare(row.id) }
             }
             if busy {
@@ -1235,8 +1241,8 @@ struct InstanceRow: View {
                 // Same places as the two start icons: the terminal takes headless start's place, stop the window start's
                 IconButton(icon: "terminal", help: "Open Terminal with SSH") { model.openTerminal(row.id) }
                 IconButton(icon: "stop.fill", help: "Shut down", iconColor: BrandStyle.red) { model.stop(row.id) }
-            } else if !model.startBlockers(row.config.guestKind).isEmpty {
-                DoctorWarning(blockers: model.startBlockers(row.config.guestKind))
+            } else if !model.startBlockers(row.kind).isEmpty {
+                DoctorWarning(blockers: model.startBlockers(row.kind))
             } else {
                 let limit = row.isMac ? model.macLimitReason : nil
                 IconButton(icon: "terminal", help: LocalizedStringKey(limit ?? String(localized: "Start Headless")), subIcon: "play.fill", subIconColor: BrandStyle.cyan) {
@@ -1253,7 +1259,7 @@ struct InstanceRow: View {
 
     /// NixOS: forwarded port on 127.0.0.1; macOS: NAT address while running (the guest kind is the icon in front)
     private var ssh: String? {
-        guard row.isMac else { return "SSH \(row.config.sshPort)" }
+        guard row.isMac else { return row.sshPort.map { "SSH \($0)" } }
         return row.address.map { "SSH \($0)" }
     }
 }
@@ -1261,28 +1267,30 @@ struct InstanceRow: View {
 /// A VM's details (plan B94): its switches as chips, what it is built from and how to reach it, and the actions that
 /// were in its "…" menu – reset, switch to a newer image, remove.
 struct InstanceDetail: View {
-    let row: AppModel.Row
+    let row: Vm
     let busy: Bool
     let model: AppModel
+    /// The SSH command as the core gives it (`vms.ssh`)
+    @State private var sshCommand: String?
 
     var body: some View {
-        let c = row.config
+        let c = row
         DetailBox {
             VStack(alignment: .leading, spacing: 4) {
                 HStack(spacing: 6) {
-                    FeatureChip(icon: "doc.on.clipboard", title: "Clipboard", isOn: c.clipboardOn, help: "Shared Clipboard") {
-                        model.setSound(row.id, clipboard: !c.clipboardOn)
+                    FeatureChip(icon: "doc.on.clipboard", title: "Clipboard", isOn: c.clipboard, help: "Shared Clipboard") {
+                        model.setSound(row.id, clipboard: !c.clipboard)
                     }
                     Divider().frame(height: 14)
-                    FeatureChip(icon: "speaker.wave.2.fill", title: "Sound", isOn: c.soundOn) {
-                        model.setSound(row.id, audio: !c.soundOn)
+                    FeatureChip(icon: "speaker.wave.2.fill", title: "Sound", isOn: c.audio) {
+                        model.setSound(row.id, audio: !c.audio)
                     }
-                    FeatureChip(icon: "mic.fill", title: "Microphone", isOn: c.microphoneOn) {
-                        model.setSound(row.id, audio: c.microphoneOn ? nil : true, microphone: !c.microphoneOn)
+                    FeatureChip(icon: "mic.fill", title: "Microphone", isOn: c.microphone) {
+                        model.setSound(row.id, audio: c.microphone ? nil : true, microphone: !c.microphone)
                     }
-                    FeatureChip(icon: "camera.fill", title: "Camera", isOn: c.cameraOn && !row.isMac,
+                    FeatureChip(icon: "camera.fill", title: "Camera", isOn: c.camera && !row.isMac,
                                 help: row.isMac ? "The camera for macOS guests comes with a signed release" : "") {
-                        model.setSound(row.id, camera: !c.cameraOn)
+                        model.setSound(row.id, camera: !c.camera)
                     }
                     .disabled(row.isMac)   // macOS guests: camera extension after M12 (plan)
                 }
@@ -1294,20 +1302,24 @@ struct InstanceDetail: View {
                 InfoLine(label: "Image", value: row.upgradable
                          ? Text(verbatim: c.image + " · ") + Text("newer image available").foregroundColor(.orange)
                          : Text(verbatim: c.image), full: c.image)
-                InfoLine(label: "omaflake ID", value: Text(verbatim: OmaflakeID.vm(c, words: model.idLengths.vm)), full: OmaflakeID.vm(c))
-                InfoLine(label: "Recipe", value: Text(verbatim: OmaflakeID.recipe(c.recipe, words: model.idLengths.recipe)),
-                         full: OmaflakeID.recipe(c.recipe))
+                if let id = c.omaflakeId {
+                    InfoLine(label: "omaflake ID", value: Text(verbatim: IDText.short(id, model.idLengths.vm)), full: id)
+                }
+                InfoLine(label: "Recipe", value: Text(verbatim: model.recipe(c.recipe)?.label ?? RecipeText.qualified(c.recipe)),
+                         full: c.recipe)
                 InfoLine(label: "Resources", value: Text(verbatim: "\(c.cpus) CPU · \(c.memoryGB) GB RAM · \(c.diskGB) GB"))
                 InfoLine(label: "Network", value: Text(verbatim: c.network.rawValue))
-                InfoLine(label: "SSH", value: Text(verbatim: sshCommand), full: sshCommand)
-                if c.share {
-                    let dir = model.paths.shareDir(c).path
+                let ssh = sshCommand ?? (row.isMac && row.address == nil ? String(localized: "address while running") : "…")
+                InfoLine(label: "SSH", value: Text(verbatim: ssh), full: ssh)
+                if c.share, let dir = c.sharePath {
                     InfoLine(label: "Share folder", value: Text(verbatim: (dir as NSString).abbreviatingWithTildeInPath), full: dir)
                 }
                 if c.ephemeral {
                     InfoLine(label: "Ephemeral", value: Text("changes are discarded on power-off"))
                 }
-                InfoLine(label: "Created", value: Text(c.created.formatted(date: .abbreviated, time: .shortened)))
+                if let created = c.created {
+                    InfoLine(label: "Created", value: Text(created.formatted(date: .abbreviated, time: .shortened)))
+                }
                 if let location = row.location {
                     InfoLine(label: "Runs from", value: Text(verbatim: (location as NSString).abbreviatingWithTildeInPath), full: location)
                 }
@@ -1338,6 +1350,11 @@ struct InstanceDetail: View {
             .disabled(row.status == .running || busy)
             .help(row.status == .running ? "Shut the VM down first" : "")
         }
+        // macOS guests have an address only while running
+        .task(id: "\(row.status.rawValue) \(row.address ?? "")") {
+            if row.isMac && row.address == nil { sshCommand = nil; return }
+            sshCommand = await model.sshLine(row.id)
+        }
     }
 
     /// Load, free memory and disk, addresses – as the agent reported them (plan B96)
@@ -1351,32 +1368,23 @@ struct InstanceDetail: View {
         if let users = s.users, !users.isEmpty { parts.append(users.joined(separator: ", ")) }
         return parts.joined(separator: " · ")
     }
-
-    private var sshCommand: String {
-        let c = row.config
-        if row.isMac {
-            return row.address.map { "ssh \(c.guestUser)@\($0)" } ?? String(localized: "address while running")
-        }
-        return "ssh -p \(c.sshPort) \(c.guestUser)@127.0.0.1"
-    }
 }
 
 /// One built image: its full name, the recipe it comes from, when it was built, the VMs on it and whether the recipe
-/// has changed since (plan B93). The circle makes it its recipe's default image (new VMs use it); "New VM" sits on the
-/// default image only, so a VM never comes from a different image than the row it was started from.
+/// has changed since (plan B93). "New VM" creates a VM from exactly this image (plan B100).
 struct ImageRowView: View {
-    let image: ImageStore.Image
+    let image: VmImage
     let model: AppModel
     let newVM: () -> Void
-    /// The recipe evaluates to something else now (nil: not checked yet)
-    private var outdated: Bool? { model.expectedStorePaths[image.recipe].map { $0 != image.info.storePath } }
-    private var usedBy: [String] { model.rows.filter { $0.config.image == image.name }.map(\.id) }
+    /// The recipe evaluates to something else now (nil: not known)
+    private var outdated: Bool? { model.isOutdated(image) }
+    private var usedBy: [String] { image.instances }
 
     var body: some View {
         ExpandableRow {
             row
         } detail: {
-            ImageVersionInfo(version: image, outdated: outdated, usedBy: usedBy, lengths: model.idLengths,
+            ImageVersionInfo(version: image, outdated: outdated, usedBy: usedBy, model: model,
                              export: { model.exportImage(image.name) }) {
                 model.removeImage(image.name)
             }
@@ -1401,10 +1409,11 @@ struct ImageRowView: View {
                     }
                 }
                 HStack(spacing: 4) {
-                    Text("recipe \(RecipeID.displayName(image.recipe, model.recipes[image.recipe]))"
-                         + (model.distinction(image.recipe).map { " (\($0))" } ?? ""))
-                    Text(verbatim: "·")
-                    Text(image.info.created.formatted(date: .abbreviated, time: .shortened))
+                    Text("recipe \(model.recipeName(image.recipe))")
+                    if let created = image.created {
+                        Text(verbatim: "·")
+                        Text(created.formatted(date: .abbreviated, time: .shortened))
+                    }
                     Text(verbatim: "·")
                     // How many VMs – their names could fill the row (they are in the tooltip and the details)
                     Group {
@@ -1424,8 +1433,9 @@ struct ImageRowView: View {
             Spacer(minLength: 4)
             // The image's folder in the data folder
             IconButton(icon: "folder", help: "Show in Finder") {
-                NSWorkspace.shared.activateFileViewerSelecting([model.paths.imageDir(image.name)])
+                if let path = image.path { NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: path)]) }
             }
+            .disabled(image.path == nil)
             let startBlockers = model.startBlockers(image.kind)
             if !startBlockers.isEmpty {
                 DoctorWarning(blockers: startBlockers)
@@ -1438,32 +1448,36 @@ struct ImageRowView: View {
 
 /// Build details of an image version, shown under its row (inline: a popover could close the menu window, B59).
 struct ImageVersionInfo: View {
-    let version: ImageStore.Image
+    let version: VmImage
     let outdated: Bool?
     let usedBy: [String]
-    /// How many words omaflake IDs show (plan B111)
-    var lengths = OmaflakeID.Lengths()
+    let model: AppModel
     let export: () -> Void
     /// "Remove …" at the bottom, as in a VM's details (not while VMs use the image)
     let remove: () -> Void
-    @State private var size: String?
 
     var body: some View {
-        let info = version.info
+        let info = version
         // Fixed label column, values on one line: long paths and store names must not widen the window's content
         DetailBox {
             VStack(alignment: .leading, spacing: 3) {
-                InfoLine(label: "omaflake ID", value: Text(verbatim: OmaflakeID.image(version, words: lengths.image)),
-                         full: OmaflakeID.image(version))
-                InfoLine(label: "Recipe", value: Text(verbatim: OmaflakeID.recipe(info.recipe, words: lengths.recipe)),
-                         full: OmaflakeID.recipe(info.recipe))
-                InfoLine(label: "Built", value: Text(info.created.formatted(date: .long, time: .standard)))
-                InfoLine(label: "Recipe state", value: revision(info.revision))
+                if let label = info.label {
+                    InfoLine(label: "omaflake ID", value: Text(verbatim: label), full: info.omaflakeId ?? label)
+                }
+                InfoLine(label: "Recipe", value: Text(verbatim: model.recipe(info.recipe)?.label ?? RecipeText.qualified(info.recipe)),
+                         full: info.recipe)
+                if let created = info.created {
+                    InfoLine(label: "Built", value: Text(created.formatted(date: .long, time: .standard)))
+                }
+                if let revision = info.revision { InfoLine(label: "Recipe state", value: self.revision(revision)) }
                 InfoLine(label: "Status", value: status)
                 InfoLine(label: "Used by", value: usedBy.isEmpty ? Text("no VM") : Text(verbatim: usedBy.joined(separator: ", ")),
                          full: usedBy.joined(separator: ", "))
-                InfoLine(label: "Size", value: size.map { Text(verbatim: $0) } ?? Text(verbatim: "…"))
-                InfoLine(label: "Source", value: Text(verbatim: (info.source as NSString).abbreviatingWithTildeInPath), full: info.source)
+                InfoLine(label: "Size", value: info.sizeBytes.map { Text(verbatim: ByteCountFormatter.string(fromByteCount: $0, countStyle: .file)) }
+                         ?? Text("unknown"))
+                if let source = info.source {
+                    InfoLine(label: "Source", value: Text(verbatim: (source as NSString).abbreviatingWithTildeInPath), full: source)
+                }
                 if let store = info.storePath {
                     InfoLine(label: info.kind == .macos ? "System" : "Disk image",
                              value: Text(verbatim: (store as NSString).lastPathComponent), full: store)
@@ -1479,11 +1493,6 @@ struct ImageVersionInfo: View {
             // On the row, not the button: a disabled button shows no tooltip
             .contentShape(Rectangle())
             .help(usedBy.isEmpty ? "" : "Used by VMs – remove or upgrade them first")
-        }
-        .task(id: version.name) {
-            let image = version
-            let bytes = await Task.detached { ImageStore.diskUsage(image) }.value
-            size = bytes.map { ByteCountFormatter.string(fromByteCount: $0, countStyle: .file) } ?? String(localized: "unknown")
         }
     }
 
@@ -1522,7 +1531,7 @@ struct NewVMView: View {
     @State private var imageName = ""
     @State private var recipe = ""
     @State private var name = ""
-    @State private var settings = RecipeDefaults(cpus: 4, memoryGB: 4, diskGB: 40, network: .shared, share: true, ephemeral: false)
+    @State private var settings = RecipeSettings()
     @State private var startAfter = true
     @State private var sharePath: String?
     /// Recipe whose settings are in `settings`, and the name suggested for it
@@ -1538,10 +1547,10 @@ struct NewVMView: View {
                     VStack(alignment: .leading, spacing: 2) {
                         Text(verbatim: imageName.isEmpty ? "–" : imageName).fontWeight(.medium).lineLimit(1).truncationMode(.middle)
                             .help(imageName)
-                        Text("recipe \(RecipeID.displayName(recipe, model.recipes[recipe]))").font(.caption).foregroundStyle(.secondary)
+                        Text("recipe \(model.recipeName(recipe))").font(.caption).foregroundStyle(.secondary)
                     }
                 }
-                RecipeDescription(recipe: model.recipes[recipe])
+                RecipeDescription(recipe: model.recipe(recipe))
                 if !model.startBlockers(settings.kind).isEmpty { DoctorBanner(blockers: model.startBlockers(settings.kind)) }
                 TextField("Name", text: $name)
                 Toggle("Ephemeral (changes are discarded on shutdown)", isOn: $settings.ephemeral)
@@ -1555,12 +1564,12 @@ struct NewVMView: View {
                 } else {
                     Stepper("Disk: \(settings.diskGB) GB", value: $settings.diskGB, in: 10...500, step: 10)
                 }
-                Toggle("Sound from the VM", isOn: Binding(get: { settings.audio ?? true }, set: { settings.audio = $0 }))
-                Toggle("Microphone in the VM", isOn: Binding(get: { settings.microphone ?? false }, set: { settings.microphone = $0 }))
-                    .disabled(settings.audio == false)
-                Toggle("Shared clipboard", isOn: Binding(get: { settings.clipboard ?? true }, set: { settings.clipboard = $0 }))
+                Toggle("Sound from the VM", isOn: $settings.audio)
+                Toggle("Microphone in the VM", isOn: $settings.microphone)
+                    .disabled(!settings.audio)
+                Toggle("Shared clipboard", isOn: $settings.clipboard)
                 if !isMac {
-                    Toggle("Camera in the VM", isOn: Binding(get: { settings.camera ?? false }, set: { settings.camera = $0 }))
+                    Toggle("Camera in the VM", isOn: $settings.camera)
                 }
                 Picker("Network", selection: $settings.network) {
                     // macOS guests have no isolated mode (plan BM27)
@@ -1573,7 +1582,7 @@ struct NewVMView: View {
                     LabeledContent("Folder") {
                         HStack {
                             Text(sharePath.map { ($0 as NSString).abbreviatingWithTildeInPath }
-                                 ?? "~/.omaflake/share/\(name.isEmpty ? "<name>" : name)")
+                                 ?? "\((model.dataFolder as NSString).abbreviatingWithTildeInPath)/share/\(name.isEmpty ? "<name>" : name)")
                                 .lineLimit(1).truncationMode(.middle).foregroundStyle(.secondary)
                             Button("Choose …") { model.chooseShareFolder { sharePath = $0 } }
                             if sharePath != nil { Button("Default") { sharePath = nil } }
@@ -1600,23 +1609,24 @@ struct NewVMView: View {
         }
         .formStyle(.grouped)
         .scrollContentBackground(.hidden)
-        .onAppear { select(model.newVMImage) }
-        .onChange(of: model.newVMImage) { _, image in select(image) }
+        .task(id: model.newVMImage) { await select(model.newVMImage) }
     }
 
     private var isMac: Bool { settings.kind == .macos }
 
     /// Loads the image's recipe settings (the recipe's defaults for a new VM); the name follows the recipe
-    private func select(_ image: String?) {
-        guard let image, let f = model.allImages.first(where: { $0.name == image })?.recipe else { return }
+    private func select(_ image: String?) async {
+        guard let image, let f = model.images.first(where: { $0.name == image })?.recipe else { return }
         imageName = image
         recipe = f
         guard f != loadedRecipe else { return }
-        if let d = model.recipes[f] { settings = d }
-        // A name the user typed stays; the suggested one follows the image
-        if name.isEmpty || name == suggestedName { name = model.nextFreeName(for: f) }
-        suggestedName = name
+        if let r = model.recipe(f) { settings = r.settings }
         loadedRecipe = f
+        // A name the user typed stays; the suggested one follows the image
+        if name.isEmpty || name == suggestedName {
+            name = await model.nextFreeName(for: f)
+            suggestedName = name
+        }
     }
 }
 
@@ -1665,35 +1675,34 @@ struct BuildView: View {
     @State private var recipe = ""
     @State private var password = ""
 
-    private var isMac: Bool { model.recipes[recipe]?.kind == .macos }
-    private var blockers: [Prerequisite] { model.recipes[recipe].map { model.buildBlockers($0.kind) } ?? [] }
+    private var r: Recipe? { model.recipe(recipe) }
+    private var isMac: Bool { r?.kind == .macos }
+    private var blockers: [Prerequisite] { r.map { model.buildBlockers($0.kind) } ?? [] }
     /// The chosen recipe's build (running, waiting or the last one with its log)
-    private var job: BuildJob? { model.latestJob(for: recipe) }
+    private var job: Job? { model.latestJob(for: recipe) }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             // 1. What: the recipe with its guest kind
             HStack(spacing: 8) {
                 // Always the recipe it was opened for – from its row in Recipes or its build in Images (plan B100)
-                GuestKindIcon(kind: model.recipes[recipe]?.kind ?? .nixos).frame(width: 16)
-                Text(recipe.isEmpty ? "–" : RecipeID.displayName(recipe, model.recipes[recipe])).font(.headline)
-                RecipeBadges(lab: model.recipes[recipe]?.isLab ?? false,
-                             description: model.recipes[recipe]?.description(in: AppModel.uiLanguage))
+                GuestKindIcon(kind: r?.kind ?? .nixos).frame(width: 16)
+                Text(recipe.isEmpty ? "–" : model.recipeName(recipe)).font(.headline)
+                RecipeBadges(lab: r?.lab ?? false, description: r?.description)
             }
             // 2. Go: password (macOS) and start/cancel – other recipes can be queued meanwhile
             HStack(spacing: 8) {
                 if isMac && job?.isActive != true {
                     // sudo in the build VM, once; kept only until the build starts
-                    SecureField("Password of \(model.macBaseUser ?? model.recipes[recipe]?.user ?? NSUserName())", text: $password)
+                    SecureField("Password of \(model.macBaseUser ?? r?.user ?? NSUserName())", text: $password)
                         .textFieldStyle(.roundedBorder)
                 } else {
                     Spacer()
                 }
                 if let job, job.isActive {
                     Button(job.state == .queued ? "Remove from Queue" : "Cancel", role: .cancel) { model.cancel(job) }
-                        .disabled(!job.canCancel)
                 } else {
-                    Button(model.builds.contains { $0.isActive && $0.kind == model.recipes[recipe]?.kind } ? "Add to Queue" : "Build") {
+                    Button(model.builds.contains { $0.isActive && $0.guestKind == r?.kind } ? "Add to Queue" : "Build") {
                         model.build(recipe, password: isMac ? password : nil)
                         password = ""
                     }
@@ -1707,21 +1716,23 @@ struct BuildView: View {
                 if job.state == .queued {
                     Label("Waiting in the queue", systemImage: "clock").font(.caption).foregroundStyle(.secondary)
                 } else {
-                    BuildProgressView(progress: job.progress, started: job.started, lastOutput: job.lastOutput)
+                    BuildProgressView(progress: job.progress ?? Job.Progress(), started: job.started, lastOutput: job.lastOutput)
                 }
-            } else if let newest = model.currentImages[recipe] {
+            } else if let newest = r?.image {
                 Text("newest image: \(newest)").font(.caption).foregroundStyle(.secondary).lineLimit(1).truncationMode(.middle)
             }
-            LogView(lines: job?.log ?? [])
-            if let full = job?.fullLog, FileManager.default.fileExists(atPath: full.path) {
+            LogView(lines: (job.flatMap { model.jobLogs[$0.id] } ?? [])
+                    + (job.map { $0.isDone && $0.hiddenLines > 0 ? [String(localized: "(\($0.hiddenLines) routine lines of the disk image tool hidden – full log: \($0.logFile ?? ""))")] : [] } ?? []))
+            if let full = job?.logFile {
                 HStack {
                     Spacer()
-                    Button("Full Log …") { NSWorkspace.shared.open(full) }
+                    Button("Full Log …") { NSWorkspace.shared.open(URL(fileURLWithPath: full)) }
                         .help("Every line, also the routine ones left out above")
                 }
             }
         }
         .padding(BrandStyle.margin)
+        .task(id: job?.id) { if let job { await model.loadLog(job) } }
         .onAppear { recipe = model.buildRecipe ?? "" }
         .onChange(of: model.buildRecipe) { _, f in if let f { recipe = f } }
     }
@@ -1730,7 +1741,7 @@ struct BuildView: View {
 /// Monospaced log that follows its last line; a real text view, so several lines can be selected and copied.
 /// Step "2 / 4", what it does, packages done of announced, a bar over all steps
 struct BuildProgressView: View {
-    let progress: BuildProgress
+    let progress: Job.Progress
     var started: Date?
     var lastOutput: Date?
 
@@ -1845,6 +1856,16 @@ struct DoctorView: View {
                     Text(AppVersion.current).font(.system(.callout, design: .monospaced)).foregroundStyle(.secondary)
                         .textSelection(.enabled)
                 }
+                if let core = model.session?.omafVersion {
+                    LabeledContent("Core") {
+                        Text(verbatim: core).font(.system(.callout, design: .monospaced)).foregroundStyle(.secondary)
+                            .textSelection(.enabled)
+                    }
+                }
+                if let problem = model.coreProblem {
+                    Label(problem, systemImage: "exclamationmark.triangle.fill").foregroundStyle(.orange).font(.callout)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
                 UpdateRow(model: model)
             }
             Section {
@@ -1941,7 +1962,7 @@ struct MacBaseView: View {
         .padding(16)
         .onAppear {
             // Suggest the macOS recipes' guest user, so base and images agree from the start
-            if let recipeUser = model.recipes.values.first(where: { $0.kind == .macos })?.user, user == NSUserName() { user = recipeUser }
+            if let recipeUser = model.recipes.first(where: { $0.kind == .macos })?.user, user == NSUserName() { user = recipeUser }
             Task { await model.checkAll() }
         }
     }
@@ -2037,7 +2058,7 @@ struct RequirementRow: View {
         // Nix and nix-darwin: set up by omaflake through the administrator dialog (spec §11.5); others in Terminal
         if p.item == .nix && p.status == .missing {
             Button("Install …") { model.installNix() }.disabled(model.builderTask != nil)
-                .help(BuilderMaintenance.installNixCommand)
+                .help(p.install ?? "")
         } else if p.item == .nixDarwin && p.status == .missing {
             Button("Set Up …") { model.setUpNixDarwin() }
                 .disabled(model.builderTask != nil || model.prerequisites.contains { $0.item == .nix && $0.status == .missing })
@@ -2107,6 +2128,7 @@ enum RequirementText {
         case .ipsw: String(localized: "macOS from Apple (IPSW)")
         case .macBase: String(localized: "macOS base")
         case .macSpace: String(localized: "Space for macOS")
+        case .unknown: String(localized: "Other check")
         }
     }
 
@@ -2115,7 +2137,7 @@ enum RequirementText {
         if p.item == .macBase, let base = p.baseUser, let expected = p.expectedUser {
             return String(localized: "The base's user \(base) differs from macUser \(expected) in your image flake's settings – set macUser to \(base) in nix/local/settings.nix, or create the base again with \(expected).")
         }
-        return hint(p.item, p.status)
+        return p.item == .unknown ? p.hint : hint(p.item, p.status)
     }
 
     static func hint(_ item: Prerequisite.Item, _ status: Prerequisite.Status) -> String {
@@ -2138,6 +2160,7 @@ enum RequirementText {
             : String(localized: "Download macOS from Apple, or choose an IPSW file you already have.")
         case .macBase: status == .limited ? String(localized: "Unfinished – Create Base continues it; use the same password as before.")
             : String(localized: "Create it once from the IPSW – about 5 minutes, no manual steps.")
+        case .unknown: ""
         }
     }
 }
@@ -2186,15 +2209,16 @@ struct SettingsView: View {
                 }
             }
             Section {
-                GuestField(label: "User", value: $model.guestOverrides.user, placeholder: model.guestDefaults.user)
-                GuestField(label: "Full name", value: $model.guestOverrides.fullName, placeholder: model.guestDefaults.fullName)
+                GuestField(label: "User", value: $model.guestOverrides.user, placeholder: model.guestDefaults.user ?? "")
+                GuestField(label: "Full name", value: $model.guestOverrides.fullName, placeholder: model.guestDefaults.fullName ?? "")
                 GuestField(label: "E-mail (git)", value: $model.guestOverrides.email, placeholder: "")
-                GuestPicker(label: "Language and region", value: $model.guestOverrides.locale, mac: model.guestDefaults.locale,
-                            options: GuestChoices.locales, name: { GuestChoices.localeName($0) })
-                GuestPicker(label: "Keyboard", value: $model.guestOverrides.keyboard, mac: model.guestDefaults.keyboard,
-                            options: GuestChoices.keyboards.map(\.code), name: { GuestChoices.keyboardName($0) })
-                GuestPicker(label: "Time zone", value: $model.guestOverrides.timeZone, mac: model.guestDefaults.timeZone,
-                            options: GuestChoices.timeZones, name: { $0.replacingOccurrences(of: "_", with: " ") })
+                let choices = model.guestChoices
+                GuestPicker(label: "Language and region", value: $model.guestOverrides.locale, mac: model.guestDefaults.locale ?? "",
+                            options: choices.locales, name: { GuestNames.locale($0) })
+                GuestPicker(label: "Keyboard", value: $model.guestOverrides.keyboard, mac: model.guestDefaults.keyboard ?? "",
+                            options: choices.keyboards.map(\.code), name: { GuestNames.keyboard($0, choices.keyboards) })
+                GuestPicker(label: "Time zone", value: $model.guestOverrides.timeZone, mac: model.guestDefaults.timeZone ?? "",
+                            options: choices.timeZones, name: { $0.replacingOccurrences(of: "_", with: " ") })
             } header: {
                 Text("Guest user in the VMs")
             } footer: {
@@ -2203,13 +2227,13 @@ struct SettingsView: View {
             }
             Section("Data Folder") {
                 LabeledContent("Location") {
-                    Text((model.paths.root.path as NSString).abbreviatingWithTildeInPath)
+                    Text((model.dataFolder as NSString).abbreviatingWithTildeInPath)
                         .lineLimit(1).truncationMode(.middle).textSelection(.enabled)
                 }
                 HStack {
                     Spacer()
                     if model.movingData { ProgressView().controlSize(.small) }
-                    Button("Default (~/.omaflake)") { model.moveDataFolder(to: Paths.defaultHome) }
+                    Button("Default (~/.omaflake)") { model.moveDataFolder(to: AppModel.defaultDataFolder) }
                         .disabled(model.movingData || model.isDefaultDataFolder)
                     Button("Move …") { model.chooseDataFolder { model.moveDataFolder(to: $0) } }
                         .disabled(model.movingData)
@@ -2220,6 +2244,21 @@ struct SettingsView: View {
         }
         .formStyle(.grouped)
         .scrollContentBackground(.hidden)
+    }
+}
+
+/// Names of the guest choices in the app's language (Foundation's names; the lists come from the core)
+enum GuestNames {
+    /// "Deutsch (Deutschland)" for "de_DE.UTF-8"
+    static func locale(_ locale: String) -> String {
+        let id = locale.components(separatedBy: ".").first ?? locale
+        return Locale.current.localizedString(forIdentifier: id) ?? id
+    }
+
+    /// "Deutsch (Deutschland)" for keyboard "de" (named after its locale)
+    static func keyboard(_ code: String, _ keyboards: [SettingsInfo.Choices.Keyboard]) -> String {
+        guard let locale = keyboards.first(where: { $0.code == code })?.locale else { return code }
+        return Locale.current.localizedString(forIdentifier: locale) ?? code
     }
 }
 
@@ -2455,12 +2494,12 @@ struct RecipeBadges: View {
 
 /// A recipe's description below a picker
 struct RecipeDescription: View {
-    let recipe: RecipeDefaults?
+    let recipe: Recipe?
 
     var body: some View {
-        if let text = recipe?.description(in: AppModel.uiLanguage) {
+        if let text = recipe?.description {
             HStack(alignment: .firstTextBaseline, spacing: 6) {
-                if recipe?.isLab == true { Image(systemName: "flask").foregroundStyle(BrandStyle.yellow) }
+                if recipe?.lab == true { Image(systemName: "flask").foregroundStyle(BrandStyle.yellow) }
                 Text(text).font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
             }
         }
@@ -2504,7 +2543,7 @@ struct ConfirmationOverlay: View {
 
 /// Under an image row: its build waiting, running (step, packages, bar) or failed; a click opens the build page
 struct BuildJobRow: View {
-    let job: BuildJob
+    let job: Job
     let model: AppModel
     /// A row of its own in the image list (with the recipe's name) rather than below a recipe
     var standalone = false
@@ -2524,23 +2563,22 @@ struct BuildJobRow: View {
             VStack(alignment: .leading, spacing: 3) {
                 HStack(spacing: 6) {
                     if standalone {
-                        Text(verbatim: RecipeID.displayName(job.recipe, model.recipes[job.recipe])).font(.callout.weight(.medium))
-                        GuestKindIcon(kind: job.kind).font(.caption2).foregroundStyle(.secondary)
+                        Text(verbatim: job.recipe.map(model.recipeName) ?? job.title).font(.callout.weight(.medium))
+                        GuestKindIcon(kind: job.guestKind ?? .nixos).font(.caption2).foregroundStyle(.secondary)
                     }
                     Text(title).font(.caption.weight(.medium))
-                    if job.isRunning && job.progress.of > 0 {
-                        Text(verbatim: "\(min(job.progress.done, job.progress.of))/\(job.progress.of)")
+                    if job.isRunning, let p = job.progress, p.of > 0 {
+                        Text(verbatim: "\(min(p.done, p.of))/\(p.of)")
                             .font(.caption2.monospaced()).foregroundStyle(.secondary)
                     }
                 }
-                if job.isRunning {
-                    ProgressView(value: job.progress.fraction).progressViewStyle(.linear).tint(BrandStyle.cyan).controlSize(.mini)
+                if job.isRunning, let p = job.progress {
+                    ProgressView(value: p.fraction).progressViewStyle(.linear).tint(BrandStyle.cyan).controlSize(.mini)
                 }
             }
             Spacer()
             if job.isActive {
                 IconButton(icon: "xmark.circle", help: job.state == .queued ? "Remove from the queue" : "Cancel build") { model.cancel(job) }
-                    .disabled(!job.canCancel)
             } else {
                 IconButton(icon: "xmark", help: "Hide") { model.dismiss(job) }
             }
@@ -2556,10 +2594,11 @@ struct BuildJobRow: View {
         switch job.state {
         case .queued: String(localized: "Waiting to build")
         case .checking: String(localized: "Checking …")
-        case .running: "\(job.progress.step)/\(job.progress.total) " + String(localized: String.LocalizationValue(job.progress.title))
+        case .running: job.progress.map { "\($0.step)/\($0.total) " + String(localized: String.LocalizationValue($0.title)) } ?? job.title
         case .failed: String(localized: "Build failed – show log")
         case .cancelled: String(localized: "Build cancelled")
         case .finished: String(localized: "Built")
+        case .unknown: job.title
         }
     }
 }
@@ -2580,7 +2619,7 @@ struct UpdateRow: View {
                 case .available(let release):
                     Text("\(release.version) available").foregroundStyle(BrandStyle.cyan)
                     Button("Download …") {
-                        if let url = URL(string: release.page ?? release.url) { NSWorkspace.shared.open(url) }
+                        if let url = (release.page ?? release.url).flatMap(URL.init(string:)) { NSWorkspace.shared.open(url) }
                     }
                 case .failed(let error): Text("Check failed: \(error)").foregroundStyle(.orange).lineLimit(1).help(error)
                 }

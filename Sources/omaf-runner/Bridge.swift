@@ -3,7 +3,7 @@ import AppKit
 import ArgumentParser
 import Darwin
 import Foundation
-import OmaflakeCore
+import OmaflakeKit
 
 /// Mac side of the guest integration channels (one process per VM, started detached with the VM, ends with it).
 /// Agent: hello and status from the omaflake agent over the port org.omaflake.agent, kept in the instance's

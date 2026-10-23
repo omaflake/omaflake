@@ -48,6 +48,8 @@ jobs:
           security import "$RUNNER_TEMP/id.p12" -k "$kc" -P "$P12_PASSWORD" -T /usr/bin/codesign
           security set-key-partition-list -S apple-tool:,apple: -s -k "$pw" "$kc"
           security list-keychains -d user -s "$kc"
+      # The bundle carries the Rust `omaf` (scripts/bundle-app.sh: cargo build --release -p omaf)
+      - uses: dtolnay/rust-toolchain@stable
       - name: Build and sign
         env:
           SIGN_IDENTITY: ${{ secrets.SIGN_IDENTITY }}

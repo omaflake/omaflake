@@ -34,7 +34,8 @@ any work and keep them up to date.
 - **Verified before claimed:** check Nix options (`nix eval`, nixpkgs/nix-darwin sources), QEMU
   parameters (`qemu-system-aarch64 -device help`) and Virtualization.framework API (SDK headers).
   Mark what can't be verified as `OPEN` in code/docs.
-- **After every change:** `swift build` and `swift test`; after runner changes `scripts/sign-runner.sh`;
+- **After every change:** `swift build` and `swift test`; `cargo fmt --all --check`, `cargo clippy --all-targets` and
+  `cargo test`; after runner changes `scripts/sign-runner.sh`;
   after Nix changes `nix flake check`, `nix flake check "path:$PWD/nix"` and, with the recipes,
   `nix flake check "path:$PWD/nix" --override-input omaflake-recipes "path:$PWD/../recipes/recipes"`. Commit only
   when green.
@@ -52,17 +53,18 @@ any work and keep them up to date.
 ## Layout
 
 ```
-Package.swift              OmaflakeCore (library), omaf (CLI), omaf-runner, OmaflakeApp
-Sources/OmaflakeCore/      paths, stores, QEMU command, QMP, macOS VM bundle, runner client
-Sources/omaf/              CLI
+Cargo.toml, crates/        Rust core: omaflake-core (all logic), omaf (CLI and `omaf serve`, the JSON-RPC API: docs/api.md)
+Package.swift              OmaflakeKit (library), omaf-runner, OmaflakeApp
+Sources/OmaflakeKit/       Core/ + API/: client of `omaf serve` and the API's types; Runner/: agent protocol, macOS VM
+                           bundle, sockets (for omaf-runner); Brand/: icons
 Sources/omaf-runner/       macOS guests on Virtualization.framework (needs entitlement)
-Sources/OmaflakeApp/       SwiftUI menu bar app
+Sources/OmaflakeApp/       SwiftUI menu bar app – a client of `omaf serve`, presentation only
 App/                       Info.plist, runner entitlements
 scripts/                   bundle-app.sh, sign-runner.sh, bootprobe.sh
 qemu/                      QEMU build with virglrenderer + ANGLE, patches
 nix/modules/vm-guest.nix   guest module (root flake output nixosModules.vm-guest)
 docs/                      spec, plan, cli, app, macos-base, linux-builder
-brand/                     omaflake brand set (icons, favicon, banner, Sources/OmaflakeCore/BrandAssets.swift);
+brand/                     omaflake brand set (icons, favicon, banner, Sources/OmaflakeKit/Brand/BrandAssets.swift);
                            edit brand/generate.py, not exports
 nix/                       image flake: builds images from the recipes of the sources (input omaflake-recipes),
                            guest modules, the omaflake agent, Linux builder host; use as path:, shipped in the app

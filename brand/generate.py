@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: AGPL-3.0-or-later
 """Generates the omaflake brand bundle: master SVGs, PNG exports, .icns, favicon.ico and
-Sources/OmaflakeCore/BrandAssets.swift (icons embedded for the Swift targets).
+Sources/OmaflakeKit/Brand/BrandAssets.swift (icons embedded for the Swift targets).
 
 Needs rsvg-convert (Homebrew: librsvg) and iconutil (macOS). Run from anywhere:
     python3 generate.py
@@ -186,7 +186,7 @@ def ico(dst, pngs):
 
 
 def swift_assets(dst):
-    """Icon PNGs embedded as base64 for OmaflakeCore (Brand.swift), so CLI, runner and app need no resource bundle."""
+    """Icon PNGs embedded as base64 for OmaflakeKit (Brand.swift), so runner and app need no resource bundle."""
     def b64(path):
         data = base64.b64encode(open(path, "rb").read()).decode()
         return "\n".join(data[i:i + 120] for i in range(0, len(data), 120))
@@ -270,7 +270,7 @@ def main():
     # The macOS lab recipe's test app uses the same icon: omaflake/recipes keeps a copy of macos/omaflake.icns
     # (recipes/omaflake/macos/lab/omaflake-test.icns) – copy it there by hand when the icon changes
 
-    swift_assets(os.path.join(HERE, "..", "Sources", "OmaflakeCore", "BrandAssets.swift"))
+    swift_assets(os.path.join(HERE, "..", "Sources", "OmaflakeKit", "Brand", "BrandAssets.swift"))
     print("ok")
 
 

@@ -3,7 +3,7 @@ import AppKit
 import Darwin
 import Foundation
 import Virtualization
-import OmaflakeCore
+import OmaflakeKit
 
 /// Runs exactly one macOS VM until it is off (spec §6.4). One process per VM.
 @MainActor

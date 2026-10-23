@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 import Foundation
 import Virtualization
-import OmaflakeCore
+import OmaflakeKit
 
 /// Builds the VZVirtualMachineConfiguration from a VM folder (spec §6.4).
 @MainActor
