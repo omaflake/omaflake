@@ -227,7 +227,8 @@ struct BuildView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: BrandTokens.Spacing.xxl) {
-            // What: the recipe with its guest kind – always the one it was opened for (plan B100)
+            // What – the recipe with its guest kind, always the one it was opened for (plan B100) – and, on the same
+            // line, go: build (a macOS recipe asks the password in a question) or cancel; other recipes can be queued
             HStack(spacing: BrandTokens.Spacing.l) {
                 KindIcon(badge: page.kind, model: model).frame(width: 16)
                 Text(verbatim: page.name).font(.headline)
@@ -235,9 +236,6 @@ struct BuildView: View {
                 if let description = page.description {
                     Image(systemName: "info.circle").font(.caption).foregroundStyle(.secondary).help(description)
                 }
-            }
-            // Go: build (a macOS recipe asks the password) or cancel – other recipes can be queued meanwhile
-            HStack(spacing: BrandTokens.Spacing.l) {
                 Spacer()
                 ForEach(page.actions) { ActionPlainButton(action: $0, model: model, isDefault: $0.primary) }
             }
