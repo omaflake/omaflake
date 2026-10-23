@@ -1,0 +1,12 @@
+{
+  "results": {
+    "github:omaflake/recipes@main": {
+      "note": "12 recipes",
+      "ok": true
+    },
+    "url:https://example.org/catalog.json": {
+      "note": "HTTP 404",
+      "ok": false
+    }
+  }
+}

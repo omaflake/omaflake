@@ -85,18 +85,6 @@ enum APIDate {
     }
 }
 
-extension KeyedDecodingContainer {
-    /// The value, or `fallback` when the key is missing or null (the API leaves out what is unset)
-    func value<T: Decodable>(_ key: Key, _ fallback: T) throws -> T {
-        try decodeIfPresent(T.self, forKey: key) ?? fallback
-    }
-
-    /// A date that may be missing or not a date at all (fields whose format the API leaves open)
-    func lenientDate(_ key: Key) -> Date? {
-        (try? decodeIfPresent(Date.self, forKey: key)) ?? nil
-    }
-}
-
 /// An enum of the API whose values may grow (api.md §2: new enum values are shown as "unknown")
 public protocol OpenEnum: RawRepresentable, Codable, Hashable, Sendable where RawValue == String {
     static var unknown: Self { get }

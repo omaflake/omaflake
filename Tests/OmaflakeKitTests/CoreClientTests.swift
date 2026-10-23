@@ -54,7 +54,9 @@ final class FakeServer: @unchecked Sendable {
                         self.lock.withLock { self._requests.append(request) }
                         switch request["method"] as? String {
                         case "initialize":
-                            instance.result(request["id"]!, ["apiVersion": 1, "omafVersion": "0.0.0-test", "dataFolder": "/tmp/data"])
+                            instance.result(request["id"]!, ["apiVersion": 1, "omafVersion": "0.0.0-test", "dataFolder": "/tmp/data",
+                                                             "configFile": "/tmp/data/config.json",
+                                                             "host": ["system": "aarch64-darwin", "os": "macOS 27.0"]])
                         case "events.subscribe", "shutdown":
                             instance.result(request["id"]!, NSNull())
                         default:
@@ -80,9 +82,9 @@ final class EventLog: @unchecked Sendable {
 
     var all: [ServerEvent] { lock.withLock { events } }
 
-    /// Waits (up to 5 s) until an event matches
-    func wait(_ what: String, _ match: (ServerEvent) -> Bool) async throws {
-        for _ in 0..<500 {
+    /// Waits (up to `seconds`) until an event matches
+    func wait(_ what: String, seconds: Int = 5, _ match: (ServerEvent) -> Bool) async throws {
+        for _ in 0..<(seconds * 100) {
             if all.contains(where: match) { return }
             try await Task.sleep(for: .milliseconds(10))
         }
@@ -162,9 +164,13 @@ struct CoreClientTests {
     }
 
     @Test func notificationsBecomeEvents() async throws {
+        // A VM as the server sends it (the golden file of api::contract), turned into a macOS guest
+        var vm = try #require(try JSONSerialization.jsonObject(with: Data(contentsOf: APIContractTests.golden("vms.get"))) as? [String: Any])
+        vm["kind"] = "macos"
+        nonisolated(unsafe) let changed = ["vms": [vm], "unreadable": []] as [String: Any]
         let server = FakeServer { s, r in
             s.send(["jsonrpc": "2.0", "method": "message", "params": ["text": "hello", "level": "info"]])
-            s.send(["jsonrpc": "2.0", "method": "vms.changed", "params": ["vms": [["name": "a", "kind": "macos", "status": "running"]], "unreadable": []]])
+            s.send(["jsonrpc": "2.0", "method": "vms.changed", "params": changed])
             s.result(r["id"]!, NSNull())
         }
         let c = client(server)

@@ -1,0 +1,89 @@
+{
+  "unreadable": [
+    {
+      "name": "old",
+      "reason": "written by a newer omaflake (version 9)"
+    }
+  ],
+  "vms": [
+    {
+      "agent": {
+        "hello": {
+          "agent": "omaflake-agent 0.1.0",
+          "osName": "NixOS",
+          "protocol": {
+            "max": 1,
+            "min": 1
+          }
+        },
+        "helloAt": "2026-10-20T08:00:18Z",
+        "protocolVersion": 1,
+        "status": {
+          "load": [
+            0.5,
+            0.4,
+            0.3
+          ],
+          "memory": {
+            "available": 6000000000,
+            "total": 8000000000
+          }
+        },
+        "statusAt": "2026-10-20T08:01:00Z"
+      },
+      "audio": true,
+      "busy": false,
+      "camera": false,
+      "clipboard": true,
+      "cpus": 4,
+      "created": "2026-10-20T08:00:00Z",
+      "diskGB": 64,
+      "display": "gpu",
+      "ephemeral": false,
+      "identity": "amber",
+      "image": "omaflake.nixos.dev@cedar-mango-lift",
+      "kind": "nixos",
+      "label": "research",
+      "latestImage": "omaflake.nixos.dev@mint-river-cloud",
+      "location": "/Volumes/Disk/research.omaflake-vm",
+      "memoryGB": 8,
+      "microphone": false,
+      "name": "research",
+      "network": "shared",
+      "omaflakeId": "vm:research:amber-lake-quiet-otter-lamp-river-stone-cloud-maple-ocean-tiger-velvet",
+      "recipe": "omaflake.nixos.dev@velvet-tiger-orbit",
+      "share": true,
+      "sharePath": "/data/share/research",
+      "sshPort": 2201,
+      "status": "running",
+      "system": "aarch64-linux",
+      "upgradable": true,
+      "user": "alex"
+    },
+    {
+      "audio": false,
+      "busy": true,
+      "camera": true,
+      "clipboard": false,
+      "cpus": 6,
+      "created": "2026-10-21T12:30:00Z",
+      "diskGB": 100,
+      "display": "window",
+      "ephemeral": true,
+      "image": "omaflake.macos.dev@stone-lamp",
+      "kind": "macos",
+      "label": "work",
+      "memoryGB": 16,
+      "microphone": true,
+      "name": "work",
+      "network": "isolated",
+      "omaflakeId": "vm:work:?",
+      "recipe": "omaflake.macos.dev@ocean-maple",
+      "share": false,
+      "status": "stopped",
+      "system": "aarch64-darwin",
+      "upgradable": false,
+      "user": "alex"
+    }
+  ]
+}

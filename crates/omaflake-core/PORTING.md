@@ -239,10 +239,11 @@ SetupCommandTests, NixInstallerPinTests.
 
 ## Not mapped 1:1 (and why)
 
-- **Brand**: `Brand.dockIconFile` (AppKit) stays in Swift. `QemuRuntime::start` sets `OMAFLAKE_DOCK_ICON` to
-  `Paths::dock_icon()` when that file exists (the app writes it).
+- **Brand**: the Dock icon moved into the core: `QemuRuntime::start` writes the embedded 512 px PNG (`DOCK_ICON`,
+  `include_bytes!` from `brand/`) to `Paths::dock_icon()` and sets `OMAFLAKE_DOCK_ICON` to it; the app writes nothing
+  into the data folder.
 - **Screen size**: `QEMURuntime.mainScreenResolution` used CoreGraphics. The UI passes the main screen's pixels with
-  `qemu_runtime::set_main_screen_resolution` (from `initialize`); until then macOS asks `system_profiler
+  `qemu_runtime::set_main_screen_resolution` (OPEN: no API param passes it yet); until then macOS asks `system_profiler
   SPDisplaysDataType -json` once (pixels and points – Swift's result). Pixels alone are computed with factor 1 (a few
   pixels off Swift's size). OPEN: system_profiler's JSON keys are not an API.
 - **Foundation locale data**: `GuestChoices` (`Locale.availableIdentifiers`, `TimeZone.knownTimeZoneIdentifiers`,

@@ -2,12 +2,12 @@
 //! Port of QEMURuntime.swift.
 //!
 //! Not 1:1: Swift took the window's initial resolution from CoreGraphics (`CGDisplayCopyDisplayMode`) and wrote the
-//! Dock icon itself (`Brand.dockIconFile`, AppKit). The Dock icon stays with the Swift app: QEMU gets
-//! `OMAFLAKE_DOCK_ICON=<data>/cache/dock-icon.png` when that file exists (`Paths::dock_icon`, written by the app).
+//! Dock icon itself (`Brand.dockIconFile`, AppKit). The core writes the Dock icon now: the brand's 512 px app icon is
+//! embedded (`DOCK_ICON`) and written to `<data>/cache/dock-icon.png` (`Paths::dock_icon`) when QEMU starts with a
+//! window; QEMU gets `OMAFLAKE_DOCK_ICON` pointing at it.
 //!
-//! The main screen: the UI tells the core its size with `set_main_screen_resolution` (the API server calls it from
-//! `initialize`, where the app passes its screen size), process-wide. Until then – the CLI, a UI that passes nothing
-//! – macOS asks `system_profiler SPDisplaysDataType -json` once (cached for the process): the main display's pixels
+//! The main screen: a UI can tell the core its size with `set_main_screen_resolution`, process-wide (OPEN: the API has
+//! no param for it yet). Until then – the CLI, a UI that passes nothing – macOS asks `system_profiler SPDisplaysDataType -json` once (cached for the process): the main display's pixels
 //! and its "looks like" size in points give the Retina factor, so the result is Swift's. Elsewhere there is no
 //! screen (None: QEMU picks its default size).
 //!
@@ -155,12 +155,11 @@ impl QemuRuntime {
             cmd.initial_resolution = Self::main_screen_resolution();
         }
         let args = cmd.arguments(config);
-        // Dock icon for the window (patch qemu-cocoa-dock-icon; older builds ignore the variable). The file is written
-        // by the Swift app (Brand.dockIconFile).
+        // Dock icon for the window (patch qemu-cocoa-dock-icon; older builds ignore the variable)
         let icon = self.paths.dock_icon();
         let icon_text = icon.to_string_lossy().into_owned();
         let mut extra_env: Vec<(&str, &str)> = vec![];
-        if display != DisplayMode::None && icon.is_file() {
+        if display != DisplayMode::None && write_dock_icon(&icon) {
             extra_env.push(("OMAFLAKE_DOCK_ICON", &icon_text));
         }
         // What an earlier run's agent reported must not count for this one
@@ -361,6 +360,20 @@ pub(crate) fn main_display(json: &[u8]) -> Option<Screen> {
 }
 
 /// Last lines of a text file ("" when it cannot be read).
+/// The app icon QEMU's window shows in the Dock (brand/png/icon/omaflake-icon-512.png, made by brand/generate.py)
+pub(crate) const DOCK_ICON: &[u8] = include_bytes!("../../../brand/png/icon/omaflake-icon-512.png");
+
+/// Writes the Dock icon to `file` unless it is there already with these bytes; false when it cannot be written
+pub(crate) fn write_dock_icon(file: &Path) -> bool {
+    if std::fs::read(file).is_ok_and(|d| d == DOCK_ICON) {
+        return true;
+    }
+    if let Some(dir) = file.parent() {
+        let _ = std::fs::create_dir_all(dir);
+    }
+    crate::file_format::write_atomic(file, DOCK_ICON).is_ok()
+}
+
 pub fn tail(path: &Path, lines: usize) -> String {
     let Ok(text) = std::fs::read_to_string(path) else { return String::new() };
     let all: Vec<&str> = text.split('\n').collect();
@@ -444,6 +457,18 @@ mod tests {
     use super::*;
     use crate::paths::tests::temp_paths;
     use std::time::Instant;
+
+    #[test]
+    fn the_dock_icon_is_written_once() {
+        let (_dir, paths) = temp_paths();
+        let file = paths.dock_icon();
+        assert!(DOCK_ICON.starts_with(b"\x89PNG"));
+        assert!(write_dock_icon(&file));
+        assert_eq!(std::fs::read(&file).unwrap(), DOCK_ICON);
+        std::fs::write(&file, b"old").unwrap();
+        assert!(write_dock_icon(&file));
+        assert_eq!(std::fs::read(&file).unwrap(), DOCK_ICON);
+    }
 
     #[test]
     fn second_build_of_the_same_image_is_refused() {

@@ -18,6 +18,8 @@ public struct Prerequisite: Decodable, Sendable, Equatable, Identifiable {
     public var id: String { item.rawValue }
     public var item: Item
     public var status: Status
+    /// What the check is about, in English (the app shows its own text per item; this one for items it does not know)
+    public var title: String
     public var required: Bool
     /// What was found (path, version) or what is missing
     public var detail: String
@@ -33,25 +35,6 @@ public struct Prerequisite: Decodable, Sendable, Equatable, Identifiable {
     /// macOS base: its guest user, and the recipes' macUser when it differs
     public var baseUser: String?
     public var expectedUser: String?
-
-    enum CodingKeys: String, CodingKey {
-        case item, status, required, detail, hint, install, settablePath, freeBytes, neededBytes, baseUser, expectedUser
-    }
-
-    public init(from decoder: Decoder) throws {
-        let c = try decoder.container(keyedBy: CodingKeys.self)
-        item = try c.value(.item, .unknown)
-        status = try c.value(.status, .unknown)
-        required = try c.value(.required, item != .git)
-        detail = try c.value(.detail, "")
-        hint = try c.value(.hint, "")
-        install = try c.decodeIfPresent(String.self, forKey: .install)
-        settablePath = try c.value(.settablePath, [.nix, .qemu, .flake].contains(item))
-        freeBytes = try? c.decodeIfPresent(Int64.self, forKey: .freeBytes)
-        neededBytes = try? c.decodeIfPresent(Int64.self, forKey: .neededBytes)
-        baseUser = try c.decodeIfPresent(String.self, forKey: .baseUser)
-        expectedUser = try c.decodeIfPresent(String.self, forKey: .expectedUser)
-    }
 }
 
 public struct MacOSRelease: Decodable, Sendable, Equatable {
@@ -74,21 +57,6 @@ public struct DoctorReport: Decodable, Sendable, Equatable {
         }
 
         public subscript(kind: GuestKind) -> [Prerequisite] { kind == .macos ? macos : kind == .nixos ? nixos : [] }
-
-        enum CodingKeys: String, CodingKey { case nixos, macos }
-        /// A list of Prerequisite objects – or of item names, looked up in `all` (api.md leaves it open)
-        init(from decoder: Decoder, all: [Prerequisite]) throws {
-            let c = try decoder.container(keyedBy: CodingKeys.self)
-            func list(_ key: CodingKeys) throws -> [Prerequisite] {
-                if let full = try? c.decodeIfPresent([Prerequisite].self, forKey: key) { return full }
-                let names = (try? c.decodeIfPresent([String].self, forKey: key)) ?? nil
-                return names?.compactMap { n in all.first { $0.item.rawValue == n } } ?? []
-            }
-            nixos = try list(.nixos)
-            macos = try list(.macos)
-        }
-
-        public init(from decoder: Decoder) throws { try self.init(from: decoder, all: []) }
     }
 
     public var prerequisites: [Prerequisite]
@@ -101,9 +69,17 @@ public struct DoctorReport: Decodable, Sendable, Equatable {
     public var startBlockers: Blockers
     /// Items that need attention (the warning sign on the Doctor's icon)
     public var issues: Int
-    /// This Mac's nix-darwin system comes from omaflake's image flake – `builder.apply` without `force` keeps a
-    /// foreign one (nil: the server does not say – OPEN in api.md: proposed)
-    public var builderSystemIsOmaflakes: Bool?
+    /// Something every feature needs is missing
+    public var requirementsMissing: Bool
+    /// A macOS base exists (needed to build macOS images)
+    public var hasMacBase: Bool
+    /// The guest user of the macOS base
+    public var macBaseUser: String?
+    /// This Mac's nix-darwin system comes from omaflake's image flake – `builder.apply` without `force` refuses to
+    /// replace one that does not
+    public var builderSystemIsOmaflakes: Bool
+    /// When the checks ran; nil only before the first answer
+    public var checked: Date?
 
     public init() {
         prerequisites = []
@@ -112,29 +88,31 @@ public struct DoctorReport: Decodable, Sendable, Equatable {
         buildBlockers = Blockers()
         startBlockers = Blockers()
         issues = 0
+        requirementsMissing = false
+        hasMacBase = false
+        builderSystemIsOmaflakes = true
     }
 
     public var all: [Prerequisite] { prerequisites + nixosPreflight + macosPreflight }
 
     enum CodingKeys: String, CodingKey {
         case prerequisites, nixosPreflight, macosPreflight, latestRelease, buildBlockers, startBlockers, issues
-        case builderSystemIsOmaflakes
+        case requirementsMissing, hasMacBase, macBaseUser, builderSystemIsOmaflakes, checked
     }
 
     public init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
-        prerequisites = try c.value(.prerequisites, [])
-        nixosPreflight = try c.value(.nixosPreflight, [])
-        macosPreflight = try c.value(.macosPreflight, [])
-        latestRelease = try? c.decodeIfPresent(MacOSRelease.self, forKey: .latestRelease)
-        let all = prerequisites + nixosPreflight + macosPreflight
-        func blockers(_ key: CodingKeys) throws -> Blockers {
-            guard c.contains(key), try !c.decodeNil(forKey: key) else { return Blockers() }
-            return try Blockers(from: c.superDecoder(forKey: key), all: all)
-        }
-        buildBlockers = try blockers(.buildBlockers)
-        startBlockers = try blockers(.startBlockers)
-        issues = try c.value(.issues, 0)
-        builderSystemIsOmaflakes = try c.decodeIfPresent(Bool.self, forKey: .builderSystemIsOmaflakes)
+        prerequisites = try c.decode([Prerequisite].self, forKey: .prerequisites)
+        nixosPreflight = try c.decode([Prerequisite].self, forKey: .nixosPreflight)
+        macosPreflight = try c.decode([Prerequisite].self, forKey: .macosPreflight)
+        latestRelease = try c.decodeIfPresent(MacOSRelease.self, forKey: .latestRelease)
+        buildBlockers = try c.decode(Blockers.self, forKey: .buildBlockers)
+        startBlockers = try c.decode(Blockers.self, forKey: .startBlockers)
+        issues = try c.decode(Int.self, forKey: .issues)
+        requirementsMissing = try c.decode(Bool.self, forKey: .requirementsMissing)
+        hasMacBase = try c.decode(Bool.self, forKey: .hasMacBase)
+        macBaseUser = try c.decodeIfPresent(String.self, forKey: .macBaseUser)
+        builderSystemIsOmaflakes = try c.decode(Bool.self, forKey: .builderSystemIsOmaflakes)
+        checked = try c.decode(Date.self, forKey: .checked)
     }
 }

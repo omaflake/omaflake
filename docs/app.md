@@ -156,8 +156,9 @@ error has a `kind` the app has its own text for (e.g. `vm-running`), it shows th
 
 Icons: the menu bar shows the omaflake template image, the bundle carries `brand/macos/omaflake.icns`
 (`CFBundleIconFile`), and VM windows started from the app get the omaflake Dock icon (QEMU patch
-`qemu-cocoa-dock-icon`, plan B27). The image data comes from `OmaflakeKit/Brand/Brand.swift`; the app writes QEMU's
-Dock icon to `<data folder>/cache/dock-icon.png`, where the core looks for it.
+`qemu-cocoa-dock-icon`, plan B27). The image data comes from `OmaflakeKit/Brand/Brand.swift`; QEMU's Dock icon
+is the core's (it embeds the same PNG and writes it to `<data folder>/cache/dock-icon.png` when it starts QEMU with a
+window) – the app writes nothing into the data folder.
 
 Quitting the app leaves running VMs running (QEMU in its own session, as with the CLI).
 "Terminal (SSH)" controls Terminal.app via AppleScript – macOS asks for permission the first time.

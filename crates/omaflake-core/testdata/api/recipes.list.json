@@ -1,0 +1,131 @@
+{
+  "idLengths": {
+    "image": 1,
+    "recipe": 1,
+    "vm": 1
+  },
+  "labHidden": false,
+  "lines": {
+    "omaflake.nixos.dev@github:omaflake/recipes@main": [
+      {
+        "added": "2026-10-20T08:00:00Z",
+        "id": "omaflake.nixos.dev@velvet-tiger-orbit",
+        "images": [
+          "omaflake.nixos.dev@cedar-mango-lift"
+        ],
+        "label": "recipe:omaflake/nixos/dev:velvet",
+        "live": false,
+        "newest": true,
+        "source": "github:omaflake/recipes@main"
+      },
+      {
+        "added": "2026-10-20T08:00:00Z",
+        "id": "omaflake.nixos.dev@amber-oak-lamp",
+        "images": [],
+        "label": "recipe:omaflake/nixos/dev:amber",
+        "live": false,
+        "newest": false,
+        "source": "github:omaflake/recipes@main"
+      }
+    ]
+  },
+  "qemuGL": true,
+  "recipes": [
+    {
+      "base": "lab.macos.base",
+      "cpus": 4,
+      "diskGB": 80,
+      "displayName": "base",
+      "ephemeral": true,
+      "id": "lab.macos.base@ocean-maple",
+      "kind": "macos",
+      "lab": true,
+      "label": "recipe:lab/macos/base:ocean",
+      "line": "lab.macos.base@",
+      "memoryGB": 8,
+      "network": "none",
+      "outdated": false,
+      "qualified": "lab/macos/base",
+      "runsHere": false,
+      "share": false,
+      "systems": [
+        "aarch64-darwin"
+      ],
+      "tags": [],
+      "versions": []
+    },
+    {
+      "audio": true,
+      "author": "omaflake",
+      "base": "omaflake.nixos.dev",
+      "camera": false,
+      "clipboard": true,
+      "cpus": 4,
+      "description": "Entwicklungsumgebung",
+      "diskGB": 64,
+      "display": "gpu",
+      "displayName": "dev",
+      "distinction": "velvet",
+      "ephemeral": false,
+      "folder": "/data/recipes/omaflake.nixos.dev@velvet-tiger-orbit",
+      "homepage": "https://omaflake.dev",
+      "id": "omaflake.nixos.dev@velvet-tiger-orbit",
+      "image": "omaflake.nixos.dev@cedar-mango-lift",
+      "installed": {
+        "installed": "2026-10-20T08:00:00Z",
+        "source": "github:omaflake/recipes@main",
+        "version": "3"
+      },
+      "kind": "nixos",
+      "lab": false,
+      "label": "recipe:omaflake/nixos/dev:velvet",
+      "license": "MIT",
+      "line": "omaflake.nixos.dev@github:omaflake/recipes@main",
+      "memoryGB": 8,
+      "microphone": false,
+      "name": "dev",
+      "network": "shared",
+      "outdated": true,
+      "qualified": "omaflake/nixos/dev",
+      "runsHere": true,
+      "share": true,
+      "source": "github:omaflake/recipes@main",
+      "systems": [
+        "aarch64-linux"
+      ],
+      "tags": [
+        "dev",
+        "gui"
+      ],
+      "user": "alex",
+      "versions": [
+        {
+          "added": "2026-10-20T08:00:00Z",
+          "id": "omaflake.nixos.dev@velvet-tiger-orbit",
+          "images": [
+            "omaflake.nixos.dev@cedar-mango-lift"
+          ],
+          "label": "recipe:omaflake/nixos/dev:velvet",
+          "live": false,
+          "newest": true,
+          "source": "github:omaflake/recipes@main"
+        },
+        {
+          "added": "2026-10-20T08:00:00Z",
+          "id": "omaflake.nixos.dev@amber-oak-lamp",
+          "images": [],
+          "label": "recipe:omaflake/nixos/dev:amber",
+          "live": false,
+          "newest": false,
+          "source": "github:omaflake/recipes@main"
+        }
+      ]
+    }
+  ],
+  "unreadable": [
+    {
+      "name": "acme.nixos.x",
+      "reason": "recipe.toml: unknown key"
+    }
+  ]
+}

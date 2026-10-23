@@ -1,0 +1,23 @@
+[
+  {
+    "branch": "main",
+    "displayName": "omaflake/recipes",
+    "enabled": true,
+    "hasToken": false,
+    "id": "github:omaflake/recipes@main",
+    "kind": "github",
+    "location": "omaflake/recipes",
+    "official": true,
+    "private": false
+  },
+  {
+    "displayName": "example.org",
+    "enabled": false,
+    "hasToken": true,
+    "id": "url:https://example.org/catalog.json",
+    "kind": "url",
+    "location": "https://example.org/catalog.json",
+    "official": false,
+    "private": true
+  }
+]

@@ -11,8 +11,10 @@
 //!
 //! Files: `protocol` (JSON-RPC framing, errors), `types` (the API's types – the contract), `events` (topics, the
 //! sink), `jobs` (the job queue), `model` (AppModel's derived state and the lists), `server` (state, watcher),
-//! `methods` (the methods), `stdio` (the transport).
+//! `methods` (the methods), `stdio` (the transport), `contract` (golden JSON files shared with the Swift tests).
 
+#[cfg(test)]
+mod contract;
 pub mod events;
 mod jobs;
 mod methods;

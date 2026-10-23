@@ -1,0 +1,6 @@
+{
+  "kind": "image",
+  "networkVolume": true,
+  "reason": "Not an image package (.omaflake-image)",
+  "valid": false
+}

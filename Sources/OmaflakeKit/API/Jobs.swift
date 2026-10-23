@@ -17,25 +17,23 @@ public struct Job: Decodable, Sendable, Equatable, Identifiable {
     }
 
     public struct Progress: Decodable, Sendable, Equatable {
-        public var step = 0
-        public var total = 0
-        public var title = ""
-        /// Packages done / announced in the current step (a download: bytes)
-        public var done: Int64 = 0
-        public var of: Int64 = 0
-        public var fraction: Double = 0
+        /// Step of `total` (builds; 0 = no steps known – downloads)
+        public var step: Int
+        public var total: Int
+        public var title: String
+        /// Units of the current step: packages of a build step, bytes of a download
+        public var done: Int64
+        public var of: Int64
+        /// 0…1 overall
+        public var fraction: Double
 
-        public init() {}
-
-        enum CodingKeys: String, CodingKey { case step, total, title, done, of, fraction }
-        public init(from decoder: Decoder) throws {
-            let c = try decoder.container(keyedBy: CodingKeys.self)
-            step = try c.value(.step, 0)
-            total = try c.value(.total, 0)
-            title = try c.value(.title, "")
-            done = try c.value(.done, 0)
-            of = try c.value(.of, 0)
-            fraction = try c.value(.fraction, 0)
+        public init(step: Int = 0, total: Int = 0, title: String = "", done: Int64 = 0, of: Int64 = 0, fraction: Double = 0) {
+            self.step = step
+            self.total = total
+            self.title = title
+            self.done = done
+            self.of = of
+            self.fraction = fraction
         }
     }
 
@@ -49,49 +47,83 @@ public struct Job: Decodable, Sendable, Equatable, Identifiable {
     public var progress: Progress?
     public var started: Date?
     public var finished: Date?
-    /// When the job last printed something (a time – OPEN in api.md: its format is not stated)
+    /// When the job last wrote a line (a stalled build shows it)
     public var lastOutput: Date?
     public var logLines: Int
     /// Routine lines left out of the log (still in logFile)
     public var hiddenLines: Int
+    /// Every line of the job, also the routine ones
     public var logFile: String?
-    /// When finished: e.g. {"image": "…", "removed": ["…"]} for a build
+    /// `jobs.cancel` would do something now
+    public var cancellable: Bool
+    /// When finished: the kind's result (`result(as:)` with `BuildResult`, `ImportResult`, …)
     public var result: JSONValue?
     /// When failed
     public var error: String?
-
-    enum CodingKeys: String, CodingKey {
-        case id, kind, title, recipe, guestKind, state, progress, started, finished, lastOutput, logLines, hiddenLines
-        case logFile, result, error
-    }
-
-    public init(from decoder: Decoder) throws {
-        let c = try decoder.container(keyedBy: CodingKeys.self)
-        id = try c.decode(String.self, forKey: .id)
-        kind = try c.value(.kind, .unknown)
-        title = try c.value(.title, "")
-        recipe = try c.decodeIfPresent(String.self, forKey: .recipe)
-        guestKind = try c.decodeIfPresent(GuestKind.self, forKey: .guestKind)
-        state = try c.value(.state, .unknown)
-        progress = try c.decodeIfPresent(Progress.self, forKey: .progress)
-        started = c.lenientDate(.started)
-        finished = c.lenientDate(.finished)
-        lastOutput = c.lenientDate(.lastOutput)
-        logLines = try c.value(.logLines, 0)
-        hiddenLines = try c.value(.hiddenLines, 0)
-        logFile = try c.decodeIfPresent(String.self, forKey: .logFile)
-        result = try c.decodeIfPresent(JSONValue.self, forKey: .result)
-        error = try c.decodeIfPresent(String.self, forKey: .error)
-    }
 
     /// Waiting or running
     public var isActive: Bool { [.queued, .checking, .running].contains(state) }
     public var isRunning: Bool { [.checking, .running].contains(state) }
     public var isDone: Bool { [.finished, .failed, .cancelled].contains(state) }
+
+    /// The result as its kind's type; nil when there is none or it does not decode
+    public func result<R: Decodable>(as type: R.Type) -> R? {
+        guard let result, let data = try? JSONEncoder.api.encode(result) else { return nil }
+        return try? JSONDecoder.api.decode(R.self, from: data)
+    }
 }
 
 /// `jobs.log`
 public struct JobLog: Decodable, Sendable, Equatable {
     public var lines: [String]
+    /// The `from` of the next call
     public var next: Int
+}
+
+// MARK: - Job results (per kind)
+
+/// `build`
+public struct BuildResult: Decodable, Sendable, Equatable {
+    public var image: String
+    /// Older images of its line removed (plan B52)
+    public var removed: [String]
+}
+
+/// `recipe-install`
+public struct InstallResult: Decodable, Sendable, Equatable {
+    /// The recipe versions written (empty: it was up to date)
+    public var installed: [String]
+}
+
+/// `import`
+public struct ImportResult: Decodable, Sendable, Equatable {
+    public var kind: PackageInspection.Kind
+    /// The VM's or the image's name; recipe ids for recipes (empty: nothing new)
+    public var names: [String]
+    public var notes: [String]
+}
+
+/// `export`: the package written
+public typealias ExportResult = PathAnswer
+
+/// `data-move`
+public struct DataMoveResult: Decodable, Sendable, Equatable { public var dataFolder: String }
+
+/// `ipsw-download`
+public struct IpswResult: Decodable, Sendable, Equatable {
+    public var file: String
+    public var version: String
+}
+
+/// `macos-install`
+public struct BaseResult: Decodable, Sendable, Equatable {
+    public var base: String
+    public var existing: Bool
+    public var ready: Bool
+}
+
+/// The Linux builder tasks
+public struct MessageResult: Decodable, Sendable, Equatable {
+    /// What it did, in English
+    public var message: String
 }

@@ -1,0 +1,7 @@
+{
+  "apiVersion": 1,
+  "client": "omaflake-macos",
+  "clientVersion": "0.1.0",
+  "language": "de",
+  "updateFeed": "https://example.org/feed.json"
+}

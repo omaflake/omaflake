@@ -102,7 +102,7 @@ impl Paths {
     pub fn guest(&self) -> PathBuf {
         self.root.join("guest")
     }
-    /// App icon as a file for QEMU's Dock icon (written by the Swift app, `Brand.dockIconFile`)
+    /// App icon as a file for QEMU's Dock icon (written by the core when QEMU starts with a window)
     pub fn dock_icon(&self) -> PathBuf {
         self.root.join("cache/dock-icon.png")
     }

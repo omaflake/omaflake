@@ -18,6 +18,10 @@ are collected under *Unreleased*. Releases: [GitHub](https://github.com/omaflake
 - **The menu bar app is a client of omaflake's new Rust core**: it starts `omaf serve` (bundled next to the app) and
   gets VMs, images, recipes, builds and the Doctor's checks from it (docs/api.md); it no longer reads the data folder
   every 2 s itself. Everything you see and do in the app stays the same.
+- **App and core agree on every message between them**, pinned by shared contract tests (docs/api.md §9): private
+  recipe sources show again whether their token is in the Keychain, the catalog shows a recipe's files, an image tells
+  whether its recipe changed since, and activity messages for ended jobs and VMs come once, in the app's language.
+  QEMU's Dock icon is written by the core when it starts a VM window; the app writes nothing into the data folder.
 
 ### Fixed
 

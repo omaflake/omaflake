@@ -1,0 +1,20 @@
+{
+  "image": "omaflake.nixos.dev@cedar-mango-lift",
+  "name": "research",
+  "settings": {
+    "audio": true,
+    "camera": false,
+    "clipboard": true,
+    "cpus": 4,
+    "diskGB": 64,
+    "ephemeral": false,
+    "kind": "nixos",
+    "memoryGB": 8,
+    "microphone": false,
+    "network": "shared",
+    "share": true,
+    "user": "alex"
+  },
+  "sharePath": "/Volumes/Projects/research",
+  "start": true
+}

@@ -8,21 +8,13 @@ public struct Recipe: Decodable, Sendable, Equatable, Identifiable {
     public struct Installed: Decodable, Sendable, Equatable {
         public var source: String
         public var version: String
-        public var installed: Date?
-
-        enum CodingKeys: String, CodingKey { case source, version, installed }
-        public init(from decoder: Decoder) throws {
-            let c = try decoder.container(keyedBy: CodingKeys.self)
-            source = try c.value(.source, "")
-            version = try c.value(.version, "")
-            installed = c.lenientDate(.installed)
-        }
+        public var installed: Date
     }
 
     /// One version of a recipe's line (plan B111)
     public struct Version: Decodable, Sendable, Equatable, Identifiable {
         public var id: String
-        public var source: String?
+        public var source: String
         /// When it came (downloaded, imported, kept at a build); nil for the recipe a local folder has now
         public var added: Date?
         /// The line's newest
@@ -31,19 +23,11 @@ public struct Recipe: Decodable, Sendable, Equatable, Identifiable {
         public var isLive: Bool
         /// Images built from it – the version is kept while there are any
         public var images: [String]
-        /// Its omaflake ID as short as it can be, when the server sends it
-        public var label: String?
+        /// Its omaflake ID as short as it can be
+        public var label: String
 
-        enum CodingKeys: String, CodingKey { case id, source, added, isNewest, isLive, images, label }
-        public init(from decoder: Decoder) throws {
-            let c = try decoder.container(keyedBy: CodingKeys.self)
-            id = try c.decode(String.self, forKey: .id)
-            source = try c.decodeIfPresent(String.self, forKey: .source)
-            added = c.lenientDate(.added)
-            isNewest = try c.value(.isNewest, false)
-            isLive = try c.value(.isLive, false)
-            images = try c.value(.images, [])
-            label = try c.decodeIfPresent(String.self, forKey: .label)
+        enum CodingKeys: String, CodingKey {
+            case id, source, added, isNewest = "newest", isLive = "live", images, label
         }
     }
 
@@ -57,7 +41,9 @@ public struct Recipe: Decodable, Sendable, Equatable, Identifiable {
     public var share: Bool
     public var ephemeral: Bool
     public var user: String?
+    /// recipe.toml's name, else the display name
     public var name: String
+    /// recipe.toml's author ("" when it has none)
     public var author: String
     public var audio: Bool?
     public var microphone: Bool?
@@ -72,11 +58,11 @@ public struct Recipe: Decodable, Sendable, Equatable, Identifiable {
     public var homepage: String?
     // plus
     public var id: String
-    public var base: String?
+    public var base: String
     /// "omaflake/nixos/dev"
-    public var qualified: String?
+    public var qualified: String
     public var displayName: String
-    public var label: String?
+    public var label: String
     public var runsHere: Bool
     /// Source id
     public var source: String?
@@ -101,40 +87,41 @@ public struct Recipe: Decodable, Sendable, Equatable, Identifiable {
     public init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         id = try c.decode(String.self, forKey: .id)
-        kind = try c.value(.kind, .unknown)
-        systems = try c.value(.systems, [])
-        cpus = try c.value(.cpus, 4)
-        memoryGB = try c.value(.memoryGB, 4)
-        diskGB = try c.value(.diskGB, 40)
-        network = try c.value(.network, .shared)
-        share = try c.value(.share, false)
-        ephemeral = try c.value(.ephemeral, false)
+        kind = try c.decode(GuestKind.self, forKey: .kind)
+        systems = try c.decode([String].self, forKey: .systems)
+        cpus = try c.decode(Int.self, forKey: .cpus)
+        memoryGB = try c.decode(Int.self, forKey: .memoryGB)
+        diskGB = try c.decode(Int.self, forKey: .diskGB)
+        network = try c.decode(NetworkMode.self, forKey: .network)
+        share = try c.decode(Bool.self, forKey: .share)
+        ephemeral = try c.decode(Bool.self, forKey: .ephemeral)
         user = try c.decodeIfPresent(String.self, forKey: .user)
-        name = try c.value(.name, id)
-        author = try c.value(.author, "")
         audio = try c.decodeIfPresent(Bool.self, forKey: .audio)
         microphone = try c.decodeIfPresent(Bool.self, forKey: .microphone)
         clipboard = try c.decodeIfPresent(Bool.self, forKey: .clipboard)
         camera = try c.decodeIfPresent(Bool.self, forKey: .camera)
         description = try c.decodeIfPresent(String.self, forKey: .description)
-        lab = try c.value(.lab, false)
+        lab = try c.decode(Bool.self, forKey: .lab)
         display = try c.decodeIfPresent(DisplayMode.self, forKey: .display)
-        tags = try c.value(.tags, [])
+        tags = try c.decode([String].self, forKey: .tags)
         license = try c.decodeIfPresent(String.self, forKey: .license)
         homepage = try c.decodeIfPresent(String.self, forKey: .homepage)
-        base = try c.decodeIfPresent(String.self, forKey: .base)
-        qualified = try c.decodeIfPresent(String.self, forKey: .qualified)
-        displayName = try c.value(.displayName, name)
-        label = try c.decodeIfPresent(String.self, forKey: .label)
-        runsHere = try c.value(.runsHere, true)
+        base = try c.decode(String.self, forKey: .base)
+        qualified = try c.decode(String.self, forKey: .qualified)
+        displayName = try c.decode(String.self, forKey: .displayName)
+        label = try c.decode(String.self, forKey: .label)
+        runsHere = try c.decode(Bool.self, forKey: .runsHere)
         source = try c.decodeIfPresent(String.self, forKey: .source)
-        line = try c.value(.line, id)
+        line = try c.decode(String.self, forKey: .line)
         distinction = try c.decodeIfPresent(String.self, forKey: .distinction)
         folder = try c.decodeIfPresent(String.self, forKey: .folder)
         installed = try c.decodeIfPresent(Installed.self, forKey: .installed)
         image = try c.decodeIfPresent(String.self, forKey: .image)
-        outdated = try c.value(.outdated, false)
-        versions = try c.value(.versions, [])
+        outdated = try c.decode(Bool.self, forKey: .outdated)
+        versions = try c.decode([Version].self, forKey: .versions)
+        // Optional in recipe.toml – the names the UI falls back to
+        name = try c.decodeIfPresent(String.self, forKey: .name) ?? displayName
+        author = try c.decodeIfPresent(String.self, forKey: .author) ?? ""
     }
 
     /// What a new VM from it gets (`vms.create`)
@@ -186,20 +173,16 @@ public struct RecipeList: Decodable, Sendable, Equatable {
     public struct IDLengths: Decodable, Sendable, Equatable {
         public var recipe = 1, image = 1, vm = 1
         public init() {}
-        enum CodingKeys: String, CodingKey { case recipe, image, vm }
-        public init(from decoder: Decoder) throws {
-            let c = try decoder.container(keyedBy: CodingKeys.self)
-            recipe = try c.value(.recipe, 1)
-            image = try c.value(.image, 1)
-            vm = try c.value(.vm, 1)
-        }
     }
 
     public var recipes: [Recipe]
+    /// Line → its versions, newest first
     public var lines: [String: [Recipe.Version]]
     public var idLengths: IDLengths
     public var qemuGL: Bool
     public var unreadable: [Unreadable]
+    /// Lab recipes are left out (developer mode off and no `all`)
+    public var labHidden: Bool
 
     public init(recipes: [Recipe] = []) {
         self.recipes = recipes
@@ -207,23 +190,24 @@ public struct RecipeList: Decodable, Sendable, Equatable {
         idLengths = IDLengths()
         qemuGL = false
         unreadable = []
-    }
-
-    enum CodingKeys: String, CodingKey { case recipes, lines, idLengths, qemuGL, unreadable }
-    public init(from decoder: Decoder) throws {
-        let c = try decoder.container(keyedBy: CodingKeys.self)
-        recipes = try c.value(.recipes, [])
-        lines = try c.value(.lines, [:])
-        idLengths = try c.value(.idLengths, IDLengths())
-        qemuGL = try c.value(.qemuGL, false)
-        unreadable = try c.value(.unreadable, [])
+        labHidden = true
     }
 }
+
+/// `recipes.removeLine`
+public struct LineRemoval: Decodable, Sendable, Equatable {
+    public var removed: [String]
+    /// Versions images are built from, or that live in a local folder
+    public var kept: [String]
+}
+
+/// `recipes.pruneVersions`
+public struct Pruned: Decodable, Sendable, Equatable { public var removed: [String] }
 
 // MARK: - Sources and catalogs (§4.4)
 
 public struct Source: Decodable, Sendable, Equatable, Identifiable {
-    public enum Kind: String, OpenEnum { case github, https, folder, unknown }
+    public enum Kind: String, OpenEnum { case github, url, folder, unknown }
 
     public var id: String
     public var kind: Kind
@@ -234,25 +218,25 @@ public struct Source: Decodable, Sendable, Equatable, Identifiable {
     public var `private`: Bool
     /// omaflake/recipes
     public var official: Bool
-    /// A private repository's token is in the Keychain (nil: the server does not say – OPEN in api.md: proposed)
-    public var hasToken: Bool?
+    /// A private repository's token is in the Keychain
+    public var hasToken: Bool
+}
 
-    enum CodingKeys: String, CodingKey { case id, kind, location, branch, displayName, enabled, `private`, official, hasToken }
+/// `sources.add`
+public struct SourceAdded: Decodable, Sendable, Equatable {
+    public var source: Source
+    public var note: String
+}
 
-    public init(from decoder: Decoder) throws {
-        let c = try decoder.container(keyedBy: CodingKeys.self)
-        id = try c.decode(String.self, forKey: .id)
-        // "url" was the Swift core's name for an HTTPS catalog
-        let rawKind = try c.value(.kind, "")
-        kind = rawKind == "url" ? .https : Kind(rawValue: rawKind) ?? .unknown
-        location = try c.value(.location, "")
-        branch = try c.decodeIfPresent(String.self, forKey: .branch)
-        displayName = try c.value(.displayName, location)
-        enabled = try c.value(.enabled, true)
-        `private` = try c.value(.private, false)
-        official = try c.value(.official, false)
-        hasToken = try c.decodeIfPresent(Bool.self, forKey: .hasToken)
+/// `sources.check`
+public struct SourceChecks: Decodable, Sendable, Equatable {
+    public struct Check: Decodable, Sendable, Equatable {
+        public var ok: Bool
+        public var note: String
     }
+
+    /// Source id → its check
+    public var results: [String: Check]
 }
 
 /// An entry of a source's catalog.json (spec §11.3) plus `source` and `runsHere`
@@ -260,16 +244,15 @@ public struct CatalogRecipe: Decodable, Sendable, Equatable, Identifiable {
     public struct File: Decodable, Sendable, Equatable {
         public var path: String
         public var size: Int64
-        public var sha256: String?
+        public var sha256: String
     }
 
     public var id: String
     public var author: String
     public var kind: GuestKind
     public var name: String
-    public var path: String?
+    /// In the session's language when the catalog has it
     public var description: String
-    public var descriptions: [String: String]?
     public var tags: [String]
     public var license: String?
     public var lab: Bool
@@ -281,35 +264,6 @@ public struct CatalogRecipe: Decodable, Sendable, Equatable, Identifiable {
     /// Source id
     public var source: String
     public var runsHere: Bool
-
-    enum CodingKeys: String, CodingKey {
-        case id, author, kind, name, path, description, descriptions, tags, license, lab, systems, requires, homepage
-        case version, files, source, runsHere
-    }
-
-    public init(from decoder: Decoder) throws {
-        let c = try decoder.container(keyedBy: CodingKeys.self)
-        id = try c.decode(String.self, forKey: .id)
-        author = try c.value(.author, "")
-        kind = try c.value(.kind, .unknown)
-        name = try c.value(.name, id)
-        path = try c.decodeIfPresent(String.self, forKey: .path)
-        description = try c.value(.description, "")
-        descriptions = try c.decodeIfPresent([String: String].self, forKey: .descriptions)
-        tags = try c.value(.tags, [])
-        license = try c.decodeIfPresent(String.self, forKey: .license)
-        lab = try c.value(.lab, false)
-        systems = try c.value(.systems, [])
-        requires = try c.value(.requires, [])
-        homepage = try c.decodeIfPresent(String.self, forKey: .homepage)
-        version = try c.value(.version, "")
-        files = try c.value(.files, [])
-        source = try c.value(.source, "")
-        runsHere = try c.value(.runsHere, true)
-    }
-
-    /// The description in `language` when the catalog has it
-    public func description(in language: String?) -> String { language.flatMap { descriptions?[$0] } ?? description }
 
     /// "omaflake/nixos/dev" from the ID "omaflake.nixos.dev"
     public var qualified: String { [author, kind.rawValue, name].joined(separator: "/") }
@@ -334,14 +288,5 @@ public struct AvailableRecipes: Decodable, Sendable, Equatable {
         updates = []
         suggested = []
         errors = [:]
-    }
-
-    enum CodingKeys: String, CodingKey { case offered, updates, suggested, errors }
-    public init(from decoder: Decoder) throws {
-        let c = try decoder.container(keyedBy: CodingKeys.self)
-        offered = try c.value(.offered, [])
-        updates = try c.value(.updates, [])
-        suggested = try c.value(.suggested, [])
-        errors = try c.value(.errors, [:])
     }
 }

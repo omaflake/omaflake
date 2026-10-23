@@ -1,0 +1,10 @@
+{
+  "release": {
+    "notes": "Faster builds",
+    "page": "https://example.org/releases/0.2.0",
+    "sha256": "ab12",
+    "url": "https://example.org/omaflake-0.2.0.zip",
+    "version": "0.2.0"
+  },
+  "state": "available"
+}

@@ -35,7 +35,7 @@ pub struct InitializeParams {
     /// The UI's language ("en", "de", …) – recipe descriptions in it where a recipe has one
     #[serde(default)]
     pub language: Option<String>,
-    /// The app's update feed URL (Info.plist `OmaflakeUpdateFeed`) – `updates.check` reads it
+    /// The app's update feed URL (Info.plist `OMUpdateFeedURL`) – `updates.check` reads it
     #[serde(default)]
     pub update_feed: Option<String>,
 }
@@ -117,6 +117,7 @@ pub struct Vm {
     /// Its omaflake ID words (spec §11.11), as many as `idLengths.vm`
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub identity: Option<String>,
+    /// Its whole omaflake ID (all words; UIs shorten it to `idLengths.vm`)
     pub omaflake_id: String,
     /// As the UI shows it
     pub label: String,
@@ -195,6 +196,30 @@ pub enum Via {
     Ssh,
 }
 
+/// `vms.wait`
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub struct WaitAnswer {
+    pub via: Via,
+}
+
+/// `vms.log`
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct LogLines {
+    pub lines: Vec<String>,
+}
+
+/// `vms.share`
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct PathAnswer {
+    pub path: String,
+}
+
+/// `vms.nextName`
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct NameAnswer {
+    pub name: String,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Limits {
@@ -226,10 +251,16 @@ pub struct ImageDto {
     pub size_bytes: Option<i64>,
     /// Its omaflake ID as short as it can be
     pub label: String,
+    /// Its whole omaflake ID (all words)
+    pub omaflake_id: String,
     /// VM names using it
     pub instances: Vec<String>,
     /// It is the newest of its line
     pub current: bool,
+    /// Its recipe evaluates to something else now (plan B73/B82); left out while that is not known (the freshness
+    /// check runs `nix eval` in the background, and a recipe version that is gone has nothing to compare with)
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub outdated: Option<bool>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -254,6 +285,8 @@ pub struct VersionDto {
     pub live: bool,
     /// Images built from it
     pub images: Vec<String>,
+    /// Its omaflake ID as short as it can be (`idLengths.recipe` words)
+    pub label: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -357,6 +390,8 @@ pub struct SourceDto {
     pub enabled: bool,
     pub private: bool,
     pub official: bool,
+    /// A private repository's token is in the system keychain (false for public sources)
+    pub has_token: bool,
 }
 
 /// An entry of a source's catalog.json (spec §11.3) plus where it comes from
@@ -378,8 +413,19 @@ pub struct CatalogRecipeDto {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub homepage: Option<String>,
     pub version: String,
+    /// The recipe's files as catalog.json lists them
+    pub files: Vec<CatalogFileDto>,
     pub source: String,
     pub runs_here: bool,
+}
+
+/// A file of a catalog entry
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct CatalogFileDto {
+    /// Relative to the recipe's folder
+    pub path: String,
+    pub size: u64,
+    pub sha256: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -395,6 +441,29 @@ pub struct Available {
     pub updates: Vec<RecipeUpdate>,
     pub suggested: Vec<CatalogRecipeDto>,
     pub errors: BTreeMap<String, String>,
+}
+
+/// `recipes.pruneVersions`
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Pruned {
+    /// The recipe versions removed
+    pub removed: Vec<String>,
+}
+
+/// `recipes.removeLine`
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct LineRemoval {
+    /// The versions removed
+    pub removed: Vec<String>,
+    /// The versions kept (images use them, or they live in a local folder)
+    pub kept: Vec<String>,
+}
+
+/// `sources.check`
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SourceChecks {
+    /// Source id → its check
+    pub results: BTreeMap<String, SourceCheck>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -470,6 +539,9 @@ pub struct DoctorReport {
     /// The guest user of the macOS base
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub mac_base_user: Option<String>,
+    /// This Mac's nix-darwin system comes from omaflake's image flake – `builder.apply` without `force` refuses to
+    /// replace one that does not
+    pub builder_system_is_omaflakes: bool,
     #[serde(with = "crate::json::iso8601")]
     pub checked: DateTime<Utc>,
 }
@@ -688,6 +760,71 @@ pub struct JobDto {
     pub result: Option<Value>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub error: Option<String>,
+}
+
+// MARK: Job results (`result` of an ended job, per kind)
+
+/// `build`
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct BuildResult {
+    pub image: String,
+    /// Older images of its line removed (plan B52)
+    pub removed: Vec<String>,
+}
+
+/// `recipe-install`
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct InstallResult {
+    /// The recipe versions written (empty: it was up to date)
+    pub installed: Vec<String>,
+}
+
+/// `import`
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ImportResult {
+    pub kind: PackageKindDto,
+    /// The VM's or the image's name; recipe ids for recipes (empty: nothing new)
+    pub names: Vec<String>,
+    pub notes: Vec<String>,
+}
+
+/// `export`
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ExportResult {
+    /// The package written
+    pub path: String,
+}
+
+/// `data-move`
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DataMoveResult {
+    pub data_folder: String,
+}
+
+/// `ipsw-download`
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct IpswResult {
+    pub file: String,
+    pub version: String,
+}
+
+/// `macos-install`
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct BaseResult {
+    /// The base's folder
+    pub base: String,
+    /// It was there already
+    pub existing: bool,
+    /// Its first boot finished (it can build images)
+    pub ready: bool,
+}
+
+/// `builder-install-nix`, `builder-setup`, `builder-apply`, `builder-clean-up`
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct MessageResult {
+    /// What it did, in English ("Linux builder: 18G → 28G free")
+    pub message: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

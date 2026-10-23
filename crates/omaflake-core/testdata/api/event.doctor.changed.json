@@ -1,0 +1,128 @@
+{
+  "buildBlockers": {
+    "macos": [
+      {
+        "baseUser": "alex",
+        "detail": "/opt/homebrew/bin/qemu-system-aarch64",
+        "expectedUser": "sam",
+        "hint": "Install QEMU",
+        "item": "macBase",
+        "required": true,
+        "settablePath": false,
+        "status": "limited",
+        "title": "macOS base"
+      }
+    ],
+    "nixos": [
+      {
+        "detail": "/opt/homebrew/bin/qemu-system-aarch64",
+        "hint": "Install QEMU",
+        "item": "builderRunning",
+        "required": true,
+        "settablePath": false,
+        "status": "missing",
+        "title": "Linux builder answers"
+      }
+    ]
+  },
+  "builderSystemIsOmaflakes": false,
+  "checked": "2026-10-23T09:41:00Z",
+  "hasMacBase": true,
+  "issues": 3,
+  "latestRelease": {
+    "build": "27A100",
+    "bytes": 18000000000,
+    "url": "https://updates.example.org/x.ipsw",
+    "version": "27.0.1"
+  },
+  "macBaseUser": "alex",
+  "macosPreflight": [
+    {
+      "detail": "/opt/homebrew/bin/qemu-system-aarch64",
+      "hint": "Install QEMU",
+      "item": "ipsw",
+      "required": true,
+      "settablePath": false,
+      "status": "ok",
+      "title": "macOS from Apple (IPSW)"
+    },
+    {
+      "baseUser": "alex",
+      "detail": "/opt/homebrew/bin/qemu-system-aarch64",
+      "expectedUser": "sam",
+      "hint": "Install QEMU",
+      "item": "macBase",
+      "required": true,
+      "settablePath": false,
+      "status": "limited",
+      "title": "macOS base"
+    },
+    {
+      "detail": "/opt/homebrew/bin/qemu-system-aarch64",
+      "freeBytes": 20000000000,
+      "hint": "Install QEMU",
+      "item": "macSpace",
+      "neededBytes": 40000000000,
+      "required": true,
+      "settablePath": false,
+      "status": "limited",
+      "title": "Space for macOS"
+    }
+  ],
+  "nixosPreflight": [
+    {
+      "detail": "/opt/homebrew/bin/qemu-system-aarch64",
+      "hint": "Install QEMU",
+      "item": "builderRunning",
+      "required": true,
+      "settablePath": false,
+      "status": "missing",
+      "title": "Linux builder answers"
+    }
+  ],
+  "prerequisites": [
+    {
+      "detail": "/opt/homebrew/bin/qemu-system-aarch64",
+      "hint": "Install QEMU",
+      "install": "curl -sSfL https://install.determinate.systems/nix | sh -s -- install",
+      "item": "nix",
+      "required": true,
+      "settablePath": true,
+      "status": "ok",
+      "title": "Nix"
+    },
+    {
+      "detail": "/opt/homebrew/bin/qemu-system-aarch64",
+      "hint": "Install QEMU",
+      "item": "qemu",
+      "required": true,
+      "settablePath": true,
+      "status": "missing",
+      "title": "QEMU (NixOS guests)"
+    },
+    {
+      "detail": "/opt/homebrew/bin/qemu-system-aarch64",
+      "hint": "Install QEMU",
+      "item": "git",
+      "required": false,
+      "settablePath": false,
+      "status": "missing",
+      "title": "git (optional)"
+    }
+  ],
+  "requirementsMissing": true,
+  "startBlockers": {
+    "macos": [],
+    "nixos": [
+      {
+        "detail": "/opt/homebrew/bin/qemu-system-aarch64",
+        "hint": "Install QEMU",
+        "item": "qemu",
+        "required": true,
+        "settablePath": true,
+        "status": "missing",
+        "title": "QEMU (NixOS guests)"
+      }
+    ]
+  }
+}

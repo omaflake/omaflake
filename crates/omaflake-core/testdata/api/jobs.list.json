@@ -1,0 +1,239 @@
+[
+  {
+    "cancellable": true,
+    "guestKind": "nixos",
+    "hiddenLines": 37,
+    "id": "j1",
+    "kind": "build",
+    "lastOutput": "2026-10-23T09:04:59Z",
+    "logFile": "/data/logs/j1.log",
+    "logLines": 3,
+    "progress": {
+      "done": 120,
+      "fraction": 0.62,
+      "of": 400,
+      "step": 3,
+      "title": "Copying the image",
+      "total": 5
+    },
+    "recipe": "omaflake.nixos.dev@velvet-tiger-orbit",
+    "started": "2026-10-23T09:00:00Z",
+    "state": "running",
+    "title": "Build"
+  },
+  {
+    "cancellable": true,
+    "guestKind": "macos",
+    "hiddenLines": 0,
+    "id": "j2",
+    "kind": "build",
+    "logFile": "/data/logs/j2.log",
+    "logLines": 0,
+    "recipe": "omaflake.macos.dev@ocean-maple",
+    "state": "queued",
+    "title": "Build"
+  },
+  {
+    "cancellable": false,
+    "finished": "2026-10-23T09:05:00Z",
+    "hiddenLines": 0,
+    "id": "j3",
+    "kind": "build",
+    "lastOutput": "2026-10-23T09:04:59Z",
+    "logFile": "/data/logs/j3.log",
+    "logLines": 3,
+    "result": {
+      "image": "omaflake.nixos.dev@cedar-mango-lift",
+      "removed": [
+        "omaflake.nixos.dev@old-image"
+      ]
+    },
+    "started": "2026-10-23T09:00:00Z",
+    "state": "finished",
+    "title": "Build"
+  },
+  {
+    "cancellable": true,
+    "guestKind": "macos",
+    "hiddenLines": 0,
+    "id": "j4",
+    "kind": "ipsw-download",
+    "lastOutput": "2026-10-23T09:04:59Z",
+    "logFile": "/data/logs/j4.log",
+    "logLines": 3,
+    "progress": {
+      "done": 1000000000,
+      "fraction": 0.055,
+      "of": 18000000000,
+      "step": 0,
+      "title": "Downloading macOS 27.0.1",
+      "total": 0
+    },
+    "started": "2026-10-23T09:00:00Z",
+    "state": "running",
+    "title": "IpswDownload"
+  },
+  {
+    "cancellable": false,
+    "finished": "2026-10-23T09:05:00Z",
+    "hiddenLines": 0,
+    "id": "j5",
+    "kind": "ipsw-download",
+    "lastOutput": "2026-10-23T09:04:59Z",
+    "logFile": "/data/logs/j5.log",
+    "logLines": 3,
+    "result": {
+      "file": "/data/ipsw/27A100.ipsw",
+      "version": "27.0.1"
+    },
+    "started": "2026-10-23T09:00:00Z",
+    "state": "finished",
+    "title": "IpswDownload"
+  },
+  {
+    "cancellable": false,
+    "finished": "2026-10-23T09:05:00Z",
+    "hiddenLines": 0,
+    "id": "j6",
+    "kind": "macos-install",
+    "lastOutput": "2026-10-23T09:04:59Z",
+    "logFile": "/data/logs/j6.log",
+    "logLines": 3,
+    "result": {
+      "base": "/data/bases/mac-base-27A100",
+      "existing": false,
+      "ready": true
+    },
+    "started": "2026-10-23T09:00:00Z",
+    "state": "finished",
+    "title": "MacosInstall"
+  },
+  {
+    "cancellable": false,
+    "finished": "2026-10-23T09:05:00Z",
+    "hiddenLines": 0,
+    "id": "j7",
+    "kind": "import",
+    "lastOutput": "2026-10-23T09:04:59Z",
+    "logFile": "/data/logs/j7.log",
+    "logLines": 3,
+    "result": {
+      "kind": "recipe",
+      "names": [
+        "acme.nixos.x@amber"
+      ],
+      "notes": [
+        "also installed acme.nixos.base"
+      ]
+    },
+    "started": "2026-10-23T09:00:00Z",
+    "state": "finished",
+    "title": "Import"
+  },
+  {
+    "cancellable": false,
+    "finished": "2026-10-23T09:05:00Z",
+    "hiddenLines": 0,
+    "id": "j8",
+    "kind": "export",
+    "lastOutput": "2026-10-23T09:04:59Z",
+    "logFile": "/data/logs/j8.log",
+    "logLines": 3,
+    "result": {
+      "path": "/Volumes/Disk/research.omaflake-vm"
+    },
+    "started": "2026-10-23T09:00:00Z",
+    "state": "finished",
+    "title": "Export"
+  },
+  {
+    "cancellable": false,
+    "finished": "2026-10-23T09:05:00Z",
+    "hiddenLines": 0,
+    "id": "j9",
+    "kind": "data-move",
+    "lastOutput": "2026-10-23T09:04:59Z",
+    "logFile": "/data/logs/j9.log",
+    "logLines": 3,
+    "result": {
+      "dataFolder": "/Volumes/Disk/omaflake"
+    },
+    "started": "2026-10-23T09:00:00Z",
+    "state": "finished",
+    "title": "DataMove"
+  },
+  {
+    "cancellable": false,
+    "finished": "2026-10-23T09:05:00Z",
+    "hiddenLines": 0,
+    "id": "j10",
+    "kind": "recipe-install",
+    "lastOutput": "2026-10-23T09:04:59Z",
+    "logFile": "/data/logs/j10.log",
+    "logLines": 3,
+    "recipe": "omaflake.nixos.minimal",
+    "result": {
+      "installed": [
+        "omaflake.nixos.minimal@lamp-river"
+      ]
+    },
+    "started": "2026-10-23T09:00:00Z",
+    "state": "finished",
+    "title": "RecipeInstall"
+  },
+  {
+    "cancellable": false,
+    "error": "it went wrong",
+    "finished": "2026-10-23T09:05:00Z",
+    "hiddenLines": 0,
+    "id": "j11",
+    "kind": "builder-install-nix",
+    "lastOutput": "2026-10-23T09:04:59Z",
+    "logFile": "/data/logs/j11.log",
+    "logLines": 3,
+    "started": "2026-10-23T09:00:00Z",
+    "state": "failed",
+    "title": "BuilderInstallNix"
+  },
+  {
+    "cancellable": false,
+    "finished": "2026-10-23T09:05:00Z",
+    "hiddenLines": 0,
+    "id": "j12",
+    "kind": "builder-setup",
+    "lastOutput": "2026-10-23T09:04:59Z",
+    "logFile": "/data/logs/j12.log",
+    "logLines": 3,
+    "started": "2026-10-23T09:00:00Z",
+    "state": "cancelled",
+    "title": "BuilderSetup"
+  },
+  {
+    "cancellable": true,
+    "hiddenLines": 0,
+    "id": "j13",
+    "kind": "builder-apply",
+    "lastOutput": "2026-10-23T09:04:59Z",
+    "logFile": "/data/logs/j13.log",
+    "logLines": 3,
+    "started": "2026-10-23T09:00:00Z",
+    "state": "checking",
+    "title": "BuilderApply"
+  },
+  {
+    "cancellable": false,
+    "finished": "2026-10-23T09:05:00Z",
+    "hiddenLines": 0,
+    "id": "j14",
+    "kind": "builder-clean-up",
+    "lastOutput": "2026-10-23T09:04:59Z",
+    "logFile": "/data/logs/j14.log",
+    "logLines": 3,
+    "result": {
+      "message": "Linux builder: 18G → 28G free"
+    },
+    "started": "2026-10-23T09:00:00Z",
+    "state": "finished",
+    "title": "BuilderCleanUp"
+  }
+]

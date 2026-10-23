@@ -70,7 +70,7 @@ impl Server {
             "settings.get" => Answer::of(self.settings_answer()?),
             "settings.set" => self.settings_set(p),
             "dataFolder.move" => self.data_folder_move(params(p)?),
-            "updates.check" => Answer::of(check_update(self, false)?),
+            "updates.check" => Answer::of(check_update(self)?),
             // VMs
             "vms.list" => Answer::of(self.state().map_err(err)?.view().vms()),
             "vms.get" => Answer::of(self.vm(&params::<Name>(p)?.name)?),
@@ -108,7 +108,7 @@ impl Server {
             "recipes.pruneVersions" => {
                 let removed = RecipeLibrary::new(self.paths()).prune_versions();
                 self.reload_recipes_later();
-                Answer::of(json!({"removed": removed}))
+                Answer::of(Pruned { removed })
             }
             "sources.list" => Answer::of(self.sources()),
             "sources.add" => self.sources_add(params(p)?),
@@ -353,16 +353,14 @@ impl Server {
                 let log = ctx.log_sink();
                 let new = DataFolder::move_to(&old, &target, &old.config_file, &*log)?;
                 s.set_paths(new.clone());
-                Ok(json!({"dataFolder": new.root.to_string_lossy()}))
+                result(DataMoveResult { data_folder: new.root.to_string_lossy().into_owned() })
             }),
         );
         spec.cancellable = false;
+        // Next to config.json, which stays where it is: logs/ moves along with the data
+        spec.log_file = Some(self.paths().config_file.with_file_name("data-move.log"));
         let s = self.clone();
-        spec.on_end = Some(Box::new(move |job| {
-            match job.state {
-                JobState::Finished => s.events().info(format!("Data folder: {}", s.paths().root.display())),
-                _ => s.events().error(job.error.clone().unwrap_or_default()),
-            }
+        spec.on_end = Some(Box::new(move |_| {
             s.reload_recipes_later();
             s.check_doctor_later();
         }));
@@ -595,7 +593,7 @@ impl Server {
         };
         let text = tail(&file, p.lines.unwrap_or(200));
         let lines: Vec<&str> = if text.is_empty() { vec![] } else { text.split('\n').collect() };
-        Answer::of(json!({"lines": lines}))
+        Answer::of(LogLines { lines: lines.into_iter().map(str::to_string).collect() })
     }
 
     fn vms_wait(&self, p: WaitParams) -> Reply {
@@ -607,8 +605,8 @@ impl Server {
         }
         let timeout = Duration::from_secs_f64(p.timeout.unwrap_or(300.0).max(0.0));
         match backend.wait_for_ready(&c, timeout) {
-            Some(Readiness::Ssh) => Answer::of(json!({"via": Via::Ssh})),
-            Some(Readiness::Agent(_)) => Answer::of(json!({"via": Via::Agent})),
+            Some(Readiness::Ssh) => Answer::of(WaitAnswer { via: Via::Ssh }),
+            Some(Readiness::Agent(_)) => Answer::of(WaitAnswer { via: Via::Agent }),
             None => Err(RpcError::server(None, format!("{} did not answer within {} s", p.name, timeout.as_secs()))),
         }
     }
@@ -617,13 +615,13 @@ impl Server {
         let paths = self.paths();
         let c = self.store().load(name).map_err(err)?;
         let dir = paths.prepare_share(&c, None).map_err(err)?;
-        Answer::of(json!({"path": dir.to_string_lossy()}))
+        Answer::of(PathAnswer { path: dir.to_string_lossy().into_owned() })
     }
 
     fn vms_next_name(&self, p: RecipeParam) -> Reply {
         let recipes = self.recipes().unwrap_or_default();
         let taken: HashSet<String> = self.store().list().into_iter().map(|c| c.name).collect();
-        Answer::of(json!({"name": model::next_free_name(&p.recipe, recipes.defaults.get(&p.recipe), &taken)}))
+        Answer::of(NameAnswer { name: model::next_free_name(&p.recipe, recipes.defaults.get(&p.recipe), &taken) })
     }
 
     fn vms_forget(&self, name: &str) -> Reply {
@@ -721,12 +719,7 @@ impl Server {
             }
         }));
         let s = self.clone();
-        spec.on_end = Some(Box::new(move |job| {
-            match job.state {
-                JobState::Finished => s.events().info(format!("Image {name} ready")),
-                JobState::Cancelled => s.events().info(format!("Build of {name} cancelled")),
-                _ => s.events().error(format!("Build {name}: {}", job.error.clone().unwrap_or_default())),
-            }
+        spec.on_end = Some(Box::new(move |_| {
             // A kept version, older ones gone (B111)
             s.reload_recipes_later();
             s.check_doctor_later();
@@ -775,7 +768,7 @@ impl Server {
         for name in &removed {
             ctx.log(&format!("Removed older image {name}"));
         }
-        Ok(json!({"image": image.name, "removed": removed}))
+        result(BuildResult { image: image.name, removed })
     }
 
     // MARK: Recipes
@@ -878,30 +871,14 @@ impl Server {
                 for w in &written {
                     ctx.log(&format!("Installed {}", RecipeId::qualified(w)));
                 }
-                Ok(json!({"installed": written}))
+                result(InstallResult { installed: written })
             }),
         );
         spec.recipe = Some(id.clone());
         spec.cancellable = false;
+        spec.log_file = Some(self.paths().logs().join(format!("recipe-install-{}.log", file_safe(&id))));
         let s = self.clone();
-        spec.on_end = Some(Box::new(move |job| {
-            let written: Vec<String> = job
-                .result
-                .as_ref()
-                .and_then(|r| serde_json::from_value(r["installed"].clone()).ok())
-                .unwrap_or_default();
-            match job.state {
-                JobState::Finished if written.is_empty() => {
-                    s.events().info(format!("{} is up to date", RecipeId::qualified(&id)))
-                }
-                JobState::Finished => s.events().info(format!(
-                    "Installed {}",
-                    written.iter().map(|w| RecipeId::qualified(w)).collect::<Vec<_>>().join(", ")
-                )),
-                _ => s.events().error(job.error.clone().unwrap_or_default()),
-            }
-            s.reload_recipes_later();
-        }));
+        spec.on_end = Some(Box::new(move |_| s.reload_recipes_later()));
         spec
     }
 
@@ -928,7 +905,7 @@ impl Server {
     fn recipes_remove_line(&self, p: LineParams) -> Reply {
         let (removed, kept) = RecipeLibrary::new(self.paths()).remove_line(&p.line);
         let _ = self.reload_recipes();
-        Answer::of(json!({"removed": removed, "kept": kept}))
+        Answer::of(LineRemoval { removed, kept })
     }
 
     // MARK: Sources (changed in Settings; the recipe list follows)
@@ -1030,7 +1007,7 @@ impl Server {
                 })
                 .collect()
         });
-        Answer::of(json!({"results": results}))
+        Answer::of(SourceChecks { results })
     }
 
     // MARK: Packages (plan B108, B109)
@@ -1099,6 +1076,7 @@ impl Server {
         let name = p.name.clone().map(|n| n.trim().to_string()).filter(|n| !n.is_empty());
         let replace = p.replace;
         let what = file_name(&path);
+        let log_name = what.clone();
         let mut spec = JobSpec::new(
             JobKind::Import,
             format!("Import {what}"),
@@ -1106,33 +1084,16 @@ impl Server {
                 let log = ctx.log_sink();
                 s.act(&what, false, |backends, _| {
                     let r = Transfer::from_backends(backends).import_package(&path, name.as_deref(), replace, &*log)?;
-                    Ok(json!({"kind": package_kind(r.kind), "names": r.names, "notes": r.notes}))
+                    result(ImportResult { kind: package_kind(r.kind), names: r.names, notes: r.notes })
                 })
                 .map_err(Error::from)
             }),
         );
         spec.cancellable = false;
+        spec.log_file = Some(self.paths().logs().join(format!("import-{}.log", file_safe(&log_name))));
         let s = self.clone();
         spec.on_end = Some(Box::new(move |job| {
-            if job.state != JobState::Finished {
-                s.events().error(job.error.clone().unwrap_or_default());
-                return;
-            }
-            let names: Vec<String> =
-                job.result.as_ref().and_then(|r| serde_json::from_value(r["names"].clone()).ok()).unwrap_or_default();
-            let text = match kind {
-                PackageKindDto::Vm => format!("VM {} imported", names.join("")),
-                PackageKindDto::Image => format!("Image {} imported", names.join("")),
-                PackageKindDto::Recipe if names.is_empty() => {
-                    "These recipes are here already, unchanged – nothing to import".to_string()
-                }
-                PackageKindDto::Recipe => format!(
-                    "Recipes imported: {}",
-                    names.iter().map(|n| RecipeId::qualified(n)).collect::<Vec<_>>().join(", ")
-                ),
-            };
-            s.events().info(text);
-            if kind == PackageKindDto::Recipe {
+            if job.state == JobState::Finished && kind == PackageKindDto::Recipe {
                 s.reload_recipes_later();
             }
             s.poke();
@@ -1163,22 +1124,11 @@ impl Server {
                     }),
                 }
                 .map_err(Error::from)?;
-                Ok(json!({"path": dest.to_string_lossy()}))
+                result(ExportResult { path: dest.to_string_lossy().into_owned() })
             }),
         );
         spec.cancellable = false;
-        let s = self.clone();
-        let label = match p.kind {
-            PackageKindDto::Recipe => RecipeId::qualified(&p.name),
-            _ => p.name.clone(),
-        };
-        spec.on_end = Some(Box::new(move |job| match job.state {
-            JobState::Finished => {
-                let path = job.result.as_ref().and_then(|r| r["path"].as_str().map(str::to_string)).unwrap_or_default();
-                s.events().info(format!("{label} exported to {path}"))
-            }
-            _ => s.events().error(format!("{label}: {}", job.error.clone().unwrap_or_default())),
-        }));
+        spec.log_file = Some(self.paths().logs().join(format!("export-{}.log", file_safe(&p.name))));
         Ok(Answer::Job(self.inner.jobs.submit(spec)))
     }
 
@@ -1229,22 +1179,13 @@ impl Server {
                     &*progress,
                     &*log,
                 )?;
-                Ok(json!({"file": file.to_string_lossy(), "version": release.version}))
+                result(IpswResult { file: file.to_string_lossy().into_owned(), version: release.version })
             }),
         );
         spec.guest_kind = Some(GuestKind::Macos);
         let s = self.clone();
-        spec.on_end = Some(Box::new(move |job| {
-            match job.state {
-                JobState::Finished => s.events().info(format!(
-                    "macOS {} downloaded",
-                    job.result.as_ref().and_then(|r| r["version"].as_str()).unwrap_or("")
-                )),
-                JobState::Cancelled => s.events().info("Download paused – it continues from there"),
-                _ => s.events().error(job.error.clone().unwrap_or_default()),
-            }
-            s.check_doctor_later();
-        }));
+        spec.log_file = Some(self.paths().logs().join("ipsw-download.log"));
+        spec.on_end = Some(Box::new(move |_| s.check_doctor_later()));
         Ok(Answer::Job(self.inner.jobs.submit(spec)))
     }
 
@@ -1277,24 +1218,22 @@ impl Server {
                     &*progress,
                     &*log,
                 )?;
-                Ok(match outcome {
+                result(match outcome {
                     BaseOutcome::Existing(dir) => {
                         ctx.log(&format!("✓ {} exists already", file_name(&dir)));
-                        json!({"base": dir.to_string_lossy(), "existing": true, "ready": true})
+                        BaseResult { base: dir.to_string_lossy().into_owned(), existing: true, ready: true }
                     }
                     BaseOutcome::Created { dir, ready } => {
                         ctx.log(&format!("✓ {} is ready – build a macOS image next.", file_name(&dir)));
-                        json!({"base": dir.to_string_lossy(), "existing": false, "ready": ready})
+                        BaseResult { base: dir.to_string_lossy().into_owned(), existing: false, ready }
                     }
                 })
             }),
         );
         spec.guest_kind = Some(GuestKind::Macos);
         let s = self.clone();
-        spec.on_end = Some(Box::new(move |job| {
-            if job.state == JobState::Failed {
-                s.events().error(format!("macOS base: {}", job.error.clone().unwrap_or_default()));
-            }
+        spec.log_file = Some(self.paths().logs().join("macos-install.log"));
+        spec.on_end = Some(Box::new(move |_| {
             s.poke();
             s.check_doctor_later();
         }));
@@ -1381,25 +1320,14 @@ impl Server {
                     }
                 };
                 ctx.log(&done);
-                Ok(json!({"message": done}))
+                result(MessageResult { message: done })
             }),
         );
         spec.cancellable = false;
         let s = self.clone();
-        spec.on_end = Some(Box::new(move |job| {
-            match job.state {
-                JobState::Finished => s
-                    .events()
-                    .info(job.result.as_ref().and_then(|r| r["message"].as_str()).unwrap_or_default().to_string()),
-                JobState::Cancelled => {}
-                _ => s.events().error(format!(
-                    "Failed – see {}\n{}",
-                    BuilderMaintenance::new(s.paths()).log().display(),
-                    last_chars(&job.error.clone().unwrap_or_default(), 400)
-                )),
-            }
-            s.check_doctor_later();
-        }));
+        // The admin scripts write logs/linux-builder.log themselves; the job's own lines go next to it
+        spec.log_file = Some(self.paths().logs().join(format!("{}.log", job_kind_name(kind))));
+        spec.on_end = Some(Box::new(move |_| s.check_doctor_later()));
         Ok(Answer::Job(self.inner.jobs.submit(spec)))
     }
 
@@ -1418,8 +1346,8 @@ impl Server {
 
 // MARK: Helpers
 
-/// The update check (`AppModel.checkForUpdate`); `quiet`: from the watcher, a found release is a message
-pub(crate) fn check_update(server: &Server, quiet: bool) -> Result<UpdateAnswer, RpcError> {
+/// The update check (`AppModel.checkForUpdate`) – only when a client asks (`updates.check`)
+pub(crate) fn check_update(server: &Server) -> Result<UpdateAnswer, RpcError> {
     let paths = server.paths();
     if Settings::load(&paths).check_for_updates == Some(false) {
         return Ok(UpdateAnswer { state: UpdateState::Off, release: None });
@@ -1431,21 +1359,16 @@ pub(crate) fn check_update(server: &Server, quiet: bool) -> Result<UpdateAnswer,
     let newer = UpdateCheck::newer(crate::VERSION, &feed)
         .map_err(|e| RpcError::server(Some(e.code().unwrap_or(codes::NETWORK)), e.message()))?;
     Ok(match newer {
-        Some(r) => {
-            if quiet {
-                server.events().info(format!("omaflake {} is available", r.version));
-            }
-            UpdateAnswer {
-                state: UpdateState::Available,
-                release: Some(ReleaseDto {
-                    version: r.version,
-                    url: r.url,
-                    sha256: r.sha256,
-                    notes: r.notes,
-                    page: r.page,
-                }),
-            }
-        }
+        Some(r) => UpdateAnswer {
+            state: UpdateState::Available,
+            release: Some(ReleaseDto {
+                version: r.version,
+                url: r.url,
+                sha256: r.sha256,
+                notes: r.notes,
+                page: r.page,
+            }),
+        },
         None => UpdateAnswer { state: UpdateState::UpToDate, release: None },
     })
 }
@@ -1511,9 +1434,19 @@ fn file_name(path: &Path) -> String {
     path.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_else(|| path.to_string_lossy().into_owned())
 }
 
-fn last_chars(s: &str, n: usize) -> String {
-    let count = s.chars().count();
-    s.chars().skip(count.saturating_sub(n)).collect()
+/// A job's result as JSON
+fn result<T: serde::Serialize>(value: T) -> crate::Result<Value> {
+    serde_json::to_value(value).map_err(|e| Error::new(format!("Cannot encode the result: {e}")))
+}
+
+/// A name as a part of a file name: anything but letters, digits, `.`, `-` and `_` becomes `_`
+fn file_safe(name: &str) -> String {
+    name.chars().map(|c| if c.is_ascii_alphanumeric() || matches!(c, '.' | '-' | '_') { c } else { '_' }).collect()
+}
+
+/// The kebab-case name of a job kind (its JSON value)
+fn job_kind_name(kind: JobKind) -> String {
+    serde_json::to_value(kind).ok().and_then(|v| v.as_str().map(str::to_string)).unwrap_or_else(|| "job".into())
 }
 
 /// The clean-up's "before" and "after" lines of df (size, used, avail, …) → "Linux builder: 40G → 52G free"

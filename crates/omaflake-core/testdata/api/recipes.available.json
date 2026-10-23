@@ -1,0 +1,143 @@
+{
+  "errors": {
+    "url:https://example.org/catalog.json": "HTTP 404"
+  },
+  "offered": [
+    {
+      "author": "omaflake",
+      "description": "A small NixOS",
+      "files": [
+        {
+          "path": "recipe.toml",
+          "sha256": "9f86d081884c7d65",
+          "size": 412
+        },
+        {
+          "path": "configuration.nix",
+          "sha256": "60303ae22b998861",
+          "size": 2048
+        }
+      ],
+      "id": "omaflake.nixos.minimal",
+      "kind": "nixos",
+      "lab": false,
+      "license": "MIT",
+      "name": "minimal",
+      "requires": [
+        "omaflake.nixos.base"
+      ],
+      "runsHere": true,
+      "source": "github:omaflake/recipes@main",
+      "systems": [
+        "aarch64-linux"
+      ],
+      "tags": [
+        "minimal"
+      ],
+      "version": "2"
+    },
+    {
+      "author": "lab",
+      "description": "A small NixOS",
+      "files": [
+        {
+          "path": "recipe.toml",
+          "sha256": "9f86d081884c7d65",
+          "size": 412
+        },
+        {
+          "path": "configuration.nix",
+          "sha256": "60303ae22b998861",
+          "size": 2048
+        }
+      ],
+      "id": "lab.nixos.try",
+      "kind": "nixos",
+      "lab": true,
+      "name": "try",
+      "requires": [],
+      "runsHere": true,
+      "source": "github:omaflake/recipes@main",
+      "systems": [
+        "aarch64-linux"
+      ],
+      "tags": [
+        "minimal"
+      ],
+      "version": "2"
+    }
+  ],
+  "suggested": [
+    {
+      "author": "omaflake",
+      "description": "A small NixOS",
+      "files": [
+        {
+          "path": "recipe.toml",
+          "sha256": "9f86d081884c7d65",
+          "size": 412
+        },
+        {
+          "path": "configuration.nix",
+          "sha256": "60303ae22b998861",
+          "size": 2048
+        }
+      ],
+      "id": "omaflake.nixos.minimal",
+      "kind": "nixos",
+      "lab": false,
+      "license": "MIT",
+      "name": "minimal",
+      "requires": [
+        "omaflake.nixos.base"
+      ],
+      "runsHere": true,
+      "source": "github:omaflake/recipes@main",
+      "systems": [
+        "aarch64-linux"
+      ],
+      "tags": [
+        "minimal"
+      ],
+      "version": "2"
+    }
+  ],
+  "updates": [
+    {
+      "id": "omaflake.nixos.dev@velvet-tiger-orbit",
+      "recipe": {
+        "author": "omaflake",
+        "description": "A small NixOS",
+        "files": [
+          {
+            "path": "recipe.toml",
+            "sha256": "9f86d081884c7d65",
+            "size": 412
+          },
+          {
+            "path": "configuration.nix",
+            "sha256": "60303ae22b998861",
+            "size": 2048
+          }
+        ],
+        "id": "omaflake.nixos.dev",
+        "kind": "nixos",
+        "lab": false,
+        "license": "MIT",
+        "name": "dev",
+        "requires": [
+          "omaflake.nixos.base"
+        ],
+        "runsHere": true,
+        "source": "github:omaflake/recipes@main",
+        "systems": [
+          "aarch64-linux"
+        ],
+        "tags": [
+          "minimal"
+        ],
+        "version": "2"
+      }
+    }
+  ]
+}

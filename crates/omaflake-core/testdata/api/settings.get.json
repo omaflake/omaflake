@@ -1,0 +1,44 @@
+{
+  "choices": {
+    "keyboards": [
+      {
+        "code": "ch",
+        "locale": "de_CH"
+      },
+      {
+        "code": "us",
+        "locale": "en_US"
+      }
+    ],
+    "locales": [
+      "de_CH.UTF-8",
+      "en_US.UTF-8"
+    ],
+    "timeZones": [
+      "Europe/Berlin",
+      "Europe/Zurich"
+    ]
+  },
+  "guestDefaults": {
+    "fullName": "Mac User",
+    "keyboard": "ch",
+    "locale": "de_CH.UTF-8",
+    "timeZone": "Europe/Zurich",
+    "user": "mac"
+  },
+  "isDefaultDataFolder": false,
+  "settings": {
+    "checkForUpdates": true,
+    "dataFolder": "/data",
+    "developerMode": true,
+    "flake": "/src/omaflake/nix",
+    "flakeInUse": "/src/omaflake/nix",
+    "guest": {
+      "keyboard": "ch",
+      "locale": "de_CH.UTF-8",
+      "user": "alex"
+    },
+    "keepRecipeVersions": false,
+    "notifications": false
+  }
+}

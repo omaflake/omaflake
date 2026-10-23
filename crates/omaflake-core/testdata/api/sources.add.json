@@ -1,0 +1,13 @@
+{
+  "note": "acme/recipes: 3 recipes",
+  "source": {
+    "displayName": "example.org",
+    "enabled": false,
+    "hasToken": true,
+    "id": "url:https://example.org/catalog.json",
+    "kind": "url",
+    "location": "https://example.org/catalog.json",
+    "official": false,
+    "private": true
+  }
+}

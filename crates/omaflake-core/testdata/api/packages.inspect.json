@@ -1,0 +1,9 @@
+{
+  "conflict": {
+    "suggestedName": "research-2",
+    "vmName": "research"
+  },
+  "kind": "vm",
+  "networkVolume": false,
+  "valid": true
+}

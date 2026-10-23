@@ -353,6 +353,28 @@ impl SourceTokens {
         }
     }
 
+    /// A token is stored for this source. Reads only the item's attributes, not the secret: no Keychain prompt, also
+    /// for an item another program (an older omaflake) wrote.
+    pub fn has(source: &RecipeSource) -> bool {
+        #[cfg(target_os = "macos")]
+        {
+            use security_framework::item::{ItemClass, ItemSearchOptions, Limit};
+            ItemSearchOptions::new()
+                .class(ItemClass::generic_password())
+                .service(Self::SERVICE)
+                .account(&source.id())
+                .load_attributes(true)
+                .limit(Limit::Max(1))
+                .search()
+                .is_ok_and(|found| !found.is_empty())
+        }
+        #[cfg(not(target_os = "macos"))]
+        {
+            let _ = source;
+            false
+        }
+    }
+
     /// Stores the token (None or "" removes it); the Keychain item's label is "omaflake recipe source <display name>"
     pub fn set(token: Option<&str>, source: &RecipeSource) -> Result<()> {
         #[cfg(target_os = "macos")]

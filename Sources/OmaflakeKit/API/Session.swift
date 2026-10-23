@@ -7,7 +7,7 @@ public struct InitializeParams: Encodable, Sendable, Equatable {
     public var clientVersion: String
     public var apiVersion: Int
     public var language: String?
-    /// The update feed of this build (Info.plist OMUpdateFeedURL; OPEN in api.md: proposed)
+    /// The update feed of this build (Info.plist OMUpdateFeedURL) – `updates.check` asks it
     public var updateFeed: String?
 
     public init(client: String, clientVersion: String, apiVersion: Int = CoreClient.apiVersion, language: String? = nil,
@@ -22,15 +22,17 @@ public struct InitializeParams: Encodable, Sendable, Equatable {
 
 public struct InitializeResult: Decodable, Sendable, Equatable {
     public struct Host: Decodable, Sendable, Equatable {
-        public var system: String?
-        public var os: String?
+        /// "aarch64-darwin", …
+        public var system: String
+        /// "macOS 27.0.1", …
+        public var os: String
     }
 
     public var apiVersion: Int
     public var omafVersion: String
-    public var host: Host?
+    public var host: Host
     public var dataFolder: String
-    public var configFile: String?
+    public var configFile: String
 }
 
 /// `settings.get`
@@ -40,26 +42,7 @@ public struct SettingsInfo: Decodable, Sendable, Equatable {
             /// XKB name ("de")
             public var code: String
             /// The locale whose name names it ("de_DE")
-            public var locale: String?
-
-            /// A string ("de") or an object ({code, locale})
-            public init(from decoder: Decoder) throws {
-                if let code = try? decoder.singleValueContainer().decode(String.self) {
-                    self.code = code
-                    locale = nil
-                    return
-                }
-                if var pair = try? decoder.unkeyedContainer() {   // a tuple as [code, locale]
-                    code = try pair.decode(String.self)
-                    locale = try? pair.decode(String.self)
-                    return
-                }
-                let c = try decoder.container(keyedBy: CodingKeys.self)
-                code = try c.decode(String.self, forKey: .code)
-                locale = try c.decodeIfPresent(String.self, forKey: .locale)
-            }
-
-            enum CodingKeys: String, CodingKey { case code, locale }
+            public var locale: String
         }
 
         public var timeZones: [String]
@@ -71,24 +54,14 @@ public struct SettingsInfo: Decodable, Sendable, Equatable {
             locales = []
             keyboards = []
         }
-
-        enum CodingKeys: String, CodingKey { case timeZones, locales, keyboards }
-        public init(from decoder: Decoder) throws {
-            let c = try decoder.container(keyedBy: CodingKeys.self)
-            timeZones = try c.value(.timeZones, [])
-            locales = try c.value(.locales, [])
-            keyboards = try c.value(.keyboards, [])
-        }
     }
 
-    /// config.json as it is (only what the app shows is read: `Settings`)
+    /// config.json's settings with their defaults applied
     public var settings: CoreSettings
     /// This computer's values the guest overrides fall back to
     public var guestDefaults: GuestValues
     public var choices: Choices
     public var isDefaultDataFolder: Bool
-    /// The data folder now (OPEN in api.md: proposed – after `dataFolder.move` the one of `initialize` is old)
-    public var dataFolder: String?
 
     public init() {
         settings = CoreSettings()
@@ -96,32 +69,46 @@ public struct SettingsInfo: Decodable, Sendable, Equatable {
         choices = Choices()
         isDefaultDataFolder = true
     }
-
-    enum CodingKeys: String, CodingKey { case settings, guestDefaults, choices, isDefaultDataFolder, dataFolder }
-    public init(from decoder: Decoder) throws {
-        let c = try decoder.container(keyedBy: CodingKeys.self)
-        settings = try c.value(.settings, CoreSettings())
-        guestDefaults = try c.value(.guestDefaults, GuestValues())
-        choices = try c.value(.choices, Choices())
-        isDefaultDataFolder = try c.value(.isDefaultDataFolder, true)
-        dataFolder = try c.decodeIfPresent(String.self, forKey: .dataFolder)
-    }
 }
 
-/// The settings of config.json the app shows (unset = the default)
+/// config.json's settings with their defaults applied (`settings.get`, `settings.set`)
 public struct CoreSettings: Decodable, Sendable, Equatable {
-    public var developerMode: Bool?
-    public var checkForUpdates: Bool?
-    public var notifications: Bool?
-    public var keepRecipeVersions: Bool?
-    public var guest: GuestValues?
+    public var developerMode = false
+    public var checkForUpdates = true
+    public var notifications = true
+    public var keepRecipeVersions = false
+    /// The guest values set here (an unset one is the computer's, `guestDefaults`)
+    public var guest = GuestValues()
     public var flake: String?
     public var qemu: String?
     public var nix: String?
     public var runner: String?
-    public var home: String?
+    /// The image flake in use (the setting, `VM_FLAKE` or the bundled one)
+    public var flakeInUse: String?
+    /// The data folder now (after `dataFolder.move` the one `initialize` named is old); "" before the first answer
+    public var dataFolder = ""
 
     public init() {}
+
+    enum CodingKeys: String, CodingKey {
+        case developerMode, checkForUpdates, notifications, keepRecipeVersions, guest, flake, qemu, nix, runner, flakeInUse
+        case dataFolder
+    }
+
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        developerMode = try c.decode(Bool.self, forKey: .developerMode)
+        checkForUpdates = try c.decode(Bool.self, forKey: .checkForUpdates)
+        notifications = try c.decode(Bool.self, forKey: .notifications)
+        keepRecipeVersions = try c.decode(Bool.self, forKey: .keepRecipeVersions)
+        guest = try c.decode(GuestValues.self, forKey: .guest)
+        flake = try c.decodeIfPresent(String.self, forKey: .flake)
+        qemu = try c.decodeIfPresent(String.self, forKey: .qemu)
+        nix = try c.decodeIfPresent(String.self, forKey: .nix)
+        runner = try c.decodeIfPresent(String.self, forKey: .runner)
+        flakeInUse = try c.decodeIfPresent(String.self, forKey: .flakeInUse)
+        dataFolder = try c.decode(String.self, forKey: .dataFolder)
+    }
 }
 
 /// Guest user values: the overrides in config.json (`guest`, every field optional – nil = this Mac's value) and the
@@ -150,7 +137,7 @@ public struct UpdateStatus: Decodable, Sendable, Equatable {
     public enum State: String, OpenEnum { case noFeed, upToDate, available, off, unknown }
     public struct Release: Decodable, Sendable, Equatable {
         public var version: String
-        public var url: String?
+        public var url: String
         public var sha256: String?
         public var notes: String?
         public var page: String?

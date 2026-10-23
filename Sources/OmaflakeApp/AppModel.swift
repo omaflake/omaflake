@@ -66,14 +66,14 @@ final class AppModel {
     /// Every built image, grouped by recipe (macOS, then NixOS, by name), newest first within a recipe (plan B93)
     var allImages: [VmImage] {
         images.sorted {
-            ($0.kind.rawValue, RecipeText.name($0.recipe), $0.recipe, $1.created ?? .distantPast)
-                < ($1.kind.rawValue, RecipeText.name($1.recipe), $1.recipe, $0.created ?? .distantPast)
+            ($0.kind.rawValue, RecipeText.name($0.recipe), $0.recipe, $1.created)
+                < ($1.kind.rawValue, RecipeText.name($1.recipe), $1.recipe, $0.created)
         }
     }
 
     /// The images of a recipe's line, newest first
     func images(ofLine line: String) -> [VmImage] {
-        images.filter { $0.line == line }.sorted { ($0.created ?? .distantPast) > ($1.created ?? .distantPast) }
+        images.filter { $0.line == line }.sorted { $0.created > $1.created }
     }
 
     /// The recipe evaluates to something else than when the image was built (nil: not known)
@@ -93,30 +93,26 @@ final class AppModel {
 
     /// Developer mode: shows the lab recipes
     var developerMode: Bool {
-        get { settingsInfo.settings.developerMode ?? false }
+        get { settingsInfo.settings.developerMode }
         set {
             settingsInfo.settings.developerMode = newValue
             setSetting("developerMode", newValue ? .bool(true) : .null)
         }
     }
 
-    /// Keep older versions of a recipe's line (plan B111); off: they go unless an image uses them
+    /// Keep older versions of a recipe's line (plan B111); off: they go unless an image uses them – the core prunes
+    /// them when the setting goes off and tells how many with a `message`
     var keepRecipeVersions: Bool {
-        get { settingsInfo.settings.keepRecipeVersions ?? false }
+        get { settingsInfo.settings.keepRecipeVersions }
         set {
             settingsInfo.settings.keepRecipeVersions = newValue
-            setSetting("keepRecipeVersions", newValue ? .bool(true) : .null) { [weak self] in
-                guard !newValue, let self else { return }
-                let result: JSONValue = try await self.client.call("recipes.pruneVersions")
-                let removed = result["removed"]?.array?.count ?? result["removed"]?.int ?? 0
-                if removed > 0 { self.message = String(localized: "Older recipe versions removed: \(removed)") }
-            }
+            setSetting("keepRecipeVersions", newValue ? .bool(true) : .null)
         }
     }
 
     /// System notifications while the menu window is closed
     var notifications: Bool {
-        get { settingsInfo.settings.notifications ?? true }
+        get { settingsInfo.settings.notifications }
         set {
             settingsInfo.settings.notifications = newValue
             setSetting("notifications", newValue ? .null : .bool(false))
@@ -124,7 +120,7 @@ final class AppModel {
     }
 
     var checkForUpdates: Bool {
-        get { settingsInfo.settings.checkForUpdates ?? true }
+        get { settingsInfo.settings.checkForUpdates }
         set {
             settingsInfo.settings.checkForUpdates = newValue
             setSetting("checkForUpdates", newValue ? .null : .bool(false)) { [weak self] in await self?.checkForUpdate() }
@@ -142,8 +138,11 @@ final class AppModel {
         }
     }
 
-    /// The data folder now
-    var dataFolder: String { settingsInfo.dataFolder ?? session?.dataFolder ?? Self.defaultDataFolder.path }
+    /// The data folder now (`settings.get` follows a move; `initialize` named the one at the start)
+    var dataFolder: String {
+        let now = settingsInfo.settings.dataFolder
+        return !now.isEmpty ? now : session?.dataFolder ?? Self.defaultDataFolder.path
+    }
     static var defaultDataFolder: URL {
         FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".omaflake", isDirectory: true)
     }
@@ -319,8 +318,6 @@ final class AppModel {
             coreProblem = nil
             // A restarted server has lost its jobs (api.md §5); their logs stay in their files
             if restarted { jobs = []; jobLogs = [:] }
-            // QEMU's Dock icon: the core sets OMAFLAKE_DOCK_ICON when the file is there (Paths::dock_icon)
-            try? Brand.writeDockIcon(to: URL(fileURLWithPath: result.dataFolder).appendingPathComponent("cache/dock-icon.png"))
             Task { await loadAll(firstTime: !restarted) }
         case .disconnected(let reason):
             if coreProblem == nil { message = reason }
@@ -335,7 +332,7 @@ final class AppModel {
             }
         case .vmReady(let name, let via):
             message = String(localized: "\(name) is ready")
-            notify(String(localized: "VM ready"), via == "ssh" ? String(localized: "\(name) is running and answers SSH.")
+            notify(String(localized: "VM ready"), via == .ssh ? String(localized: "\(name) is running and answers SSH.")
                    : String(localized: "\(name) is running; its omaflake agent reported in."))
         case .imagesChanged(let list):
             if list.images != images { images = list.images }
@@ -349,6 +346,8 @@ final class AppModel {
         case .doctorChanged(let report):
             doctor = report
         case .message(let text, _):
+            // Only what the app cannot tell from the other events (api.md §6): pruned recipe versions, a recipe list
+            // that cannot be read, a VM created but not started
             message = text
         case .unknown:
             break
@@ -365,7 +364,7 @@ final class AppModel {
         async let settings: SettingsInfo = client.call("settings.get")
         async let sourceList: [Source] = client.call("sources.list")
         async let jobList: [Job] = client.call("jobs.list")
-        async let limits: JSONValue = client.call("vms.limits")
+        async let limits: Limits = client.call("vms.limits")
         do {
             apply(try await vms)
             let i = try await imageList
@@ -375,7 +374,7 @@ final class AppModel {
             settingsInfo = try await settings
             sources = try await sourceList
             for job in try await jobList { update(job) }
-            if let max = try await limits["macMax"]?.int { macMax = max }
+            macMax = try await limits.macMax
         } catch {
             message = describe(error)
         }
@@ -428,7 +427,7 @@ final class AppModel {
         if let log: JobLog = try? await client.call("jobs.log", ["id": job.id]) { jobLogs[job.id] = Array(log.lines.suffix(5000)) }
     }
 
-    /// The messages and notifications for jobs that finished
+    /// The messages and notifications for jobs that ended – the core sends none for them (api.md §6)
     private func finished(_ job: Job) {
         let name = job.recipe.map(RecipeText.name) ?? job.title
         switch (job.kind, job.state) {
@@ -441,12 +440,15 @@ final class AppModel {
         case (.build, .cancelled):
             message = String(localized: "Build of \(name) cancelled")
         case (.ipswDownload, .finished):
-            message = String(localized: "macOS downloaded")
+            message = job.result(as: IpswResult.self).map { String(localized: "macOS \($0.version) downloaded") }
+                ?? String(localized: "macOS downloaded")
+        case (.ipswDownload, .cancelled):
+            message = String(localized: "Download paused – it continues from there")
         case (.macosInstall, .failed):
             message = String(localized: "macOS base: \(job.error ?? "")")
         case (.dataMove, .finished):
             Task { settingsInfo = (try? await client.call("settings.get")) ?? settingsInfo }
-            message = String(localized: "Data folder: \(job.result?["dataFolder"]?.string ?? job.title)")
+            message = String(localized: "Data folder: \(job.result(as: DataMoveResult.self)?.dataFolder ?? job.title)")
         case (let kind, .failed) where kind.isBuilderTask:
             message = (job.logFile.map { String(localized: "Failed – see \($0)") } ?? String(localized: "Failed"))
                 + "\n" + String((job.error ?? "").suffix(400))
@@ -455,7 +457,11 @@ final class AppModel {
         case (.builderSetup, .finished), (.builderApply, .finished):
             message = String(localized: "Linux builder settings applied")
         case (.builderCleanUp, .finished):
-            message = job.result?["message"]?.string ?? String(localized: "Linux builder cleaned up")
+            message = job.result(as: MessageResult.self)?.message ?? String(localized: "Linux builder cleaned up")
+        case (.recipeInstall, .finished):
+            installed(job, id: job.recipe ?? job.title)
+        case (.import, .finished):
+            imported(job)
         case (_, .failed):
             message = "\(job.title): \(job.error ?? "")"
         default:
@@ -533,14 +539,18 @@ final class AppModel {
             do {
                 let job: Job = try await client.call("recipes.install", ["id": recipe.id, "source": recipe.source])
                 track(job) { job in
-                    guard job.state == .finished else { return self.finished(job) }
-                    let written = job.result?["installed"]?.strings ?? []
-                    self.message = written.isEmpty ? String(localized: "\(recipe.qualified) is up to date")
-                        : String(localized: "Installed \(written.map(RecipeText.qualified).joined(separator: ", "))")
-                    self.refreshCatalogs()
+                    self.finished(job)
+                    if job.state == .finished { self.refreshCatalogs() }
                 }
             } catch { message = describe(error) }
         }
+    }
+
+    /// "Installed …" or "… is up to date" for a finished `recipe-install` job
+    private func installed(_ job: Job, id: String) {
+        let written = job.result(as: InstallResult.self)?.installed ?? []
+        message = written.isEmpty ? String(localized: "\(RecipeText.qualified(id)) is up to date")
+            : String(localized: "Installed \(written.map(RecipeText.qualified).joined(separator: ", "))")
     }
 
     func installSuggested() {
@@ -559,9 +569,8 @@ final class AppModel {
                                 String(localized: "Versions images are built from stay while those images are there; a recipe in a local folder stays in its folder. Images and VMs stay."),
                                 button: String(localized: "Remove All"), destructive: true) else { return }
             do {
-                let result: JSONValue = try await client.call("recipes.removeLine", ["line": line])
-                let removed = result["removed"]?.array?.count ?? result["removed"]?.int ?? 0
-                let kept = result["kept"]?.array?.count ?? result["kept"]?.int ?? 0
+                let result: LineRemoval = try await client.call("recipes.removeLine", ["line": line])
+                let removed = result.removed.count, kept = result.kept.count
                 message = kept == 0 ? String(localized: "\(name): \(removed) versions removed")
                     : String(localized: "\(name): \(removed) versions removed, \(kept) kept")
             } catch { message = describe(error) }
@@ -570,7 +579,7 @@ final class AppModel {
 
     func removeRecipe(_ version: Recipe.Version) {
         Task { @MainActor in
-            let label = version.label ?? RecipeText.qualified(version.id)
+            let label = version.label
             guard await confirm(String(localized: "Remove the recipe version “\(label)”?"),
                                 String(localized: "Its files are deleted; images built from it and their VMs stay. You can install it again from its source."),
                                 button: String(localized: "Remove"), destructive: true) else { return }
@@ -584,11 +593,11 @@ final class AppModel {
     /// Checks a new source (with its token for a private repository) and keeps it; the result or the error comes back
     func addSource(_ input: String, isPrivate: Bool, token: String) async -> Result<String, APIError> {
         struct Params: Encodable, Sendable { let input: String; let `private`: Bool; let token: String? }
-        struct Added: Decodable, Sendable { let source: Source; let note: String? }
         do {
-            let added: Added = try await client.call("sources.add", Params(input: input, private: isPrivate, token: isPrivate ? token : nil))
+            let added: SourceAdded = try await client.call("sources.add", Params(input: input, private: isPrivate, token: isPrivate ? token : nil))
             await reloadSources()
-            return .success([added.source.displayName, added.note].compactMap { $0 }.joined(separator: ": "))
+            // The note names the source already ("acme/recipes: 3 recipes")
+            return .success(added.note.isEmpty ? added.source.displayName : added.note)
         } catch let e as APIError { return .failure(e) } catch { return .failure(APIError(message: error.localizedDescription)) }
     }
 
@@ -680,8 +689,8 @@ final class AppModel {
 
     func stop(_ name: String) {
         perform(name) { [client] in
-            let result: JSONValue = try await client.call("vms.stop", ["name": name])
-            return result["result"]?.string.map { "\(name): \($0)" }
+            let answer: StopAnswer = try await client.call("vms.stop", ["name": name])
+            return "\(name): \(answer.result.rawValue)"
         }
     }
 
@@ -737,31 +746,30 @@ final class AppModel {
     /// Sound, microphone, clipboard and camera of a VM; they take effect at its next start.
     func setSound(_ name: String, audio: Bool? = nil, microphone: Bool? = nil, clipboard: Bool? = nil, camera: Bool? = nil) {
         struct Params: Encodable, Sendable { let name: String; let audio, microphone, clipboard, camera: Bool? }
-        struct Changed: Decodable, Sendable { let takesEffectAtNextStart: Bool? }
         let params = Params(name: name, audio: audio, microphone: microphone, clipboard: clipboard, camera: camera)
         perform(name) { [client] in
-            let changed: Changed = try await client.call("vms.set", params)
-            return changed.takesEffectAtNextStart == true ? String(localized: "\(name): takes effect at the next start") : nil
+            let changed: VmSetAnswer = try await client.call("vms.set", params)
+            return changed.takesEffectAtNextStart ? String(localized: "\(name): takes effect at the next start") : nil
         }
     }
 
     /// The first free VM name for a recipe (`dev`, `dev-2`, …)
     func nextFreeName(for recipe: String) async -> String {
-        let result = try? await client.call("vms.nextName", ["recipe": recipe], as: JSONValue.self)
-        return result?["name"]?.string ?? RecipeText.name(recipe)
+        let result = try? await client.call("vms.nextName", ["recipe": recipe], as: NameAnswer.self)
+        return result?.name ?? RecipeText.name(recipe)
     }
 
     /// The SSH command of a VM, as Terminal would run it
     func sshLine(_ name: String) async -> String? {
-        try? await client.call("vms.ssh", ["name": name], as: JSONValue.self)["shellLine"]?.string
+        try? await client.call("vms.ssh", ["name": name], as: SshAnswer.self).shellLine
     }
 
     /// Terminal.app with `ssh` to the VM (asks for automation permission the first time).
     func openTerminal(_ name: String) {
         Task {
             do {
-                let ssh: JSONValue = try await client.call("vms.ssh", ["name": name])
-                if let line = ssh["shellLine"]?.string { runInTerminal(line) }
+                let ssh: SshAnswer = try await client.call("vms.ssh", ["name": name])
+                runInTerminal(ssh.shellLine)
             } catch { message = describe(error) }
         }
     }
@@ -778,8 +786,8 @@ final class AppModel {
     func revealShare(_ name: String) {
         Task {
             do {
-                let share: JSONValue = try await client.call("vms.share", ["name": name])
-                if let path = share["path"]?.string { NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: path)]) }
+                let share: PathAnswer = try await client.call("vms.share", ["name": name])
+                NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: share.path)])
             } catch { message = describe(error) }
         }
     }
@@ -819,9 +827,9 @@ final class AppModel {
     /// Items in the Doctor that need attention (warning sign on its icon)
     var doctorIssues: Int { doctor.issues }
     /// A macOS base exists (needed to build macOS images)
-    var hasMacBase: Bool { macosPreflight.first { $0.item == .macBase }?.status == .ok }
+    var hasMacBase: Bool { doctor.hasMacBase }
     /// Guest user of the macOS base (images are built logging in as this user)
-    var macBaseUser: String? { macosPreflight.first { $0.item == .macBase }?.baseUser }
+    var macBaseUser: String? { doctor.macBaseUser }
 
     /// What the Doctor reports against building images of a guest kind; empty = building is possible
     func buildBlockers(_ kind: GuestKind) -> [Prerequisite] { doctor.buildBlockers[kind] }
@@ -903,7 +911,7 @@ final class AppModel {
     /// Applies the image flake's builder host (`darwin-rebuild switch …#linux-builder`).
     func applyBuilderSettings() {
         Task { @MainActor in
-            let replaces = doctor.builderSystemIsOmaflakes == false
+            let replaces = !doctor.builderSystemIsOmaflakes
             let text = replaces
                 ? String(localized: "This Mac's nix-darwin system does not come from omaflake's image flake yet. Applying replaces your current nix-darwin configuration with omaflake's Linux builder host (nix/hosts/linux-builder.nix and your local/darwin.nix). Only continue if you set up nix-darwin for omaflake.")
                 : String(localized: "Runs darwin-rebuild with omaflake's Linux builder host. This takes a few minutes; macOS asks for an administrator.")
@@ -1002,7 +1010,7 @@ final class AppModel {
 
     /// Overrides from config.json; an empty field means "the Mac's value". Typing is stored a moment after the last key.
     var guestOverrides: GuestValues {
-        get { settingsInfo.settings.guest ?? GuestValues() }
+        get { settingsInfo.settings.guest }
         set {
             func clean(_ v: String?) -> String? { v.flatMap { $0.trimmingCharacters(in: .whitespaces).isEmpty ? nil : $0 } }
             let cleaned = GuestValues(user: clean(newValue.user), fullName: clean(newValue.fullName), email: clean(newValue.email),
@@ -1164,7 +1172,7 @@ final class AppModel {
                 let job: Job = try await client.call("packages.export", Params(kind: kind.rawValue, name: name, folder: folder.path))
                 track(job) { job in
                     guard job.state == .finished else { return self.finished(job) }
-                    self.message = String(localized: "\(shown) exported to \(job.result?["path"]?.string ?? folder.path)")
+                    self.message = String(localized: "\(shown) exported to \(job.result(as: ExportResult.self)?.path ?? folder.path)")
                 }
             } catch { message = "\(shown): \(describe(error))" }
         }
@@ -1186,16 +1194,6 @@ final class AppModel {
         chooseFolder(String(localized: "Where to put the recipe (with the recipes it needs) – to keep or to share")) { folder in
             self.export(.recipe, id, to: folder, shown: RecipeText.qualified(id))
         }
-    }
-
-    /// What `packages.inspect` says about a package
-    struct Inspection: Decodable, Sendable {
-        struct Conflict: Decodable, Sendable { let vmName: String?; let image: String? }
-        let kind: String?
-        let valid: Bool
-        let reason: String?
-        let conflict: Conflict?
-        let networkVolume: Bool?
     }
 
     /// The open panel for packages of one kind: only those are offered, and what is chosen is checked by the core
@@ -1239,7 +1237,7 @@ final class AppModel {
                 struct Inspect: Encodable, Sendable { let path: String; let expect: String; let external: Bool }
                 struct Use: Encodable, Sendable { let path: String; let confirmNetwork: Bool }
                 let inspection = try? await self.client.call("packages.inspect", Inspect(path: url.path, expect: "vm", external: true),
-                                                             as: Inspection.self)
+                                                             as: PackageInspection.self)
                 if inspection?.networkVolume == true {
                     guard await self.confirm(String(localized: "Run the VM over the network?"),
                                              String(localized: "\(url.lastPathComponent) is on a network volume. It runs from there, but slower – and it breaks when the connection does. Importing it (a copy into the data folder) avoids that."),
@@ -1273,7 +1271,7 @@ final class AppModel {
     private func importPackage(_ url: URL) async {
         struct Inspect: Encodable, Sendable { let path: String }
         struct Import: Encodable, Sendable { let path: String; let name: String?; let replace: Bool? }
-        let inspection: Inspection
+        let inspection: PackageInspection
         do {
             inspection = try await client.call("packages.inspect", Inspect(path: url.path))
         } catch {
@@ -1287,7 +1285,7 @@ final class AppModel {
         var name: String?
         var replace: Bool?
         if let existing = inspection.conflict?.vmName {
-            let input = TextInput(text: suggestedName(existing))
+            let input = TextInput(text: inspection.conflict?.suggestedName ?? "\(existing)-2")
             guard await choose(String(localized: "“\(existing)” is here already"),
                                String(localized: "You probably have this VM already. Under another name it becomes a second VM with its own identity (SSH port, macOS machine identity); its user, keys and data are the same."),
                                button: String(localized: "Import under This Name"), input: input) == 0 else { return }
@@ -1300,28 +1298,23 @@ final class AppModel {
         }
         do {
             let job: Job = try await client.call("packages.import", Import(path: url.path, name: name, replace: replace))
-            track(job) { job in
-                guard job.state == .finished else { return self.finished(job) }
-                let names = job.result?["names"]?.strings ?? []
-                switch job.result?["kind"]?.string {
-                case "vm": self.message = String(localized: "VM \(names.joined()) imported")
-                case "image": self.message = String(localized: "Image \(names.joined()) imported")
-                default:
-                    self.message = names.isEmpty ? String(localized: "These recipes are here already, unchanged – nothing to import")
-                        : String(localized: "Recipes imported: \(names.map(RecipeText.qualified).joined(separator: ", "))")
-                }
-            }
+            track(job)
         } catch {
             message = "\(url.lastPathComponent): \(describe(error))"
         }
     }
 
-    /// "research" → "research-2", "research-3", … (the first name not in the list) – suggested in the question
-    private func suggestedName(_ name: String) -> String {
-        let names = Set(rows.map(\.id))
-        var n = 2
-        while names.contains("\(name)-\(n)") { n += 1 }
-        return "\(name)-\(n)"
+    /// What a finished import says
+    private func imported(_ job: Job) {
+        guard let result = job.result(as: ImportResult.self) else { return }
+        let names = result.names
+        switch result.kind {
+        case .vm: message = String(localized: "VM \(names.joined()) imported")
+        case .image: message = String(localized: "Image \(names.joined()) imported")
+        case .recipe, .unknown:
+            message = names.isEmpty ? String(localized: "These recipes are here already, unchanged – nothing to import")
+                : String(localized: "Recipes imported: \(names.map(RecipeText.qualified).joined(separator: ", "))")
+        }
     }
 }
 
@@ -1368,10 +1361,10 @@ final class PackageChecker: NSObject, NSOpenSavePanelDelegate {
 
     func panel(_ sender: Any, validate url: URL) throws {
         struct Params: Encodable, Sendable { let path: String; let expect: String; let external: Bool }
-        let inspection: AppModel.Inspection
+        let inspection: PackageInspection
         do {
             inspection = try client.callBlocking("packages.inspect", Params(path: url.path, expect: kind.rawValue, external: external),
-                                                 as: AppModel.Inspection.self)
+                                                 as: PackageInspection.self)
         } catch {
             throw NSError(domain: "app.omaflake", code: 1, userInfo: [NSLocalizedDescriptionKey: "\(error)"])
         }

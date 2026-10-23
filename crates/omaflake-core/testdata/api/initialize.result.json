@@ -1,0 +1,10 @@
+{
+  "apiVersion": 1,
+  "configFile": "/data/config.json",
+  "dataFolder": "/data",
+  "host": {
+    "os": "macOS 27.0.1",
+    "system": "aarch64-darwin"
+  },
+  "omafVersion": "0.1.0"
+}

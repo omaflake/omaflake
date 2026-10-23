@@ -1,0 +1,11 @@
+{
+  "error": {
+    "code": -32000,
+    "data": {
+      "kind": "vm-running"
+    },
+    "message": "running – stop it first"
+  },
+  "id": 7,
+  "jsonrpc": "2.0"
+}

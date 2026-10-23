@@ -34,8 +34,6 @@ use crate::spawn::Pid;
 pub(crate) const WATCH_INTERVAL: Duration = Duration::from_secs(2);
 /// The recipe folders' modification stamp is compared at most this often (`AppModel.reloadRecipesIfChanged`)
 const STAMP_INTERVAL: Duration = Duration::from_secs(5);
-/// Update checks while subscribed to messages: at the subscription, then once a day (`AppModel.init`)
-const UPDATE_INTERVAL: Duration = Duration::from_secs(24 * 3600);
 
 /// What a method answers: a value, or a job (or several) – `call_once` waits for jobs, a session gets them at once
 pub(crate) enum Answer {
@@ -93,7 +91,6 @@ struct Watch {
     last: HashMap<Topic, Value>,
     /// VM statuses of the last look (for `vm.ended`)
     statuses: Option<Vec<(String, VmStatus)>>,
-    update_checked: Option<Instant>,
     poked: bool,
 }
 
@@ -449,8 +446,8 @@ impl Server {
 
     // MARK: VMs
 
-    /// After a start: once the VM's agent says hello (NixOS, spec §11.9) or SSH answers, `vm.ready` and a message
-    /// (plan B91). Creating comes before the start, so it first waits up to two minutes for the VM to run. VMs without
+    /// After a start: once the VM's agent says hello (NixOS, spec §11.9) or SSH answers, `vm.ready` (plan B91; the UI
+    /// writes its own message). Creating comes before the start, so it first waits up to two minutes for the VM to run. VMs without
     /// network and without an agent can't be reached – nothing then.
     pub(crate) fn when_reachable(&self, name: &str) {
         let s = self.clone();
@@ -485,7 +482,6 @@ impl Server {
                     Readiness::Agent(_) => Via::Agent,
                 };
                 s.events().emit(Topic::Vms, "vm.ready", &VmReady { name: name.clone(), via });
-                s.events().info(format!("{name} is ready"));
                 s.poke();
                 Ok(())
             });
@@ -549,9 +545,6 @@ impl Server {
             for t in fresh {
                 w.last.remove(t);
             }
-            if fresh.contains(&Topic::Messages) {
-                w.update_checked = None;
-            }
             w.poked = true;
             if w.running {
                 drop(w);
@@ -585,7 +578,7 @@ impl Server {
     }
 
     /// One look: whole lists of the subscribed topics when they changed, VMs that ended, clipboard agents, recipe
-    /// edits on disk, the daily update check (`AppModel.refresh`)
+    /// edits on disk (`AppModel.refresh`)
     pub(crate) fn tick(&self) {
         let events = self.events();
         if lock(&self.inner.recipes).loaded {
@@ -600,9 +593,6 @@ impl Server {
             for name in model::ended(&previous, &statuses) {
                 let requested = lock(&self.inner.stop_requested).remove(&name);
                 events.emit(Topic::Vms, "vm.ended", &VmEnded { name: name.clone(), requested });
-                if !requested {
-                    events.info(format!("{name} has ended"));
-                }
             }
         }
         lock(&self.inner.stop_requested).retain(|n| statuses.iter().any(|(m, s)| m == n && *s == VmStatus::Running));
@@ -616,25 +606,6 @@ impl Server {
             self.send_if_changed(Topic::Recipes, "recipes.changed", &view.recipes(false));
         }
         self.ensure_clipboard_agents(&state.snap);
-        if events.is_subscribed(Topic::Messages) {
-            let due = {
-                let mut w = lock(&self.inner.watch);
-                let due = w.update_checked.is_none_or(|t| t.elapsed() >= UPDATE_INTERVAL);
-                if due {
-                    w.update_checked = Some(Instant::now());
-                }
-                due
-            };
-            if due {
-                let s = self.clone();
-                std::thread::spawn(move || {
-                    let _ = super::jobs::guarded(|| {
-                        let _ = super::methods::check_update(&s, true);
-                        Ok(())
-                    });
-                });
-            }
-        }
     }
 
     /// Sends a topic's whole list when it differs from the last one sent

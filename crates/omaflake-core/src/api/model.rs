@@ -298,6 +298,7 @@ pub(crate) struct Doctor {
     pub macos: Vec<Prerequisite>,
     pub latest: Option<MacOsRelease>,
     pub has_mac_base: bool,
+    pub builder_system_is_omaflakes: bool,
     pub checked: chrono::DateTime<chrono::Utc>,
 }
 
@@ -406,6 +407,7 @@ pub(crate) fn doctor_report(d: &Doctor) -> DoctorReport {
         issues: doctor_issues(d.all()),
         requirements_missing: d.prerequisites.iter().any(|p| p.required() && p.status == PrerequisiteStatus::Missing),
         has_mac_base: d.has_mac_base,
+        builder_system_is_omaflakes: d.builder_system_is_omaflakes,
         mac_base_user: d.macos.iter().find(|p| p.item == PrerequisiteItem::MacBase).and_then(|p| p.base_user.clone()),
         checked: d.checked,
     }
@@ -421,6 +423,8 @@ pub(crate) fn check_doctor(paths: &Paths) -> Doctor {
         macos: pre.macos_preflight(latest.as_ref()),
         latest,
         has_mac_base: MacImageBuilder::newest_base_in(paths).is_some(),
+        builder_system_is_omaflakes: crate::builder_maintenance::BuilderMaintenance::new(paths.clone())
+            .system_is_omaflakes(),
         checked: crate::json::now(),
     }
 }
@@ -524,6 +528,11 @@ pub(crate) fn catalog_dto(r: &CatalogRecipe, s: &RecipeSource, language: Option<
         requires: r.requires.clone().unwrap_or_default(),
         homepage: r.homepage.clone(),
         version: r.version.clone(),
+        files: r
+            .files
+            .iter()
+            .map(|f| CatalogFileDto { path: f.path.clone(), size: f.size, sha256: f.sha256.clone() })
+            .collect(),
         source: s.id(),
         runs_here: r.runs_here(),
     }
@@ -539,6 +548,7 @@ pub(crate) fn source_dto(s: &RecipeSource) -> SourceDto {
         enabled: s.is_enabled(),
         private: s.is_private_repository(),
         official: s.is_official(),
+        has_token: s.is_private_repository() && crate::recipe_sources::SourceTokens::has(s),
     }
 }
 
@@ -589,7 +599,7 @@ impl View<'_> {
             display: start_display(c, self.recipes.gl, None),
             created: c.created,
             identity: c.identity.as_deref().map(|w| OmaflakeId::short(w, n)),
-            omaflake_id: OmaflakeId::vm(c, n),
+            omaflake_id: OmaflakeId::vm(c, OmaflakeId::LENGTH),
             label: c.name.clone(),
             address: row.address.clone(),
             agent: row.agent.as_ref().and_then(|a| serde_json::to_value(a).ok()),
@@ -621,6 +631,8 @@ impl View<'_> {
             path: i.path.to_string_lossy().into_owned(),
             size_bytes: if size { ImageStore::disk_usage(i) } else { None },
             label: OmaflakeId::image(i, self.snap.lengths.image),
+            omaflake_id: OmaflakeId::image(i, OmaflakeId::LENGTH),
+            outdated: self.expected.get(i.recipe()).map(|e| i.info.store_path.as_deref() != Some(e.as_str())),
             instances: self
                 .snap
                 .rows
@@ -703,7 +715,12 @@ impl View<'_> {
             }),
             image: self.snap.current.get(id).cloned(),
             outdated: self.is_outdated(id),
-            versions: self.recipes.versions.get(&line).map(|v| v.iter().map(version_dto).collect()).unwrap_or_default(),
+            versions: self
+                .recipes
+                .versions
+                .get(&line)
+                .map(|v| v.iter().map(|v| version_dto(v, self.snap.lengths.recipe)).collect())
+                .unwrap_or_default(),
             line,
         }
     }
@@ -725,7 +742,7 @@ impl View<'_> {
                 .recipes
                 .versions
                 .iter()
-                .map(|(line, v)| (line.clone(), v.iter().map(version_dto).collect()))
+                .map(|(line, v)| (line.clone(), v.iter().map(|v| version_dto(v, self.snap.lengths.recipe)).collect()))
                 .collect(),
             id_lengths: IdLengths {
                 recipe: self.snap.lengths.recipe,
@@ -739,8 +756,9 @@ impl View<'_> {
     }
 }
 
-pub(crate) fn version_dto(v: &Version) -> VersionDto {
+pub(crate) fn version_dto(v: &Version, words: usize) -> VersionDto {
     VersionDto {
+        label: OmaflakeId::recipe(&v.id, words),
         id: v.id.clone(),
         source: v.source.clone(),
         added: v.added,
@@ -957,6 +975,7 @@ mod tests {
             macos: vec![],
             latest: None,
             has_mac_base: false,
+            builder_system_is_omaflakes: false,
             checked: crate::json::now(),
         };
         let report = doctor_report(&d);

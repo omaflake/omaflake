@@ -1,0 +1,11 @@
+{
+  "error": {
+    "code": -32000,
+    "data": {
+      "networkVolume": true
+    },
+    "message": "x.omaflake-vm is on a network volume."
+  },
+  "id": 8,
+  "jsonrpc": "2.0"
+}

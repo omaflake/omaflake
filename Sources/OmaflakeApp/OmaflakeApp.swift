@@ -133,7 +133,7 @@ struct MainView: View {
                 ForEach(rows) { row in
                     InstanceRow(row: row, busy: model.isBusy(row), model: model)
                 }
-                ForEach(model.unreadableVMs, id: \.self) { UnreadableHint(name: $0.displayName, reason: $0.reason) }
+                ForEach(model.unreadableVMs, id: \.self) { UnreadableHint(name: $0.name, reason: $0.reason) }
             }
         case .images:
             // Every built image on its own row (plan B93); builds that wait, run or failed on top
@@ -172,7 +172,7 @@ struct MainView: View {
                         show("new")
                     }
                 }
-                ForEach(model.unreadableImages, id: \.self) { UnreadableHint(name: $0.displayName, reason: $0.reason) }
+                ForEach(model.unreadableImages, id: \.self) { UnreadableHint(name: $0.name, reason: $0.reason) }
             }
         case .recipes:
             let all = model.recipeRows
@@ -226,7 +226,7 @@ struct MainView: View {
                 ForEach(offered) { recipe in
                     OfferedRecipeRow(recipe: recipe, model: model)
                 }
-                ForEach(model.unreadableRecipes, id: \.self) { UnreadableHint(name: RecipeText.qualified($0.displayName), reason: $0.reason) }
+                ForEach(model.unreadableRecipes, id: \.self) { UnreadableHint(name: RecipeText.qualified($0.name), reason: $0.reason) }
                 ForEach(model.available.errors.sorted { $0.key < $1.key }, id: \.key) { id, error in
                     HStack(alignment: .firstTextBaseline, spacing: 8) {
                         Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(.orange)
@@ -444,7 +444,7 @@ struct RecipeRowView: View {
                 InfoLine(label: "Network", value: Text(verbatim: recipe.network.rawValue))
                 InfoLine(label: "New VMs", value: Text(verbatim: defaults(recipe.settings)))
                 InfoLine(label: "Images", value: images.isEmpty ? Text("not built yet")
-                         : Text("\(images.count) built, the newest \((images[0].created ?? Date()).formatted(date: .abbreviated, time: .shortened))"))
+                         : Text("\(images.count) built, the newest \(images[0].created.formatted(date: .abbreviated, time: .shortened))"))
                 if recipe.source == "import" {
                     InfoLine(label: "Source", value: Text("imported (a package or a folder)"))
                 } else if let origin = recipe.source {
@@ -514,7 +514,7 @@ struct RecipeVersionRow: View {
 
     var body: some View {
         HStack(spacing: 8) {
-            let words = version.label ?? String(IDText.short("@" + (RecipeText.words(version.id) ?? "?"), model.idLengths.recipe).dropFirst())
+            let words = String(IDText.short("@" + (RecipeText.words(version.id) ?? "?"), model.idLengths.recipe).dropFirst())
             Text(verbatim: words).font(.caption.monospaced()).help(Text(verbatim: version.id))
                 .textSelection(.enabled)
             Text(verbatim: state).font(.caption).foregroundStyle(.secondary).lineLimit(1)
@@ -575,9 +575,9 @@ struct RecipeSourcesSection: View {
                             Text(verbatim: s.displayName).lineLimit(1).truncationMode(.middle).help(s.location)
                             if s.official { Image(systemName: "checkmark.seal.fill").font(.caption).foregroundStyle(BrandStyle.cyan).help("Official recipes") }
                             if s.private {
-                                Image(systemName: s.hasToken == false ? "lock.trianglebadge.exclamationmark" : "lock.fill")
+                                Image(systemName: !s.hasToken ? "lock.trianglebadge.exclamationmark" : "lock.fill")
                                     .font(.caption).foregroundStyle(.secondary)
-                                    .help(s.hasToken == false ? "Private – no token in the Keychain" : "Private – token in the Keychain")
+                                    .help(!s.hasToken ? "Private – no token in the Keychain" : "Private – token in the Keychain")
                             }
                         }
                         Text(s.kind == .folder ? "used as it is – changes count at once" : s.kind == .github ? "GitHub" : "HTTPS")
@@ -673,7 +673,7 @@ struct OfferedRecipeRow: View {
             }
         } detail: {
             DetailBox {
-                Text(recipe.description(in: AppModel.uiLanguage)).font(.caption).fixedSize(horizontal: false, vertical: true)
+                Text(recipe.description).font(.caption).fixedSize(horizontal: false, vertical: true)
                 VStack(alignment: .leading, spacing: 3) {
                     InfoLine(label: "ID", value: Text(verbatim: recipe.qualified))
                     InfoLine(label: "Source", value: Text(verbatim: sourceName) + (official ? Text(verbatim: " · ") + Text("official") : Text(verbatim: "")))
@@ -1302,9 +1302,7 @@ struct InstanceDetail: View {
                 InfoLine(label: "Image", value: row.upgradable
                          ? Text(verbatim: c.image + " · ") + Text("newer image available").foregroundColor(.orange)
                          : Text(verbatim: c.image), full: c.image)
-                if let id = c.omaflakeId {
-                    InfoLine(label: "omaflake ID", value: Text(verbatim: IDText.short(id, model.idLengths.vm)), full: id)
-                }
+                InfoLine(label: "omaflake ID", value: Text(verbatim: IDText.short(c.omaflakeId, model.idLengths.vm)), full: c.omaflakeId)
                 InfoLine(label: "Recipe", value: Text(verbatim: model.recipe(c.recipe)?.label ?? RecipeText.qualified(c.recipe)),
                          full: c.recipe)
                 InfoLine(label: "Resources", value: Text(verbatim: "\(c.cpus) CPU · \(c.memoryGB) GB RAM · \(c.diskGB) GB"))
@@ -1317,9 +1315,7 @@ struct InstanceDetail: View {
                 if c.ephemeral {
                     InfoLine(label: "Ephemeral", value: Text("changes are discarded on power-off"))
                 }
-                if let created = c.created {
-                    InfoLine(label: "Created", value: Text(created.formatted(date: .abbreviated, time: .shortened)))
-                }
+                InfoLine(label: "Created", value: Text(c.created.formatted(date: .abbreviated, time: .shortened)))
                 if let location = row.location {
                     InfoLine(label: "Runs from", value: Text(verbatim: (location as NSString).abbreviatingWithTildeInPath), full: location)
                 }
@@ -1410,10 +1406,8 @@ struct ImageRowView: View {
                 }
                 HStack(spacing: 4) {
                     Text("recipe \(model.recipeName(image.recipe))")
-                    if let created = image.created {
-                        Text(verbatim: "·")
-                        Text(created.formatted(date: .abbreviated, time: .shortened))
-                    }
+                    Text(verbatim: "·")
+                    Text(image.created.formatted(date: .abbreviated, time: .shortened))
                     Text(verbatim: "·")
                     // How many VMs – their names could fill the row (they are in the tooltip and the details)
                     Group {
@@ -1433,9 +1427,8 @@ struct ImageRowView: View {
             Spacer(minLength: 4)
             // The image's folder in the data folder
             IconButton(icon: "folder", help: "Show in Finder") {
-                if let path = image.path { NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: path)]) }
+                NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: image.path)])
             }
-            .disabled(image.path == nil)
             let startBlockers = model.startBlockers(image.kind)
             if !startBlockers.isEmpty {
                 DoctorWarning(blockers: startBlockers)
@@ -1461,15 +1454,11 @@ struct ImageVersionInfo: View {
         // Fixed label column, values on one line: long paths and store names must not widen the window's content
         DetailBox {
             VStack(alignment: .leading, spacing: 3) {
-                if let label = info.label {
-                    InfoLine(label: "omaflake ID", value: Text(verbatim: label), full: info.omaflakeId ?? label)
-                }
+                InfoLine(label: "omaflake ID", value: Text(verbatim: info.label), full: info.omaflakeId)
                 InfoLine(label: "Recipe", value: Text(verbatim: model.recipe(info.recipe)?.label ?? RecipeText.qualified(info.recipe)),
                          full: info.recipe)
-                if let created = info.created {
-                    InfoLine(label: "Built", value: Text(created.formatted(date: .long, time: .standard)))
-                }
-                if let revision = info.revision { InfoLine(label: "Recipe state", value: self.revision(revision)) }
+                InfoLine(label: "Built", value: Text(info.created.formatted(date: .long, time: .standard)))
+                InfoLine(label: "Recipe state", value: self.revision(info.revision))
                 InfoLine(label: "Status", value: status)
                 InfoLine(label: "Used by", value: usedBy.isEmpty ? Text("no VM") : Text(verbatim: usedBy.joined(separator: ", ")),
                          full: usedBy.joined(separator: ", "))
@@ -2619,7 +2608,7 @@ struct UpdateRow: View {
                 case .available(let release):
                     Text("\(release.version) available").foregroundStyle(BrandStyle.cyan)
                     Button("Download …") {
-                        if let url = (release.page ?? release.url).flatMap(URL.init(string:)) { NSWorkspace.shared.open(url) }
+                        if let url = URL(string: release.page ?? release.url) { NSWorkspace.shared.open(url) }
                     }
                 case .failed(let error): Text("Check failed: \(error)").foregroundStyle(.orange).lineLimit(1).help(error)
                 }

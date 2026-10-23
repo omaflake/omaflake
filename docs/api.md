@@ -105,8 +105,8 @@ sizes in bytes, paths absolute.
   "audio": true, "microphone": false, "clipboard": true, "camera": false,
   "display": "gpu",                     // none | window | gpu (how a plain start shows it)
   "created": "2026-10-20T08:00:00Z",
-  "identity": "amber-lake-quiet",       // its omaflake ID words (spec §11.11), as many as idLengths.vm
-  "omaflakeId": "vm:research:amber-lake-quiet",
+  "identity": "amber",                  // its omaflake ID words (spec §11.11), as many as idLengths.vm
+  "omaflakeId": "vm:research:amber-lake-…", // the whole ID (all twelve words); UIs shorten it to idLengths.vm
   "label": "research",                  // as the UI shows it
   "address": "192.168.64.5",            // macOS guests while running: NAT address
   "agent": { … },                       // what the omaflake agent last reported (spec §11.9; agent.json), while running
@@ -119,9 +119,11 @@ sizes in bytes, paths absolute.
 ### 4.2 Image
 
 `name`, `recipe`, `source` (the recipe source's id, when known), `kind`, `system`, `revision`, `storePath`,
-`created`, `line`, `path`, `sizeBytes`, `label` (its omaflake ID as short as it can be), `instances` (VM names using
-it), `current` (it is the newest of its line). `sizeBytes` (allocated blocks, so it walks the image's files) is only
-in `images.get`, not in the lists.
+`created`, `line`, `path`, `sizeBytes`, `label` (its omaflake ID as short as it can be), `omaflakeId` (the whole ID),
+`instances` (VM names using it), `current` (it is the newest of its line), `outdated` (its recipe evaluates to
+something else now, plan B73/B82 – left out while that is not known: the check runs `nix eval` in the background, and
+a recipe version that is gone has nothing to compare with). `sizeBytes` (allocated blocks, so it walks the image's
+files) is only in `images.get`, not in the lists.
 
 ### 4.3 Recipe
 
@@ -134,8 +136,9 @@ the recipe has it –, `lab`, `display`, `tags`, `license`, `homepage`) plus:
 (the recipe changed since that image was built, plan B73/B82), `versions` (its line's versions, newest first).
 `lab` is a boolean here (false when unset).
 
-**Version** – `id`, `source`, `added`, `newest` (the line's newest), `live` (in a local folder source, edited in
-place), `images` (built from it).
+**Version** – `id`, `source`, `added` (left out for the recipe a local folder has now), `newest` (the line's
+newest), `live` (in a local folder source, edited in place), `images` (built from it), `label` (its omaflake ID as
+short as it can be).
 
 `RecipeSettings` (what `vms.create` takes): the runtime values of a recipe – `kind`, `cpus`, `memoryGB`, `diskGB`,
 `network`, `share`, `ephemeral`, `user`, `audio`, `microphone`, `clipboard`, `camera`, `display`.
@@ -143,10 +146,11 @@ place), `images` (built from it).
 ### 4.4 Others
 
 - **Source** – `id`, `kind` (`github` | `url` | `folder`), `location`, `branch`, `displayName`, `enabled`,
-  `private`, `official`.
+  `private`, `official`, `hasToken` (a private repository's token is in the system keychain – read without its secret,
+  so no keychain prompt; false for public sources).
 - **CatalogRecipe** – an entry of a source's `catalog.json` (spec §11.3: `id`, `author`, `kind`, `name`,
-  `description` in the session's language, `tags`, `license`, `lab`, `systems`, `requires`, `homepage`, `version`)
-  plus `source` and `runsHere`.
+  `description` in the session's language, `tags`, `license`, `lab`, `systems`, `requires`, `homepage`, `version`,
+  `files: [{path, size, sha256}]`) plus `source` and `runsHere`.
 - **Prerequisite** – `item` (`host`, `nix`, `flakes`, `nixDarwin`, `linuxBuilder`, `qemu`, `flake`, `sshKey`, `git`,
   `builderRunning`, `flakeEval`, `nixSpace`, `ipsw`, `macBase`, `macSpace`), `status` (`ok` | `limited` | `missing`),
   `title` (English; UIs translate by `item`), `required`, `detail`, `hint`, `install` (a command), `settablePath`,
@@ -174,15 +178,30 @@ comes as events, and `jobs.*` ask and steer.
   "progress": {"step": 3, "total": 5, "title": "Copying the image", "done": 0, "of": 0, "fraction": 0.62},
                             // builds: steps from the log; downloads: step/total 0, done/of in bytes
   "started": "…", "finished": "…",
-  "lastOutput": "…",        // when it last wrote a line
+  "lastOutput": "…",        // when it last wrote a line (a time)
   "cancellable": true,      // jobs.cancel would do something now
   "logLines": 412,          // lines so far (jobs.log reads them)
   "hiddenLines": 37,        // routine lines left out of the log (still in logFile)
-  "logFile": "/…/logs/image-build-….log",
-  "result": { … },          // when finished: e.g. {"image": "…", "removed": ["…"]} for a build
+  "logFile": "/…/logs/image-build-….log",  // every line of the job, also the routine ones
+  "result": { … },          // when finished – per kind, below
   "error": "…"              // when failed
 }
 ```
+
+Every job has a `logFile`: builds `logs/image-build-<recipe>.log`, the others `logs/<kind>[-<name>].log` (the data
+move writes `data-move.log` next to config.json, as `logs/` moves along). Downloads (`ipsw-download`, the download of
+`macos-install`) count `done`/`of` in bytes with `step`/`total` 0.
+
+| Kind | `result` |
+|---|---|
+| `build` | `{image, removed: [image]}` – older images of its line removed (plan B52) |
+| `recipe-install` | `{installed: [recipe id]}` – empty: it was up to date |
+| `import` | `{kind: "vm"|"image"|"recipe", names, notes}` – names: the VM's or image's name, the recipe ids |
+| `export` | `{path}` – the package written |
+| `data-move` | `{dataFolder}` |
+| `ipsw-download` | `{file, version}` |
+| `macos-install` | `{base, existing, ready}` |
+| `builder-install-nix`, `builder-setup`, `builder-apply`, `builder-clean-up` | `{message}` – what it did, in English |
 
 - **Builds** queue: one build per guest kind at a time, NixOS and macOS side by side (plan B60). Right before it
   starts, a build runs the Doctor's checks for its guest kind and fails with the first blocker (`checking` state).
@@ -202,7 +221,7 @@ comes as events, and `jobs.*` ask and steer.
 folder (every 2 s while subscribed, and right after its own actions) and sends a topic's **whole list** when it
 changed – a UI replaces what it shows. A newly subscribed topic gets its list at once (`jobs`: a `jobs.changed` per
 job); `events.subscribe` replaces the subscription, unknown topics are left out, `[]` stops the events. Subscribing to
-`doctor` runs the checks once; subscribing to `messages` checks for updates (then daily).
+`doctor` runs the checks once. Update checks run only when a client asks (`updates.check`).
 
 | Event | Params | When |
 |---|---|---|
@@ -214,7 +233,11 @@ job); `events.subscribe` replaces the subscription, unknown topics are left out,
 | `jobs.changed` | `{job: Job}` | a job's state or progress changed |
 | `job.log` | `{id, lines: [string]}` | new log lines of a job |
 | `doctor.changed` | as `doctor.check` | the checks ran (after actions, before builds) |
-| `message` | `{text, level}` | something the user should read in the activity list (`info` | `warning` | `error`) – what happened in the background (a job ended, a VM ended or is ready, an update, pruned versions), not the answers to the client's own requests |
+| `message` | `{text, level}` | something the user should read that a client cannot tell from the other events or its own answers (`info` | `warning` | `error`; English): older recipe versions pruned by `settings.set`, a recipe list that cannot be read, a macOS VM created but not started (`vms.create` beyond the limit) |
+
+A client words the rest itself, in its language: the end of a job (`jobs.changed` with an ended `state`, its `result`
+or `error`), `vm.ended` and `vm.ready` come without a `message`. OPEN: a `message` has no stable kind a UI could translate by
+(as errors have, §3) – its English text is shown as it is.
 
 ## 7. Methods
 
@@ -246,7 +269,7 @@ Params and results in short; the types are those of §4.
 | `vms.set` | `name, audio?, microphone?, clipboard?, camera?` | `{vm, takesEffectAtNextStart}` |
 | `vms.ssh` | `name, command?: [string]` | `{argv, shellLine}` – what to run in a terminal |
 | `vms.agent` | `name, wait? (s)` | the agent's report (spec §11.9; agent.json) or `null` – `wait`: up to that long for a report that says the agent is up |
-| `vms.log` | `name, lines? (200), qemu?` | `{lines}` – NixOS: the serial console (`qemu`: QEMU's own log); macOS: the runner's log |
+| `vms.log` | `name, lines? (200), qemu?` | `{lines: [string]}` – NixOS: the serial console (`qemu`: QEMU's own log); macOS: the runner's log |
 | `vms.wait` | `name, timeout? (s, 300)` | `{via}` – blocks until SSH or the agent answers; `vm-stopped` when it does not run |
 | `vms.share` | `name` | `{path}` – the share folder, created if it is the default one |
 | `vms.nextName` | `recipe` | `{name}` – the first free VM name for it (`dev`, `dev-2`, …) |
@@ -272,8 +295,8 @@ Params and results in short; the types are those of §4.
 | `recipes.install` | `id, source` | Job `recipe-install` (with what it requires) |
 | `recipes.installSuggested` | – | `[Job]` |
 | `recipes.remove` | `id` | `null` |
-| `recipes.removeLine` | `line` | `{removed, kept}` |
-| `recipes.pruneVersions` | – | `{removed}` |
+| `recipes.removeLine` | `line` | `{removed: [id], kept: [id]}` – kept: images use them, or they live in a local folder |
+| `recipes.pruneVersions` | – | `{removed: [id]}` |
 | `sources.list` | – | `[Source]` |
 | `sources.add` | `input, private?, token?, branch?, first?` | `{source, note}` – checked before it is kept (`exists` when it is a source already); a private repository needs `token`, which goes to the system keychain, never into a file |
 | `sources.remove` | `id` | `null` (its token leaves the keychain) |
@@ -286,14 +309,14 @@ Params and results in short; the types are those of §4.
 | Method | Params | Result |
 |---|---|---|
 | `packages.inspect` | `path, expect?: "vm"|"image"|"recipe", external?` | `{kind, valid, reason?, conflict?: {vmName, suggestedName}|{image}, networkVolume}` – what an open panel checks before it closes, and what an import would ask about (`suggestedName`: the first free name to import a VM under) |
-| `packages.import` | `path, name?, replace?` | Job `import` → `result: {kind, names, notes}` |
+| `packages.import` | `path, name?, replace?` | Job `import` → `result: {kind, names, notes}` (§5) |
 | `packages.export` | `kind: "vm"|"image"|"recipe", name, folder, withImage?` | Job `export` → `result: {path}` (`withImage` unset: as `Transfer::carries_image` decides) |
 
 ### Doctor, macOS base, Linux builder
 
 | Method | Params | Result |
 |---|---|---|
-| `doctor.check` | – | `{prerequisites, nixosPreflight, macosPreflight, latestRelease?, buildBlockers: {nixos, macos}, startBlockers: {nixos, macos}, issues, requirementsMissing, hasMacBase, macBaseUser?, checked}` – blockers are Prerequisites; a build runs these checks right before it starts, `vms.start` refuses a start blocker of the last check (`prerequisite`) |
+| `doctor.check` | – | `{prerequisites, nixosPreflight, macosPreflight, latestRelease?, buildBlockers: {nixos, macos}, startBlockers: {nixos, macos}, issues, requirementsMissing, hasMacBase, macBaseUser?, builderSystemIsOmaflakes, checked}` – blockers are Prerequisites; `builderSystemIsOmaflakes`: this Mac's nix-darwin system comes from omaflake's image flake (else `builder.apply` needs `force`); a build runs these checks right before it starts, `vms.start` refuses a start blocker of the last check (`prerequisite`) |
 | `doctor.setPath` | `item: "nix"|"qemu"|"flake", path` | as `doctor.check` |
 | `macos.downloadIpsw` | – | Job `ipsw-download` → `result: {file, version}` (cancel pauses; it continues from there) |
 | `macos.installBase` | `user, fullName, password, ipsw?` | Job `macos-install` → `result: {base, existing, ready}` |
@@ -317,5 +340,12 @@ stores tokens only in the system keychain (macOS Keychain; Linux: OPEN).
 ## 9. Status
 
 API v1 is new with the Rust core (plan B117). The method tables are the contract; the Rust types in
-`crates/omaflake-core/src/api/` are its implementation, and their JSON Schema is OPEN (to be generated from those
-types and published under `schema/api/`).
+`crates/omaflake-core/src/api/types.rs` are its implementation, and their JSON Schema is OPEN (to be generated from
+those types and published under `schema/api/`).
+
+**Contract tests.** `crates/omaflake-core/testdata/api/*.json` holds a representative value of every result, event
+and error (and the params `initialize` and `vms.create` get): the Rust tests (`api::contract`) write them from the
+types (`OMAF_UPDATE_GOLDEN=1 cargo test -p omaflake-core api::contract` after a deliberate change, otherwise they
+compare), and the Swift tests (`APIContractTests`) decode each with the app's types – strictly, a required field is
+never defaulted. `CoreEndToEndTests` starts the real `omaf serve` (`OMAF_BIN=target/debug/omaf swift test`) on a
+fresh data folder and decodes every read method and the events.

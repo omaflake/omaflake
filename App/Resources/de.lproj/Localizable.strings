@@ -582,6 +582,8 @@
 /* The app as a client of omaflake's core (omaf serve, docs/api.md) */
 "omaflake's core runs again" = "Der omaflake-Kern läuft wieder";
 "macOS downloaded" = "macOS geladen";
+"macOS %@ downloaded" = "macOS %@ geladen";
+"Download paused – it continues from there" = "Download pausiert – er geht von dort weiter";
 "Failed" = "Fehlgeschlagen";
 "Not an omaflake package" = "Kein omaflake-Paket";
 "Other check" = "Weitere Prüfung";

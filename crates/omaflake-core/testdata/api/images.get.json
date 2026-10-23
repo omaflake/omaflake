@@ -1,0 +1,20 @@
+{
+  "created": "2026-10-21T10:00:00Z",
+  "current": true,
+  "instances": [
+    "research"
+  ],
+  "kind": "nixos",
+  "label": "image:omaflake/nixos/dev:cedar",
+  "line": "omaflake.nixos.dev@github:omaflake/recipes@main",
+  "name": "omaflake.nixos.dev@cedar-mango-lift",
+  "omaflakeId": "image:omaflake/nixos/dev:cedar-mango-lift-amber-lake-quiet-otter-lamp-river-stone-cloud-maple",
+  "outdated": false,
+  "path": "/data/images/omaflake.nixos.dev@cedar-mango-lift",
+  "recipe": "omaflake.nixos.dev@velvet-tiger-orbit",
+  "revision": "abc123-dirty",
+  "sizeBytes": 12345678901,
+  "source": "github:omaflake/recipes@main",
+  "storePath": "/nix/store/abc-nixos-disk-image",
+  "system": "aarch64-linux"
+}
