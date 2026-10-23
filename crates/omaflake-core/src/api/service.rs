@@ -422,7 +422,18 @@ mod tests {
         assert!(!is_running(&socket));
         // A leftover socket file without a service is replaced
         std::os::unix::net::UnixListener::bind(&socket).unwrap();
-        let again = Listening::bind(&socket).unwrap();
+        // Other tests fork processes meanwhile: a child holds a copy of the lock's descriptor from fork until its exec
+        // closes it (O_CLOEXEC), so the lock can stay taken for a moment after the service ended
+        let deadline = Instant::now() + Duration::from_secs(2);
+        let again = loop {
+            match Listening::bind(&socket) {
+                Ok(l) => break l,
+                Err(e) if already_running(&e) && Instant::now() < deadline => {
+                    std::thread::sleep(Duration::from_millis(20))
+                }
+                Err(e) => panic!("{e}"),
+            }
+        };
         drop(again);
     }
 
