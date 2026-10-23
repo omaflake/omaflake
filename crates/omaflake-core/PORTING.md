@@ -136,8 +136,8 @@ packages F1–F5 fill in the bodies **in parallel** – the signatures are the c
 | IPSWDownloader.swift | `ipsw_downloader` | skeleton (`gigabytes`, file names done) | F4 macOS |
 | MacBaseInstaller.swift | `mac_base_installer` | skeleton (`is_ready`, `fresh`, `base`, `BaseRequest::new` done) | F4 macOS |
 | MacImageBuilder.swift | `mac_image_builder` | skeleton | F4 macOS |
-| Prerequisites.swift | `prerequisites` | skeleton (types done) | F5 doctor |
-| BuilderMaintenance.swift | `builder_maintenance` | skeleton (`shell_quote`, `nix_installer_url`, constants done) | F5 doctor |
+| Prerequisites.swift | `prerequisites` | done | F5 doctor |
+| BuilderMaintenance.swift | `builder_maintenance` (with `AdminShell`) | done | F5 doctor |
 | Brand.swift, BrandAssets.swift | – | stay in Swift (AppKit) | – |
 
 Tests to port per package (Tests/OmaflakeCoreTests/OmaflakeCoreTests.swift suites): F1 – RecipeRenameTests

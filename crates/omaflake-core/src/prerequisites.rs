@@ -1,21 +1,32 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Port of Prerequisites.swift – work package F5. Done: the types and constants. Skeleton: the checks (`todo!`).
+//! Port of Prerequisites.swift – work package F5.
 //!
 //! What the user's Mac brings (spec §11.2): detected without elevated rights, shared by `omaf doctor` and the app's
 //! Requirements page. Nothing here installs anything – `install` is a command the user runs in Terminal.
 //!
-//! Not 1:1: `host()` read `ProcessInfo.operatingSystemVersion`; Rust: OPEN – `sw_vers -productVersion` on macOS
-//! (a Linux host is "missing" until Linux hosts are supported). The IPSW check asks `IpswDownloader::resume_file_for`
-//! (`.partial`, see ipsw_downloader.rs) instead of URLSession's `.resume`.
-#![allow(unused_variables, dead_code)]
+//! Not 1:1: `host()` read `ProcessInfo.operatingSystemVersion`; Rust reads `kern.osproductversion` (sysctl, the same
+//! value `sw_vers -productVersion` prints) on macOS. Any other host is `missing`: Linux hosts are not supported yet
+//! (OPEN, issue #2). The IPSW check asks `IpswDownloader::resume_file_for` (`.partial`, see ipsw_downloader.rs) instead
+//! of URLSession's `.resume`. The macOS base check picks the first differing recipe `macUser` in sorted order (Swift: a
+//! `Set`, so any).
 
-use std::collections::HashMap;
+use std::collections::{BTreeSet, HashMap};
+use std::fs;
 use std::path::Path;
 
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Serialize, Serializer};
 
-use crate::ipsw_downloader::MacOsRelease;
+use crate::builder_maintenance::BuilderMaintenance;
+use crate::image_store::ImageStore;
+use crate::ipsw_downloader::{free_space, gigabytes, IpswDownloader, MacOsRelease};
+use crate::mac_base_installer::MacBaseInstaller;
+use crate::mac_image_builder::MacImageBuilder;
+use crate::models::{GuestKind, RecipeId};
 use crate::paths::{Paths, Settings};
+use crate::platform::{expand_tilde, home_dir, is_executable_file, machine};
+use crate::qemu_runtime::QemuRuntime;
+use crate::shell::{RunOptions, Shell};
+use crate::sockets::{Ports, DEFAULT_TIMEOUT};
 
 /// Swift `Prerequisite.Item`; serialized as Swift's raw value (camelCase: "nixDarwin", "linuxBuilder", …)
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -73,8 +84,10 @@ pub enum PrerequisiteStatus {
     Missing,
 }
 
-/// One check's result
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+/// One check's result. JSON (docs/api.md §4.4): camelCase keys, the computed `required` and `settablePath` written as
+/// fields, optional fields left out when unset; reading ignores `required` and `settablePath`.
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct Prerequisite {
     pub item: PrerequisiteItem,
     pub status: PrerequisiteStatus,
@@ -83,13 +96,59 @@ pub struct Prerequisite {
     /// What to do about it (empty when ok)
     pub hint: String,
     /// Command for Terminal that installs it (official installers only), None if there is none
+    #[serde(default)]
     pub install: Option<String>,
     /// Space checks: free and needed bytes (for a localized display; `detail` has them in English)
+    #[serde(default)]
     pub free_bytes: Option<i64>,
+    #[serde(default)]
     pub needed_bytes: Option<i64>,
     /// macOS base: its guest user, and the recipes' macUser when it differs
+    #[serde(default)]
     pub base_user: Option<String>,
+    #[serde(default)]
     pub expected_user: Option<String>,
+}
+
+/// The JSON shape of a `Prerequisite` (api.md §4.4)
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct PrerequisiteJson<'a> {
+    item: PrerequisiteItem,
+    status: PrerequisiteStatus,
+    required: bool,
+    detail: &'a str,
+    hint: &'a str,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    install: Option<&'a str>,
+    settable_path: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    free_bytes: Option<i64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    needed_bytes: Option<i64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    base_user: Option<&'a str>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    expected_user: Option<&'a str>,
+}
+
+impl Serialize for Prerequisite {
+    fn serialize<S: Serializer>(&self, s: S) -> std::result::Result<S::Ok, S::Error> {
+        PrerequisiteJson {
+            item: self.item,
+            status: self.status,
+            required: self.required(),
+            detail: &self.detail,
+            hint: &self.hint,
+            install: self.install.as_deref(),
+            settable_path: self.settable_path(),
+            free_bytes: self.free_bytes,
+            needed_bytes: self.needed_bytes,
+            base_user: self.base_user.as_deref(),
+            expected_user: self.expected_user.as_deref(),
+        }
+        .serialize(s)
+    }
 }
 
 impl Prerequisite {
@@ -133,9 +192,38 @@ pub struct Prerequisites {
     pub paths: Paths,
 }
 
+/// `ok ? a : b` for the many status choices
+fn status(ok: bool, otherwise: PrerequisiteStatus) -> PrerequisiteStatus {
+    if ok {
+        PrerequisiteStatus::Ok
+    } else {
+        otherwise
+    }
+}
+
+/// Names in a folder (sorted), empty when it cannot be read
+fn sorted_names(dir: &Path) -> Vec<String> {
+    let mut names: Vec<String> = fs::read_dir(dir)
+        .map(|entries| entries.flatten().map(|e| e.file_name().to_string_lossy().into_owned()).collect())
+        .unwrap_or_default();
+    names.sort();
+    names
+}
+
+/// The last path component as text (Swift `lastPathComponent`)
+fn last_component(path: &Path) -> String {
+    path.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default()
+}
+
+/// Swift `CharacterSet.whitespaces`: spaces and tabs (no newlines)
+fn trim_spaces(s: &str) -> &str {
+    s.trim_matches(|c: char| c.is_whitespace() && c != '\n' && c != '\r')
+}
+
 impl Prerequisites {
     // MARK: Official install commands (typed into Terminal by the user's click)
 
+    /// nix-darwin's documented flake setup in /etc/nix-darwin (README of nix-darwin)
     /// nix-darwin with omaflake's Linux builder host, in two stages (`omaf builder setup`; the app's "Set Up …")
     pub const INSTALL_NIX_DARWIN: &'static str = "omaf builder setup";
     /// omaflake's patched QEMU from the flake (spec §11.2)
@@ -155,124 +243,762 @@ impl Prerequisites {
     /// The official installer of the NixOS community (also what the app runs through the administrator dialog):
     /// `sudo sh -c '<BuilderMaintenance::install_nix_command()>'`
     pub fn install_nix() -> String {
-        todo!("port from Prerequisites.swift")
+        format!("sudo sh -c '{}'", BuilderMaintenance::install_nix_command())
     }
 
     /// All checks, in the order shown: host, nix, flakes, nix-darwin, Linux builder, QEMU, flake, SSH key, git.
     pub fn check(&self) -> Vec<Prerequisite> {
-        todo!("port from Prerequisites.swift")
+        let settings = Settings::load(&self.paths);
+        let nix = Self::locate_nix(&settings);
+        let config = nix.as_deref().map(Self::nix_config).unwrap_or_default();
+        vec![
+            self.host(),
+            self.nix_item(nix.as_deref()),
+            self.flakes(nix.as_deref(), &config),
+            self.nix_darwin(),
+            self.linux_builder(nix.as_deref(), &config),
+            self.qemu(),
+            self.flake(&settings, nix.as_deref()),
+            self.ssh_key(),
+            self.git(),
+        ]
     }
 
     // MARK: Checks
 
     pub(crate) fn host(&self) -> Prerequisite {
-        todo!("port from Prerequisites.swift")
+        Self::host_item(Self::os_version().as_deref(), &machine())
+    }
+
+    /// The host check from the OS version (`kern.osproductversion`, None when not macOS) and the machine (`uname -m`)
+    pub(crate) fn host_item(macos_version: Option<&str>, machine: &str) -> Prerequisite {
+        let Some(product) = macos_version else {
+            // OPEN (issue #2): Linux hosts
+            return Prerequisite::new(
+                PrerequisiteItem::Host,
+                PrerequisiteStatus::Missing,
+                &format!("{} {machine} – not supported yet", Self::os_name()),
+                "omaflake runs on macOS with Apple silicon; Linux hosts are not supported yet",
+                None,
+            );
+        };
+        let (major, minor, patch) = Self::parse_os_version(product);
+        let version = if patch > 0 { format!("{major}.{minor}.{patch}") } else { format!("{major}.{minor}") };
+        let arm = machine == "arm64";
+        // The app and the CLI need macOS 27 (Package.swift, Info.plist); this check names it for builds run elsewhere
+        let ok = arm && major >= 27;
+        let hint = if ok {
+            ""
+        } else if arm {
+            "omaflake needs macOS 27 or later"
+        } else {
+            "omaflake needs a Mac with Apple silicon"
+        };
+        Prerequisite::new(
+            PrerequisiteItem::Host,
+            status(ok, PrerequisiteStatus::Missing),
+            &format!("macOS {version}, {machine}"),
+            hint,
+            None,
+        )
+    }
+
+    /// "27.0.1" → (27, 0, 1); missing or unreadable parts are 0
+    pub(crate) fn parse_os_version(text: &str) -> (u32, u32, u32) {
+        let mut parts = text.trim().split('.').map(|p| p.parse::<u32>().unwrap_or(0));
+        (parts.next().unwrap_or(0), parts.next().unwrap_or(0), parts.next().unwrap_or(0))
+    }
+
+    /// The host OS's name for the detail of an unsupported host ("Linux", …)
+    fn os_name() -> String {
+        match std::env::consts::OS {
+            "linux" => "Linux".into(),
+            "macos" => "macOS".into(),
+            other => other.into(),
+        }
+    }
+
+    /// macOS' product version (Swift `ProcessInfo.operatingSystemVersion`); None on other systems
+    #[cfg(target_os = "macos")]
+    fn os_version() -> Option<String> {
+        let name = c"kern.osproductversion";
+        let mut buf = [0u8; 64];
+        let mut len: libc::size_t = buf.len();
+        // SAFETY: sysctlbyname writes at most `len` bytes into `buf` and updates `len`; no new value is set
+        let rc =
+            unsafe { libc::sysctlbyname(name.as_ptr(), buf.as_mut_ptr().cast(), &mut len, std::ptr::null_mut(), 0) };
+        if rc != 0 {
+            return Some(String::new());
+        }
+        let bytes = &buf[..len.min(buf.len())];
+        let end = bytes.iter().position(|&b| b == 0).unwrap_or(bytes.len());
+        Some(String::from_utf8_lossy(&bytes[..end]).into_owned())
+    }
+
+    #[cfg(not(target_os = "macos"))]
+    fn os_version() -> Option<String> {
+        None
     }
 
     pub(crate) fn nix_item(&self, nix: Option<&str>) -> Prerequisite {
-        todo!("port from Prerequisites.swift")
+        let Some(nix) = nix else {
+            return Prerequisite::new(
+                PrerequisiteItem::Nix,
+                PrerequisiteStatus::Missing,
+                "not found",
+                "Install Nix, or enter the path to the nix binary",
+                Some(Self::install_nix()),
+            );
+        };
+        let version = Shell::run(nix, &["--version"], &RunOptions::default())
+            .map(|r| r.stdout.trim().to_string())
+            .unwrap_or_else(|_| "?".into());
+        Prerequisite::new(PrerequisiteItem::Nix, PrerequisiteStatus::Ok, &format!("{version} – {nix}"), "", None)
     }
 
     pub(crate) fn flakes(&self, nix: Option<&str>, config: &HashMap<String, String>) -> Prerequisite {
-        todo!("port from Prerequisites.swift")
+        if nix.is_none() {
+            return Prerequisite::new(PrerequisiteItem::Flakes, PrerequisiteStatus::Missing, "needs Nix", "", None);
+        }
+        let ok = Self::flakes_enabled(config);
+        let detail = if ok {
+            format!("experimental-features: {}", config.get("experimental-features").map(String::as_str).unwrap_or(""))
+        } else {
+            "flakes not enabled".into()
+        };
+        Prerequisite::new(
+            PrerequisiteItem::Flakes,
+            status(ok, PrerequisiteStatus::Missing),
+            &detail,
+            if ok {
+                ""
+            } else {
+                "Add \"nix-command flakes\" to experimental-features (nix-darwin: nix.settings.experimental-features)"
+            },
+            None,
+        )
     }
 
     pub(crate) fn nix_darwin(&self) -> Prerequisite {
-        todo!("port from Prerequisites.swift")
+        let rebuild = "/run/current-system/sw/bin/darwin-rebuild";
+        let ok = is_executable_file(Path::new(rebuild));
+        Prerequisite::new(
+            PrerequisiteItem::NixDarwin,
+            status(ok, PrerequisiteStatus::Missing),
+            if ok { rebuild } else { "not found" },
+            if ok { "" } else { "Set up nix-darwin (it provides the Linux builder for NixOS images)" },
+            (!ok).then(|| Self::INSTALL_NIX_DARWIN.to_string()),
+        )
     }
 
-    pub(crate) fn linux_builder(&self, nix: Option<&str>, config: &HashMap<String, String>) -> Prerequisite {
-        todo!("port from Prerequisites.swift")
+    pub(crate) fn linux_builder(&self, _nix: Option<&str>, config: &HashMap<String, String>) -> Prerequisite {
+        let builders = config.get("builders").map(String::as_str).unwrap_or("");
+        let machines = Self::builder_lines(builders, &|f| fs::read_to_string(f).ok());
+        let linux = machines.iter().find(|m| Self::is_linux_builder(m));
+        let detail = match linux {
+            Some(line) => line.split(' ').find(|f| !f.is_empty()).unwrap_or("").to_string(),
+            None => "no aarch64-linux builder".into(),
+        };
+        Prerequisite::new(
+            PrerequisiteItem::LinuxBuilder,
+            status(linux.is_some(), PrerequisiteStatus::Missing),
+            &detail,
+            if linux.is_some() {
+                ""
+            } else {
+                "Enable nix.linux-builder in your nix-darwin configuration (docs/linux-builder.md)"
+            },
+            None,
+        )
     }
 
     pub(crate) fn qemu(&self) -> Prerequisite {
-        todo!("port from Prerequisites.swift")
+        let Ok((rt, _)) = QemuRuntime::locate(&self.paths) else {
+            return Prerequisite::new(
+                PrerequisiteItem::Qemu,
+                PrerequisiteStatus::Missing,
+                "not found",
+                "Needed for NixOS guests: install omaflake's QEMU, or enter a path",
+                Some(Self::INSTALL_QEMU.into()),
+            );
+        };
+        let gl = rt.capabilities().gl;
+        Prerequisite::new(
+            PrerequisiteItem::Qemu,
+            status(gl, PrerequisiteStatus::Limited),
+            &format!("{}{}", rt.qemu, if gl { " (3D)" } else { " (no 3D)" }),
+            if gl {
+                ""
+            } else {
+                "Works headless and in 2D – without 3D and without automatic window resolution; omaflake's QEMU adds both"
+            },
+            (!gl).then(|| Self::INSTALL_QEMU.to_string()),
+        )
     }
 
-    pub(crate) fn flake(&self, settings: &Settings, nix: Option<&str>) -> Prerequisite {
-        todo!("port from Prerequisites.swift")
+    pub(crate) fn flake(&self, settings: &Settings, _nix: Option<&str>) -> Prerequisite {
+        let Ok(flake) = settings.flake_path() else {
+            return Prerequisite::new(
+                PrerequisiteItem::Flake,
+                PrerequisiteStatus::Missing,
+                "not set",
+                "Choose the flake with your recipes (folder or flake URL)",
+                None,
+            );
+        };
+        let is_folder = flake.starts_with('/');
+        let exists = !is_folder || Path::new(&flake).join("flake.nix").exists();
+        Prerequisite::new(
+            PrerequisiteItem::Flake,
+            status(exists, PrerequisiteStatus::Missing),
+            &flake,
+            if exists { "" } else { "No flake.nix in this folder" },
+            None,
+        )
     }
 
     pub(crate) fn ssh_key(&self) -> Prerequisite {
-        todo!("port from Prerequisites.swift")
+        let keys = MacBaseInstaller::default_public_keys();
+        let files: Vec<String> = sorted_names(&home_dir().join(".ssh"))
+            .into_iter()
+            .filter(|n| n.ends_with(".pub"))
+            .map(|n| format!("~/.ssh/{n}"))
+            .collect();
+        let none = keys.is_empty();
+        Prerequisite::new(
+            PrerequisiteItem::SshKey,
+            status(!none, PrerequisiteStatus::Missing),
+            &if none { "no public key in ~/.ssh".to_string() } else { files.join(", ") },
+            if none { "Create a key (used for omaf ssh, image builds and macOS bases)" } else { "" },
+            none.then(|| Self::INSTALL_SSH_KEY.to_string()),
+        )
     }
 
     pub(crate) fn git(&self) -> Prerequisite {
-        todo!("port from Prerequisites.swift")
+        let git = Self::locate_git();
+        Prerequisite::new(
+            PrerequisiteItem::Git,
+            status(git.is_some(), PrerequisiteStatus::Limited),
+            git.as_deref().unwrap_or("not found"),
+            if git.is_some() {
+                ""
+            } else {
+                "Optional: image names then show \"nogit\" instead of the flake's revision"
+            },
+            git.is_none().then(|| Self::INSTALL_GIT.to_string()),
+        )
     }
 
     // MARK: Preflight (before building images)
 
     pub fn nixos_preflight(&self) -> Vec<Prerequisite> {
-        todo!("port from Prerequisites.swift")
+        let settings = Settings::load(&self.paths);
+        vec![
+            self.builder_running(),
+            self.flake_eval(&settings),
+            self.space(PrerequisiteItem::NixSpace, Path::new("/nix/store"), Self::NIX_SPACE_NEEDED),
+        ]
     }
 
     /// `latest`: what Apple offers this Mac (`MacOsRelease::latest`), None when unknown (offline).
     pub fn macos_preflight(&self, latest: Option<&MacOsRelease>) -> Vec<Prerequisite> {
-        todo!("port from Prerequisites.swift")
+        let ipsw_item = self.ipsw(latest);
+        let missing_ipsw = if ipsw_item.status != PrerequisiteStatus::Ok {
+            latest.and_then(|l| l.bytes).unwrap_or(27_000_000_000)
+        } else {
+            0
+        };
+        vec![
+            ipsw_item,
+            self.mac_base(),
+            self.space(PrerequisiteItem::MacSpace, &self.paths.root, Self::MAC_SPACE_NEEDED + missing_ipsw),
+        ]
     }
 
     pub fn builder_running(&self) -> Prerequisite {
-        todo!("port from Prerequisites.swift")
+        let target = Self::builder_ssh_target(None);
+        let up = target.as_ref().is_some_and(|(host, port)| {
+            let host = if host == "localhost" { "127.0.0.1" } else { host.as_str() };
+            Ports::ssh_banner(host, *port, DEFAULT_TIMEOUT).is_some()
+        });
+        let detail = match &target {
+            Some((host, port)) => format!("{host}:{port}"),
+            None => "no linux-builder in /etc/ssh/ssh_config.d".into(),
+        };
+        Prerequisite::new(
+            PrerequisiteItem::BuilderRunning,
+            status(up, PrerequisiteStatus::Missing),
+            &detail,
+            if up {
+                ""
+            } else {
+                "The Linux builder VM does not answer – it starts with nix-darwin (launchd org.nixos.linux-builder)"
+            },
+            None,
+        )
     }
 
     pub(crate) fn flake_eval(&self, settings: &Settings) -> Prerequisite {
-        todo!("port from Prerequisites.swift")
+        let Ok(flake) = settings.flake_path() else {
+            return Prerequisite::new(
+                PrerequisiteItem::FlakeEval,
+                PrerequisiteStatus::Missing,
+                "no flake set",
+                "",
+                None,
+            );
+        };
+        match ImageStore::new(self.paths.clone()).recipe_defaults(&flake) {
+            Ok(recipes) => {
+                let mut nixos: Vec<String> = recipes
+                    .iter()
+                    .filter(|(_, d)| d.kind == GuestKind::Nixos)
+                    .map(|(id, d)| RecipeId::display_name(id, Some(d)))
+                    .collect();
+                nixos.sort();
+                Prerequisite::new(
+                    PrerequisiteItem::FlakeEval,
+                    PrerequisiteStatus::Ok,
+                    &format!("{} recipes ({})", recipes.len(), nixos.join(", ")),
+                    "",
+                    None,
+                )
+            }
+            Err(e) => Prerequisite::new(
+                PrerequisiteItem::FlakeEval,
+                PrerequisiteStatus::Missing,
+                &e.to_string().chars().take(300).collect::<String>(),
+                "The flake does not evaluate – see the message",
+                None,
+            ),
+        }
     }
 
     pub(crate) fn ipsw(&self, latest: Option<&MacOsRelease>) -> Prerequisite {
-        todo!("port from Prerequisites.swift")
+        let dir = self.paths.ipsw();
+        let local: Vec<String> = sorted_names(&dir).into_iter().filter(|n| n.ends_with(".ipsw")).collect();
+        let Some(latest) = latest else {
+            return Prerequisite::new(
+                PrerequisiteItem::Ipsw,
+                if local.is_empty() { PrerequisiteStatus::Missing } else { PrerequisiteStatus::Ok },
+                local.last().map(String::as_str).unwrap_or("Apple not reachable"),
+                "",
+                None,
+            );
+        };
+        let file = IpswDownloader::file(latest, &dir);
+        if file.exists() {
+            return Prerequisite::new(
+                PrerequisiteItem::Ipsw,
+                PrerequisiteStatus::Ok,
+                &format!("macOS {} ({}) – {}", latest.version, latest.build, last_component(&file)),
+                "",
+                None,
+            );
+        }
+        let partial = IpswDownloader::resume_file_for(latest, &dir).exists();
+        Prerequisite::new(
+            PrerequisiteItem::Ipsw,
+            if partial { PrerequisiteStatus::Limited } else { PrerequisiteStatus::Missing },
+            &format!(
+                "macOS {} ({}), {} from Apple",
+                latest.version,
+                latest.build,
+                latest.bytes.map(gigabytes).unwrap_or_else(|| "?".into())
+            ),
+            if partial { "Partly downloaded – continues where it stopped" } else { "Download it from Apple" },
+            None,
+        )
     }
 
     pub(crate) fn mac_base(&self) -> Prerequisite {
-        todo!("port from Prerequisites.swift")
+        let base = MacImageBuilder::newest_base_in(&self.paths);
+        let bases = self.paths.bases();
+        let unfinished = sorted_names(&bases)
+            .into_iter()
+            .filter(|n| n.starts_with("mac-base-"))
+            .find(|n| !MacBaseInstaller::is_ready(&bases.join(n)));
+        if let (None, Some(unfinished)) = (&base, &unfinished) {
+            return Prerequisite::new(
+                PrerequisiteItem::MacBase,
+                PrerequisiteStatus::Limited,
+                &format!("{unfinished} (unfinished)"),
+                "Unfinished – Create Base continues it (same password as before)",
+                None,
+            );
+        }
+        if let Some(base) = &base {
+            if let Some(user) = MacBaseInstaller::user_of(base, &self.paths.logs()) {
+                // The macOS recipes' guest user (macUser) must be the base's: builds log in as it, nix-darwin
+                // configures it
+                let expected: BTreeSet<String> = Settings::load(&self.paths)
+                    .flake_path()
+                    .ok()
+                    .and_then(|f| ImageStore::new(self.paths.clone()).recipe_defaults(&f).ok())
+                    .unwrap_or_default()
+                    .into_values()
+                    .filter(|d| d.kind == GuestKind::Macos)
+                    .filter_map(|d| d.user)
+                    .collect();
+                let name = last_component(base);
+                if let Some(other) = expected.iter().find(|u| **u != user) {
+                    let mut p = Prerequisite::new(
+                        PrerequisiteItem::MacBase,
+                        PrerequisiteStatus::Limited,
+                        &format!("{name} ({user})"),
+                        &format!("The base's user {user} differs from the recipes' macUser {other} – make them match"),
+                        None,
+                    );
+                    p.expected_user = Some(other.clone());
+                    p.base_user = Some(user);
+                    return p;
+                }
+                let mut p = Prerequisite::new(
+                    PrerequisiteItem::MacBase,
+                    PrerequisiteStatus::Ok,
+                    &format!("{name} ({user})"),
+                    "",
+                    None,
+                );
+                p.base_user = Some(user);
+                return p;
+            }
+        }
+        Prerequisite::new(
+            PrerequisiteItem::MacBase,
+            status(base.is_some(), PrerequisiteStatus::Missing),
+            &base.as_deref().map(last_component).unwrap_or_else(|| "none yet".into()),
+            if base.is_some() { "" } else { "Create it from the IPSW (about 5 minutes, no manual steps)" },
+            None,
+        )
     }
 
     pub(crate) fn space(&self, item: PrerequisiteItem, at: &Path, needed: i64) -> Prerequisite {
-        todo!("port from Prerequisites.swift")
+        let free = free_space(at).unwrap_or(0);
+        let enough = free >= needed;
+        let mut p = Prerequisite::new(
+            item,
+            status(enough, PrerequisiteStatus::Missing),
+            &format!("{} free, about {} needed", gigabytes(free), gigabytes(needed)),
+            if enough { "" } else { "Free up space first" },
+            None,
+        );
+        p.free_bytes = Some(free);
+        p.needed_bytes = Some(needed);
+        p
     }
 
     /// Host and port of the Linux builder from the SSH configuration nix-darwin writes (`Host linux-builder`);
     /// its key is root's, so only the SSH banner is checked. `configs` None = /etc/ssh/ssh_config.d/* and
     /// /etc/ssh/ssh_config.
     pub(crate) fn builder_ssh_target(configs: Option<&[String]>) -> Option<(String, u16)> {
-        todo!("port from Prerequisites.swift")
+        let read: Vec<String>;
+        let texts: &[String] = match configs {
+            Some(c) => c,
+            None => {
+                let dir = Path::new("/etc/ssh/ssh_config.d");
+                let mut files: Vec<_> = sorted_names(dir).into_iter().map(|n| dir.join(n)).collect();
+                files.push("/etc/ssh/ssh_config".into());
+                read = files.iter().filter_map(|f| fs::read_to_string(f).ok()).collect();
+                &read
+            }
+        };
+        for text in texts {
+            let mut in_block = false;
+            let mut host: Option<String> = None;
+            let mut port: u16 = 22;
+            for raw in text.split('\n').filter(|l| !l.is_empty()) {
+                // "<keyword> <value>": split at the first space, further spaces before the value are skipped
+                let Some((key, value)) = trim_spaces(raw).split_once(' ') else { continue };
+                let value = value.trim_start_matches(' ');
+                if key.is_empty() || value.is_empty() {
+                    continue;
+                }
+                match key.to_lowercase().as_str() {
+                    "host" => {
+                        if in_block {
+                            return Some((host.unwrap_or_else(|| "linux-builder".into()), port));
+                        }
+                        in_block = value.split(' ').any(|h| h == "linux-builder");
+                    }
+                    "hostname" if in_block => host = Some(value.to_string()),
+                    "port" if in_block => port = value.parse().unwrap_or(22),
+                    _ => {}
+                }
+            }
+            if in_block {
+                return Some((host.unwrap_or_else(|| "linux-builder".into()), port));
+            }
+        }
+        None
     }
 
     // MARK: Detection helpers
 
     /// `nix`: `Settings.nix` (must be executable), then PATH and the usual Nix locations (`Shell::which`).
     pub fn locate_nix(settings: &Settings) -> Option<String> {
-        todo!("port from Prerequisites.swift")
+        if let Some(custom) = settings.nix.as_deref().map(expand_tilde) {
+            return is_executable_file(Path::new(&custom)).then_some(custom);
+        }
+        Shell::which("nix").ok()
     }
 
     /// git that does not trigger the Command Line Tools install dialog: /usr/bin/git is only a shim that asks
     /// to install them when they are missing, so it counts only when `xcode-select -p` finds developer tools.
     pub fn locate_git() -> Option<String> {
-        todo!("port from Prerequisites.swift")
+        let found = Shell::search_directories()
+            .into_iter()
+            .filter(|d| d != "/usr/bin")
+            .map(|d| Path::new(&d).join("git"))
+            .find(|p| is_executable_file(p));
+        if let Some(git) = found {
+            return Some(git.to_string_lossy().into_owned());
+        }
+        let tools = Shell::run("/usr/bin/xcode-select", &["-p"], &RunOptions::default());
+        if tools.map(|r| r.status) != Ok(0) {
+            return None;
+        }
+        Some("/usr/bin/git".into())
     }
 
     /// `nix config show` as key → value
     pub(crate) fn nix_config(nix: &str) -> HashMap<String, String> {
-        todo!("port from Prerequisites.swift")
+        let out = Shell::run(nix, &["config", "show"], &RunOptions::default()).map(|r| r.stdout).unwrap_or_default();
+        Self::parse_config(&out)
     }
 
     pub(crate) fn parse_config(text: &str) -> HashMap<String, String> {
-        todo!("port from Prerequisites.swift")
+        text.split('\n')
+            .filter_map(|line| line.split_once('='))
+            .map(|(key, value)| (trim_spaces(key).to_string(), trim_spaces(value).to_string()))
+            .collect()
     }
 
     pub(crate) fn flakes_enabled(config: &HashMap<String, String>) -> bool {
-        todo!("port from Prerequisites.swift")
+        config.get("experimental-features").is_some_and(|f| f.split(' ').any(|x| x == "flakes"))
     }
 
     /// `builders` is a list separated by ";" or newlines, or "@<file>" with one machine per line (`read` reads it;
     /// Swift default: the file's contents)
     pub(crate) fn builder_lines(builders: &str, read: &dyn Fn(&str) -> Option<String>) -> Vec<String> {
-        todo!("port from Prerequisites.swift")
+        let text = match builders.strip_prefix('@') {
+            Some(file) => read(file).unwrap_or_default(),
+            None => builders.to_string(),
+        };
+        text.split(['\n', ';'])
+            .map(|l| trim_spaces(l).to_string())
+            .filter(|l| !l.is_empty() && !l.starts_with('#'))
+            .collect()
     }
 
     /// Machine line: `<uri> <systems, comma-separated> …` with aarch64-linux among the systems
     pub(crate) fn is_linux_builder(line: &str) -> bool {
-        todo!("port from Prerequisites.swift")
+        let fields: Vec<&str> = line.split(' ').filter(|f| !f.is_empty()).collect();
+        fields.len() > 1 && fields[1].split(',').any(|s| s == "aarch64-linux")
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::paths::tests::temp_paths;
+
+    // `nix config show` excerpt and /etc/nix/machines as written by nix-darwin's linux-builder (2026-10-16)
+    const CONFIG: &str =
+        "builders = @/etc/nix/machines\nexperimental-features = fetch-tree flakes nix-command\nmax-jobs = auto\n";
+    const MACHINES: &str =
+        "ssh-ng://builder@linux-builder aarch64-linux /etc/nix/builder_ed25519 6 1 kvm,benchmark,big-parallel - c3No\n";
+
+    fn no_file(_: &str) -> Option<String> {
+        None
+    }
+
+    #[test]
+    fn parses_config_and_flakes() {
+        let c = Prerequisites::parse_config(CONFIG);
+        assert_eq!(c["builders"], "@/etc/nix/machines");
+        assert!(Prerequisites::flakes_enabled(&c));
+        let only = HashMap::from([("experimental-features".to_string(), "nix-command".to_string())]);
+        assert!(!Prerequisites::flakes_enabled(&only));
+        assert!(!Prerequisites::flakes_enabled(&HashMap::new()));
+    }
+
+    #[test]
+    fn finds_linux_builder_in_machines_file() {
+        let lines = Prerequisites::builder_lines("@/etc/nix/machines", &|f| {
+            (f == "/etc/nix/machines").then(|| MACHINES.to_string())
+        });
+        assert!(lines.len() == 1 && Prerequisites::is_linux_builder(&lines[0]));
+        assert!(!Prerequisites::is_linux_builder("ssh://mac x86_64-darwin"));
+        assert!(Prerequisites::builder_lines("", &no_file).is_empty());
+        // inline list, separated by ";"
+        assert_eq!(Prerequisites::builder_lines("ssh://a aarch64-linux ; ssh://b x86_64-linux", &no_file).len(), 2);
+        // comments and blank lines are left out
+        assert_eq!(
+            Prerequisites::builder_lines("# x\n\n  ssh://a aarch64-linux\n", &no_file),
+            ["ssh://a aarch64-linux"]
+        );
+    }
+
+    #[test]
+    fn linux_builder_item_names_the_machine() {
+        let (_d, p) = temp_paths();
+        let pre = Prerequisites::new(p);
+        let config = HashMap::from([("builders".to_string(), "ssh://a x86_64-linux; ssh-ng://b aarch64-linux".into())]);
+        let item = pre.linux_builder(Some("/x/nix"), &config);
+        assert_eq!((item.status, item.detail.as_str()), (PrerequisiteStatus::Ok, "ssh-ng://b"));
+        let none = pre.linux_builder(None, &HashMap::new());
+        assert_eq!((none.status, none.detail.as_str()), (PrerequisiteStatus::Missing, "no aarch64-linux builder"));
+    }
+
+    #[test]
+    fn flakes_item() {
+        let (_d, p) = temp_paths();
+        let pre = Prerequisites::new(p);
+        assert_eq!(pre.flakes(None, &HashMap::new()).detail, "needs Nix");
+        let ok = pre.flakes(Some("/x/nix"), &Prerequisites::parse_config(CONFIG));
+        assert_eq!(ok.status, PrerequisiteStatus::Ok);
+        assert_eq!(ok.detail, "experimental-features: fetch-tree flakes nix-command");
+        assert_eq!(pre.flakes(Some("/x/nix"), &HashMap::new()).status, PrerequisiteStatus::Missing);
+    }
+
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn host_is_apple_silicon() {
+        assert_eq!(machine(), "arm64");
+        // a real Mac's version: at least "<major>.<minor>"
+        let v = Prerequisites::os_version().unwrap();
+        assert!(Prerequisites::parse_os_version(&v).0 >= 11, "{v}");
+    }
+
+    #[test]
+    fn host_item_from_version_and_machine() {
+        let ok = Prerequisites::host_item(Some("27.0.1"), "arm64");
+        assert_eq!(
+            (ok.status, ok.detail.as_str(), ok.hint.as_str()),
+            (PrerequisiteStatus::Ok, "macOS 27.0.1, arm64", "")
+        );
+        assert_eq!(Prerequisites::host_item(Some("27.0"), "arm64").detail, "macOS 27.0, arm64");
+        assert_eq!(Prerequisites::host_item(Some("27"), "arm64").detail, "macOS 27.0, arm64");
+        let old = Prerequisites::host_item(Some("26.4"), "arm64");
+        assert_eq!((old.status, old.hint.as_str()), (PrerequisiteStatus::Missing, "omaflake needs macOS 27 or later"));
+        let intel = Prerequisites::host_item(Some("27.0"), "x86_64");
+        assert_eq!(intel.hint, "omaflake needs a Mac with Apple silicon");
+        // OPEN (issue #2): Linux hosts
+        let linux = Prerequisites::host_item(None, "aarch64");
+        assert_eq!(linux.status, PrerequisiteStatus::Missing);
+        assert!(linux.detail.contains("not supported yet"));
+    }
+
+    #[test]
+    fn missing_flake_and_custom_nix_path() {
+        let (_d, p) = temp_paths();
+        let pre = Prerequisites::new(p);
+        let flake = pre.flake(&Settings::default(), None);
+        assert!(
+            flake.status == PrerequisiteStatus::Missing
+                || std::env::var("VM_FLAKE").is_ok()
+                || Settings::bundled_flake().is_some()
+        );
+        let s = Settings { nix: Some("/does/not/exist/nix".into()), ..Default::default() };
+        assert_eq!(Prerequisites::locate_nix(&s), None);
+        assert_eq!(pre.nix_item(None).install, Some(Prerequisites::install_nix()));
+    }
+
+    #[test]
+    fn flake_folder_needs_flake_nix() {
+        let (d, p) = temp_paths();
+        let pre = Prerequisites::new(p);
+        if std::env::var("VM_FLAKE").is_ok() {
+            return;
+        }
+        let s = Settings { flake: Some(d.path().to_string_lossy().into_owned()), ..Default::default() };
+        assert_eq!(pre.flake(&s, None).hint, "No flake.nix in this folder");
+        fs::write(d.path().join("flake.nix"), "{}").unwrap();
+        assert_eq!(pre.flake(&s, None).status, PrerequisiteStatus::Ok);
+        let url = Settings { flake: Some("github:omaflake/omaflake?dir=nix".into()), ..Default::default() };
+        assert_eq!(pre.flake(&url, None).status, PrerequisiteStatus::Ok);
+    }
+
+    #[test]
+    fn install_nix_wraps_the_pinned_installer() {
+        let cmd = Prerequisites::install_nix();
+        assert!(cmd.starts_with("sudo sh -c 'set -e;"));
+        assert!(cmd.ends_with("install --no-confirm'"));
+    }
+
+    #[test]
+    fn finds_builder_in_ssh_config() {
+        let conf = "Host other\n  Port 2\nHost linux-builder\n  User builder\n  Hostname localhost\n  HostKeyAlias linux-builder\n  Port 31022\n";
+        let t = Prerequisites::builder_ssh_target(Some(&[conf.to_string()]));
+        assert_eq!(t, Some(("localhost".to_string(), 31022)));
+        assert_eq!(Prerequisites::builder_ssh_target(Some(&["Host x\n  Port 1\n".to_string()])), None);
+        // the block ends at the next Host; without Hostname the alias is the host
+        let two = "Host a linux-builder\n\tPort 2222\nHost b\n  Port 1\n";
+        assert_eq!(Prerequisites::builder_ssh_target(Some(&[two.to_string()])), Some(("linux-builder".into(), 2222)));
+    }
+
+    #[test]
+    fn ipsw_item_without_and_with_a_release() {
+        let (_d, p) = temp_paths();
+        let pre = Prerequisites::new(p.clone());
+        let offline = pre.ipsw(None);
+        assert_eq!((offline.status, offline.detail.as_str()), (PrerequisiteStatus::Missing, "Apple not reachable"));
+        let release = MacOsRelease {
+            version: "27.0.1".into(),
+            build: "26A434".into(),
+            url: "https://updates.cdn-apple.com/x.ipsw".into(),
+            bytes: Some(26_600_000_000),
+        };
+        let missing = pre.ipsw(Some(&release));
+        assert_eq!(missing.status, PrerequisiteStatus::Missing);
+        assert_eq!(missing.detail, "macOS 27.0.1 (26A434), 26.6 GB from Apple");
+        fs::create_dir_all(p.ipsw()).unwrap();
+        fs::write(IpswDownloader::resume_file_for(&release, &p.ipsw()), "").unwrap();
+        assert_eq!(pre.ipsw(Some(&release)).status, PrerequisiteStatus::Limited);
+        fs::write(IpswDownloader::file(&release, &p.ipsw()), "").unwrap();
+        let ok = pre.ipsw(Some(&release));
+        assert_eq!((ok.status, ok.detail.as_str()), (PrerequisiteStatus::Ok, "macOS 27.0.1 (26A434) – 26A434.ipsw"));
+        let local = pre.ipsw(None);
+        assert_eq!((local.status, local.detail.as_str()), (PrerequisiteStatus::Ok, "26A434.ipsw"));
+    }
+
+    #[test]
+    #[ignore = "needs ipsw_downloader::free_space (F4)"]
+    fn free_space_falls_back_for_the_nix_store() {
+        // the read-only store volume reports 0 for "important usage" – the plain value is used then
+        assert!(free_space(Path::new("/nix/store")).unwrap_or(0) > 0 || !Path::new("/nix/store").exists());
+    }
+
+    #[test]
+    fn serializes_as_the_api_type() {
+        let mut p = Prerequisite::new(
+            PrerequisiteItem::NixDarwin,
+            PrerequisiteStatus::Missing,
+            "not found",
+            "Set up",
+            Some("omaf builder setup".into()),
+        );
+        let v = serde_json::to_value(&p).unwrap();
+        assert_eq!(
+            v,
+            serde_json::json!({"item": "nixDarwin", "status": "missing", "required": true, "detail": "not found",
+                               "hint": "Set up", "install": "omaf builder setup", "settablePath": false})
+        );
+        p.item = PrerequisiteItem::Git;
+        p.status = PrerequisiteStatus::Limited;
+        p.install = None;
+        p.free_bytes = Some(1);
+        p.base_user = Some("u".into());
+        let v = serde_json::to_value(&p).unwrap();
+        assert_eq!(v["required"], false);
+        assert_eq!(v["status"], "limited");
+        assert_eq!(v["freeBytes"], 1);
+        assert_eq!(v["baseUser"], "u");
+        assert!(v.get("install").is_none() && v.get("neededBytes").is_none());
+        let back: Prerequisite = serde_json::from_value(v).unwrap();
+        assert_eq!(back, p);
+        let nix = Prerequisite::new(PrerequisiteItem::Nix, PrerequisiteStatus::Ok, "", "", None);
+        assert_eq!(serde_json::to_value(&nix).unwrap()["settablePath"], true);
     }
 }
