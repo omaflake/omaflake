@@ -1,0 +1,22 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+[package]
+name = "omaflake-tui"
+description = "omaflake's terminal interface (omaf ui): a client of the core API's page models (docs/api.md §10)"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+repository.workspace = true
+
+[dependencies]
+omaflake-core.workspace = true
+omaflake-brand = { path = "../omaflake-brand" }
+serde_json.workspace = true
+chrono.workspace = true
+libc.workspace = true
+# Only this crate draws a terminal interface (plan B121)
+ratatui = { version = "0.30.2", default-features = false, features = ["crossterm", "layout-cache"] }
+crossterm = "0.29.0"
+
+[dev-dependencies]
+tempfile.workspace = true

@@ -443,6 +443,8 @@ per page; the Rust types there are the contract, the JSON below their shape).
   Subscribing to `doctor` or `macBase` runs the Doctor's checks once if they never ran.
 - Typical: a UI subscribes to `home`, `activity` and the page it shows (with its params); the build page's log comes
   with the `jobs` topic (`job.log`) or `jobs.log`.
+  `omaf ui` (crate `omaflake-tui`) does exactly this and is the reference client of the page models: every page is drawn
+  from its model only.
 
 Pages and their params:
 

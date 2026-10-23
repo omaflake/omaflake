@@ -14,6 +14,7 @@ path = "src/main.rs"
 
 [dependencies]
 omaflake-core.workspace = true
+omaflake-tui = { path = "../omaflake-tui" }
 chrono.workspace = true
 libc.workspace = true
 serde_json.workspace = true

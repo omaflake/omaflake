@@ -26,6 +26,12 @@ are collected under *Unreleased*. Releases: [GitHub](https://github.com/omaflake
 - **The core says what each page shows** (`views.get`, `views.subscribe`, docs/api.md §10): rows, actions with why
   they are not possible now, the questions they ask, filters, form defaults and validation, and the activity list –
   in English with message keys, so every interface (the macOS app, the coming Linux app and `omaf ui`) shows the same.
+- **`omaf ui` – omaflake in the terminal** (macOS and Linux): the app's pages – VMs, images with running builds,
+  recipes, activity, the build page with its live log, Doctor, macOS base, New VM, settings – keyboard-driven, in the
+  brand's colours (truecolor, 256 colours or none with `NO_COLOR`; Nerd Font symbols with `--nerd-font`), through the
+  core service, so it shows what the app and the CLI do. English only for now.
+- **`omaf status [--waybar] [--follow]`**: running VMs and builds in one line, or as JSON for a waybar `custom`
+  module that updates itself (snippet in the CLI docs).
 
 ### Changed
 

@@ -4,7 +4,7 @@
 
 [workspace]
 resolver = "2"
-members = ["crates/omaflake-core", "crates/omaf", "crates/omaflake-brand"]
+members = ["crates/omaflake-core", "crates/omaf", "crates/omaflake-brand", "crates/omaflake-tui"]
 exclude = ["nix/agent"]
 
 [workspace.package]

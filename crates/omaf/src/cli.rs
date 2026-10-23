@@ -117,6 +117,38 @@ pub enum Command {
     /// New in the Rust CLI (docs/api.md §1)
     #[command(about = "Run a single core API request and print its result as JSON (docs/api.md).")]
     Call(Call),
+    /// Plan B121
+    #[command(
+        about = "The terminal interface: VMs, images, recipes, builds, the Doctor and settings, as in the app.",
+        long_about = "The terminal interface: VMs, images, recipes, builds, the Doctor and settings, as in the app.\n\n\
+                      A client of the core service (started on demand; a server in this process when it cannot be \
+                      reached). Keys: Tab pages, j/k move, Enter the row's default action, 1-9 its actions, a all \
+                      of them, Space details, / filter, Esc back, ? help, q quit. Colours: truecolor with \
+                      COLORTERM=truecolor, else 256; none with NO_COLOR. Nerd Font symbols with --nerd-font or \
+                      OMAF_NERD_FONT=1."
+    )]
+    Ui(Ui),
+    /// Plan B119/B121
+    #[command(about = "Running VMs and builds in one line; --waybar: JSON for a waybar custom module.")]
+    Status(Status),
+}
+
+#[derive(Debug, Args)]
+pub struct Ui {
+    #[arg(long, help = "Nerd Font symbols (the terminal's font has them; also OMAF_NERD_FONT=1)")]
+    pub nerd_font: bool,
+    #[arg(long, help = "Mouse: click selects, the wheel moves (the terminal's text selection needs Shift then)")]
+    pub mouse: bool,
+    #[arg(long, help = "A server in this process instead of the core service (its jobs end with the TUI)")]
+    pub in_process: bool,
+}
+
+#[derive(Debug, Args)]
+pub struct Status {
+    #[arg(long, help = "As waybar custom-module JSON: text, tooltip, class, alt, percentage")]
+    pub waybar: bool,
+    #[arg(long, help = "Keep printing a line whenever it changes (waybar: exec without interval)")]
+    pub follow: bool,
 }
 
 // MARK: - Recipes & images

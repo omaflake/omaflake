@@ -68,6 +68,8 @@ git-ignored settings (`nix/local/`); flake URLs are used as given. Recipes come 
 | `omaf service start [--json]` | start the service unless it runs: the agent if installed, else `omaf serve --socket --idle-exit 300` on its own; restarts an older service once idle (api.md §1); prints its socket and version |
 | `omaf service stop` / `omaf service status [--json]` | end the service once its jobs are done (`service.restart`) / agent installed?, socket, running, version, jobs waiting or running |
 | `omaf call [--socket[=<path>]] <method> [<params as JSON>]` | one API request; prints the result as JSON (exit 1 and the error's message on error) – for scripts and tests. Without `--socket` in this process without a session; with it through the service (started on demand). A method that starts a job waits for it and prints the ended job (Ctrl-C cancels it through the service) |
+| `omaf ui [--nerd-font] [--mouse] [--in-process]` | the **terminal interface** (plan B121, macOS and Linux): the app's pages – VMs, images (with running builds), recipes, activity; build, Doctor, macOS base, New VM, settings – drawn from the core's page models (api.md §10) through the core service (started on demand; with `--in-process`, or when the service cannot be reached, a server in this process whose jobs end with the TUI). Keys below. Colours from the brand's design tokens: truecolor with `COLORTERM=truecolor`/`24bit`, else the nearest of 256, none with `NO_COLOR`; symbols as plain characters, Nerd Font glyphs with `--nerd-font` or `OMAF_NERD_FONT=1`. English only for now |
+| `omaf status [--waybar] [--follow]` | running VMs and builds in one line (`2 VMs running (a, b) · building dev 62 %`); `--waybar`: JSON for a waybar `custom` module – `text` (running VMs, the build's percent), `tooltip`, `class` and `alt` (`idle`, `running`, `building`; plus `failed`), `percentage` (the running build); `--follow` stays connected to the service and prints a line whenever it changes (snippet below) |
 | `omaf config [--flake p] [--qemu p] [--runner p] [--nix p] [--guest-user u] [--guest-full-name n] [--guest-locale l] [--guest-keyboard k] [--guest-time-zone z] [--home <dir>\|default]` | show/set settings (`~/.omaflake/config.json`); `--guest-…` override the Mac's values passed to the recipes (empty value = the Mac's again, spec §11.1); `--home` moves the data folder (VMs stopped, same volume; overlays name their image relatively, paths in instance.json and settings are rewritten); `--keep-recipe-versions on\|off` keeps older versions of a recipe line (default off: the newest and those images use) |
 
 Guest user for SSH: `--user` on `omaf new`, otherwise `user = "…"` from the recipe's `recipe.toml`, otherwise the Mac user name.
@@ -75,6 +77,45 @@ Guest user for SSH: `--user` on `omaf new`, otherwise `user = "…"` from the re
 Environment variables: `VM_HOME` (instead of `~/.omaflake`), `VM_FLAKE`, `VM_QEMU`, `VM_RUNNER` (signed `omaf-runner`;
 otherwise `omaf config --runner`, otherwise next to `omaf`, otherwise PATH).
 For window starts `omaf` passes `OMAFLAKE_DOCK_ICON` to QEMU (omaflake Dock icon, needs QEMU patchset p4 from `qemu/build.sh`).
+
+### `omaf ui` – keys
+
+| Key | |
+|---|---|
+| `Tab` / `Shift-Tab` | next / previous tab (VMs, Images, Recipes, Activity) |
+| `j`/`k`, `↑`/`↓`, `g`/`G`, `PgUp`/`PgDn` | move |
+| `Enter` | the row's default action (drawn bold in the footer: open a terminal, start, build, New VM …); on a form field: edit it |
+| `1`–`9` | the selected row's actions, as numbered in the footer and the opened details |
+| `a` | every action of the row, with why one is greyed out |
+| `Space`, `→`/`←` | open / close a row's details; on a field: switch it, the next / previous value |
+| `/` | the list's filter (`←`/`→` change a group, `Enter` apply, `r` reset) |
+| lowercase letters | the page's tools, as shown in its title line (`i` Import, `r` Refresh, `c` Clear History …) |
+| `D`, `S`, `H` | Doctor, Settings, the data folder (home's actions) |
+| `Esc` | back (closes a question or a page) |
+| `?` | help: these keys and the selected row's actions |
+| `q`, `Ctrl-C` | quit (`q` asks when VMs run – they keep running) |
+
+Questions and asks are the core's (api.md §10.3): a password is never shown (asked twice where the model says so),
+folders, files and packages are typed as a path with `Tab` completion and checked (`packages.inspect`) before the step
+goes on. "Open Terminal" leaves the TUI for the SSH session and comes back after it; "Show in Finder" and "Open"
+use `open`/`xdg-open` where there is a desktop (not over SSH) and always print the path in the status line. New
+activity (a VM ready, a build done or failed) shows in the status line and on the Activity tab.
+
+### waybar
+
+```jsonc
+// ~/.config/waybar/config.jsonc
+"custom/omaflake": {
+  "exec": "omaf status --waybar --follow",
+  "return-type": "json",
+  "format": "{icon} {}",
+  "format-icons": {"idle": "❄", "running": "❄", "building": "⚒"},
+  "on-click": "foot -e omaf ui"
+}
+```
+
+`--follow` keeps one connection to the service (no `interval` needed) and prints a line only when it changed; style it
+with `#custom-omaflake.running`, `.building`, `.failed`.
 
 ## Behavior (decisions)
 

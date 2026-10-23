@@ -8,6 +8,8 @@ pub mod packages;
 pub mod recipes;
 pub mod service;
 pub mod sources;
+pub mod status;
+pub mod ui;
 
 use omaflake_core::Error;
 
@@ -72,6 +74,8 @@ pub fn run(command: Command) -> Outcome {
         Command::Serve(a) => service::serve(&a),
         Command::Service { command } => service::run(&command),
         Command::Call(a) => call(&a),
+        Command::Ui(a) => ui::run(&a),
+        Command::Status(a) => status::run(&a),
     }
 }
 
