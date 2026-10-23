@@ -1,18 +1,23 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: AGPL-3.0-or-later
-"""Generates the omaflake brand bundle: master SVGs, PNG exports, .icns, favicon.ico and
-Sources/OmaflakeKit/Brand/BrandAssets.swift (icons embedded for the Swift targets).
+"""Generates the omaflake brand bundle: master SVGs, PNG exports, .icns, favicon.ico,
+Sources/OmaflakeKit/Brand/BrandAssets.swift (icons embedded for the Swift targets) and the design tokens
+(tokens.py: BrandTokens.swift and crates/omaflake-brand from tokens.toml, which also holds the palette used here).
 
 Needs rsvg-convert (Homebrew: librsvg) and iconutil (macOS). Run from anywhere:
     python3 generate.py
 """
 import base64, os, random, shutil, struct, subprocess
 
+import tokens
+
 HERE = os.path.dirname(os.path.abspath(__file__))
 SVG, PNG = os.path.join(HERE, "svg"), os.path.join(HERE, "png")
 
-BG = "#121212"          # icon background
-RED, CYAN, YELLOW, WHITE = "#FF3B3B", "#00E5FF", "#F5FF3B", "#FFFFFF"
+# The palette lives in tokens.toml (one place for artwork and interfaces)
+_P = tokens.palette()
+BG = _P["background"]   # icon background
+RED, CYAN, YELLOW, WHITE = _P["red"], _P["cyan"], _P["yellow"], _P["white"]
 TILT = 14               # rotation of the hero flake in degrees
 
 
@@ -271,6 +276,8 @@ def main():
     # (recipes/omaflake/macos/lab/omaflake-test.icns) – copy it there by hand when the icon changes
 
     swift_assets(os.path.join(HERE, "..", "Sources", "OmaflakeKit", "Brand", "BrandAssets.swift"))
+    if tokens.main([]):
+        raise SystemExit(1)
     print("ok")
 
 

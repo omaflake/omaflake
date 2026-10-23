@@ -672,6 +672,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "omaflake-brand"
+version = "0.2.0"
+dependencies = [
+ "toml",
+]
+
+[[package]]
 name = "omaflake-core"
 version = "0.2.0"
 dependencies = [

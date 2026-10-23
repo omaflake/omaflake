@@ -1,0 +1,16 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+[package]
+name = "omaflake-brand"
+description = "omaflake's design tokens (generated from brand/tokens.toml), for the Rust interfaces"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+repository.workspace = true
+
+# No dependencies: the iced app converts the plain values itself (plan B119)
+[dependencies]
+
+[dev-dependencies]
+# The up-to-date test re-reads brand/tokens.toml
+toml.workspace = true

@@ -54,6 +54,7 @@ any work and keep them up to date.
 
 ```
 Cargo.toml, crates/        Rust core: omaflake-core (all logic), omaf (CLI and `omaf serve`, the JSON-RPC API: docs/api.md)
+                           omaflake-brand (design tokens, generated from brand/tokens.toml)
 Package.swift              OmaflakeKit (library), omaf-runner, OmaflakeApp
 Sources/OmaflakeKit/       Core/ + API/: client of `omaf serve` and the API's types; Runner/: agent protocol, macOS VM
                            bundle, sockets (for omaf-runner); Brand/: icons
@@ -65,7 +66,7 @@ qemu/                      QEMU build with virglrenderer + ANGLE, patches
 nix/modules/vm-guest.nix   guest module (root flake output nixosModules.vm-guest)
 docs/                      spec, plan, cli, app, macos-base, linux-builder
 brand/                     omaflake brand set (icons, favicon, banner, Sources/OmaflakeKit/Brand/BrandAssets.swift);
-                           edit brand/generate.py, not exports
+                           edit brand/generate.py and brand/tokens.toml (design tokens: brand/tokens.py), not exports
 nix/                       image flake: builds images from the recipes of the sources (input omaflake-recipes),
                            guest modules, the omaflake agent, Linux builder host; use as path:, shipped in the app
 nix/local.example/         template for personal settings → nix/local/ (git-ignored)

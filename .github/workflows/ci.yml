@@ -26,6 +26,9 @@ jobs:
       # Without recipes (they live in omaflake/recipes, which checks them against this flake): evaluates on its own
       - name: Image flake – evaluates
         run: nix flake check --all-systems --no-build "path:$PWD/nix"
+      # BrandTokens.swift and crates/omaflake-brand/src/tokens.rs are generated from brand/tokens.toml (plan B119)
+      - name: Design tokens up to date
+        run: python3 brand/tokens.py --check
       - name: Guest agents and scripts parse
         run: |
           for f in nix/modules/*.py; do python3 -I -c "import ast,sys; ast.parse(open(sys.argv[1]).read())" "$f"; done

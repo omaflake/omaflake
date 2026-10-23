@@ -1,0 +1,179 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# omaflake design tokens – the one source for colours, spacing, radii, type and sizes of every interface
+# (SwiftUI on macOS, iced on Linux; plan B119) and for the brand artwork's palette (generate.py).
+#
+# Change a value here, then run `python3 brand/tokens.py` – it writes Sources/OmaflakeApp/BrandTokens.swift and
+# crates/omaflake-brand/src/tokens.rs. `python3 brand/tokens.py --check` fails when they are out of date.
+# Names are snake_case here; Swift gets lowerCamelCase, Rust UPPER_SNAKE_CASE.
+
+# --- brand palette (icons, banner, favicon, app) -----------------------------------------------------------------
+[palette]
+background = "#121212"
+red = "#FF3B3B"
+cyan = "#00E5FF"
+yellow = "#F5FF3B"
+white = "#FFFFFF"
+black = "#000000"
+
+# --- semantic colours -----------------------------------------------------------------------------------------------
+# Each is one of: `palette = "<name>"`, `hex = "#RRGGBB"` or `rgb = [r, g, b]` (0…1), with an optional `alpha`.
+# `system` names a SwiftUI system colour the macOS app keeps using (it follows the system's accessibility settings);
+# the hex value is what other interfaces use: macOS' dark-appearance value of that colour (the app is always dark).
+[color.window]          # the window's base, under the glow
+palette = "background"
+
+[color.accent]          # tint, selection, progress, "official", running work
+palette = "cyan"
+
+[color.danger]          # remove, stop, failed
+palette = "red"
+
+[color.lab]             # development (lab) recipes
+palette = "yellow"
+
+[color.warning]         # outdated, attention, microphone/camera on
+system = "orange"
+hex = "#FF9F0A"         # systemOrange, dark appearance (Apple HIG colour table)
+
+[color.success]         # running, check passed
+system = "green"
+hex = "#30D158"         # systemGreen, dark appearance (Apple HIG colour table)
+
+[color.text_primary]
+system = "primary"
+hex = "#FFFFFF"
+
+[color.text_secondary]
+system = "secondary"
+hex = "#FFFFFF"
+alpha = 0.55            # OPEN: approximates macOS' secondaryLabelColor in dark appearance
+
+[color.card]            # cards, toolbar
+palette = "white"
+alpha = 0.045
+
+[color.card_border]
+palette = "white"
+alpha = 0.07
+
+[color.window_border]   # hairline around the window
+palette = "white"
+alpha = 0.14
+
+[color.inset]           # a box inside a card (recipe versions)
+palette = "white"
+alpha = 0.03
+
+[color.console]         # build log background
+rgb = [0.04, 0.045, 0.05]
+
+[color.scrim]           # behind a confirmation sheet
+palette = "black"
+alpha = 0.45
+
+[color.glow_red]        # window background: from the top-left corner
+palette = "red"
+alpha = 0.10
+
+[color.glow_cyan]       # window background: from the bottom-right corner
+palette = "cyan"
+alpha = 0.08
+
+# --- opacities applied to another colour (`accent.opacity(…)`, `warning.opacity(…)`) ----------------------------------
+[opacity]
+subtle_fill = 0.04      # quiet panel on the card (primary)
+hover = 0.08            # icon button under the pointer (primary)
+selected = 0.10         # selected tab (primary), action button under the pointer (its colour)
+tint_fill = 0.12        # warning banner and badge background
+toggle_on_fill = 0.16   # filter chip that is on (accent)
+console_border = 0.18   # build log border (accent)
+notice_border = 0.35    # notice card border (accent)
+disabled = 0.4          # disabled action button
+toggle_on_border = 0.55 # filter chip that is on (accent)
+tinted_border = 0.6     # coloured action button and badge border
+
+# --- lengths (points) -----------------------------------------------------------------------------------------------
+[spacing]
+xxs = 2
+xs = 3
+s = 4
+m = 6
+l = 8
+xl = 10
+xxl = 12
+card_padding = 10       # inside cards and banners
+margin = 20             # content to the window's edge
+
+[radius]
+window = 24             # matched by eye to macOS windows with a toolbar (plan B44)
+sheet = 14              # confirmation sheet
+card = 10               # cards and buttons
+toast = 8               # notification card
+tab = 7                 # selected tab
+small = 6               # action buttons, boxes inside a card
+
+[glow]                  # window background: radii of the red and cyan glow
+red_radius = 320
+cyan_radius = 360
+
+[size]
+icon_button_width = 26  # toolbar and row icon buttons
+icon_button_height = 24
+dot = 6                 # unseen activity, recipe changed
+window_border_width = 1
+
+# --- icon (symbol) sizes, points ------------------------------------------------------------------------------------
+[icon]
+toolbar = 13            # back, filter, toolbar and row icon buttons
+tab = 11                # tab bar
+button = 10             # action buttons, filter chips
+badge = 9               # small state icons in a row
+sub_badge = 8           # warning badge on an icon button
+sub_icon = 7            # action sub-symbol on an icon button
+
+# --- type -----------------------------------------------------------------------------------------------------------
+# `ui` and `mono` are the families; on macOS the system font (SF Pro, SF Mono). The brand artwork's wordmark uses
+# Menlo Bold (generate.py).
+[font]
+ui = "system-ui"
+mono = "monospace"
+
+# Named fonts: size (pt), weight (regular, medium, semibold, bold, heavy), design (default, monospaced)
+[font_style.wordmark]
+size = 14
+weight = "bold"
+design = "monospaced"
+
+[font_style.toolbar_icon]
+size = 13
+weight = "medium"
+
+[font_style.button_icon]
+size = 10
+weight = "semibold"
+
+# The system text styles the app uses: SwiftUI keeps the style (`.caption`), other interfaces take size and weight
+# (macOS text styles, Apple HIG; OPEN: check against the macOS 27 HIG table)
+[text.headline]
+size = 13
+weight = "bold"
+
+[text.body]
+size = 13
+weight = "regular"
+
+[text.callout]
+size = 12
+weight = "regular"
+
+[text.subheadline]
+size = 11
+weight = "regular"
+
+[text.caption]
+size = 10
+weight = "regular"
+
+[text.caption2]
+size = 10
+weight = "medium"

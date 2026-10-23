@@ -6,7 +6,7 @@ Two marks:
 - **Glyph** (the hero flake in one colour: same tilt, no RGB split, no glitch bands, no background) –
   monochrome use. **Small glyph** (same tilt, one chevron per arm, heavy stroke) – menu bar, favicon, 16–48 px.
 
-Regenerate everything from code (including `Sources/OmaflakeKit/Brand/BrandAssets.swift`): `python3 generate.py` (needs `rsvg-convert` from Homebrew `librsvg`
+Regenerate everything from code (including `Sources/OmaflakeKit/Brand/BrandAssets.swift` and the design tokens): `python3 generate.py` (needs `rsvg-convert` from Homebrew `librsvg`
 and macOS `iconutil`). Edit `generate.py`, not the exported files.
 
 omaflake's name and brand belong to falkOSS – Falcon Lake Open Source Software gUG (haftungsbeschränkt) i. G., the
@@ -40,6 +40,27 @@ Website head:
 <link rel="manifest" href="/site.webmanifest">
 ```
 
+## Design tokens
+
+The interfaces (the SwiftUI app on macOS, the iced app on Linux, plan B119) share one look through design tokens:
+`tokens.toml` holds the brand palette (also used by `generate.py` for the artwork), semantic colours (window, card,
+accent, danger, warning, success, text …), opacities, spacing, corner radii, glow radii, sizes, icon (symbol) sizes,
+font families, named fonts and the text styles' sizes.
+
+To change a token: edit `tokens.toml`, then run `python3 tokens.py` (Python 3.11+, nothing else; `generate.py` runs it
+too). It writes
+
+- `Sources/OmaflakeApp/BrandTokens.swift` – `BrandTokens.Palette`, `.Colors`, `.Opacity`, `.Spacing`, `.Radius`,
+  `.Glow`, `.Size`, `.Icon`, `.FontFamily`, `.Fonts`, `.TextStyle`; the app's `BrandStyle` is a set of shorthands for
+  them,
+- `crates/omaflake-brand/src/tokens.rs` – modules `palette`, `color` (`Color { rgba8, rgba }`), `opacity`, `spacing`,
+  `radius`, `glow`, `size`, `icon`, `font`, `text` (`FontStyle`), plain values with no UI toolkit, and `ALL`.
+
+Never edit the generated files. `python3 tokens.py --check` (CI) and the crate's test `cargo test -p omaflake-brand`
+fail when they are out of date. Colours with `system = "…"` stay the system colour in the macOS app (it follows the
+system's accessibility settings); their hex value, macOS' dark-appearance colour, is for the other interfaces. Add a
+token for a value that recurs or that another interface needs too, not for every one-off.
+
 ## Colours
 
 | Name | Hex |
@@ -49,6 +70,8 @@ Website head:
 | Cyan | `#00E5FF` |
 | Yellow | `#F5FF3B` |
 | White | `#FFFFFF` |
+
+Source: `[palette]` in `tokens.toml`.
 
 Wordmark: `omaflake` in lowercase, Menlo Bold (monospace), with the same red/cyan offset as the hero.
 

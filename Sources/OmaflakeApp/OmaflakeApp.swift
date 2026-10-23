@@ -17,7 +17,7 @@ struct OmaflakeApp: App {
                 .buttonBorderShape(.roundedRectangle(radius: BrandStyle.radius))
                 .background(BrandStyle.background.clipShape(RoundedRectangle(cornerRadius: BrandStyle.windowRadius, style: .continuous)))
                 .overlay(RoundedRectangle(cornerRadius: BrandStyle.windowRadius, style: .continuous)
-                    .strokeBorder(Color.white.opacity(0.14), lineWidth: 1).allowsHitTesting(false))
+                    .strokeBorder(BrandTokens.Colors.windowBorder, lineWidth: BrandTokens.Size.windowBorderWidth).allowsHitTesting(false))
                 .background(RoundedWindow())
         } label: {
             Image(nsImage: Brand.menuBarImage())
@@ -84,8 +84,8 @@ struct MainView: View {
                 }
             } else {
                 VStack(spacing: 0) {
-                    header.padding([.horizontal, .top], BrandStyle.margin).padding(.bottom, 10)
-                    HomeTabBar(model: model).padding(.horizontal, BrandStyle.margin).padding(.bottom, 12)
+                    header.padding([.horizontal, .top], BrandStyle.margin).padding(.bottom, BrandTokens.Spacing.xl)
+                    HomeTabBar(model: model).padding(.horizontal, BrandStyle.margin).padding(.bottom, BrandTokens.Spacing.xxl)
                     ScrollView { home.padding([.horizontal, .bottom], BrandStyle.margin).background(OverlayScrollers()) }
                         .id(model.tab)   // each tab opens at its top
                         .overlay(alignment: .bottom) { FooterMessage(model: model) }
@@ -118,7 +118,7 @@ struct MainView: View {
             }
             ListSection(title: "Virtual Machines", count: rows.count, of: model.rows.count,
                         filter: AnyView(FilterMenu(model: model, tab: .vms, on: "Running", off: "Stopped"))) {
-                HStack(spacing: 2) {
+                HStack(spacing: BrandTokens.Spacing.xxs) {
                     IconButton(icon: "square.and.arrow.down", help: "Import a VM – a copy into the data folder") { model.chooseImport(.vm) }
                     IconButton(icon: "externaldrive.badge.plus", help: "Run a VM from where it is – an external disk, a NAS or a folder; nothing is copied") {
                         model.chooseExternal()
@@ -151,7 +151,7 @@ struct MainView: View {
             ListSection(title: "Images", count: images.count, of: all.count,
                         filter: AnyView(FilterMenu(model: model, tab: .images, on: "In use", off: "Not in use",
                                                    recipes: recipes.map { ($0, model.recipeName($0)) }))) {
-                HStack(spacing: 2) {
+                HStack(spacing: BrandTokens.Spacing.xxs) {
                     IconButton(icon: "square.and.arrow.down", help: "Import an image – a copy into the data folder") { model.chooseImport(.image) }
                 }
             } content: {
@@ -188,9 +188,9 @@ struct MainView: View {
             ListSection(title: "Recipes", count: rows.count, of: all.count,
                         filter: AnyView(FilterMenu(model: model, tab: .recipes, on: "With image", off: "Without image", tags: tags,
                                                    architectures: true))) {
-                HStack(spacing: 2) {
+                HStack(spacing: BrandTokens.Spacing.xxs) {
                     if model.loadingCatalogs {
-                        ProgressView().controlSize(.small).frame(width: 26, height: 24)
+                        ProgressView().controlSize(.small).frame(width: BrandTokens.Size.iconButtonWidth, height: BrandTokens.Size.iconButtonHeight)
                     } else {
                         IconButton(icon: "arrow.clockwise", help: "Look for new recipes in the sources") { model.refreshCatalogs() }
                     }
@@ -209,13 +209,13 @@ struct MainView: View {
                 if !updates.isEmpty { RecipeUpdates(updates: updates, model: model) }
                 if all.isEmpty, !model.suggestedRecipes.isEmpty {
                     // First start: omaflake ships no recipes – the official ones are suggested
-                    HStack(spacing: 8) {
+                    HStack(spacing: BrandTokens.Spacing.l) {
                         Image(systemName: "checkmark.seal.fill").foregroundStyle(BrandStyle.cyan)
                         Text("Start with the official recipes?").font(.callout)
                         Spacer()
                         ActionButton(icon: "arrow.down.circle", title: "Install suggested") { model.installSuggested() }
                     }
-                    .padding(10)
+                    .padding(BrandTokens.Spacing.cardPadding)
                 }
                 ForEach(rows) { recipe in
                     RecipeRowView(recipe: recipe, model: model) {
@@ -228,12 +228,12 @@ struct MainView: View {
                 }
                 ForEach(model.unreadableRecipes, id: \.self) { UnreadableHint(name: RecipeText.qualified($0.name), reason: $0.reason) }
                 ForEach(model.available.errors.sorted { $0.key < $1.key }, id: \.key) { id, error in
-                    HStack(alignment: .firstTextBaseline, spacing: 8) {
-                        Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(.orange)
+                    HStack(alignment: .firstTextBaseline, spacing: BrandTokens.Spacing.l) {
+                        Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(BrandTokens.Colors.warning)
                         Text(verbatim: "\(model.source(id)?.displayName ?? id): \(error)").font(.caption)
                             .foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
                     }
-                    .padding(10)
+                    .padding(BrandTokens.Spacing.cardPadding)
                 }
             }
             .onAppear { if !model.catalogsLoaded { model.refreshCatalogs() } }
@@ -250,7 +250,7 @@ struct MainView: View {
     }
 
     private var header: some View {
-        HStack(spacing: 8) {
+        HStack(spacing: BrandTokens.Spacing.l) {
             Image(nsImage: Brand.menuBarImage())
             Wordmark()
             Spacer()
@@ -272,10 +272,10 @@ struct PageHeader: View {
     let model: AppModel
 
     var body: some View {
-        HStack(spacing: 6) {
+        HStack(spacing: BrandTokens.Spacing.m) {
             Button { model.back() } label: {
-                Image(systemName: "chevron.left").font(.system(size: 13, weight: .semibold))
-                    .frame(width: 26, height: 24).contentShape(Rectangle())
+                Image(systemName: "chevron.left").font(.system(size: BrandTokens.Icon.toolbar, weight: .semibold))
+                    .frame(width: BrandTokens.Size.iconButtonWidth, height: BrandTokens.Size.iconButtonHeight).contentShape(Rectangle())
             }
             .buttonStyle(.plain)
             .keyboardShortcut(.cancelAction)
@@ -284,7 +284,7 @@ struct PageHeader: View {
             Text(page.title).font(.headline)
             Spacer()
         }
-        .padding(.horizontal, BrandStyle.margin - 6).padding(.top, BrandStyle.margin - 6).padding(.bottom, 8)
+        .padding(.horizontal, BrandStyle.margin - 6).padding(.top, BrandStyle.margin - 6).padding(.bottom, BrandTokens.Spacing.l)
     }
 }
 
@@ -294,10 +294,10 @@ struct HomeTabBar: View {
     let model: AppModel
 
     var body: some View {
-        HStack(spacing: 4) {
+        HStack(spacing: BrandTokens.Spacing.s) {
             tab(.vms, "VMs", icon: "desktopcomputer") {
                 let running = model.rows.filter { $0.status == .running }.count
-                if running > 0 { CountBadge(count: running, color: .green) }
+                if running > 0 { CountBadge(count: running, color: BrandTokens.Colors.success) }
             }
             tab(.images, "Images", icon: "shippingbox") {
                 if model.anyBuildRunning {
@@ -308,14 +308,14 @@ struct HomeTabBar: View {
             }
             tab(.recipes, "Recipes", icon: "book.closed") {
                 if model.recipeRows.contains(where: { $0.image != nil && $0.outdated }) {
-                    Circle().fill(.orange).frame(width: 6, height: 6).help("A recipe changed since its image was built")
+                    Circle().fill(BrandTokens.Colors.warning).frame(width: BrandTokens.Size.dot, height: BrandTokens.Size.dot).help("A recipe changed since its image was built")
                 }
             }
             tab(.activity, "Activity", icon: "clock") {
-                if model.unseenActivity { Circle().fill(BrandStyle.cyan).frame(width: 6, height: 6).help("New messages") }
+                if model.unseenActivity { Circle().fill(BrandStyle.cyan).frame(width: BrandTokens.Size.dot, height: BrandTokens.Size.dot).help("New messages") }
             }
         }
-        .padding(3)
+        .padding(BrandTokens.Spacing.xs)
         .background(BrandStyle.card, in: RoundedRectangle(cornerRadius: BrandStyle.radius, style: .continuous))
         .overlay(RoundedRectangle(cornerRadius: BrandStyle.radius, style: .continuous).strokeBorder(BrandStyle.cardBorder))
     }
@@ -325,14 +325,14 @@ struct HomeTabBar: View {
         let selected = model.tab == tab
         return Button { model.tab = tab } label: {
             HStack(spacing: 5) {
-                Image(systemName: icon).font(.system(size: 11, weight: .medium))
+                Image(systemName: icon).font(.system(size: BrandTokens.Icon.tab, weight: .medium))
                 Text(title).font(.callout.weight(selected ? .semibold : .regular)).lineLimit(1)
                 badge()
             }
             .foregroundStyle(selected ? .primary : .secondary)
             .frame(maxWidth: .infinity).frame(height: 26)
-            .background(selected ? Color.primary.opacity(0.10) : .clear,
-                        in: RoundedRectangle(cornerRadius: BrandStyle.radius - 3, style: .continuous))
+            .background(selected ? Color.primary.opacity(BrandTokens.Opacity.selected) : .clear,
+                        in: RoundedRectangle(cornerRadius: BrandTokens.Radius.tab, style: .continuous))
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
@@ -358,19 +358,19 @@ struct FooterMessage: View {
     var body: some View {
         if let footer = model.footer, model.tab != .activity {
             Button { model.tab = .activity } label: {
-                HStack(spacing: 8) {
+                HStack(spacing: BrandTokens.Spacing.l) {
                     Image(systemName: "info.circle").foregroundStyle(BrandStyle.cyan)
                     Text(footer.text).font(.caption).lineLimit(2).multilineTextAlignment(.leading)
                     Spacer(minLength: 0)
                 }
-                .padding(.horizontal, 12).padding(.vertical, 8)
+                .padding(.horizontal, BrandTokens.Spacing.xxl).padding(.vertical, BrandTokens.Spacing.l)
                 .background(BrandStyle.base, in: RoundedRectangle(cornerRadius: BrandStyle.radius, style: .continuous))
-                .overlay(RoundedRectangle(cornerRadius: BrandStyle.radius, style: .continuous).strokeBorder(BrandStyle.cyan.opacity(0.35)))
+                .overlay(RoundedRectangle(cornerRadius: BrandStyle.radius, style: .continuous).strokeBorder(BrandStyle.cyan.opacity(BrandTokens.Opacity.noticeBorder)))
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
             .help("Show Activity")
-            .padding(.horizontal, BrandStyle.margin).padding(.bottom, 10)
+            .padding(.horizontal, BrandStyle.margin).padding(.bottom, BrandTokens.Spacing.xl)
             .transition(.move(edge: .bottom).combined(with: .opacity))
             .id(footer.id)
         }
@@ -392,11 +392,11 @@ struct RecipeRowView: View {
     }
 
     private var header: some View {
-        HStack(spacing: 10) {
+        HStack(spacing: BrandTokens.Spacing.xl) {
             StatusLamp(state: lampState).help(lampHelp)
             GuestKindIcon(kind: recipe.kind).frame(width: 16)
-            VStack(alignment: .leading, spacing: 2) {
-                HStack(spacing: 4) {
+            VStack(alignment: .leading, spacing: BrandTokens.Spacing.xxs) {
+                HStack(spacing: BrandTokens.Spacing.s) {
                     Text(recipe.displayName).fontWeight(.medium)
                     if recipe.author != "omaflake", !recipe.author.isEmpty {
                         Text(verbatim: "· \(recipe.author)").font(.caption).foregroundStyle(.secondary)
@@ -438,7 +438,7 @@ struct RecipeRowView: View {
             if let description = recipe.description {
                 Text(description).font(.caption).fixedSize(horizontal: false, vertical: true)
             }
-            VStack(alignment: .leading, spacing: 3) {
+            VStack(alignment: .leading, spacing: BrandTokens.Spacing.xs) {
                 InfoLine(label: "Resources", value: Text(verbatim: "\(recipe.cpus) CPU · \(recipe.memoryGB) GB RAM · \(recipe.diskGB) GB"))
                 InfoLine(label: "Architectures", value: Text(verbatim: recipe.systems.joined(separator: ", ")))
                 InfoLine(label: "Network", value: Text(verbatim: recipe.network.rawValue))
@@ -464,8 +464,8 @@ struct RecipeRowView: View {
                     RecipeVersionRow(version: v, model: model)
                 }
             }
-            .background(Color.white.opacity(0.03), in: RoundedRectangle(cornerRadius: BrandStyle.radius - 4, style: .continuous))
-            HStack(spacing: 8) {
+            .background(BrandTokens.Colors.inset, in: RoundedRectangle(cornerRadius: BrandTokens.Radius.small, style: .continuous))
+            HStack(spacing: BrandTokens.Spacing.l) {
                 if let u = model.update(for: recipe.id) {
                     ActionButton(icon: "arrow.down.circle", title: "Update") { model.installRecipe(u) }
                 }
@@ -513,7 +513,7 @@ struct RecipeVersionRow: View {
     let model: AppModel
 
     var body: some View {
-        HStack(spacing: 8) {
+        HStack(spacing: BrandTokens.Spacing.l) {
             let words = String(IDText.short("@" + (RecipeText.words(version.id) ?? "?"), model.idLengths.recipe).dropFirst())
             Text(verbatim: words).font(.caption.monospaced()).help(Text(verbatim: version.id))
                 .textSelection(.enabled)
@@ -523,8 +523,8 @@ struct RecipeVersionRow: View {
             IconButton(icon: "trash", help: LocalizedStringKey(removeHelp), iconColor: BrandStyle.red) { model.removeRecipe(version) }
                 .disabled(version.isLive || !version.images.isEmpty)
         }
-        .padding(.horizontal, 8)
-        .padding(.vertical, 3)
+        .padding(.horizontal, BrandTokens.Spacing.l)
+        .padding(.vertical, BrandTokens.Spacing.xs)
     }
 
     private var state: String {
@@ -567,11 +567,11 @@ struct RecipeSourcesSection: View {
         Section {
             let list = model.sources
             ForEach(Array(list.enumerated()), id: \.element.id) { i, s in
-                HStack(spacing: 8) {
+                HStack(spacing: BrandTokens.Spacing.l) {
                     Image(systemName: s.kind == .folder ? "folder" : s.kind == .github ? "chevron.left.forwardslash.chevron.right" : "globe")
                         .frame(width: 16).foregroundStyle(.secondary)
                     VStack(alignment: .leading, spacing: 1) {
-                        HStack(spacing: 4) {
+                        HStack(spacing: BrandTokens.Spacing.s) {
                             Text(verbatim: s.displayName).lineLimit(1).truncationMode(.middle).help(s.location)
                             if s.official { Image(systemName: "checkmark.seal.fill").font(.caption).foregroundStyle(BrandStyle.cyan).help("Official recipes") }
                             if s.private {
@@ -591,7 +591,7 @@ struct RecipeSourcesSection: View {
                     IconButton(icon: "trash", help: "Remove this source", iconColor: BrandStyle.red) { model.removeSource(s.id) }
                 }
             }
-            VStack(alignment: .leading, spacing: 6) {
+            VStack(alignment: .leading, spacing: BrandTokens.Spacing.m) {
                 HStack {
                     TextField("GitHub repository, HTTPS URL or folder", text: $input)
                         .textFieldStyle(.roundedBorder)
@@ -609,7 +609,7 @@ struct RecipeSourcesSection: View {
                 }
                 HStack {
                     switch result {
-                    case .success(let note)?: Label(note, systemImage: "checkmark.circle.fill").font(.caption).foregroundStyle(.green)
+                    case .success(let note)?: Label(note, systemImage: "checkmark.circle.fill").font(.caption).foregroundStyle(BrandTokens.Colors.success)
                     case .failure(let e)?: Label(e.message, systemImage: "xmark.octagon.fill").font(.caption)
                         .foregroundStyle(BrandStyle.red).fixedSize(horizontal: false, vertical: true)
                     case nil: EmptyView()
@@ -649,12 +649,12 @@ struct OfferedRecipeRow: View {
 
     var body: some View {
         ExpandableRow {
-            HStack(spacing: 10) {
+            HStack(spacing: BrandTokens.Spacing.xl) {
                 StatusLamp(state: model.installingRecipes.contains(recipe.id) ? .working : .off)
                     .help(model.installingRecipes.contains(recipe.id) ? "Downloading …" : "Not installed")
                 GuestKindIcon(kind: recipe.kind).frame(width: 16)
-                VStack(alignment: .leading, spacing: 2) {
-                    HStack(spacing: 4) {
+                VStack(alignment: .leading, spacing: BrandTokens.Spacing.xxs) {
+                    HStack(spacing: BrandTokens.Spacing.s) {
                         Text(verbatim: recipe.name).fontWeight(.medium).foregroundStyle(.secondary)
                         Text(verbatim: "· \(recipe.author)").font(.caption).foregroundStyle(.secondary)
                         if official {
@@ -674,7 +674,7 @@ struct OfferedRecipeRow: View {
         } detail: {
             DetailBox {
                 Text(recipe.description).font(.caption).fixedSize(horizontal: false, vertical: true)
-                VStack(alignment: .leading, spacing: 3) {
+                VStack(alignment: .leading, spacing: BrandTokens.Spacing.xs) {
                     InfoLine(label: "ID", value: Text(verbatim: recipe.qualified))
                     InfoLine(label: "Source", value: Text(verbatim: sourceName) + (official ? Text(verbatim: " · ") + Text("official") : Text(verbatim: "")))
                     InfoLine(label: "Architectures", value: Text(verbatim: recipe.systems.joined(separator: ", ")))
@@ -688,7 +688,7 @@ struct OfferedRecipeRow: View {
                 .textSelection(.enabled)
                 if !official {
                     Text("Not reviewed by the omaflake team – its Nix code runs on this Mac when you build it.")
-                        .font(.caption2).foregroundStyle(.orange).fixedSize(horizontal: false, vertical: true)
+                        .font(.caption2).foregroundStyle(BrandTokens.Colors.warning).fixedSize(horizontal: false, vertical: true)
                 }
             }
         }
@@ -701,12 +701,12 @@ struct UnreadableHint: View {
     let reason: String
 
     var body: some View {
-        HStack(alignment: .firstTextBaseline, spacing: 8) {
-            Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(.orange)
+        HStack(alignment: .firstTextBaseline, spacing: BrandTokens.Spacing.l) {
+            Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(BrandTokens.Colors.warning)
             Text(verbatim: "\(name): \(reason)").font(.caption).foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true).textSelection(.enabled)
         }
-        .padding(10)
+        .padding(BrandTokens.Spacing.cardPadding)
     }
 }
 
@@ -718,8 +718,8 @@ struct RecipeUpdates: View {
 
     var body: some View {
         let keep = model.keepRecipeVersions
-        VStack(alignment: .leading, spacing: 6) {
-            HStack(spacing: 8) {
+        VStack(alignment: .leading, spacing: BrandTokens.Spacing.m) {
+            HStack(spacing: BrandTokens.Spacing.l) {
                 Image(systemName: "arrow.down.circle.fill").foregroundStyle(BrandStyle.cyan)
                 Text("Newer recipe versions in your sources").font(.callout)
                 Spacer()
@@ -730,7 +730,7 @@ struct RecipeUpdates: View {
                 }
             }
             ForEach(updates, id: \.id) { u in
-                HStack(spacing: 8) {
+                HStack(spacing: BrandTokens.Spacing.l) {
                     GuestKindIcon(kind: u.recipe.kind).frame(width: 16)
                     Text(verbatim: RecipeText.qualified(u.id)).font(.caption)
                     Text(verbatim: "· \(model.source(u.recipe.source)?.displayName ?? u.recipe.source)").font(.caption).foregroundStyle(.secondary).lineLimit(1)
@@ -745,7 +745,7 @@ struct RecipeUpdates: View {
                       : "The new version takes over; the older one goes unless an image is built from it.")
                 .font(.caption2).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
         }
-        .padding(10)
+        .padding(BrandTokens.Spacing.cardPadding)
     }
 }
 
@@ -755,9 +755,9 @@ struct ArchitectureBadge: View {
 
     var body: some View {
         Text(verbatim: systems.map { String($0.split(separator: "-").first ?? Substring($0)) }.joined(separator: ", "))
-            .font(.caption2).foregroundStyle(.orange).lineLimit(1).fixedSize()
+            .font(.caption2).foregroundStyle(BrandTokens.Colors.warning).lineLimit(1).fixedSize()
             .padding(.horizontal, 5).padding(.vertical, 1)
-            .background(Color.orange.opacity(0.12), in: Capsule())
+            .background(BrandTokens.Colors.warning.opacity(BrandTokens.Opacity.tintFill), in: Capsule())
             .help("Not for this Mac – built for \(systems.joined(separator: ", "))")
     }
 }
@@ -770,7 +770,7 @@ struct TagList: View {
         // The longest prefix of the tags that fits, the rest counted
         ViewThatFits(in: .horizontal) {
             ForEach((1...tags.count).reversed(), id: \.self) { n in
-                HStack(spacing: 3) {
+                HStack(spacing: BrandTokens.Spacing.xs) {
                     ForEach(tags.prefix(n), id: \.self) { chip($0) }
                     if n < tags.count { Text(verbatim: "+\(tags.count - n)").font(.caption2).foregroundStyle(.tertiary) }
                 }
@@ -795,20 +795,20 @@ struct ExpandableRow<Header: View, Detail: View>: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            HStack(spacing: 10) {
+            HStack(spacing: BrandTokens.Spacing.xl) {
                 header
                 Image(systemName: "chevron.right")
                     .font(.caption.weight(.semibold)).foregroundStyle(.secondary)
                     .rotationEffect(.degrees(expanded ? 90 : 0))
                     .frame(width: 14)
             }
-            .padding(.horizontal, 10).padding(.vertical, 7)
+            .padding(.horizontal, BrandTokens.Spacing.xl).padding(.vertical, 7)
             .contentShape(Rectangle())
             .onTapGesture { withAnimation(.easeInOut(duration: 0.15)) { expanded.toggle() } }
             if expanded {
                 detail
                     .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(.leading, 36).padding(.trailing, 10).padding(.bottom, 10)
+                    .padding(.leading, 36).padding(.trailing, BrandTokens.Spacing.xl).padding(.bottom, BrandTokens.Spacing.xl)
                     .transition(.opacity)
             }
         }
@@ -820,10 +820,10 @@ struct DetailBox<Content: View>: View {
     @ViewBuilder let content: Content
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) { content }
-            .padding(10)
+        VStack(alignment: .leading, spacing: BrandTokens.Spacing.l) { content }
+            .padding(BrandTokens.Spacing.cardPadding)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(Color.primary.opacity(0.04), in: RoundedRectangle(cornerRadius: BrandStyle.radius, style: .continuous))
+            .background(Color.primary.opacity(BrandTokens.Opacity.subtleFill), in: RoundedRectangle(cornerRadius: BrandStyle.radius, style: .continuous))
     }
 }
 
@@ -834,7 +834,7 @@ struct InfoLine: View {
     var full: String? = nil
 
     var body: some View {
-        HStack(alignment: .firstTextBaseline, spacing: 10) {
+        HStack(alignment: .firstTextBaseline, spacing: BrandTokens.Spacing.xl) {
             Text(label).foregroundStyle(.secondary).lineLimit(1).frame(width: 80, alignment: .trailing)
             value.lineLimit(1).truncationMode(.middle)
                 .frame(minWidth: 0, maxWidth: .infinity, alignment: .leading)
@@ -856,17 +856,17 @@ struct ActionButton: View {
 
     var body: some View {
         Button(action: action) {
-            HStack(spacing: 4) {
-                Image(systemName: icon).font(.system(size: 10, weight: .semibold))
+            HStack(spacing: BrandTokens.Spacing.s) {
+                Image(systemName: icon).font(BrandTokens.Fonts.buttonIcon)
                 Text(title).font(.caption).lineLimit(1)
             }
             .foregroundStyle(color)
-            .padding(.horizontal, 8).frame(height: 22)
-            .background(hovering && enabled ? color.opacity(0.10) : .clear,
-                        in: RoundedRectangle(cornerRadius: 6, style: .continuous))
-            .overlay(RoundedRectangle(cornerRadius: 6, style: .continuous)
-                .strokeBorder(color == .primary ? BrandStyle.cardBorder : color.opacity(0.6)))
-            .opacity(enabled ? 1 : 0.4)
+            .padding(.horizontal, BrandTokens.Spacing.l).frame(height: 22)
+            .background(hovering && enabled ? color.opacity(BrandTokens.Opacity.selected) : .clear,
+                        in: RoundedRectangle(cornerRadius: BrandTokens.Radius.small, style: .continuous))
+            .overlay(RoundedRectangle(cornerRadius: BrandTokens.Radius.small, style: .continuous)
+                .strokeBorder(color == .primary ? BrandStyle.cardBorder : color.opacity(BrandTokens.Opacity.tintedBorder)))
+            .opacity(enabled ? 1 : BrandTokens.Opacity.disabled)
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
@@ -885,14 +885,14 @@ struct FeatureChip: View {
 
     var body: some View {
         Button(action: toggle) {
-            HStack(spacing: 4) {
-                Image(systemName: icon).font(.system(size: 10, weight: .semibold))
+            HStack(spacing: BrandTokens.Spacing.s) {
+                Image(systemName: icon).font(BrandTokens.Fonts.buttonIcon)
                 Text(title).font(.caption).lineLimit(1)
             }
             .foregroundStyle(isOn ? .primary : .secondary)
-            .padding(.horizontal, 8).frame(height: 22)
-            .background(isOn ? BrandStyle.cyan.opacity(0.16) : .clear, in: Capsule())
-            .overlay(Capsule().strokeBorder(isOn ? BrandStyle.cyan.opacity(0.55) : BrandStyle.cardBorder))
+            .padding(.horizontal, BrandTokens.Spacing.l).frame(height: 22)
+            .background(isOn ? BrandStyle.cyan.opacity(BrandTokens.Opacity.toggleOnFill) : .clear, in: Capsule())
+            .overlay(Capsule().strokeBorder(isOn ? BrandStyle.cyan.opacity(BrandTokens.Opacity.toggleOnBorder) : BrandStyle.cardBorder))
             .opacity(enabled ? 1 : 0.45)
             .contentShape(Capsule())
         }
@@ -907,11 +907,11 @@ struct FeatureIcons: View {
     let vm: Vm
 
     var body: some View {
-        HStack(spacing: 4) {
+        HStack(spacing: BrandTokens.Spacing.s) {
             if vm.clipboard { icon("doc.on.clipboard", "Shared clipboard on") }
             if vm.audio { icon("speaker.wave.2.fill", "Sound on") }
-            if vm.microphone { icon("mic.fill", "Microphone on", .orange) }
-            if vm.camera && vm.kind == .nixos { icon("camera.fill", "Camera on", .orange) }
+            if vm.microphone { icon("mic.fill", "Microphone on", BrandTokens.Colors.warning) }
+            if vm.camera && vm.kind == .nixos { icon("camera.fill", "Camera on", BrandTokens.Colors.warning) }
             if vm.ephemeral { icon("sparkles", "Ephemeral instance") }
             if vm.network == .isolated { icon("lock.shield", "Network isolated") }
             if vm.network == .none { icon("wifi.slash", "No network") }
@@ -919,7 +919,7 @@ struct FeatureIcons: View {
     }
 
     private func icon(_ name: String, _ help: LocalizedStringKey, _ color: Color = .secondary) -> some View {
-        Image(systemName: name).font(.system(size: 9, weight: .semibold)).foregroundStyle(color).help(help)
+        Image(systemName: name).font(.system(size: BrandTokens.Icon.badge, weight: .semibold)).foregroundStyle(color).help(help)
     }
 }
 
@@ -937,7 +937,7 @@ struct ListSection<Accessory: View, Content: View>: View {
     @ViewBuilder let content: Content
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
+        VStack(alignment: .leading, spacing: BrandTokens.Spacing.m) {
             HStack(alignment: .firstTextBaseline) {
                 Text(title).font(.subheadline.weight(.semibold)).foregroundStyle(.secondary)
                 if let of, of != count {
@@ -1008,11 +1008,11 @@ struct FilterMenu: View {
             Button("Reset Filter") { model.filters[tab] = nil }.disabled(!filter.wrappedValue.isActive)
         } label: {
             Image(systemName: filter.wrappedValue.isActive ? "line.3.horizontal.decrease.circle.fill" : "line.3.horizontal.decrease.circle")
-                .font(.system(size: 13, weight: .medium))
+                .font(BrandTokens.Fonts.toolbarIcon)
                 .foregroundStyle(filter.wrappedValue.isActive ? BrandStyle.cyan : .primary)
         }
         .menuStyle(.borderlessButton).menuIndicator(.hidden).fixedSize()
-        .frame(width: 26, height: 24)
+        .frame(width: BrandTokens.Size.iconButtonWidth, height: BrandTokens.Size.iconButtonHeight)
         .help("Filter")
     }
 }
@@ -1022,13 +1022,13 @@ struct FilteredOut: View {
     let model: AppModel
 
     var body: some View {
-        HStack(spacing: 8) {
+        HStack(spacing: BrandTokens.Spacing.l) {
             Image(systemName: "line.3.horizontal.decrease.circle").foregroundStyle(.tertiary)
             Text("Nothing matches the filter.").font(.callout).foregroundStyle(.secondary)
             Spacer()
             Button("Reset Filter") { model.filters[model.tab] = nil }.controlSize(.small)
         }
-        .padding(10)
+        .padding(BrandTokens.Spacing.cardPadding)
     }
 }
 
@@ -1048,14 +1048,14 @@ struct IconButton: View {
     var body: some View {
         Button(action: action) {
             Image(systemName: icon)
-                .font(.system(size: 13, weight: .medium))
+                .font(BrandTokens.Fonts.toolbarIcon)
                 .foregroundStyle(iconColor.map(AnyShapeStyle.init) ?? AnyShapeStyle(.primary))
-                .frame(width: 26, height: 24)
-                .background(hovering ? Color.primary.opacity(0.08) : .clear, in: RoundedRectangle(cornerRadius: BrandStyle.radius, style: .continuous))
+                .frame(width: BrandTokens.Size.iconButtonWidth, height: BrandTokens.Size.iconButtonHeight)
+                .background(hovering ? Color.primary.opacity(BrandTokens.Opacity.hover) : .clear, in: RoundedRectangle(cornerRadius: BrandStyle.radius, style: .continuous))
                 .overlay(alignment: .bottomTrailing) {
                     if let subIcon {
                         Image(systemName: subIcon)
-                            .font(.system(size: 7, weight: .heavy)).foregroundStyle(subIconColor)
+                            .font(.system(size: BrandTokens.Icon.subIcon, weight: .heavy)).foregroundStyle(subIconColor)
                             .padding(1.5).background(Circle().fill(BrandStyle.base))
                             .offset(x: 1, y: 1)
                     }
@@ -1063,7 +1063,7 @@ struct IconButton: View {
                 .overlay(alignment: .topTrailing) {
                     if badge > 0 {
                         Image(systemName: "exclamationmark.triangle.fill")
-                            .font(.system(size: 8, weight: .bold)).foregroundStyle(.orange)
+                            .font(.system(size: BrandTokens.Icon.subBadge, weight: .bold)).foregroundStyle(BrandTokens.Colors.warning)
                             .background(Circle().fill(.background).padding(-1))
                             .offset(x: 1, y: -1)
                     }
@@ -1123,8 +1123,8 @@ struct DoctorWarning: View {
             nav.show(.doctor)
         } label: {
             Image(systemName: "exclamationmark.triangle.fill")
-                .font(.system(size: 13)).foregroundStyle(.orange)
-                .frame(width: 26, height: 24).contentShape(Rectangle())
+                .font(.system(size: BrandTokens.Icon.toolbar)).foregroundStyle(BrandTokens.Colors.warning)
+                .frame(width: BrandTokens.Size.iconButtonWidth, height: BrandTokens.Size.iconButtonHeight).contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         .help(Text(DoctorWarning.text(blockers)))
@@ -1140,12 +1140,12 @@ struct EmptyHint: View {
     let text: LocalizedStringKey
 
     var body: some View {
-        HStack(spacing: 8) {
+        HStack(spacing: BrandTokens.Spacing.l) {
             Image(systemName: icon).foregroundStyle(.tertiary)
             Text(text).font(.callout).foregroundStyle(.secondary)
             Spacer()
         }
-        .padding(10)
+        .padding(BrandTokens.Spacing.cardPadding)
     }
 }
 
@@ -1154,12 +1154,12 @@ struct ActivityRow: View {
     let activity: Activity
 
     var body: some View {
-        HStack(alignment: .firstTextBaseline, spacing: 8) {
+        HStack(alignment: .firstTextBaseline, spacing: BrandTokens.Spacing.l) {
             Text(activity.date, format: .dateTime.hour().minute()).font(.caption.monospacedDigit()).foregroundStyle(.tertiary)
             Text(activity.text).font(.caption).textSelection(.enabled).fixedSize(horizontal: false, vertical: true)
             Spacer(minLength: 0)
         }
-        .padding(.horizontal, 10).padding(.vertical, 6)
+        .padding(.horizontal, BrandTokens.Spacing.xl).padding(.vertical, BrandTokens.Spacing.m)
     }
 }
 
@@ -1183,9 +1183,9 @@ struct StatusLamp: View {
 
     private var color: Color {
         switch state {
-        case .on: .green
+        case .on: BrandTokens.Colors.success
         case .off: Color.secondary.opacity(0.35)
-        case .attention: .orange
+        case .attention: BrandTokens.Colors.warning
         case .working: BrandStyle.cyan
         }
     }
@@ -1210,12 +1210,12 @@ struct InstanceRow: View {
     }
 
     private var header: some View {
-        HStack(spacing: 10) {
+        HStack(spacing: BrandTokens.Spacing.xl) {
             StatusLamp(state: busy ? .working : row.status == .running ? .on : .off)
                 .help(busy ? "Starting or stopping …" : row.status == .running ? "Running" : "Stopped")
             GuestKindIcon(kind: row.kind).frame(width: 16)
-            VStack(alignment: .leading, spacing: 2) {
-                HStack(spacing: 6) {
+            VStack(alignment: .leading, spacing: BrandTokens.Spacing.xxs) {
+                HStack(spacing: BrandTokens.Spacing.m) {
                     Text(row.name).fontWeight(.medium)
                     if let location = row.location {
                         Image(systemName: "externaldrive").font(.caption).foregroundStyle(.secondary)
@@ -1223,7 +1223,7 @@ struct InstanceRow: View {
                     }
                     FeatureIcons(vm: row)
                     if row.upgradable {
-                        Image(systemName: "arrow.up.circle.fill").font(.caption).foregroundStyle(.orange).help("Newer image available")
+                        Image(systemName: "arrow.up.circle.fill").font(.caption).foregroundStyle(BrandTokens.Colors.warning).help("Newer image available")
                     }
                 }
                 Text(verbatim: ([model.recipeName(row.recipe), "\(row.cpus) CPU", "\(row.memoryGB) GB"] + [ssh].compactMap { $0 })
@@ -1276,8 +1276,8 @@ struct InstanceDetail: View {
     var body: some View {
         let c = row
         DetailBox {
-            VStack(alignment: .leading, spacing: 4) {
-                HStack(spacing: 6) {
+            VStack(alignment: .leading, spacing: BrandTokens.Spacing.s) {
+                HStack(spacing: BrandTokens.Spacing.m) {
                     FeatureChip(icon: "doc.on.clipboard", title: "Clipboard", isOn: c.clipboard, help: "Shared Clipboard") {
                         model.setSound(row.id, clipboard: !c.clipboard)
                     }
@@ -1298,9 +1298,9 @@ struct InstanceDetail: View {
                     Text("Changes take effect at the next start.").font(.caption2).foregroundStyle(.secondary)
                 }
             }
-            VStack(alignment: .leading, spacing: 3) {
+            VStack(alignment: .leading, spacing: BrandTokens.Spacing.xs) {
                 InfoLine(label: "Image", value: row.upgradable
-                         ? Text(verbatim: c.image + " · ") + Text("newer image available").foregroundColor(.orange)
+                         ? Text(verbatim: c.image + " · ") + Text("newer image available").foregroundColor(BrandTokens.Colors.warning)
                          : Text(verbatim: c.image), full: c.image)
                 InfoLine(label: "omaflake ID", value: Text(verbatim: IDText.short(c.omaflakeId, model.idLengths.vm)), full: c.omaflakeId)
                 InfoLine(label: "Recipe", value: Text(verbatim: model.recipe(c.recipe)?.label ?? RecipeText.qualified(c.recipe)),
@@ -1321,7 +1321,7 @@ struct InstanceDetail: View {
                 }
                 if let agent = row.agent, let hello = agent.hello {
                     InfoLine(label: "Agent", value: agent.agentIsOlder
-                             ? Text(verbatim: "\(hello.agent) · ") + Text("older than this omaflake – rebuild the image").foregroundColor(.orange)
+                             ? Text(verbatim: "\(hello.agent) · ") + Text("older than this omaflake – rebuild the image").foregroundColor(BrandTokens.Colors.warning)
                              : Text(verbatim: "\(hello.agent) · \(hello.osName ?? hello.os ?? "")"))
                     if let status = agent.status {
                         let line = Self.guestLine(status)
@@ -1331,7 +1331,7 @@ struct InstanceDetail: View {
             }
             .textSelection(.enabled)
             // Export (a snapshot, plan B108) on the left; what changes or ends the VM on the right
-            HStack(spacing: 8) {
+            HStack(spacing: BrandTokens.Spacing.l) {
                 ActionButton(icon: "square.and.arrow.up", title: "Export …") { model.exportVM(row.id) }
                 Spacer()
                 if row.location != nil {
@@ -1388,23 +1388,23 @@ struct ImageRowView: View {
     }
 
     private var row: some View {
-        HStack(spacing: 10) {
+        HStack(spacing: BrandTokens.Spacing.xl) {
             // Green: at least one VM uses this image (plan B100)
             StatusLamp(state: usedBy.isEmpty ? .off : .on)
                 .help(usedBy.isEmpty ? "No VM uses this image" : "Used by VMs")
             GuestKindIcon(kind: image.kind).frame(width: 16)
-            VStack(alignment: .leading, spacing: 2) {
-                HStack(spacing: 6) {
+            VStack(alignment: .leading, spacing: BrandTokens.Spacing.xxs) {
+                HStack(spacing: BrandTokens.Spacing.m) {
                     Text(verbatim: image.name).font(.callout.weight(.medium)).lineLimit(1).truncationMode(.middle)
                         .help(image.name)
                     if outdated == true {
-                        Text("outdated").font(.caption2.weight(.semibold)).foregroundStyle(.orange)
+                        Text("outdated").font(.caption2.weight(.semibold)).foregroundStyle(BrandTokens.Colors.warning)
                             .padding(.horizontal, 5).padding(.vertical, 1)
-                            .overlay(Capsule().strokeBorder(.orange.opacity(0.6)))
+                            .overlay(Capsule().strokeBorder(BrandTokens.Colors.warning.opacity(BrandTokens.Opacity.tintedBorder)))
                             .help("Built from an earlier state of the recipe – a new build would differ")
                     }
                 }
-                HStack(spacing: 4) {
+                HStack(spacing: BrandTokens.Spacing.s) {
                     Text("recipe \(model.recipeName(image.recipe))")
                     Text(verbatim: "·")
                     Text(image.created.formatted(date: .abbreviated, time: .shortened))
@@ -1414,7 +1414,7 @@ struct ImageRowView: View {
                         if usedBy.isEmpty {
                             Text("no VM")
                         } else {
-                            HStack(spacing: 3) {
+                            HStack(spacing: BrandTokens.Spacing.xs) {
                                 Image(systemName: "desktopcomputer")
                                 Text(usedBy.count == 1 ? "1 VM" : "\(usedBy.count) VMs")
                             }
@@ -1453,7 +1453,7 @@ struct ImageVersionInfo: View {
         let info = version
         // Fixed label column, values on one line: long paths and store names must not widen the window's content
         DetailBox {
-            VStack(alignment: .leading, spacing: 3) {
+            VStack(alignment: .leading, spacing: BrandTokens.Spacing.xs) {
                 InfoLine(label: "omaflake ID", value: Text(verbatim: info.label), full: info.omaflakeId)
                 InfoLine(label: "Recipe", value: Text(verbatim: model.recipe(info.recipe)?.label ?? RecipeText.qualified(info.recipe)),
                          full: info.recipe)
@@ -1494,7 +1494,7 @@ struct ImageVersionInfo: View {
 
     private var status: Text {
         switch outdated {
-        case true?: Text("built from an older state of the recipe").foregroundColor(.orange)
+        case true?: Text("built from an older state of the recipe").foregroundColor(BrandTokens.Colors.warning)
         case false?: Text("matches the recipe")
         case nil: Text(verbatim: "–")
         }
@@ -1531,9 +1531,9 @@ struct NewVMView: View {
         Form {
             Section {
                 // What it is created from: exactly this image
-                HStack(spacing: 10) {
+                HStack(spacing: BrandTokens.Spacing.xl) {
                     GuestKindIcon(kind: settings.kind).frame(width: 16)
-                    VStack(alignment: .leading, spacing: 2) {
+                    VStack(alignment: .leading, spacing: BrandTokens.Spacing.xxs) {
                         Text(verbatim: imageName.isEmpty ? "–" : imageName).fontWeight(.medium).lineLimit(1).truncationMode(.middle)
                             .help(imageName)
                         Text("recipe \(model.recipeName(recipe))").font(.caption).foregroundStyle(.secondary)
@@ -1582,7 +1582,7 @@ struct NewVMView: View {
             Section {
                 Toggle("Start afterwards", isOn: $startAfter)
                 if isMac, startAfter, let reason = model.macLimitReason {
-                    Text("\(reason) – the VM is created but not started.").font(.caption).foregroundStyle(.orange)
+                    Text("\(reason) – the VM is created but not started.").font(.caption).foregroundStyle(BrandTokens.Colors.warning)
                 }
             }
             HStack {
@@ -1627,9 +1627,9 @@ struct DoctorBanner: View {
     @Environment(AppModel.self) private var nav
 
     var body: some View {
-        HStack(alignment: .top, spacing: 10) {
-            Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(.orange)
-            VStack(alignment: .leading, spacing: 2) {
+        HStack(alignment: .top, spacing: BrandTokens.Spacing.xl) {
+            Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(BrandTokens.Colors.warning)
+            VStack(alignment: .leading, spacing: BrandTokens.Spacing.xxs) {
                 Text("Not possible yet – the Doctor reports:").fontWeight(.medium)
                 ForEach(blockers) { p in
                     Text(verbatim: "• \(RequirementText.title(p.item)): \(RequirementText.hint(p))").font(.caption)
@@ -1639,8 +1639,8 @@ struct DoctorBanner: View {
             Spacer()
             Button("Open Doctor …") { nav.show(.doctor) }
         }
-        .padding(10)
-        .background(.orange.opacity(0.12), in: RoundedRectangle(cornerRadius: BrandStyle.radius, style: .continuous))
+        .padding(BrandTokens.Spacing.cardPadding)
+        .background(BrandTokens.Colors.warning.opacity(BrandTokens.Opacity.tintFill), in: RoundedRectangle(cornerRadius: BrandStyle.radius, style: .continuous))
     }
 }
 
@@ -1671,16 +1671,16 @@ struct BuildView: View {
     private var job: Job? { model.latestJob(for: recipe) }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: BrandTokens.Spacing.xxl) {
             // 1. What: the recipe with its guest kind
-            HStack(spacing: 8) {
+            HStack(spacing: BrandTokens.Spacing.l) {
                 // Always the recipe it was opened for – from its row in Recipes or its build in Images (plan B100)
                 GuestKindIcon(kind: r?.kind ?? .nixos).frame(width: 16)
                 Text(recipe.isEmpty ? "–" : model.recipeName(recipe)).font(.headline)
                 RecipeBadges(lab: r?.lab ?? false, description: r?.description)
             }
             // 2. Go: password (macOS) and start/cancel – other recipes can be queued meanwhile
-            HStack(spacing: 8) {
+            HStack(spacing: BrandTokens.Spacing.l) {
                 if isMac && job?.isActive != true {
                     // sudo in the build VM, once; kept only until the build starts
                     SecureField("Password of \(model.macBaseUser ?? r?.user ?? NSUserName())", text: $password)
@@ -1738,11 +1738,11 @@ struct BuildOutcome: View {
     private var image: String? { job.result(as: BuildResult.self)?.image }
 
     var body: some View {
-        HStack(alignment: .top, spacing: 8) {
+        HStack(alignment: .top, spacing: BrandTokens.Spacing.l) {
             switch job.state {
             case .finished:
                 Image(systemName: "checkmark.circle.fill").foregroundStyle(BrandStyle.cyan)
-                VStack(alignment: .leading, spacing: 2) {
+                VStack(alignment: .leading, spacing: BrandTokens.Spacing.xxs) {
                     Text("Image ready").font(.callout.weight(.semibold))
                     if let image {
                         Text(verbatim: model.images.first { $0.name == image }?.label ?? image)
@@ -1758,7 +1758,7 @@ struct BuildOutcome: View {
                 }
             case .failed:
                 Image(systemName: "xmark.octagon.fill").foregroundStyle(BrandStyle.red)
-                VStack(alignment: .leading, spacing: 2) {
+                VStack(alignment: .leading, spacing: BrandTokens.Spacing.xxs) {
                     Text("Build failed").font(.callout.weight(.semibold))
                     if let error = job.error {
                         Text(verbatim: error).font(.caption).foregroundStyle(.secondary).lineLimit(3).textSelection(.enabled)
@@ -1773,8 +1773,8 @@ struct BuildOutcome: View {
                 EmptyView()
             }
         }
-        .padding(10)
-        .background(BrandStyle.card, in: RoundedRectangle(cornerRadius: 8))
+        .padding(BrandTokens.Spacing.cardPadding)
+        .background(BrandStyle.card, in: RoundedRectangle(cornerRadius: BrandTokens.Radius.toast))
     }
 }
 
@@ -1787,7 +1787,7 @@ struct BuildProgressView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 5) {
-            HStack(spacing: 8) {
+            HStack(spacing: BrandTokens.Spacing.l) {
                 ProgressView().controlSize(.small)   // spinning: the build is alive
                 Text(verbatim: "\(progress.step)/\(progress.total)")
                     .font(.system(.caption, design: .monospaced).weight(.bold)).foregroundStyle(BrandStyle.cyan)
@@ -1804,11 +1804,11 @@ struct BuildProgressView: View {
             if let started {
                 TimelineView(.periodic(from: .now, by: 1)) { context in
                     let quiet = Int(context.date.timeIntervalSince(lastOutput ?? started))
-                    HStack(spacing: 6) {
+                    HStack(spacing: BrandTokens.Spacing.m) {
                         Text("Running for \(Self.duration(context.date.timeIntervalSince(started)))")
                         Text(verbatim: "·")
                         Text(quiet < 3 ? String(localized: "output just now") : String(localized: "last output \(Self.duration(Double(quiet))) ago"))
-                            .foregroundStyle(quiet > 120 ? Color.orange : .secondary)
+                            .foregroundStyle(quiet > 120 ? BrandTokens.Colors.warning : .secondary)
                             .help(quiet > 120 ? String(localized: "Some steps print nothing for minutes (writing the disk image, copying); Cancel stops the build") : "")
                     }
                     .font(.caption.monospacedDigit()).foregroundStyle(.secondary)
@@ -1829,8 +1829,8 @@ struct LogView: View {
 
     var body: some View {
         LogTextView(text: lines.joined(separator: "\n"))
-            .background(Color(red: 0.04, green: 0.045, blue: 0.05), in: RoundedRectangle(cornerRadius: BrandStyle.radius, style: .continuous))
-            .overlay(RoundedRectangle(cornerRadius: BrandStyle.radius, style: .continuous).strokeBorder(BrandStyle.cyan.opacity(0.18)))
+            .background(BrandTokens.Colors.console, in: RoundedRectangle(cornerRadius: BrandStyle.radius, style: .continuous))
+            .overlay(RoundedRectangle(cornerRadius: BrandStyle.radius, style: .continuous).strokeBorder(BrandStyle.cyan.opacity(BrandTokens.Opacity.consoleBorder)))
     }
 }
 
@@ -1903,7 +1903,7 @@ struct DoctorView: View {
                     }
                 }
                 if let problem = model.coreProblem {
-                    Label(problem, systemImage: "exclamationmark.triangle.fill").foregroundStyle(.orange).font(.callout)
+                    Label(problem, systemImage: "exclamationmark.triangle.fill").foregroundStyle(BrandTokens.Colors.warning).font(.callout)
                         .fixedSize(horizontal: false, vertical: true)
                 }
                 UpdateRow(model: model)
@@ -1951,13 +1951,13 @@ struct MacBaseView: View {
     private var baseItem: Prerequisite? { model.macosPreflight.first { $0.item == .macBase } }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: BrandTokens.Spacing.xxl) {
             Text("Creates your macOS base from the IPSW: your guest user, automatic login, SSH with your keys from ~/.ssh. No manual steps; a missing IPSW is downloaded first.")
                 .font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
             if let baseItem, baseItem.status == .ok {
-                Label(baseItem.detail, systemImage: "checkmark.circle.fill").foregroundStyle(.green)
+                Label(baseItem.detail, systemImage: "checkmark.circle.fill").foregroundStyle(BrandTokens.Colors.success)
             } else if let baseItem, baseItem.status == .limited {
-                Label(RequirementText.hint(baseItem), systemImage: "exclamationmark.circle.fill").foregroundStyle(.orange)
+                Label(RequirementText.hint(baseItem), systemImage: "exclamationmark.circle.fill").foregroundStyle(BrandTokens.Colors.warning)
                     .fixedSize(horizontal: false, vertical: true)
             }
             GroupBox {
@@ -1983,7 +1983,7 @@ struct MacBaseView: View {
                 }
                 .textFieldStyle(.roundedBorder)
                 .disabled(model.installing)
-                .padding(4)
+                .padding(BrandTokens.Spacing.s)
             } label: { Text("Guest user") }
             HStack {
                 if model.installing { ProgressView().controlSize(.small); Text("running …").foregroundStyle(.secondary) }
@@ -2014,7 +2014,7 @@ struct DownloadProgress: View {
 
     var body: some View {
         let (done, total) = model.downloadProgress
-        HStack(spacing: 6) {
+        HStack(spacing: BrandTokens.Spacing.m) {
             ProgressView(value: total > 0 ? Double(done) / Double(total) : 0).frame(width: 90)
             Text(verbatim: total > 0 ? "\(gigabytes(done)) / \(gigabytes(total))" : "…")
                 .font(.caption.monospacedDigit()).foregroundStyle(.secondary)
@@ -2046,10 +2046,10 @@ struct RequirementRow: View {
     private var expanded: Bool { hasSubline && (userOpen ?? (p.status != .ok || busy)) }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            HStack(alignment: .firstTextBaseline, spacing: 8) {
+        VStack(alignment: .leading, spacing: BrandTokens.Spacing.m) {
+            HStack(alignment: .firstTextBaseline, spacing: BrandTokens.Spacing.l) {
                 Image(systemName: p.status == .ok ? "checkmark.circle.fill" : p.status == .limited ? "exclamationmark.circle.fill" : "xmark.circle.fill")
-                    .foregroundStyle(p.status == .ok ? .green : p.status == .limited ? .orange : .red)
+                    .foregroundStyle(p.status == .ok ? BrandTokens.Colors.success : p.status == .limited ? BrandTokens.Colors.warning : .red)
                 Text(RequirementText.title(p.item)).lineLimit(1).layoutPriority(1)
                 Spacer(minLength: 12)
                 // Paths and versions as found; for a missing item the hint in the sub-line says it all
@@ -2078,7 +2078,7 @@ struct RequirementRow: View {
             .contentShape(Rectangle())
             .onTapGesture { if hasSubline { withAnimation(.easeInOut(duration: 0.15)) { userOpen = !expanded } } }
             if expanded {
-                HStack(alignment: .center, spacing: 8) {
+                HStack(alignment: .center, spacing: BrandTokens.Spacing.l) {
                     if p.status != .ok {
                         Text(RequirementText.hint(p)).font(.caption).foregroundStyle(.secondary)
                             .fixedSize(horizontal: false, vertical: true)
@@ -2087,7 +2087,7 @@ struct RequirementRow: View {
                     actions
                 }
                 .controlSize(.small)
-                .padding(.horizontal, 10).padding(.vertical, 6)
+                .padding(.horizontal, BrandTokens.Spacing.xl).padding(.vertical, BrandTokens.Spacing.m)
                 .background(.quaternary.opacity(0.4), in: RoundedRectangle(cornerRadius: BrandStyle.radius, style: .continuous))
                 .padding(.leading, 26)
             }
@@ -2215,22 +2215,22 @@ struct SettingsView: View {
             RecipeSourcesSection(model: model)
             Section("General") {
                 Toggle("Launch at Login", isOn: $model.launchAtLogin)
-                VStack(alignment: .leading, spacing: 2) {
+                VStack(alignment: .leading, spacing: BrandTokens.Spacing.xxs) {
                     Toggle("Notifications", isOn: $model.notifications)
                     Text("Only while the menu window is closed: VM ready, image built or failed, VM ended. macOS asks once whether omaflake may send them.")
                         .font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
                 }
-                VStack(alignment: .leading, spacing: 2) {
+                VStack(alignment: .leading, spacing: BrandTokens.Spacing.xxs) {
                     Toggle("Check for updates", isOn: $model.checkForUpdates)
                     Text("Once a day – the only network access omaflake makes on its own.")
                         .font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
                 }
-                VStack(alignment: .leading, spacing: 2) {
+                VStack(alignment: .leading, spacing: BrandTokens.Spacing.xxs) {
                     Toggle("Keep older recipe versions", isOn: $model.keepRecipeVersions)
                     Text("When a newer version of a recipe comes (an update, an import, a change in a local folder after a build). Off: only the newest stays – and every version an image is built from, as long as the image is there.")
                         .font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
                 }
-                VStack(alignment: .leading, spacing: 2) {
+                VStack(alignment: .leading, spacing: BrandTokens.Spacing.xxs) {
                     Toggle("Developer Mode", isOn: $model.developerMode)
                     Text("Shows the lab recipes – omaflake's development recipes with test app and debug tools, and recipes others mark with lab = true.")
                         .font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
@@ -2357,7 +2357,7 @@ struct GuideView: View {
 
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 10) {
+            VStack(alignment: .leading, spacing: BrandTokens.Spacing.xl) {
                 if blocks.isEmpty {
                     Text("This guide is part of the app bundle (scripts/bundle-app.sh).").foregroundStyle(.secondary)
                 }
@@ -2427,14 +2427,14 @@ enum MarkdownBlock {
         case .paragraph(let text):
             Text(Self.inline(text)).fixedSize(horizontal: false, vertical: true)
         case .item(let text):
-            HStack(alignment: .firstTextBaseline, spacing: 6) {
+            HStack(alignment: .firstTextBaseline, spacing: BrandTokens.Spacing.m) {
                 Text("•")
                 Text(Self.inline(text)).fixedSize(horizontal: false, vertical: true)
             }
         case .code(let text):
             Text(text).font(.system(.callout, design: .monospaced))
                 .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(10)
+                .padding(BrandTokens.Spacing.cardPadding)
                 .background(.quaternary.opacity(0.5), in: RoundedRectangle(cornerRadius: BrandStyle.radius, style: .continuous))
         }
     }
@@ -2443,27 +2443,30 @@ enum MarkdownBlock {
 // MARK: - Brand look
 
 /// omaflake's colours (brand/README.md, brand/generate.py)
+/// The app's shorthands for the design tokens (brand/tokens.toml → BrandTokens.swift, plan B119)
 enum BrandStyle {
-    static let red = Color(red: 1.0, green: 0x3B / 255, blue: 0x3B / 255)        // #FF3B3B
-    static let cyan = Color(red: 0, green: 0xE5 / 255, blue: 1.0)                 // #00E5FF
-    static let yellow = Color(red: 0xF5 / 255, green: 1.0, blue: 0x3B / 255)      // #F5FF3B
-    static let base = Color(red: 0x12 / 255, green: 0x12 / 255, blue: 0x12 / 255) // #121212
-    static let card = Color.white.opacity(0.045)
+    static let red = BrandTokens.Palette.red
+    static let cyan = BrandTokens.Palette.cyan
+    static let yellow = BrandTokens.Palette.yellow
+    static let base = BrandTokens.Colors.window
+    static let card = BrandTokens.Colors.card
     /// The window's corners, close to macOS' own windows with a toolbar (Finder, Safari) – Apple documents no value,
     /// 24 pt is matched by eye (plan B44)
-    static let windowRadius: CGFloat = 24
+    static let windowRadius = BrandTokens.Radius.window
     /// Distance of the content from the window's edge
-    static let margin: CGFloat = 20
+    static let margin = BrandTokens.Spacing.margin
     /// Cards and buttons
-    static let radius: CGFloat = 10
-    static let cardBorder = Color.white.opacity(0.07)
+    static let radius = BrandTokens.Radius.card
+    static let cardBorder = BrandTokens.Colors.cardBorder
 
     /// Near-black with a faint red and cyan glow from the corners, like the hero mark's RGB split
     static var background: some View {
         ZStack {
             base
-            RadialGradient(colors: [red.opacity(0.10), .clear], center: .topLeading, startRadius: 0, endRadius: 320)
-            RadialGradient(colors: [cyan.opacity(0.08), .clear], center: .bottomTrailing, startRadius: 0, endRadius: 360)
+            RadialGradient(colors: [BrandTokens.Colors.glowRed, .clear], center: .topLeading, startRadius: 0,
+                           endRadius: BrandTokens.Glow.redRadius)
+            RadialGradient(colors: [BrandTokens.Colors.glowCyan, .clear], center: .bottomTrailing, startRadius: 0,
+                           endRadius: BrandTokens.Glow.cyanRadius)
         }
     }
 }
@@ -2471,7 +2474,7 @@ enum BrandStyle {
 /// "omaflake" in Menlo Bold with the hero's red/cyan offset
 struct Wordmark: View {
     var body: some View {
-        let text = Text(verbatim: "omaflake").font(.system(size: 14, weight: .bold, design: .monospaced))
+        let text = Text(verbatim: "omaflake").font(BrandTokens.Fonts.wordmark)
         ZStack {
             text.foregroundStyle(BrandStyle.red).offset(x: -1, y: 0)
             text.foregroundStyle(BrandStyle.cyan).offset(x: 1, y: 0)
@@ -2538,7 +2541,7 @@ struct RecipeDescription: View {
 
     var body: some View {
         if let text = recipe?.description {
-            HStack(alignment: .firstTextBaseline, spacing: 6) {
+            HStack(alignment: .firstTextBaseline, spacing: BrandTokens.Spacing.m) {
                 if recipe?.lab == true { Image(systemName: "flask").foregroundStyle(BrandStyle.yellow) }
                 Text(text).font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
             }
@@ -2552,9 +2555,9 @@ struct ConfirmationOverlay: View {
 
     var body: some View {
         ZStack {
-            Color.black.opacity(0.45).ignoresSafeArea()
+            BrandTokens.Colors.scrim.ignoresSafeArea()
                 .onTapGesture { confirmation.answer(nil) }
-            VStack(alignment: .leading, spacing: 12) {
+            VStack(alignment: .leading, spacing: BrandTokens.Spacing.xxl) {
                 Text(confirmation.title).font(.headline).fixedSize(horizontal: false, vertical: true)
                 Text(confirmation.text).font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
                 if let input = confirmation.input {
@@ -2574,8 +2577,8 @@ struct ConfirmationOverlay: View {
             }
             .padding(BrandStyle.margin)
             .frame(maxWidth: 400)
-            .background(BrandStyle.base, in: RoundedRectangle(cornerRadius: BrandStyle.radius + 4, style: .continuous))
-            .overlay(RoundedRectangle(cornerRadius: BrandStyle.radius + 4, style: .continuous).strokeBorder(BrandStyle.cardBorder))
+            .background(BrandStyle.base, in: RoundedRectangle(cornerRadius: BrandTokens.Radius.sheet, style: .continuous))
+            .overlay(RoundedRectangle(cornerRadius: BrandTokens.Radius.sheet, style: .continuous).strokeBorder(BrandStyle.cardBorder))
             .shadow(radius: 20)
         }
     }
@@ -2590,7 +2593,7 @@ struct BuildJobRow: View {
     let open: () -> Void
 
     var body: some View {
-        HStack(spacing: 8) {
+        HStack(spacing: BrandTokens.Spacing.l) {
             Group {
                 switch job.state {
                 case .queued: Image(systemName: "clock").foregroundStyle(.secondary)
@@ -2601,8 +2604,8 @@ struct BuildJobRow: View {
                 }
             }
             .frame(width: 16)
-            VStack(alignment: .leading, spacing: 3) {
-                HStack(spacing: 6) {
+            VStack(alignment: .leading, spacing: BrandTokens.Spacing.xs) {
+                HStack(spacing: BrandTokens.Spacing.m) {
                     if standalone {
                         Text(verbatim: job.recipe.map(model.recipeName) ?? job.title).font(.callout.weight(.medium))
                         GuestKindIcon(kind: job.guestKind ?? .nixos).font(.caption2).foregroundStyle(.secondary)
@@ -2625,7 +2628,7 @@ struct BuildJobRow: View {
             }
             Image(systemName: "chevron.right").font(.caption.weight(.semibold)).foregroundStyle(.secondary).frame(width: 14)
         }
-        .padding(.leading, standalone ? 10 : 36).padding(.trailing, 10).padding(.vertical, standalone ? 7 : 5)
+        .padding(.leading, standalone ? 10 : 36).padding(.trailing, BrandTokens.Spacing.xl).padding(.vertical, standalone ? 7 : 5)
         .contentShape(Rectangle())
         .onTapGesture(perform: open)
         .help("Show the build and its log")
@@ -2650,7 +2653,7 @@ struct UpdateRow: View {
 
     var body: some View {
         LabeledContent("Updates") {
-            HStack(spacing: 8) {
+            HStack(spacing: BrandTokens.Spacing.l) {
                 switch model.updateState {
                 case .noFeed: Text("No update feed yet (comes with the first release)").foregroundStyle(.secondary)
                 case .off: Text("Check switched off (Settings)").foregroundStyle(.secondary)
@@ -2662,7 +2665,7 @@ struct UpdateRow: View {
                     Button("Download …") {
                         if let url = URL(string: release.page ?? release.url) { NSWorkspace.shared.open(url) }
                     }
-                case .failed(let error): Text("Check failed: \(error)").foregroundStyle(.orange).lineLimit(1).help(error)
+                case .failed(let error): Text("Check failed: \(error)").foregroundStyle(BrandTokens.Colors.warning).lineLimit(1).help(error)
                 }
                 if model.updateState != .checking && model.updateState != .noFeed && model.updateState != .off {
                     Button("Check Now") { Task { await model.checkForUpdate() } }
