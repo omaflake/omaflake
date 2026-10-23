@@ -88,7 +88,7 @@ recipe sources (§11.3) → <author>/<kind>/<name>/{recipe.toml,default.nix} (do
         ▲
 Rust core `omaflake-core` (crates/, one backend per guest kind) ── CLI `omaf` (linked)
         ▲  JSON-RPC 2.0 over stdio: `omaf serve` (docs/api.md)
-Menu bar app (SwiftUI, OmaflakeKit's CoreClient) – later the Linux UIs
+macOS app (SwiftUI, OmaflakeKit's CoreClient) – later the Linux app (Rust, iced; plan B119)
 ```
 
 The logic lives in the Rust core; every UI is a client of `omaf serve` and holds only presentation (plan B117).
@@ -285,6 +285,10 @@ omaf-runner install <vm-dir> --ipsw <file> --disk-gb 80                 # fresh 
 5. **Instances:** APFS clones; Apple ID, Microsoft 365 sign-in etc. per instance.
 
 ### 6.6 Menu bar app (SwiftUI, `MenuBarExtra`)
+
+Planned (plan B119): a setting "Show omaflake in: menu bar / window / both" – the same pages in a regular app window
+with a Dock icon. Linux gets its own app (Rust, iced) in the same brand look: a window, a tray icon over
+StatusNotifierItem and a waybar module, all coming with omaflake.
 
 - List of instances of both guest kinds with status dot and guest-kind icon; click = start or bring window to front
 - "New VM…" (recipes grouped by guest kind, name, ephemeral yes/no), "Reset", "Stop", "Rebuild image" (with log view)

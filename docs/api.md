@@ -7,8 +7,8 @@ permalink: /api/
 # omaflake core API (v1)
 
 omaflake's logic lives in one **Rust core** (`crates/omaflake-core`). Every user interface talks to it through the
-interface described here: the macOS menu bar app (Swift), later the Linux UIs (plan: Tauri, issue #4), scripts and
-tests. The CLI `omaf` is built on the same core. No UI holds logic of its own beyond presentation: what a VM, an
+interface described here: the macOS app (SwiftUI; menu bar, window or both – plan B119), later the Linux app (native Rust
+with iced, plan B119, issue #4), scripts and tests. The CLI `omaf` is built on the same core. No UI holds logic of its own beyond presentation: what a VM, an
 image or a recipe is, what may be done with it and what happens then is decided in the core.
 
 ```
@@ -34,7 +34,7 @@ round, and a UI that quits leaves running VMs alone.
 - `omaf call <method> [<params as JSON>]` runs a single request without a session and prints the result – for
   scripts and tests. It initializes itself and sends no events; a method that starts a job waits for it and prints
   the ended job (its `state` tells whether it finished).
-- The same dispatcher is a Rust API (`omaflake_core::api`), so a Rust UI (Tauri) can link it in-process with exactly
+- The same dispatcher is a Rust API (`omaflake_core::api`), so a Rust UI (the Linux app, iced) can link it in-process with exactly
   these methods and JSON shapes: `Server::new(paths, notify)` (`notify: Fn(method, params)` receives the events, from
   the server's threads – it must not block on the server), then `server.handle(request)` (a JSON-RPC object in, the
   response out) or `server.call(method, params)` (the result or an `RpcError`). `serve_stdio()` and
