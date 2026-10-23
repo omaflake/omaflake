@@ -1,0 +1,55 @@
+{
+  "actions": [
+    {
+      "enabled": true,
+      "icon": "trash",
+      "id": "clear",
+      "label": {
+        "key": "Clear History",
+        "text": "Clear History"
+      },
+      "method": "activity.clear",
+      "params": {}
+    }
+  ],
+  "count": 2,
+  "entries": [
+    {
+      "id": 2,
+      "level": "info",
+      "notification": {
+        "body": {
+          "args": [
+            "research"
+          ],
+          "key": "%@ is running and answers SSH.",
+          "text": "research is running and answers SSH."
+        },
+        "title": {
+          "key": "VM ready",
+          "text": "VM ready"
+        }
+      },
+      "text": {
+        "args": [
+          "research"
+        ],
+        "key": "%@ is ready",
+        "text": "research is ready"
+      },
+      "time": "2026-10-23T09:42:00Z"
+    },
+    {
+      "id": 1,
+      "level": "error",
+      "text": {
+        "text": "work: running – stop it first"
+      },
+      "time": "2026-10-23T09:41:00Z"
+    }
+  ],
+  "title": {
+    "key": "Activity",
+    "text": "Activity"
+  }
+}

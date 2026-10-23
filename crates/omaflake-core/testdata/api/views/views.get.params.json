@@ -1,0 +1,7 @@
+{
+  "page": "newVm",
+  "params": {
+    "image": "omaflake.nixos.dev@cedar-mango-lift",
+    "values": {"name": "research-2", "cpus": 2, "memoryGB": 4, "audio": false, "start": false}
+  }
+}

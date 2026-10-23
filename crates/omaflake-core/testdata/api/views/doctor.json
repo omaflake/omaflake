@@ -1,0 +1,425 @@
+{
+  "actions": [
+    {
+      "enabled": true,
+      "icon": "refresh",
+      "id": "check",
+      "label": {
+        "key": "Check Again",
+        "text": "Check Again"
+      },
+      "method": "doctor.check",
+      "params": {}
+    }
+  ],
+  "checked": "2026-10-23T09:41:00Z",
+  "checking": false,
+  "intro": {
+    "key": "omaflake uses what your Mac already has. Set up missing parts here or enter their path.",
+    "text": "omaflake uses what your Mac already has. Set up missing parts here or enter their path."
+  },
+  "issues": 3,
+  "sections": [
+    {
+      "id": "requirements",
+      "items": [
+        {
+          "actions": [
+            {
+              "enabled": true,
+              "help": {
+                "text": "curl -sSfL https://install.determinate.systems/nix | sh -s -- install"
+              },
+              "icon": "install",
+              "id": "install",
+              "label": {
+                "key": "Install …",
+                "text": "Install …"
+              },
+              "method": "ui.terminal",
+              "params": {
+                "line": "curl -sSfL https://install.determinate.systems/nix | sh -s -- install"
+              }
+            },
+            {
+              "ask": [
+                {
+                  "kind": "file",
+                  "label": {
+                    "key": "Set Path …",
+                    "text": "Set Path …"
+                  },
+                  "param": "path",
+                  "prompt": {
+                    "key": "The nix binary",
+                    "text": "The nix binary"
+                  }
+                }
+              ],
+              "enabled": true,
+              "icon": "folder",
+              "id": "setPath",
+              "label": {
+                "key": "Set Path …",
+                "text": "Set Path …"
+              },
+              "method": "doctor.setPath",
+              "params": {
+                "item": "nix"
+              }
+            }
+          ],
+          "busy": false,
+          "detail": {
+            "text": "/opt/homebrew/bin/qemu-system-aarch64"
+          },
+          "expandable": true,
+          "expanded": false,
+          "item": "nix",
+          "prerequisite": {
+            "detail": "/opt/homebrew/bin/qemu-system-aarch64",
+            "hint": "Install QEMU",
+            "install": "curl -sSfL https://install.determinate.systems/nix | sh -s -- install",
+            "item": "nix",
+            "required": true,
+            "settablePath": true,
+            "status": "ok",
+            "title": "Nix"
+          },
+          "status": "ok",
+          "title": {
+            "key": "Nix",
+            "text": "Nix"
+          }
+        },
+        {
+          "actions": [
+            {
+              "ask": [
+                {
+                  "kind": "file",
+                  "label": {
+                    "key": "Set Path …",
+                    "text": "Set Path …"
+                  },
+                  "param": "path",
+                  "prompt": {
+                    "key": "The qemu-system-aarch64 binary",
+                    "text": "The qemu-system-aarch64 binary"
+                  }
+                }
+              ],
+              "enabled": true,
+              "icon": "folder",
+              "id": "setPath",
+              "label": {
+                "key": "Set Path …",
+                "text": "Set Path …"
+              },
+              "method": "doctor.setPath",
+              "params": {
+                "item": "qemu"
+              }
+            }
+          ],
+          "busy": false,
+          "expandable": true,
+          "expanded": true,
+          "hint": {
+            "key": "Needed for NixOS guests: install omaflake's QEMU, or enter a path.",
+            "text": "Needed for NixOS guests: install omaflake's QEMU, or enter a path."
+          },
+          "item": "qemu",
+          "prerequisite": {
+            "detail": "/opt/homebrew/bin/qemu-system-aarch64",
+            "hint": "Install QEMU",
+            "item": "qemu",
+            "required": true,
+            "settablePath": true,
+            "status": "missing",
+            "title": "QEMU (NixOS guests)"
+          },
+          "status": "missing",
+          "title": {
+            "key": "QEMU (NixOS guests)",
+            "text": "QEMU (NixOS guests)"
+          }
+        },
+        {
+          "actions": [],
+          "busy": false,
+          "expandable": true,
+          "expanded": true,
+          "hint": {
+            "key": "Optional: without it, image names show “nogit” instead of the flake's revision.",
+            "text": "Optional: without it, image names show “nogit” instead of the flake's revision."
+          },
+          "item": "git",
+          "prerequisite": {
+            "detail": "/opt/homebrew/bin/qemu-system-aarch64",
+            "hint": "Install QEMU",
+            "item": "git",
+            "required": false,
+            "settablePath": false,
+            "status": "missing",
+            "title": "git (optional)"
+          },
+          "status": "missing",
+          "title": {
+            "key": "git (optional)",
+            "text": "git (optional)"
+          }
+        }
+      ],
+      "title": {
+        "key": "Requirements",
+        "text": "Requirements"
+      }
+    },
+    {
+      "id": "nixos",
+      "items": [
+        {
+          "actions": [
+            {
+              "enabled": true,
+              "icon": "guide",
+              "id": "guide",
+              "label": {
+                "key": "Guide",
+                "text": "Guide"
+              },
+              "method": "ui.show",
+              "params": {
+                "page": "guide",
+                "params": {
+                  "file": "linux-builder"
+                }
+              }
+            }
+          ],
+          "busy": false,
+          "expandable": true,
+          "expanded": true,
+          "hint": {
+            "key": "The Linux builder VM does not answer – it is started by nix-darwin (launchd: org.nixos.linux-builder).",
+            "text": "The Linux builder VM does not answer – it is started by nix-darwin (launchd: org.nixos.linux-builder)."
+          },
+          "item": "builderRunning",
+          "prerequisite": {
+            "detail": "/opt/homebrew/bin/qemu-system-aarch64",
+            "hint": "Install QEMU",
+            "item": "builderRunning",
+            "required": true,
+            "settablePath": false,
+            "status": "missing",
+            "title": "Linux builder answers"
+          },
+          "status": "missing",
+          "title": {
+            "key": "Linux builder answers",
+            "text": "Linux builder answers"
+          }
+        }
+      ],
+      "title": {
+        "key": "NixOS – before building images",
+        "text": "NixOS – before building images"
+      }
+    },
+    {
+      "id": "macos",
+      "items": [
+        {
+          "actions": [
+            {
+              "enabled": true,
+              "icon": "pause",
+              "id": "pause",
+              "label": {
+                "key": "Pause",
+                "text": "Pause"
+              },
+              "method": "jobs.cancel",
+              "params": {
+                "id": "j4"
+              }
+            }
+          ],
+          "busy": true,
+          "detail": {
+            "text": "/opt/homebrew/bin/qemu-system-aarch64"
+          },
+          "download": {
+            "done": 1000000000,
+            "of": 18000000000,
+            "text": {
+              "args": [
+                {
+                  "bytes": 1000000000
+                },
+                {
+                  "bytes": 18000000000
+                }
+              ],
+              "key": "%@ / %@",
+              "text": "1.0 GB / 18.0 GB"
+            }
+          },
+          "expandable": true,
+          "expanded": true,
+          "item": "ipsw",
+          "prerequisite": {
+            "detail": "/opt/homebrew/bin/qemu-system-aarch64",
+            "hint": "Install QEMU",
+            "item": "ipsw",
+            "required": true,
+            "settablePath": false,
+            "status": "ok",
+            "title": "macOS from Apple (IPSW)"
+          },
+          "status": "ok",
+          "title": {
+            "key": "macOS from Apple (IPSW)",
+            "text": "macOS from Apple (IPSW)"
+          }
+        },
+        {
+          "actions": [
+            {
+              "enabled": true,
+              "icon": "macos",
+              "id": "macBase",
+              "label": {
+                "key": "Create …",
+                "text": "Create …"
+              },
+              "method": "ui.show",
+              "params": {
+                "page": "macBase",
+                "params": {}
+              }
+            }
+          ],
+          "busy": false,
+          "detail": {
+            "text": "/opt/homebrew/bin/qemu-system-aarch64"
+          },
+          "expandable": true,
+          "expanded": true,
+          "hint": {
+            "args": [
+              "alex",
+              "sam",
+              "alex",
+              "sam"
+            ],
+            "key": "The base's user %@ differs from macUser %@ in your image flake's settings – set macUser to %@ in nix/local/settings.nix, or create the base again with %@.",
+            "text": "The base's user alex differs from macUser sam in your image flake's settings – set macUser to alex in nix/local/settings.nix, or create the base again with sam."
+          },
+          "item": "macBase",
+          "prerequisite": {
+            "baseUser": "alex",
+            "detail": "/opt/homebrew/bin/qemu-system-aarch64",
+            "expectedUser": "sam",
+            "hint": "Install QEMU",
+            "item": "macBase",
+            "required": true,
+            "settablePath": false,
+            "status": "limited",
+            "title": "macOS base"
+          },
+          "status": "limited",
+          "title": {
+            "key": "macOS base",
+            "text": "macOS base"
+          }
+        },
+        {
+          "actions": [],
+          "busy": false,
+          "detail": {
+            "args": [
+              {
+                "bytes": 20000000000
+              },
+              {
+                "bytes": 40000000000
+              }
+            ],
+            "key": "%@ free, about %@ needed",
+            "text": "20.0 GB free, about 40.0 GB needed"
+          },
+          "expandable": true,
+          "expanded": true,
+          "hint": {
+            "key": "Not enough free space – free some up first.",
+            "text": "Not enough free space – free some up first."
+          },
+          "item": "macSpace",
+          "prerequisite": {
+            "detail": "/opt/homebrew/bin/qemu-system-aarch64",
+            "freeBytes": 20000000000,
+            "hint": "Install QEMU",
+            "item": "macSpace",
+            "neededBytes": 40000000000,
+            "required": true,
+            "settablePath": false,
+            "status": "limited",
+            "title": "Space for macOS"
+          },
+          "status": "limited",
+          "title": {
+            "key": "Space for macOS",
+            "text": "Space for macOS"
+          }
+        }
+      ],
+      "title": {
+        "key": "macOS – before building images",
+        "text": "macOS – before building images"
+      }
+    }
+  ],
+  "update": {
+    "actions": [
+      {
+        "enabled": true,
+        "icon": "refresh",
+        "id": "checkNow",
+        "label": {
+          "key": "Check Now",
+          "text": "Check Now"
+        },
+        "method": "updates.check",
+        "params": {}
+      }
+    ],
+    "busy": false,
+    "label": {
+      "key": "Updates",
+      "text": "Updates"
+    },
+    "text": {
+      "args": [
+        {
+          "date": "2026-10-23T09:00:00Z"
+        }
+      ],
+      "key": "Up to date – checked %@",
+      "text": "Up to date – checked 2026-10-23 09:00 UTC"
+    },
+    "tone": "normal"
+  },
+  "versions": [
+    {
+      "label": {
+        "key": "Core",
+        "text": "Core"
+      },
+      "value": {
+        "text": "0.1.0"
+      }
+    }
+  ]
+}

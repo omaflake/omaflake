@@ -1,0 +1,135 @@
+{
+  "actions": [
+    {
+      "badge": 3,
+      "enabled": true,
+      "icon": "doctor",
+      "id": "doctor",
+      "label": {
+        "key": "Doctor – requirements and preflight",
+        "text": "Doctor – requirements and preflight"
+      },
+      "method": "ui.show",
+      "params": {
+        "page": "doctor",
+        "params": {}
+      }
+    },
+    {
+      "enabled": true,
+      "icon": "settings",
+      "id": "settings",
+      "label": {
+        "key": "Settings",
+        "text": "Settings"
+      },
+      "method": "ui.show",
+      "params": {
+        "page": "settings",
+        "params": {}
+      }
+    },
+    {
+      "enabled": true,
+      "icon": "folder",
+      "id": "dataFolder",
+      "label": {
+        "key": "Show Data Folder in Finder",
+        "text": "Show Data Folder in Finder"
+      },
+      "method": "ui.open",
+      "params": {
+        "path": "/data"
+      }
+    },
+    {
+      "confirm": {
+        "button": {
+          "key": "Quit",
+          "text": "Quit"
+        },
+        "destructive": false,
+        "text": {
+          "args": [
+            "research"
+          ],
+          "key": "These VMs keep running without the app: %@. You can stop them later with omaf or when you open omaflake again.",
+          "text": "These VMs keep running without the app: research. You can stop them later with omaf or when you open omaflake again."
+        },
+        "title": {
+          "key": "Quit omaflake?",
+          "text": "Quit omaflake?"
+        }
+      },
+      "enabled": true,
+      "icon": "quit",
+      "id": "quit",
+      "label": {
+        "key": "Quit omaflake",
+        "text": "Quit omaflake"
+      },
+      "method": "ui.quit",
+      "params": {}
+    }
+  ],
+  "firstTab": "vms",
+  "tabs": [
+    {
+      "badge": {
+        "count": 1,
+        "help": {
+          "key": "Running",
+          "text": "Running"
+        },
+        "kind": "count",
+        "tone": "success"
+      },
+      "icon": "vm",
+      "id": "vms",
+      "label": {
+        "key": "VMs",
+        "text": "VMs"
+      }
+    },
+    {
+      "badge": {
+        "help": {
+          "key": "A build is running",
+          "text": "A build is running"
+        },
+        "kind": "working",
+        "tone": "accent"
+      },
+      "icon": "image",
+      "id": "images",
+      "label": {
+        "key": "Images",
+        "text": "Images"
+      }
+    },
+    {
+      "badge": {
+        "help": {
+          "key": "A recipe changed since its image was built",
+          "text": "A recipe changed since its image was built"
+        },
+        "kind": "dot",
+        "tone": "warning"
+      },
+      "icon": "recipe",
+      "id": "recipes",
+      "label": {
+        "key": "Recipes",
+        "text": "Recipes"
+      }
+    },
+    {
+      "icon": "activity",
+      "id": "activity",
+      "label": {
+        "key": "Activity",
+        "text": "Activity"
+      }
+    }
+  ]
+}

@@ -1,0 +1,144 @@
+{
+  "actions": [
+    {
+      "enabled": false,
+      "icon": "build",
+      "id": "build",
+      "label": {
+        "key": "Build",
+        "text": "Build"
+      },
+      "method": "images.build",
+      "params": {
+        "recipe": "omaflake.nixos.dev@velvet-tiger-orbit"
+      },
+      "reason": {
+        "args": [
+          {
+            "args": [
+              {
+                "key": "Linux builder answers",
+                "text": "Linux builder answers"
+              }
+            ],
+            "key": "%@",
+            "text": "Linux builder answers"
+          }
+        ],
+        "key": "Open the Doctor first: %@",
+        "text": "Open the Doctor first: Linux builder answers"
+      }
+    }
+  ],
+  "badges": [],
+  "blockers": {
+    "action": {
+      "enabled": true,
+      "icon": "doctor",
+      "id": "doctor",
+      "label": {
+        "key": "Open Doctor …",
+        "text": "Open Doctor …"
+      },
+      "method": "ui.show",
+      "params": {
+        "page": "doctor",
+        "params": {}
+      }
+    },
+    "items": [
+      {
+        "hint": {
+          "key": "The Linux builder VM does not answer – it is started by nix-darwin (launchd: org.nixos.linux-builder).",
+          "text": "The Linux builder VM does not answer – it is started by nix-darwin (launchd: org.nixos.linux-builder)."
+        },
+        "title": {
+          "key": "Linux builder answers",
+          "text": "Linux builder answers"
+        }
+      }
+    ],
+    "title": {
+      "key": "Not possible yet – the Doctor reports:",
+      "text": "Not possible yet – the Doctor reports:"
+    }
+  },
+  "description": "Entwicklungsumgebung",
+  "job": {
+    "cancellable": true,
+    "error": "nix build failed",
+    "guestKind": "nixos",
+    "hiddenLines": 37,
+    "id": "j1",
+    "kind": "build",
+    "lastOutput": "2026-10-23T09:04:59Z",
+    "logFile": "/data/logs/j1.log",
+    "logLines": 3,
+    "progress": {
+      "done": 120,
+      "fraction": 0.62,
+      "of": 400,
+      "step": 3,
+      "title": "Copying the image",
+      "total": 5
+    },
+    "recipe": "omaflake.nixos.dev@velvet-tiger-orbit",
+    "started": "2026-10-23T09:00:00Z",
+    "state": "failed",
+    "title": "Build"
+  },
+  "kind": {
+    "help": {
+      "key": "NixOS guest",
+      "text": "NixOS guest"
+    },
+    "icon": "nixos",
+    "id": "kind",
+    "tone": "normal"
+  },
+  "log": {
+    "file": "/data/logs/j1.log",
+    "full": {
+      "enabled": true,
+      "help": {
+        "key": "Every line, also the routine ones left out above",
+        "text": "Every line, also the routine ones left out above"
+      },
+      "icon": "log",
+      "id": "fullLog",
+      "label": {
+        "key": "Full Log …",
+        "text": "Full Log …"
+      },
+      "method": "ui.open",
+      "params": {
+        "path": "/data/logs/j1.log"
+      }
+    },
+    "job": "j1",
+    "lines": 3,
+    "note": {
+      "args": [
+        37,
+        "/data/logs/j1.log"
+      ],
+      "key": "(%lld routine lines of the disk image tool hidden – full log: %@)",
+      "text": "(37 routine lines of the disk image tool hidden – full log: /data/logs/j1.log)"
+    }
+  },
+  "name": "dev (velvet)",
+  "outcome": {
+    "detail": {
+      "text": "nix build failed"
+    },
+    "icon": "failed",
+    "state": "failed",
+    "title": {
+      "key": "Build failed",
+      "text": "Build failed"
+    },
+    "tone": "danger"
+  },
+  "recipe": "omaflake.nixos.dev@velvet-tiger-orbit",
+  "state": "failed"
+}

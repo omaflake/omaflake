@@ -1,0 +1,256 @@
+{
+  "actions": [
+    {
+      "enabled": true,
+      "id": "cancel",
+      "label": {
+        "key": "Cancel",
+        "text": "Cancel"
+      },
+      "method": "ui.back",
+      "params": {}
+    },
+    {
+      "enabled": false,
+      "icon": "create",
+      "id": "create",
+      "label": {
+        "key": "Create",
+        "text": "Create"
+      },
+      "method": "vms.create",
+      "params": {
+        "image": "omaflake.macos.dev@stone-lamp",
+        "name": "Work",
+        "settings": {
+          "audio": true,
+          "camera": false,
+          "clipboard": true,
+          "cpus": 4,
+          "diskGB": 64,
+          "ephemeral": false,
+          "kind": "macos",
+          "memoryGB": 8,
+          "microphone": false,
+          "network": "shared",
+          "share": false
+        },
+        "start": true
+      },
+      "reason": {
+        "args": [
+          "Work"
+        ],
+        "key": "Invalid name \"%@\": 1–32 characters a–z, 0–9, \"-\"",
+        "text": "Invalid name \"Work\": 1–32 characters a–z, 0–9, \"-\""
+      },
+      "then": "back"
+    }
+  ],
+  "image": "omaflake.macos.dev@stone-lamp",
+  "kind": {
+    "help": {
+      "key": "macOS guest",
+      "text": "macOS guest"
+    },
+    "icon": "macos",
+    "id": "kind",
+    "tone": "normal"
+  },
+  "lab": false,
+  "recipe": "omaflake.macos.dev@ocean-maple",
+  "sections": [
+    {
+      "fields": [
+        {
+          "enabled": true,
+          "error": {
+            "args": [
+              "Work"
+            ],
+            "key": "Invalid name \"%@\": 1–32 characters a–z, 0–9, \"-\"",
+            "text": "Invalid name \"Work\": 1–32 characters a–z, 0–9, \"-\""
+          },
+          "id": "name",
+          "kind": "text",
+          "label": {
+            "key": "Name",
+            "text": "Name"
+          },
+          "param": "name",
+          "placeholder": {
+            "text": "dev"
+          },
+          "value": "Work"
+        },
+        {
+          "enabled": true,
+          "id": "ephemeral",
+          "kind": "toggle",
+          "label": {
+            "key": "Ephemeral (changes are discarded on shutdown)",
+            "text": "Ephemeral (changes are discarded on shutdown)"
+          },
+          "param": "settings.ephemeral",
+          "value": false
+        }
+      ]
+    },
+    {
+      "fields": [
+        {
+          "enabled": true,
+          "id": "cpus",
+          "kind": "number",
+          "label": {
+            "args": [
+              4
+            ],
+            "key": "CPU cores: %lld",
+            "text": "CPU cores: 4"
+          },
+          "max": 10,
+          "min": 1,
+          "param": "settings.cpus",
+          "step": 1,
+          "value": 4
+        },
+        {
+          "enabled": true,
+          "id": "memoryGB",
+          "kind": "number",
+          "label": {
+            "args": [
+              8
+            ],
+            "key": "RAM: %lld GB",
+            "text": "RAM: 8 GB"
+          },
+          "max": 48,
+          "min": 1,
+          "param": "settings.memoryGB",
+          "step": 1,
+          "value": 8
+        },
+        {
+          "enabled": true,
+          "id": "diskGB",
+          "kind": "info",
+          "label": {
+            "key": "Disk",
+            "text": "Disk"
+          },
+          "value": {
+            "key": "as the image",
+            "text": "as the image"
+          }
+        },
+        {
+          "enabled": true,
+          "id": "audio",
+          "kind": "toggle",
+          "label": {
+            "key": "Sound from the VM",
+            "text": "Sound from the VM"
+          },
+          "param": "settings.audio",
+          "value": true
+        },
+        {
+          "enabled": true,
+          "id": "microphone",
+          "kind": "toggle",
+          "label": {
+            "key": "Microphone in the VM",
+            "text": "Microphone in the VM"
+          },
+          "param": "settings.microphone",
+          "value": false
+        },
+        {
+          "enabled": true,
+          "id": "clipboard",
+          "kind": "toggle",
+          "label": {
+            "key": "Shared clipboard",
+            "text": "Shared clipboard"
+          },
+          "param": "settings.clipboard",
+          "value": true
+        },
+        {
+          "choices": [
+            {
+              "label": {
+                "text": "shared"
+              },
+              "value": "shared"
+            },
+            {
+              "label": {
+                "text": "none"
+              },
+              "value": "none"
+            }
+          ],
+          "enabled": true,
+          "id": "network",
+          "kind": "choice",
+          "label": {
+            "key": "Network",
+            "text": "Network"
+          },
+          "param": "settings.network",
+          "value": "shared"
+        }
+      ],
+      "title": {
+        "key": "Resources",
+        "text": "Resources"
+      }
+    },
+    {
+      "fields": [
+        {
+          "enabled": true,
+          "id": "share",
+          "kind": "toggle",
+          "label": {
+            "key": "Share a Mac folder with the VM",
+            "text": "Share a Mac folder with the VM"
+          },
+          "param": "settings.share",
+          "value": false
+        }
+      ],
+      "title": {
+        "key": "Share",
+        "text": "Share"
+      }
+    },
+    {
+      "fields": [
+        {
+          "enabled": true,
+          "id": "start",
+          "kind": "toggle",
+          "label": {
+            "key": "Start afterwards",
+            "text": "Start afterwards"
+          },
+          "param": "start",
+          "value": true
+        }
+      ]
+    }
+  ],
+  "subtitle": {
+    "args": [
+      "dev"
+    ],
+    "key": "recipe %@",
+    "text": "recipe dev"
+  },
+  "valid": false,
+  "warnings": []
+}

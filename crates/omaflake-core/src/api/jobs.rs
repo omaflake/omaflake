@@ -241,6 +241,7 @@ impl Job {
         }
         if let Some(job) = changed {
             self.events.emit(Topic::Jobs, "jobs.changed", &JobChanged { job });
+            self.events.changed();
         }
     }
 
@@ -303,6 +304,10 @@ impl Job {
             d.dirty = true;
         }
         self.flush();
+        // Its end in the activity list, worded once for every UI
+        if let Some((level, text, notification)) = super::views::activity::job_ended(&self.dto()) {
+            self.events.record(level, text, notification);
+        }
         if let Some(on_end) = on_end {
             on_end(&self.dto());
         }

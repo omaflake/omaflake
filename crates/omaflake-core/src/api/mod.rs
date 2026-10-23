@@ -11,7 +11,8 @@
 //!
 //! Files: `protocol` (JSON-RPC framing, errors), `types` (the API's types – the contract), `events` (topics, the
 //! sink), `jobs` (the job queue), `model` (AppModel's derived state and the lists), `server` (state, watcher),
-//! `methods` (the methods), `stdio` (the transport), `contract` (golden JSON files shared with the Swift tests).
+//! `methods` (the methods), `stdio` (the transport), `contract` (golden JSON files shared with the Swift tests),
+//! `views` (the presentation model: what each page of a UI shows, `views.get`/`views.subscribe`, plan B121).
 
 #[cfg(test)]
 mod contract;
@@ -23,6 +24,7 @@ pub mod protocol;
 mod server;
 mod stdio;
 pub mod types;
+pub mod views;
 
 use std::sync::Arc;
 use std::time::Duration;

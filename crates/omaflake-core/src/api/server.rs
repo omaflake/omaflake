@@ -8,7 +8,7 @@
 
 use std::collections::{HashMap, HashSet};
 use std::panic::{catch_unwind, AssertUnwindSafe};
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::{Arc, Condvar, Mutex, MutexGuard, RwLock};
 use std::time::{Duration, Instant, SystemTime};
 
@@ -32,6 +32,8 @@ use crate::spawn::Pid;
 
 /// The watcher looks at the data folder this often while a client is subscribed (api.md §6)
 pub(crate) const WATCH_INTERVAL: Duration = Duration::from_secs(2);
+/// While pages are subscribed, looks follow changes (jobs, activity) at most this often
+const VIEW_SPACING: Duration = Duration::from_millis(300);
 /// The recipe folders' modification stamp is compared at most this often (`AppModel.reloadRecipesIfChanged`)
 const STAMP_INTERVAL: Duration = Duration::from_secs(5);
 
@@ -75,6 +77,8 @@ pub(crate) struct Catalogs {
     pub catalogs: HashMap<String, RecipeCatalog>,
     pub errors: std::collections::BTreeMap<String, String>,
     pub fetched: bool,
+    /// They are being fetched now
+    pub fetching: bool,
 }
 
 #[derive(Default)]
@@ -103,10 +107,18 @@ pub(crate) struct Inner {
     /// VMs this server was asked to stop – their end is no news
     pub stop_requested: Mutex<HashSet<String>>,
     pub recipes: Mutex<RecipeCache>,
+    /// The last error reading the recipes – said once, not at every look
+    recipes_error: Mutex<Option<String>>,
     pub freshness: Mutex<Freshness>,
     stamp: Mutex<Stamp>,
     pub catalogs: Mutex<Catalogs>,
     pub doctor: Mutex<Option<Doctor>>,
+    /// The Doctor's checks running now (the Doctor page's spinner)
+    pub checking: AtomicUsize,
+    /// The last `updates.check` (the Doctor page's "Updates")
+    pub update: Mutex<super::views::UpdateRecord>,
+    /// The last model sent per subscribed page (`view.changed` only when it changes)
+    pub views_last: Mutex<HashMap<String, Value>>,
     clipboard: Mutex<Clipboard>,
     watch: Mutex<Watch>,
     wake: Condvar,
@@ -169,6 +181,10 @@ impl Drop for BusyGuard<'_> {
 impl Server {
     /// A server on `paths` (`Paths::standard()` for the user's data folder); notifications go to `notify`
     pub fn new(paths: Paths, notify: Arc<Notify>) -> Server {
+        Self::bare(paths, notify).with_view_hook()
+    }
+
+    fn bare(paths: Paths, notify: Arc<Notify>) -> Server {
         let events = Arc::new(Events::new(notify));
         Server {
             inner: Arc::new(Inner {
@@ -179,10 +195,14 @@ impl Server {
                 busy: Mutex::default(),
                 stop_requested: Mutex::default(),
                 recipes: Mutex::default(),
+                recipes_error: Mutex::default(),
                 freshness: Mutex::default(),
                 stamp: Mutex::default(),
                 catalogs: Mutex::default(),
                 doctor: Mutex::default(),
+                checking: AtomicUsize::new(0),
+                update: Mutex::default(),
+                views_last: Mutex::default(),
                 clipboard: Mutex::default(),
                 watch: Mutex::default(),
                 wake: Condvar::new(),
@@ -193,11 +213,22 @@ impl Server {
         }
     }
 
+    /// Job changes and new activity wake the watcher while pages are subscribed (`views.subscribe`)
+    fn with_view_hook(self) -> Server {
+        let weak = Arc::downgrade(&self.inner);
+        self.inner.events.set_on_change(Arc::new(move || {
+            if let Some(inner) = weak.upgrade() {
+                Server { inner }.poke();
+            }
+        }));
+        self
+    }
+
     #[cfg(test)]
     pub(crate) fn for_tests(paths: Paths, notify: Arc<Notify>) -> Server {
-        let mut s = Self::new(paths, notify);
+        let mut s = Self::bare(paths, notify);
         Arc::get_mut(&mut s.inner).unwrap().migrate_at_start = false;
-        s
+        s.with_view_hook()
     }
 
     /// Answers one JSON-RPC request object (None for a notification, which gets no answer)
@@ -241,10 +272,23 @@ impl Server {
         if !self.inner.initialized.load(Ordering::SeqCst) && !matches!(method, "initialize" | "shutdown") {
             return Err(RpcError::not_initialized());
         }
-        match catch_unwind(AssertUnwindSafe(|| self.dispatch(method, params))) {
+        // What an action did goes into the activity list (views/activity.rs), worded once for every UI
+        let action = super::views::activity::is_action(method).then(|| params.clone());
+        let reply = match catch_unwind(AssertUnwindSafe(|| self.dispatch(method, params))) {
             Ok(r) => r,
             Err(panic) => Err(RpcError::internal(format!("Internal error: {}", panic_text(&panic)))),
+        };
+        if let Some(p) = action {
+            let outcome = match &reply {
+                Ok(Answer::Value(v)) => Ok(v.clone()),
+                Ok(_) => Ok(Value::Null),
+                Err(e) => Err(e.clone()),
+            };
+            if let Some((level, text)) = super::views::activity::call_done(method, &p, &outcome) {
+                self.events().record(level, text, None);
+            }
         }
+        reply
     }
 
     /// `shutdown` was answered (or stdin closed): the transport ends
@@ -301,11 +345,16 @@ impl Server {
         match RecipeCache::load(&self.paths()) {
             Ok(cache) => {
                 *lock(&self.inner.recipes) = cache;
+                *lock(&self.inner.recipes_error) = None;
                 self.poke();
                 Ok(())
             }
             Err(e) => {
-                self.events().error(e.message());
+                let new =
+                    lock(&self.inner.recipes_error).replace(e.message().to_string()).as_deref() != Some(e.message());
+                if new {
+                    self.events().error(e.message());
+                }
                 Err(e)
             }
         }
@@ -423,8 +472,13 @@ impl Server {
 
     /// Runs the Doctor's checks, keeps and sends them, and reads the recipes again (`AppModel.checkAll`)
     pub(crate) fn check_doctor(&self) -> Doctor {
-        let d = model::check_doctor(&self.paths());
+        self.inner.checking.fetch_add(1, Ordering::SeqCst);
+        self.poke();
+        let d = super::jobs::guarded(|| Ok(model::check_doctor(&self.paths())));
+        self.inner.checking.fetch_sub(1, Ordering::SeqCst);
+        let d = d.unwrap_or_else(|e| panic!("{}", e.message()));
         *lock(&self.inner.doctor) = Some(d.clone());
+        self.poke();
         self.events().emit(Topic::Doctor, "doctor.changed", &model::doctor_report(&d));
         let _ = self.reload_recipes();
         d
@@ -482,6 +536,8 @@ impl Server {
                     Readiness::Agent(_) => Via::Agent,
                 };
                 s.events().emit(Topic::Vms, "vm.ready", &VmReady { name: name.clone(), via });
+                let (level, text, notification) = super::views::activity::vm_ready(&name, via);
+                s.events().record(level, text, notification);
                 s.poke();
                 Ok(())
             });
@@ -565,6 +621,9 @@ impl Server {
                 }) {
                     eprintln!("omaf serve: watcher: {e}");
                 }
+                if !s.events().views().is_empty() {
+                    std::thread::sleep(VIEW_SPACING);
+                }
                 let w = lock(&s.inner.watch);
                 let (mut w, _) = s
                     .inner
@@ -593,6 +652,10 @@ impl Server {
             for name in model::ended(&previous, &statuses) {
                 let requested = lock(&self.inner.stop_requested).remove(&name);
                 events.emit(Topic::Vms, "vm.ended", &VmEnded { name: name.clone(), requested });
+                if !requested {
+                    let (level, text, notification) = super::views::activity::vm_ended(&name);
+                    events.record(level, text, notification);
+                }
             }
         }
         lock(&self.inner.stop_requested).retain(|n| statuses.iter().any(|(m, s)| m == n && *s == VmStatus::Running));
@@ -606,6 +669,8 @@ impl Server {
             self.send_if_changed(Topic::Recipes, "recipes.changed", &view.recipes(false));
         }
         self.ensure_clipboard_agents(&state.snap);
+
+        self.send_views();
     }
 
     /// Sends a topic's whole list when it differs from the last one sent

@@ -1,0 +1,124 @@
+{
+  "actions": [
+    {
+      "ask": [
+        {
+          "kind": "password",
+          "label": {
+            "key": "Password",
+            "text": "Password"
+          },
+          "param": "password",
+          "repeat": true
+        }
+      ],
+      "enabled": false,
+      "icon": "create",
+      "id": "create",
+      "label": {
+        "key": "Create Base",
+        "text": "Create Base"
+      },
+      "method": "macos.installBase",
+      "params": {
+        "fullName": "Alex Example",
+        "user": "alex"
+      }
+    }
+  ],
+  "base": {
+    "icon": "warning",
+    "text": {
+      "args": [
+        "alex",
+        "sam",
+        "alex",
+        "sam"
+      ],
+      "key": "The base's user %@ differs from macUser %@ in your image flake's settings – set macUser to %@ in nix/local/settings.nix, or create the base again with %@.",
+      "text": "The base's user alex differs from macUser sam in your image flake's settings – set macUser to alex in nix/local/settings.nix, or create the base again with sam."
+    },
+    "tone": "warning"
+  },
+  "fields": [
+    {
+      "enabled": true,
+      "id": "user",
+      "kind": "text",
+      "label": {
+        "key": "Guest user",
+        "text": "Guest user"
+      },
+      "param": "user",
+      "value": "alex"
+    },
+    {
+      "enabled": true,
+      "id": "fullName",
+      "kind": "text",
+      "label": {
+        "key": "Full name",
+        "text": "Full name"
+      },
+      "param": "fullName",
+      "value": "Alex Example"
+    },
+    {
+      "enabled": true,
+      "id": "ipsw",
+      "kind": "path",
+      "label": {
+        "key": "macOS from Apple (IPSW)",
+        "text": "macOS from Apple (IPSW)"
+      },
+      "param": "ipsw",
+      "value": null
+    }
+  ],
+  "installing": false,
+  "intro": {
+    "key": "Creates your macOS base from the IPSW: your guest user, automatic login, SSH with your keys from ~/.ssh. No manual steps; a missing IPSW is downloaded first.",
+    "text": "Creates your macOS base from the IPSW: your guest user, automatic login, SSH with your keys from ~/.ssh. No manual steps; a missing IPSW is downloaded first."
+  },
+  "ipsw": {
+    "actions": [
+      {
+        "enabled": true,
+        "icon": "pause",
+        "id": "pause",
+        "label": {
+          "key": "Pause",
+          "text": "Pause"
+        },
+        "method": "jobs.cancel",
+        "params": {
+          "id": "j4"
+        }
+      }
+    ],
+    "download": {
+      "done": 1000000000,
+      "of": 18000000000,
+      "text": {
+        "args": [
+          {
+            "bytes": 1000000000
+          },
+          {
+            "bytes": 18000000000
+          }
+        ],
+        "key": "%@ / %@",
+        "text": "1.0 GB / 18.0 GB"
+      }
+    },
+    "label": {
+      "key": "macOS from Apple (IPSW)",
+      "text": "macOS from Apple (IPSW)"
+    },
+    "text": {
+      "text": "/opt/homebrew/bin/qemu-system-aarch64"
+    }
+  },
+  "log": "j6"
+}

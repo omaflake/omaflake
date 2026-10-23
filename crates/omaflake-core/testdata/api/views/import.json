@@ -1,0 +1,50 @@
+{
+  "action": {
+    "confirm": {
+      "button": {
+        "key": "Import under This Name",
+        "text": "Import under This Name"
+      },
+      "destructive": false,
+      "input": {
+        "default": "research-2",
+        "param": "name"
+      },
+      "text": {
+        "key": "You probably have this VM already. Under another name it becomes a second VM with its own identity (SSH port, macOS machine identity); its user, keys and data are the same.",
+        "text": "You probably have this VM already. Under another name it becomes a second VM with its own identity (SSH port, macOS machine identity); its user, keys and data are the same."
+      },
+      "title": {
+        "args": [
+          "research"
+        ],
+        "key": "“%@” is here already",
+        "text": "“research” is here already"
+      }
+    },
+    "enabled": true,
+    "icon": "import",
+    "id": "import",
+    "label": {
+      "key": "Import",
+      "text": "Import"
+    },
+    "method": "packages.import",
+    "params": {
+      "path": "/Volumes/Disk/research.omaflake-vm"
+    }
+  },
+  "inspection": {
+    "conflict": {
+      "suggestedName": "research-2",
+      "vmName": "research"
+    },
+    "kind": "vm",
+    "networkVolume": false,
+    "valid": true
+  },
+  "kind": "vm",
+  "name": "research.omaflake-vm",
+  "path": "/Volumes/Disk/research.omaflake-vm",
+  "valid": true
+}

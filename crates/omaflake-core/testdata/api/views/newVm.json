@@ -1,0 +1,332 @@
+{
+  "actions": [
+    {
+      "enabled": true,
+      "id": "cancel",
+      "label": {
+        "key": "Cancel",
+        "text": "Cancel"
+      },
+      "method": "ui.back",
+      "params": {}
+    },
+    {
+      "enabled": true,
+      "icon": "create",
+      "id": "create",
+      "label": {
+        "key": "Create",
+        "text": "Create"
+      },
+      "method": "vms.create",
+      "params": {
+        "image": "omaflake.nixos.dev@cedar-mango-lift",
+        "name": "dev",
+        "settings": {
+          "audio": true,
+          "camera": false,
+          "clipboard": true,
+          "cpus": 4,
+          "diskGB": 64,
+          "display": "gpu",
+          "ephemeral": false,
+          "kind": "nixos",
+          "memoryGB": 8,
+          "microphone": false,
+          "network": "shared",
+          "share": true,
+          "user": "alex"
+        },
+        "start": true
+      },
+      "then": "back"
+    }
+  ],
+  "blockers": {
+    "action": {
+      "enabled": true,
+      "icon": "doctor",
+      "id": "doctor",
+      "label": {
+        "key": "Open Doctor …",
+        "text": "Open Doctor …"
+      },
+      "method": "ui.show",
+      "params": {
+        "page": "doctor",
+        "params": {}
+      }
+    },
+    "items": [
+      {
+        "hint": {
+          "key": "Needed for NixOS guests: install omaflake's QEMU, or enter a path.",
+          "text": "Needed for NixOS guests: install omaflake's QEMU, or enter a path."
+        },
+        "title": {
+          "key": "QEMU (NixOS guests)",
+          "text": "QEMU (NixOS guests)"
+        }
+      }
+    ],
+    "title": {
+      "key": "Not possible yet – the Doctor reports:",
+      "text": "Not possible yet – the Doctor reports:"
+    }
+  },
+  "description": "Entwicklungsumgebung",
+  "image": "omaflake.nixos.dev@cedar-mango-lift",
+  "kind": {
+    "help": {
+      "key": "NixOS guest",
+      "text": "NixOS guest"
+    },
+    "icon": "nixos",
+    "id": "kind",
+    "tone": "normal"
+  },
+  "lab": false,
+  "recipe": "omaflake.nixos.dev@velvet-tiger-orbit",
+  "sections": [
+    {
+      "fields": [
+        {
+          "enabled": true,
+          "id": "name",
+          "kind": "text",
+          "label": {
+            "key": "Name",
+            "text": "Name"
+          },
+          "param": "name",
+          "placeholder": {
+            "text": "dev"
+          },
+          "value": "dev"
+        },
+        {
+          "enabled": true,
+          "id": "ephemeral",
+          "kind": "toggle",
+          "label": {
+            "key": "Ephemeral (changes are discarded on shutdown)",
+            "text": "Ephemeral (changes are discarded on shutdown)"
+          },
+          "param": "settings.ephemeral",
+          "value": false
+        }
+      ]
+    },
+    {
+      "fields": [
+        {
+          "enabled": true,
+          "id": "cpus",
+          "kind": "number",
+          "label": {
+            "args": [
+              4
+            ],
+            "key": "CPU cores: %lld",
+            "text": "CPU cores: 4"
+          },
+          "max": 10,
+          "min": 1,
+          "param": "settings.cpus",
+          "step": 1,
+          "value": 4
+        },
+        {
+          "enabled": true,
+          "id": "memoryGB",
+          "kind": "number",
+          "label": {
+            "args": [
+              8
+            ],
+            "key": "RAM: %lld GB",
+            "text": "RAM: 8 GB"
+          },
+          "max": 48,
+          "min": 1,
+          "param": "settings.memoryGB",
+          "step": 1,
+          "value": 8
+        },
+        {
+          "enabled": true,
+          "id": "diskGB",
+          "kind": "number",
+          "label": {
+            "args": [
+              64
+            ],
+            "key": "Disk: %lld GB",
+            "text": "Disk: 64 GB"
+          },
+          "max": 500,
+          "min": 10,
+          "param": "settings.diskGB",
+          "step": 10,
+          "value": 64
+        },
+        {
+          "enabled": true,
+          "id": "audio",
+          "kind": "toggle",
+          "label": {
+            "key": "Sound from the VM",
+            "text": "Sound from the VM"
+          },
+          "param": "settings.audio",
+          "value": true
+        },
+        {
+          "enabled": true,
+          "id": "microphone",
+          "kind": "toggle",
+          "label": {
+            "key": "Microphone in the VM",
+            "text": "Microphone in the VM"
+          },
+          "param": "settings.microphone",
+          "value": false
+        },
+        {
+          "enabled": true,
+          "id": "clipboard",
+          "kind": "toggle",
+          "label": {
+            "key": "Shared clipboard",
+            "text": "Shared clipboard"
+          },
+          "param": "settings.clipboard",
+          "value": true
+        },
+        {
+          "enabled": true,
+          "id": "camera",
+          "kind": "toggle",
+          "label": {
+            "key": "Camera in the VM",
+            "text": "Camera in the VM"
+          },
+          "param": "settings.camera",
+          "value": false
+        },
+        {
+          "choices": [
+            {
+              "label": {
+                "text": "shared"
+              },
+              "value": "shared"
+            },
+            {
+              "label": {
+                "text": "isolated"
+              },
+              "value": "isolated"
+            },
+            {
+              "label": {
+                "text": "none"
+              },
+              "value": "none"
+            }
+          ],
+          "enabled": true,
+          "id": "network",
+          "kind": "choice",
+          "label": {
+            "key": "Network",
+            "text": "Network"
+          },
+          "param": "settings.network",
+          "value": "shared"
+        }
+      ],
+      "title": {
+        "key": "Resources",
+        "text": "Resources"
+      }
+    },
+    {
+      "fields": [
+        {
+          "enabled": true,
+          "id": "share",
+          "kind": "toggle",
+          "label": {
+            "key": "Share a Mac folder with the VM",
+            "text": "Share a Mac folder with the VM"
+          },
+          "param": "settings.share",
+          "value": true
+        },
+        {
+          "ask": {
+            "button": {
+              "key": "Share",
+              "text": "Share"
+            },
+            "kind": "folder",
+            "label": {
+              "key": "Choose …",
+              "text": "Choose …"
+            },
+            "param": "sharePath",
+            "prompt": {
+              "key": "Folder to share with the VM",
+              "text": "Folder to share with the VM"
+            }
+          },
+          "enabled": true,
+          "help": {
+            "key": "Default",
+            "text": "Default"
+          },
+          "id": "sharePath",
+          "kind": "path",
+          "label": {
+            "key": "Folder",
+            "text": "Folder"
+          },
+          "param": "sharePath",
+          "placeholder": {
+            "text": "/data/share/dev"
+          },
+          "value": null
+        }
+      ],
+      "title": {
+        "key": "Share",
+        "text": "Share"
+      }
+    },
+    {
+      "fields": [
+        {
+          "enabled": true,
+          "id": "start",
+          "kind": "toggle",
+          "label": {
+            "key": "Start afterwards",
+            "text": "Start afterwards"
+          },
+          "param": "start",
+          "value": true
+        }
+      ]
+    }
+  ],
+  "subtitle": {
+    "args": [
+      "dev (velvet)"
+    ],
+    "key": "recipe %@",
+    "text": "recipe dev (velvet)"
+  },
+  "valid": true,
+  "warnings": []
+}

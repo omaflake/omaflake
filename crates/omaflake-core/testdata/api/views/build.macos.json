@@ -1,0 +1,107 @@
+{
+  "actions": [
+    {
+      "ask": [
+        {
+          "kind": "password",
+          "label": {
+            "args": [
+              "alex"
+            ],
+            "key": "Password of %@",
+            "text": "Password of alex"
+          },
+          "param": "password"
+        }
+      ],
+      "enabled": false,
+      "icon": "build",
+      "id": "build",
+      "label": {
+        "key": "Add to Queue",
+        "text": "Add to Queue"
+      },
+      "method": "images.build",
+      "params": {
+        "recipe": "lab.macos.base@ocean-maple"
+      },
+      "reason": {
+        "args": [
+          {
+            "args": [
+              {
+                "key": "macOS base",
+                "text": "macOS base"
+              }
+            ],
+            "key": "%@",
+            "text": "macOS base"
+          }
+        ],
+        "key": "Open the Doctor first: %@",
+        "text": "Open the Doctor first: macOS base"
+      }
+    }
+  ],
+  "badges": [
+    {
+      "help": {
+        "key": "Development recipe (developer mode)",
+        "text": "Development recipe (developer mode)"
+      },
+      "icon": "lab",
+      "id": "lab",
+      "tone": "warning"
+    }
+  ],
+  "blockers": {
+    "action": {
+      "enabled": true,
+      "icon": "doctor",
+      "id": "doctor",
+      "label": {
+        "key": "Open Doctor …",
+        "text": "Open Doctor …"
+      },
+      "method": "ui.show",
+      "params": {
+        "page": "doctor",
+        "params": {}
+      }
+    },
+    "items": [
+      {
+        "hint": {
+          "args": [
+            "alex",
+            "sam",
+            "alex",
+            "sam"
+          ],
+          "key": "The base's user %@ differs from macUser %@ in your image flake's settings – set macUser to %@ in nix/local/settings.nix, or create the base again with %@.",
+          "text": "The base's user alex differs from macUser sam in your image flake's settings – set macUser to alex in nix/local/settings.nix, or create the base again with sam."
+        },
+        "title": {
+          "key": "macOS base",
+          "text": "macOS base"
+        }
+      }
+    ],
+    "title": {
+      "key": "Not possible yet – the Doctor reports:",
+      "text": "Not possible yet – the Doctor reports:"
+    }
+  },
+  "kind": {
+    "help": {
+      "key": "macOS guest",
+      "text": "macOS guest"
+    },
+    "icon": "macos",
+    "id": "kind",
+    "tone": "normal"
+  },
+  "name": "base",
+  "recipe": "lab.macos.base@ocean-maple",
+  "state": "idle"
+}

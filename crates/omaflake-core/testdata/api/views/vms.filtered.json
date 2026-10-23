@@ -1,0 +1,206 @@
+{
+  "actions": [
+    {
+      "ask": [
+        {
+          "accept": "vm",
+          "button": {
+            "key": "Import",
+            "text": "Import"
+          },
+          "check": {
+            "method": "packages.inspect",
+            "param": "path",
+            "params": {
+              "expect": "vm",
+              "external": false
+            }
+          },
+          "kind": "package",
+          "label": {
+            "key": "Package",
+            "text": "Package"
+          },
+          "multiple": true,
+          "param": "params.path",
+          "prompt": {
+            "key": "A VM (.omaflake-vm) – it is copied into the data folder",
+            "text": "A VM (.omaflake-vm) – it is copied into the data folder"
+          }
+        }
+      ],
+      "enabled": true,
+      "help": {
+        "key": "Import a VM – a copy into the data folder",
+        "text": "Import a VM – a copy into the data folder"
+      },
+      "icon": "import",
+      "id": "import",
+      "label": {
+        "key": "Import",
+        "text": "Import"
+      },
+      "method": "ui.step",
+      "params": {
+        "page": "import",
+        "params": {
+          "expect": "vm"
+        }
+      }
+    },
+    {
+      "ask": [
+        {
+          "accept": "vm",
+          "button": {
+            "key": "Run from There",
+            "text": "Run from There"
+          },
+          "check": {
+            "method": "packages.inspect",
+            "param": "path",
+            "params": {
+              "expect": "vm",
+              "external": true
+            }
+          },
+          "kind": "package",
+          "label": {
+            "key": "Package",
+            "text": "Package"
+          },
+          "param": "params.path",
+          "prompt": {
+            "key": "A VM (.omaflake-vm) to run from where it is – nothing is copied",
+            "text": "A VM (.omaflake-vm) to run from where it is – nothing is copied"
+          }
+        }
+      ],
+      "enabled": true,
+      "help": {
+        "key": "Run a VM from where it is – an external disk, a NAS or a folder; nothing is copied",
+        "text": "Run a VM from where it is – an external disk, a NAS or a folder; nothing is copied"
+      },
+      "icon": "external",
+      "id": "external",
+      "label": {
+        "key": "Run from There",
+        "text": "Run from There"
+      },
+      "method": "ui.step",
+      "params": {
+        "page": "import",
+        "params": {
+          "expect": "vm",
+          "external": true
+        }
+      }
+    }
+  ],
+  "count": 0,
+  "empty": {
+    "action": {
+      "enabled": true,
+      "id": "resetFilter",
+      "label": {
+        "key": "Reset Filter",
+        "text": "Reset Filter"
+      },
+      "method": "ui.filter",
+      "params": {
+        "filter": null,
+        "page": "vms"
+      }
+    },
+    "icon": "filter",
+    "text": {
+      "key": "Nothing matches the filter.",
+      "text": "Nothing matches the filter."
+    },
+    "tone": "normal"
+  },
+  "filter": {
+    "active": true,
+    "groups": [
+      {
+        "id": "status",
+        "kind": "choice",
+        "label": {
+          "key": "Status",
+          "text": "Status"
+        },
+        "options": [
+          {
+            "label": {
+              "key": "All",
+              "text": "All"
+            },
+            "value": null
+          },
+          {
+            "label": {
+              "key": "Running",
+              "text": "Running"
+            },
+            "value": true
+          },
+          {
+            "label": {
+              "key": "Stopped",
+              "text": "Stopped"
+            },
+            "value": false
+          }
+        ],
+        "value": false
+      },
+      {
+        "id": "kind",
+        "kind": "choice",
+        "label": {
+          "key": "System",
+          "text": "System"
+        },
+        "options": [
+          {
+            "label": {
+              "key": "All",
+              "text": "All"
+            },
+            "value": null
+          },
+          {
+            "icon": "nixos",
+            "label": {
+              "text": "NixOS"
+            },
+            "value": "nixos"
+          },
+          {
+            "icon": "macos",
+            "label": {
+              "text": "macOS"
+            },
+            "value": "macos"
+          }
+        ],
+        "value": "nixos"
+      }
+    ]
+  },
+  "of": 2,
+  "rows": [],
+  "title": {
+    "key": "Virtual Machines",
+    "text": "Virtual Machines"
+  },
+  "unreadable": [
+    {
+      "icon": "warning",
+      "text": {
+        "text": "old: written by a newer omaflake (version 9)"
+      },
+      "tone": "warning"
+    }
+  ]
+}

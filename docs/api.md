@@ -233,11 +233,12 @@ job); `events.subscribe` replaces the subscription, unknown topics are left out,
 | `jobs.changed` | `{job: Job}` | a job's state or progress changed |
 | `job.log` | `{id, lines: [string]}` | new log lines of a job |
 | `doctor.changed` | as `doctor.check` | the checks ran (after actions, before builds) |
-| `message` | `{text, level}` | something the user should read that a client cannot tell from the other events or its own answers (`info` | `warning` | `error`; English): older recipe versions pruned by `settings.set`, a recipe list that cannot be read, a macOS VM created but not started (`vms.create` beyond the limit) |
+| `message` | `{text, level}` | something the user should read that a client cannot tell from the other events or its own answers (`info` | `warning` | `error`; English): older recipe versions pruned by `settings.set`, a recipe list that cannot be read (once per new error), a macOS VM created but not started (`vms.create` beyond the limit) |
+| `view.changed` | `{page, params, model}` | a page subscribed with `views.subscribe` looks different now (§10) – sent without a topic |
 
-A client words the rest itself, in its language: the end of a job (`jobs.changed` with an ended `state`, its `result`
-or `error`), `vm.ended` and `vm.ready` come without a `message`. OPEN: a `message` has no stable kind a UI could translate by
-(as errors have, §3) – its English text is shown as it is.
+A client that does not use the views (§10) words the rest itself, in its language: the end of a job (`jobs.changed`
+with an ended `state`, its `result` or `error`), `vm.ended` and `vm.ready` come without a `message`. With the views,
+all of these – and the `message`s, with a key – are lines of the activity page (§10.6), worded by the core.
 
 ## 7. Methods
 
@@ -322,6 +323,15 @@ Params and results in short; the types are those of §4.
 | `macos.installBase` | `user, fullName, password, ipsw?` | Job `macos-install` → `result: {base, existing, ready}` |
 | `builder.installNix` / `builder.setup` / `builder.apply` (`force?`) / `builder.cleanUp` | – | Job → `result: {message}` – each asks for an administrator through the system's own dialog; one at a time (`in-use`); `builder.apply` on a nix-darwin system that is not omaflake's needs `force` (error data `replacesConfiguration`); a dismissed dialog cancels the job |
 
+### Views (§10)
+
+| Method | Params | Result |
+|---|---|---|
+| `views.get` | `page, params?` | the page's model |
+| `views.subscribe` | `pages: [{page, params?}]` | `null` – replaces the subscription; each page comes at once as `view.changed`, then whenever its model changes; `[]` stops them |
+| `activity.clear` | – | `null` – empties the activity list |
+| `recipes.installUpdates` | – | `[Job]` – installs every newer version the sources have of downloaded recipes ("Update All") |
+
 ### Jobs
 
 | Method | Params | Result |
@@ -347,5 +357,296 @@ those types and published under `schema/api/`).
 and error (and the params `initialize` and `vms.create` get): the Rust tests (`api::contract`) write them from the
 types (`OMAF_UPDATE_GOLDEN=1 cargo test -p omaflake-core api::contract` after a deliberate change, otherwise they
 compare), and the Swift tests (`APIContractTests`) decode each with the app's types – strictly, a required field is
-never defaulted. `CoreEndToEndTests` starts the real `omaf serve` (`OMAF_BIN=target/debug/omaf swift test`) on a
+never defaulted. The page models of §10 are in `testdata/api/views/` (every page from one fixture context, the
+`view.changed` event and the params of `views.get`/`views.subscribe`); the interfaces decode against them. `CoreEndToEndTests` starts the real `omaf serve` (`OMAF_BIN=target/debug/omaf swift test`) on a
 fresh data folder and decodes every read method and the events.
+
+## 10. Views – what each page shows
+
+The interfaces – the SwiftUI app (macOS), the iced app (Linux) and the terminal interface `omaf ui` (ratatui, macOS
+and Linux) – share not widgets but **what each page shows** (plan B121): the core builds a *page model* with the rows,
+their labels, lamps and badges, the actions with whether they can be done now and why not, the questions they ask,
+filters, sorting and form fields with their defaults and what is wrong with them. A UI draws it with the design tokens
+(B119), sends the actions it names and keeps only what is its own: which tab and page are open, which rows are
+expanded, the filter it asked with, what the user is typing, whether the activity was seen, launch at login, its
+language. The model is the app's presentation as of B117, moved into `crates/omaflake-core/src/api/views/` (one module
+per page; the Rust types there are the contract, the JSON below their shape).
+
+### 10.1 Getting and following pages
+
+```json
+→ {"jsonrpc":"2.0","id":5,"method":"views.get","params":{"page":"vms","params":{"filter":{"status":true}}}}
+← {"jsonrpc":"2.0","id":5,"result":{"title":{"key":"Virtual Machines","text":"Virtual Machines"},"count":1,"of":2,…}}
+→ {"jsonrpc":"2.0","id":6,"method":"views.subscribe","params":{"pages":[{"page":"home"},{"page":"vms","params":{"filter":{"status":true}}}]}}
+← {"jsonrpc":"2.0","method":"view.changed","params":{"page":"vms","params":{"filter":{"status":true}},"model":{…}}}
+```
+
+- `views.get {page, params}` builds a page now. Unknown pages are `-32602`; a VM, image or image for a new VM that is
+  not there is `not-found`.
+- `views.subscribe {pages}` replaces the subscribed pages (a page with other params is another page – a UI that changes
+  a filter subscribes again). Each comes at once as `view.changed {page, params, model}`, then again whenever its model
+  differs from the one sent last: the watcher rebuilds subscribed pages at every look at the data folder (2 s), after
+  actions, when a job changes and when the activity list grows (at most every 0.3 s). The whole model comes each
+  time – a UI replaces what it shows. A page that cannot be built comes as `model: {"error": {message, kind}}`.
+  Subscribing to `doctor` or `macBase` runs the Doctor's checks once if they never ran.
+- Typical: a UI subscribes to `home`, `activity` and the page it shows (with its params); the build page's log comes
+  with the `jobs` topic (`job.log`) or `jobs.log`.
+
+Pages and their params:
+
+| Page | Params | What |
+|---|---|---|
+| `home` | – | the header's buttons (Doctor with its issue count, Settings, data folder, Quit) and the tabs with their badges |
+| `vms` | `filter?` | the VMs tab (§10.5) |
+| `vm` | `name` | one VM: `{row}` as in `vms` (a TUI's detail screen) |
+| `images` | `filter?` | the Images tab: build jobs on top, then every image |
+| `image` | `name` | one image: `{row}`, with its size |
+| `recipes` | `filter?` | the Recipes tab: one row per line, updates, offers, the first start's suggestion |
+| `newVm` | `image, values?` | the New VM form for exactly that image (plan B100) |
+| `build` | `recipe` | the Build Image page of one recipe |
+| `doctor` | – | versions and updates, the checks in three sections with their actions |
+| `macBase` | `values?` | Create macOS Base |
+| `settings` | `values?` | recipe sources (with the new source's form), general switches, guest values, data folder |
+| `activity` | – | what happened in this server, newest first |
+| `import` | `path, expect?, external?` | a step, not a screen (§10.4) |
+
+### 10.2 Texts
+
+Everything a user reads is a **text**: `{key, text, args}`.
+
+```json
+{"key": "Upgrade “%@” to %@?", "text": "Upgrade “research” to omaflake.nixos.dev@mint-river-cloud?",
+ "args": ["research", "omaflake.nixos.dev@mint-river-cloud"]}
+{"text": "/Volumes/Disk/research.omaflake-vm"}
+```
+
+- `key` is the **English source string of the macOS app** (`String(localized:)`, `LocalizedStringKey`) with `%@` for
+  a text, a time or a size and `%lld` for a whole number – so the app's `de.lproj/Localizable.strings` translates
+  them as they are (`"Reset “%@”?" = "„%@“ zurücksetzen?"`). Other UIs keep tables with the same keys. A key a UI has no
+  translation for is its own English format (fill in the args).
+- `text` is the English result. A UI without translations shows `text`.
+- No `key`: data shown as it is – a name, a path, a version, an English message of the core (§3).
+- `args`, in order: a number (`%lld`), a string (data, not translated), `{"date": "<ISO 8601>"}` and `{"bytes": n}`
+  (formatted by the UI in its language – `text` has `2026-10-21 10:00 UTC`, `12.3 GB`), a text of its own (`{key,
+  text, args}` – translated first, then filled in: "Open the Doctor first: %@" with the blockers' titles,
+  `"%@ · %@ · %@"` for parts joined by " · "), or `{"param": "target"}` – the value the UI asked for that param
+  (a confirmation naming the folder just chosen).
+- B117's OPEN about core texts is closed for what the views show: every page, action, question and activity line has a
+  key. Still English only: error `message`s (UIs translate by `data.kind`, §3), the details of the Doctor's checks
+  (paths, versions) and the `job.log` lines.
+
+### 10.3 Building blocks
+
+**Action** – something the user can do:
+
+```json
+{"id": "remove", "label": {"key": "Remove …", "text": "Remove …"}, "icon": "trash",
+ "method": "vms.remove", "params": {"name": "research"},
+ "enabled": false, "reason": {"key": "Shut the VM down first", "text": "Shut the VM down first"},
+ "destructive": true,
+ "confirm": {"title": {"key": "Remove “%@”?", …}, "text": {…}, "button": {"key": "Remove", …}, "destructive": true}}
+```
+
+| Field | |
+|---|---|
+| `id` | stable within its list (`start`, `startHeadless`, `stop`, `terminal`, `export`, …) |
+| `label`, `icon` | what the button says / shows; icon-only UIs use `label` (or `help`) as the tooltip |
+| `method`, `params` | what to send: a core method (§7) or a `ui.*` verb (§10.4) |
+| `enabled`, `reason` | greyed out, and why (the first reason that applies) |
+| `help` | tooltip while enabled |
+| `destructive` | drawn red |
+| `on` | a switch: its state now – the action sets the other one (`params` hold the new value) |
+| `busy` | its work runs: a spinner instead of / next to the button |
+| `badge` | a count on it (the Doctor's issues) |
+| `ask` | values to ask first, each put into `params` at its `param` (a dotted path, e.g. `params.path`) – see Ask |
+| `confirm` | the question to ask before sending – every UI asks the same |
+| `then` | what to do with the answer: `reveal` (show `result.path` in the file manager), `terminal` (run `result.shellLine` – `result.argv` – in a terminal; a TUI suspends itself), `back` (leave the page) |
+
+Order: ask the `ask` values, then `confirm` (its title may name an asked value), then send. A UI shows a refusal where
+it likes (a toast, a status line) – the activity list has it already (§10.6).
+
+**Confirm** – `{title, text, button, destructive, input?}`; `button` answers (Cancel is the UI's own);
+`input: {param, default}` is a text edited in the question (the name to import a VM under), put into `params` at
+`param`.
+
+**Ask** – `{param, kind, label, prompt?, button?, default?, accept?, multiple?, repeat?, check?}`; `kind`: `text`,
+`password` (a secret: never shown, never sent to `views.get`), `folder`, `file`, `package` (an omaflake package;
+`accept`: `vm`, `image`, `recipe` – a recipe may also be a plain folder; `ipsw` for a file). `prompt`/`button`: the
+open panel's message and button. `multiple`: several may be chosen – the action is done once per value. `repeat`: a
+password asked twice, sent only when both agree. `check: {method, params, param}`: before the panel closes, call
+`method` with `params` and the chosen value at `param` (`packages.inspect`); `valid: false` refuses it with its
+`reason`. A TUI asks folders and files as a path with completion.
+
+**Lamp** – `{state: on|off|attention|working, help}`: green on/active/built, grey off, orange needs attention, cyan
+pulsing something happens (plan B99). **Badge** – `{id, icon, help, tone, label?}` (`label`: a short text drawn instead
+of or with the icon: "x86_64", "outdated"). **Tone** – `normal`, `accent` (cyan), `success`, `warning`, `danger`
+(design tokens). **InfoLine** – `{label, value, note?, tone?, full?}`: "Label  value", `note` after the value in
+`tone`, `full` the whole value where the UI shortens it. **Hint** – `{icon, text, tone, action?}`: an empty list, a
+filter that leaves nothing (with "Reset Filter"), an unreadable file, a source that failed.
+
+**List head** (flattened into `vms`, `images`, `recipes`, `activity`) – `title`, `count`, `of` (all rows, when the
+filter leaves some out: "1/2"), `filter`, `actions` (the list's tools: import, refresh, clear), `empty` (a hint instead
+of rows).
+
+**Filter** – `{active, groups: [{id, label, kind: choice|toggle, value, options: [{value, label, icon?}]}]}`. The
+group ids are the keys of `params.filter`: `status` (true/false/null – running, in use, with image), `kind`
+(`nixos`/`macos`), `tag` (recipes), `recipe` (images), `otherSystems` (recipes for other architectures, plan B114).
+The core applies them; a UI keeps the chosen values per tab and asks with them.
+
+**Field** – `{id, kind, label, value, help?, placeholder?, choices?, min?, max?, step?, enabled, reason?, error?,
+param?, set?, ask?}`; `kind`: `toggle`, `text`, `number`, `choice`, `path` (chosen with `ask`), `info` (shown, not
+edited; `value` is a text). On a form page (`newVm`, `macBase`, the new source) the value goes into the page action's
+`params` at `param`; the page was built with the values it was asked with (`params.values`), so its action already
+holds them – a UI that changes a field either asks the page again (validation: `error`, `enabled`) or puts the value
+in itself. In Settings `set: {method, params, param}` stores a change at once: send `method` with `params` and the new
+value at `param` (`null` = back to the default).
+
+**Icons** are names a UI maps to its symbols (SF Symbols, Nerd Font glyphs or plain characters in a TUI): `vm`,
+`image`, `recipe`, `activity`, `nixos`, `macos`, `start-window`, `start-headless`, `stop`, `terminal`, `folder`,
+`export`, `import`, `external`, `hide`, `upgrade`, `reset`, `trash`, `build`, `new-vm`, `create`, `cancel`, `install`,
+`refresh`, `download`, `pause`, `apply`, `clean`, `guide`, `log`, `doctor`, `settings`, `quit`, `up`, `add`,
+`clipboard`, `sound`, `microphone`, `camera`, `ephemeral`, `network-isolated`, `network-none`, `upgradable`,
+`outdated`, `lab`, `arch`, `official`, `lock`, `lock-warning`, `github`, `url`, `warning`, `ok`, `filter`,
+`finished`, `failed`, `cancelled`. An unknown name is drawn as nothing (or its `label`).
+
+### 10.4 What a UI does itself (`ui.*`)
+
+| Method | Params | |
+|---|---|---|
+| `ui.show` | `page, params` | open a page one level deeper (`build {recipe}`, `newVm {image}`, `doctor`, `macBase`, `settings`, `guide {file}` – the bundled guide) |
+| `ui.back` | – | leave the page |
+| `ui.step` | `page, params` | get that page (only `import`) and run its `action` at once – asking its `confirm` first – or show its `reason`; with an `ask` of `multiple`, once per chosen value |
+| `ui.filter` | `page, filter` | set the list's filter (`null`: reset) and ask for the page again |
+| `ui.field` | `field, value?` | set a form field's value (`ask` asks it; no value = clear it) |
+| `ui.reveal` | `path` | show in the file manager (a TUI prints the path) |
+| `ui.open` | `path` or `url` | open with the system's default app (a log file, the data folder, a release page) |
+| `ui.terminal` | `line` | run a command line in a terminal (the Doctor's install commands) |
+| `ui.quit` | – | quit the interface (VMs keep running; `confirm` lists the running ones) |
+
+### 10.5 The pages
+
+Rows carry their details (what an expanded row shows) and the API object they come from (`vm`, `image`, `recipe`,
+`job`, `version`, `source`, `prerequisite`) for anything else a UI wants to show. The examples are cut short; the whole
+models are in `testdata/api/views/*.json`.
+
+**home** – `actions` (doctor with `badge`, settings, dataFolder, quit), `tabs: [{id, label, icon, badge?}]` with
+`badge: {kind: count|working|failed|dot, count?, tone, help}` (running VMs; a build runs or failed; a recipe changed
+since its image), `firstTab` (`recipes` while there is no VM – a UI opening for the first time starts there).
+
+**vms** – list head (filter `status`: Running/Stopped, `kind`; tools: import, run from there), `rows`, `unreadable`.
+A row (sorted by name):
+
+```json
+{"name": "research", "lamp": {"state": "on", "help": {"key": "Running", …}},
+ "kind": {"id": "kind", "icon": "nixos", "help": {"key": "NixOS guest", …}, "tone": "normal"},
+ "badges": [{"id": "external", "icon": "external", …}, {"id": "clipboard", …}, {"id": "sound", …}, {"id": "upgradable", "tone": "warning", …}],
+ "subtitle": {"text": "dev (velvet) · 4 CPU · 8 GB · SSH 2201"},
+ "actions": [{"id": "showShare", "method": "vms.share", "then": "reveal", …},
+             {"id": "terminal", "method": "vms.ssh", "then": "terminal", …},
+             {"id": "stop", "method": "vms.stop", "destructive": true, …}],
+ "detail": {"switches": [{"id": "clipboard", "method": "vms.set", "on": true, …}, …],
+            "switchesNote": {"key": "Changes take effect at the next start.", …},
+            "info": [{"label": {"key": "Image", …}, "value": {"text": "omaflake.nixos.dev@cedar-mango-lift"}, "note": {"key": "newer image available", …}, "tone": "warning", …}, …],
+            "actions": [{"id": "export", …}, {"id": "forget", …}, {"id": "upgrade", …}, {"id": "reset", …}, {"id": "remove", …}]},
+ "vm": {…}}
+```
+
+Row actions: busy – none (the lamp works); running – `showShare` (when it shares), `terminal`, `stop`; a start blocker
+– the Doctor's warning (`ui.show doctor`, help "Open the Doctor first: …"); else `startHeadless` (`display: none`) and
+`startWindow` (`display: auto`), disabled with the macOS limit's reason. Details: switches clipboard, sound,
+microphone (turning it on turns sound on), camera (not for macOS guests); info Image, omaflake ID (as short as
+`idLengths.vm`), Recipe, Resources, Network, SSH (the command line, or "address while running"), Share folder,
+Ephemeral, Created, Runs from, Agent, Guest (load, memory, disk, addresses, users); actions export (asks a folder),
+forget (runs from elsewhere), upgrade (to `latestImage`, with its question), reset, remove – all greyed out while it
+runs ("Shut the VM down first") or is busy.
+
+**images** – list head (filter `status`: In use/Not in use, `kind`, `recipe`; tool: import), `jobs` (builds that wait,
+run, failed or were cancelled: `{id, name, kind, state, title, count?, fraction?, actions: [cancel | dismiss], open,
+job}`), `rows` (macOS before NixOS, by recipe name, newest first: lamp green when a VM uses it, badge `outdated`,
+subtitle "recipe dev · <date> · 1 VM", actions reveal and newVm – or the Doctor's warning –, details: info omaflake ID,
+Recipe, Built, Recipe state, Status, Used by, Size, Source, Disk image/System; actions export, remove – disabled while
+VMs use it), `unreadable`. **image** – `{row}` with the size.
+
+**recipes** – list head (filter `status`: With image/Without image, `kind`, `tag`, `otherSystems`; tools: refresh –
+`recipes.available`, busy while it runs – and import), `catalogsLoaded` (else the UI runs `refresh` when the tab
+opens, as the app did; the views never fetch), `loading`, `updates?` (`{title, all?, rows: [{id, name, kind, source,
+action}], note}`; "Add Version"/"Add All" when older versions are kept), `suggestion?` (no recipe yet: "Start with the
+official recipes?" with `recipes.installSuggested`), `rows` (one per line, named by its newest version; built ones
+first, then by kind and name: lamp – working while it builds, off not built, attention changed since its image, on –,
+`secondary` (author, distinction), badges lab and arch, `tags`, actions reveal and build – `ui.show build`, or the
+Doctor's warning, or disabled for another architecture –, details: description, info, `versions` (`{id, words,
+state, actions: [export, remove], version}`; remove disabled for a folder's version or one images are built from) and
+actions update, removeAll), `offered` (not installed: lamp off or working, badges official/lab/arch, install, details
+with the "not reviewed" warning for recipes not from omaflake/recipes), `unreadable`, `errors` (sources that failed),
+`labHidden`.
+
+**newVm** – `{image, recipe, kind, subtitle, description?, lab, blockers?, sections: [{title?, fields}], warnings,
+valid, actions: [cancel, create]}`. Params `{image, values?: {name, cpus, memoryGB, diskGB, network, share, sharePath,
+ephemeral, audio, microphone, clipboard, camera, start}}`; missing values are the recipe's (sound and clipboard on,
+microphone and camera off where it says nothing), the name the next free one. Fields: name (errors: "A name is
+needed", the name rule, "“%@” is here already"), ephemeral, CPU cores (1–10), RAM (1–48 GB), disk (10–500 GB step 10;
+`info` "as the image" for macOS), sound, microphone (needs sound), clipboard, camera (NixOS), network (no `isolated`
+for macOS), share, share folder (`path`, placeholder the default `share/<name>`), start afterwards. `warnings`: the
+macOS limit ("… – the VM is created but not started."). `create` is `vms.create` with `{name, image, settings,
+sharePath?, start}` and `then: back`, disabled while a value is wrong.
+
+```json
+{"id": "cpus", "kind": "number", "label": {"key": "CPU cores: %lld", "text": "CPU cores: 4", "args": [4]},
+ "value": 4, "min": 1, "max": 10, "step": 1, "enabled": true, "param": "settings.cpus"}
+```
+
+**build** – `{recipe, name, kind, badges, description?, state: idle|queued|checking|running|finished|failed|cancelled,
+actions, blockers?, macBase?, status?, progress?, outcome?, newest?, log?, job?}`. Actions: `build` ("Build", or "Add to
+Queue" while another build of the guest kind runs; a macOS recipe asks "Password of <user>"; disabled for another
+architecture, Doctor blockers, a missing macOS base) – or `cancel` ("Cancel"/"Remove from Queue") while it waits or
+runs. `progress: {step, title, count?, fraction, started, lastOutput, quietWarning, quietHelp}` – the UI counts the
+running time and the quiet time itself (orange after `quietWarning` s). `outcome: {state, icon, tone, title, detail?,
+action?}` ("Image ready" with "New VM …", "Build failed" with the error, "Build cancelled"). `log: {job, lines, note?,
+file?, full?}` – lines from `jobs.log`/`job.log`, `full` opens the whole file.
+
+**doctor** – `{versions, update, intro, checking, checked?, actions: [check], sections: [{id: requirements|nixos|macos,
+title, items}], issues}`. The UI puts its own version before `versions` (the core's). `update: {label, text, tone, busy,
+actions}` from the last `updates.check` (Download …, Check Now). An item: `{item, status, title, detail?, hint?,
+expandable, expanded, busy, task?, download?, actions, prerequisite}` – `detail` (paths and versions as found, or "%@
+free, about %@ needed"), `hint` while not ok, `expanded` the sub-line's first state (open while there is a problem or
+work runs). Actions as the app had them: Install … (Nix: `builder.installNix` with its question; nix-darwin:
+`builder.setup`; others: `ui.terminal` with the install command), Clean Up … and Apply Settings … (`builder.apply`,
+`force` and "Replace and Apply" when this Mac's nix-darwin system is not omaflake's), Guide, Set Path … (asks a file
+or folder, `doctor.setPath`), Download / Continue Download / Pause (the IPSW, with `download: {done, of, text}`),
+Create … / Show … (`ui.show macBase`). Linux builder tasks run one at a time: the others say which runs.
+
+**macBase** – `{intro, base?, ipsw: {label, text, download?, actions}, fields: [user, fullName, ipsw], installing,
+actions: [create], log?}`; params `{values?: {user, fullName, ipsw}}` (defaults: the macOS recipes' guest user or this
+computer's, its full name, Apple's IPSW). `create` is `macos.installBase` and asks the password twice. `log`: the
+latest base creation's job.
+
+**settings** – `{sources, general, guest, dataFolder}`. `sources: {title, rows, add, addAction, footer}` – rows `{id,
+name, icon (folder|github|url), badges (official, private with or without token), subtitle, actions: [up, enabled
+(a switch), remove], source}`; `add.fields`: input (with "Folder …"), private (only for a GitHub repository – the core
+decides from `params.values.input`); `addAction` is `sources.add {input, private}` and asks the token for a private
+one. `general.fields`: notifications, checkForUpdates, keepRecipeVersions, developerMode (toggles with `set`).
+`guest.fields`: user, fullName, email (placeholders: this computer's), locale, keyboard, timeZone (choices with "Like
+this Mac – …" as `null`; names are the plain values – UIs may name them in their language). `dataFolder: {title,
+location, isDefault, moving, actions: [default, move], note}` – both disabled while a VM runs. Launch at login and the
+UI's language are each UI's own.
+
+**import** – `{path, name, kind, valid, reason?, action?, inspection}`: `action` is `packages.import` (a VM whose name
+is taken: the question with `input: {param: "name", default: "<name>-2"}`; the same image: "Replace" with `replace`)
+or, with `external`, `vms.useExternal` (on a network volume: "Run the VM over the network?").
+
+### 10.6 Activity
+
+`activity` – list head (tool: clear – `activity.clear`) and `entries` (newest first, at most 100):
+
+```json
+{"id": 2, "time": "2026-10-23T09:42:00Z", "level": "info", "text": {"key": "%@ is ready", "text": "research is ready", "args": ["research"]},
+ "notification": {"title": {"key": "VM ready", …}, "body": {"key": "%@ is running and answers SSH.", …}}}
+```
+
+The core words what the app's `AppModel.message` said: an action done (`research deleted`, `research created (SSH port
+2201)`, `Image … deleted`, `dev: 2 versions removed`, …) or refused (`research: <error>`), a job that ended (image
+ready, build failed or cancelled, downloads, the base, Linux builder tasks, installs, imports, exports, the data
+folder), a VM that ended on its own or is ready, an update, and every `message`. `notification` is what a system
+notification says, where the app posted one – the UI posts it when notifications are on and its window is not in
+front. `id` rises: a UI remembers the newest it has shown (unseen activity, the footer line, a TUI's status line).
+The list lives as long as the server (one per user with B120).

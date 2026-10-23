@@ -1,0 +1,734 @@
+{
+  "model": {
+    "actions": [
+      {
+        "ask": [
+          {
+            "accept": "vm",
+            "button": {
+              "key": "Import",
+              "text": "Import"
+            },
+            "check": {
+              "method": "packages.inspect",
+              "param": "path",
+              "params": {
+                "expect": "vm",
+                "external": false
+              }
+            },
+            "kind": "package",
+            "label": {
+              "key": "Package",
+              "text": "Package"
+            },
+            "multiple": true,
+            "param": "params.path",
+            "prompt": {
+              "key": "A VM (.omaflake-vm) – it is copied into the data folder",
+              "text": "A VM (.omaflake-vm) – it is copied into the data folder"
+            }
+          }
+        ],
+        "enabled": true,
+        "help": {
+          "key": "Import a VM – a copy into the data folder",
+          "text": "Import a VM – a copy into the data folder"
+        },
+        "icon": "import",
+        "id": "import",
+        "label": {
+          "key": "Import",
+          "text": "Import"
+        },
+        "method": "ui.step",
+        "params": {
+          "page": "import",
+          "params": {
+            "expect": "vm"
+          }
+        }
+      },
+      {
+        "ask": [
+          {
+            "accept": "vm",
+            "button": {
+              "key": "Run from There",
+              "text": "Run from There"
+            },
+            "check": {
+              "method": "packages.inspect",
+              "param": "path",
+              "params": {
+                "expect": "vm",
+                "external": true
+              }
+            },
+            "kind": "package",
+            "label": {
+              "key": "Package",
+              "text": "Package"
+            },
+            "param": "params.path",
+            "prompt": {
+              "key": "A VM (.omaflake-vm) to run from where it is – nothing is copied",
+              "text": "A VM (.omaflake-vm) to run from where it is – nothing is copied"
+            }
+          }
+        ],
+        "enabled": true,
+        "help": {
+          "key": "Run a VM from where it is – an external disk, a NAS or a folder; nothing is copied",
+          "text": "Run a VM from where it is – an external disk, a NAS or a folder; nothing is copied"
+        },
+        "icon": "external",
+        "id": "external",
+        "label": {
+          "key": "Run from There",
+          "text": "Run from There"
+        },
+        "method": "ui.step",
+        "params": {
+          "page": "import",
+          "params": {
+            "expect": "vm",
+            "external": true
+          }
+        }
+      }
+    ],
+    "count": 1,
+    "filter": {
+      "active": true,
+      "groups": [
+        {
+          "id": "status",
+          "kind": "choice",
+          "label": {
+            "key": "Status",
+            "text": "Status"
+          },
+          "options": [
+            {
+              "label": {
+                "key": "All",
+                "text": "All"
+              },
+              "value": null
+            },
+            {
+              "label": {
+                "key": "Running",
+                "text": "Running"
+              },
+              "value": true
+            },
+            {
+              "label": {
+                "key": "Stopped",
+                "text": "Stopped"
+              },
+              "value": false
+            }
+          ],
+          "value": true
+        },
+        {
+          "id": "kind",
+          "kind": "choice",
+          "label": {
+            "key": "System",
+            "text": "System"
+          },
+          "options": [
+            {
+              "label": {
+                "key": "All",
+                "text": "All"
+              },
+              "value": null
+            },
+            {
+              "icon": "nixos",
+              "label": {
+                "text": "NixOS"
+              },
+              "value": "nixos"
+            },
+            {
+              "icon": "macos",
+              "label": {
+                "text": "macOS"
+              },
+              "value": "macos"
+            }
+          ],
+          "value": null
+        }
+      ]
+    },
+    "of": 2,
+    "rows": [
+      {
+        "actions": [
+          {
+            "enabled": true,
+            "icon": "folder",
+            "id": "showShare",
+            "label": {
+              "key": "Show Share Folder",
+              "text": "Show Share Folder"
+            },
+            "method": "vms.share",
+            "params": {
+              "name": "research"
+            },
+            "then": "reveal"
+          },
+          {
+            "enabled": true,
+            "icon": "terminal",
+            "id": "terminal",
+            "label": {
+              "key": "Open Terminal with SSH",
+              "text": "Open Terminal with SSH"
+            },
+            "method": "vms.ssh",
+            "params": {
+              "name": "research"
+            },
+            "then": "terminal"
+          },
+          {
+            "destructive": true,
+            "enabled": true,
+            "icon": "stop",
+            "id": "stop",
+            "label": {
+              "key": "Shut down",
+              "text": "Shut down"
+            },
+            "method": "vms.stop",
+            "params": {
+              "name": "research"
+            }
+          }
+        ],
+        "badges": [
+          {
+            "help": {
+              "text": "/Volumes/Disk/research.omaflake-vm"
+            },
+            "icon": "external",
+            "id": "external",
+            "tone": "normal"
+          },
+          {
+            "help": {
+              "key": "Shared clipboard on",
+              "text": "Shared clipboard on"
+            },
+            "icon": "clipboard",
+            "id": "clipboard",
+            "tone": "normal"
+          },
+          {
+            "help": {
+              "key": "Sound on",
+              "text": "Sound on"
+            },
+            "icon": "sound",
+            "id": "sound",
+            "tone": "normal"
+          },
+          {
+            "help": {
+              "key": "Newer image available",
+              "text": "Newer image available"
+            },
+            "icon": "upgrade",
+            "id": "upgradable",
+            "tone": "warning"
+          }
+        ],
+        "detail": {
+          "actions": [
+            {
+              "ask": [
+                {
+                  "button": {
+                    "key": "Export Here",
+                    "text": "Export Here"
+                  },
+                  "kind": "folder",
+                  "label": {
+                    "key": "Folder",
+                    "text": "Folder"
+                  },
+                  "param": "folder",
+                  "prompt": {
+                    "args": [
+                      "research"
+                    ],
+                    "key": "Where to put “%@” – an external disk, a NAS or a folder. It goes along with its user, SSH keys and data: keep it for yourself.",
+                    "text": "Where to put “research” – an external disk, a NAS or a folder. It goes along with its user, SSH keys and data: keep it for yourself."
+                  }
+                }
+              ],
+              "enabled": false,
+              "icon": "export",
+              "id": "export",
+              "label": {
+                "key": "Export …",
+                "text": "Export …"
+              },
+              "method": "packages.export",
+              "params": {
+                "kind": "vm",
+                "name": "research"
+              },
+              "reason": {
+                "key": "Shut the VM down first",
+                "text": "Shut the VM down first"
+              }
+            },
+            {
+              "enabled": false,
+              "icon": "hide",
+              "id": "forget",
+              "label": {
+                "key": "Stop Listing",
+                "text": "Stop Listing"
+              },
+              "method": "vms.forget",
+              "params": {
+                "name": "research"
+              },
+              "reason": {
+                "key": "Shut the VM down first",
+                "text": "Shut the VM down first"
+              }
+            },
+            {
+              "confirm": {
+                "button": {
+                  "key": "Continue",
+                  "text": "Continue"
+                },
+                "destructive": false,
+                "text": {
+                  "key": "The current state is deleted and cannot be restored; settings are kept.",
+                  "text": "The current state is deleted and cannot be restored; settings are kept."
+                },
+                "title": {
+                  "args": [
+                    "research",
+                    "omaflake.nixos.dev@mint-river-cloud"
+                  ],
+                  "key": "Upgrade “%@” to %@?",
+                  "text": "Upgrade “research” to omaflake.nixos.dev@mint-river-cloud?"
+                }
+              },
+              "enabled": false,
+              "icon": "upgrade",
+              "id": "upgrade",
+              "label": {
+                "key": "Upgrade to New Image …",
+                "text": "Upgrade to New Image …"
+              },
+              "method": "vms.upgrade",
+              "params": {
+                "image": "omaflake.nixos.dev@mint-river-cloud",
+                "name": "research"
+              },
+              "reason": {
+                "key": "Shut the VM down first",
+                "text": "Shut the VM down first"
+              }
+            },
+            {
+              "confirm": {
+                "button": {
+                  "key": "Continue",
+                  "text": "Continue"
+                },
+                "destructive": false,
+                "text": {
+                  "key": "The current state of the VM is deleted and cannot be restored.",
+                  "text": "The current state of the VM is deleted and cannot be restored."
+                },
+                "title": {
+                  "args": [
+                    "research"
+                  ],
+                  "key": "Reset “%@”?",
+                  "text": "Reset “research”?"
+                }
+              },
+              "enabled": false,
+              "icon": "reset",
+              "id": "reset",
+              "label": {
+                "key": "Reset …",
+                "text": "Reset …"
+              },
+              "method": "vms.reset",
+              "params": {
+                "name": "research"
+              },
+              "reason": {
+                "key": "Shut the VM down first",
+                "text": "Shut the VM down first"
+              }
+            },
+            {
+              "confirm": {
+                "button": {
+                  "key": "Remove",
+                  "text": "Remove"
+                },
+                "destructive": true,
+                "text": {
+                  "args": [
+                    "/Volumes/Disk/research.omaflake-vm"
+                  ],
+                  "key": "The VM runs from %@ – it is deleted there and cannot be restored. Its share folder is kept if it holds files. To keep it there, choose Stop Listing instead.",
+                  "text": "The VM runs from /Volumes/Disk/research.omaflake-vm – it is deleted there and cannot be restored. Its share folder is kept if it holds files. To keep it there, choose Stop Listing instead."
+                },
+                "title": {
+                  "args": [
+                    "research"
+                  ],
+                  "key": "Remove “%@”?",
+                  "text": "Remove “research”?"
+                }
+              },
+              "destructive": true,
+              "enabled": false,
+              "icon": "trash",
+              "id": "remove",
+              "label": {
+                "key": "Remove …",
+                "text": "Remove …"
+              },
+              "method": "vms.remove",
+              "params": {
+                "name": "research"
+              },
+              "reason": {
+                "key": "Shut the VM down first",
+                "text": "Shut the VM down first"
+              }
+            }
+          ],
+          "info": [
+            {
+              "full": "omaflake.nixos.dev@cedar-mango-lift",
+              "label": {
+                "key": "Image",
+                "text": "Image"
+              },
+              "note": {
+                "key": "newer image available",
+                "text": "newer image available"
+              },
+              "tone": "warning",
+              "value": {
+                "text": "omaflake.nixos.dev@cedar-mango-lift"
+              }
+            },
+            {
+              "full": "vm:research:amber-lake-quiet-otter-lamp-river-stone-cloud-maple-ocean-tiger-velvet",
+              "label": {
+                "key": "omaflake ID",
+                "text": "omaflake ID"
+              },
+              "value": {
+                "text": "vm:research:amber"
+              }
+            },
+            {
+              "full": "omaflake.nixos.dev@velvet-tiger-orbit",
+              "label": {
+                "key": "Recipe",
+                "text": "Recipe"
+              },
+              "value": {
+                "text": "recipe:omaflake/nixos/dev:velvet"
+              }
+            },
+            {
+              "label": {
+                "key": "Resources",
+                "text": "Resources"
+              },
+              "value": {
+                "text": "4 CPU · 8 GB RAM · 64 GB"
+              }
+            },
+            {
+              "label": {
+                "key": "Network",
+                "text": "Network"
+              },
+              "value": {
+                "text": "shared"
+              }
+            },
+            {
+              "full": "'/usr/bin/ssh' '-p' '2201' 'alex@127.0.0.1'",
+              "label": {
+                "key": "SSH",
+                "text": "SSH"
+              },
+              "value": {
+                "text": "'/usr/bin/ssh' '-p' '2201' 'alex@127.0.0.1'"
+              }
+            },
+            {
+              "full": "/data/share/research",
+              "label": {
+                "key": "Share folder",
+                "text": "Share folder"
+              },
+              "value": {
+                "text": "/data/share/research"
+              }
+            },
+            {
+              "label": {
+                "key": "Created",
+                "text": "Created"
+              },
+              "value": {
+                "args": [
+                  {
+                    "date": "2026-10-20T08:00:00Z"
+                  }
+                ],
+                "key": "%@",
+                "text": "2026-10-20 08:00 UTC"
+              }
+            },
+            {
+              "full": "/Volumes/Disk/research.omaflake-vm",
+              "label": {
+                "key": "Runs from",
+                "text": "Runs from"
+              },
+              "value": {
+                "text": "/Volumes/Disk/research.omaflake-vm"
+              }
+            },
+            {
+              "label": {
+                "key": "Agent",
+                "text": "Agent"
+              },
+              "value": {
+                "text": "omaflake-agent 0.1.0 · NixOS"
+              }
+            },
+            {
+              "full": "load 0.50 · 6.0 GB of 8.0 GB RAM free",
+              "label": {
+                "key": "Guest",
+                "text": "Guest"
+              },
+              "value": {
+                "args": [
+                  {
+                    "args": [
+                      "0.50"
+                    ],
+                    "key": "load %@",
+                    "text": "load 0.50"
+                  },
+                  {
+                    "args": [
+                      {
+                        "bytes": 6000000000
+                      },
+                      {
+                        "bytes": 8000000000
+                      }
+                    ],
+                    "key": "%@ of %@ RAM free",
+                    "text": "6.0 GB of 8.0 GB RAM free"
+                  }
+                ],
+                "key": "%@ · %@",
+                "text": "load 0.50 · 6.0 GB of 8.0 GB RAM free"
+              }
+            }
+          ],
+          "switches": [
+            {
+              "enabled": true,
+              "help": {
+                "key": "Shared Clipboard",
+                "text": "Shared Clipboard"
+              },
+              "icon": "clipboard",
+              "id": "clipboard",
+              "label": {
+                "key": "Clipboard",
+                "text": "Clipboard"
+              },
+              "method": "vms.set",
+              "on": true,
+              "params": {
+                "clipboard": false,
+                "name": "research"
+              }
+            },
+            {
+              "enabled": true,
+              "icon": "sound",
+              "id": "sound",
+              "label": {
+                "key": "Sound",
+                "text": "Sound"
+              },
+              "method": "vms.set",
+              "on": true,
+              "params": {
+                "audio": false,
+                "name": "research"
+              }
+            },
+            {
+              "enabled": true,
+              "icon": "microphone",
+              "id": "microphone",
+              "label": {
+                "key": "Microphone",
+                "text": "Microphone"
+              },
+              "method": "vms.set",
+              "on": false,
+              "params": {
+                "audio": true,
+                "microphone": true,
+                "name": "research"
+              }
+            },
+            {
+              "enabled": true,
+              "icon": "camera",
+              "id": "camera",
+              "label": {
+                "key": "Camera",
+                "text": "Camera"
+              },
+              "method": "vms.set",
+              "on": false,
+              "params": {
+                "camera": true,
+                "name": "research"
+              }
+            }
+          ],
+          "switchesNote": {
+            "key": "Changes take effect at the next start.",
+            "text": "Changes take effect at the next start."
+          }
+        },
+        "kind": {
+          "help": {
+            "key": "NixOS guest",
+            "text": "NixOS guest"
+          },
+          "icon": "nixos",
+          "id": "kind",
+          "tone": "normal"
+        },
+        "lamp": {
+          "help": {
+            "key": "Running",
+            "text": "Running"
+          },
+          "state": "on"
+        },
+        "name": "research",
+        "subtitle": {
+          "text": "dev (velvet) · 4 CPU · 8 GB · SSH 2201"
+        },
+        "vm": {
+          "agent": {
+            "hello": {
+              "agent": "omaflake-agent 0.1.0",
+              "osName": "NixOS",
+              "protocol": {
+                "max": 1,
+                "min": 1
+              }
+            },
+            "helloAt": "2026-10-20T08:00:18Z",
+            "protocolVersion": 1,
+            "status": {
+              "load": [
+                0.5,
+                0.4,
+                0.3
+              ],
+              "memory": {
+                "available": 6000000000,
+                "total": 8000000000
+              }
+            },
+            "statusAt": "2026-10-20T08:01:00Z"
+          },
+          "audio": true,
+          "busy": false,
+          "camera": false,
+          "clipboard": true,
+          "cpus": 4,
+          "created": "2026-10-20T08:00:00Z",
+          "diskGB": 64,
+          "display": "gpu",
+          "ephemeral": false,
+          "identity": "amber",
+          "image": "omaflake.nixos.dev@cedar-mango-lift",
+          "kind": "nixos",
+          "label": "research",
+          "latestImage": "omaflake.nixos.dev@mint-river-cloud",
+          "location": "/Volumes/Disk/research.omaflake-vm",
+          "memoryGB": 8,
+          "microphone": false,
+          "name": "research",
+          "network": "shared",
+          "omaflakeId": "vm:research:amber-lake-quiet-otter-lamp-river-stone-cloud-maple-ocean-tiger-velvet",
+          "recipe": "omaflake.nixos.dev@velvet-tiger-orbit",
+          "share": true,
+          "sharePath": "/data/share/research",
+          "sshPort": 2201,
+          "status": "running",
+          "system": "aarch64-linux",
+          "upgradable": true,
+          "user": "alex"
+        }
+      }
+    ],
+    "title": {
+      "key": "Virtual Machines",
+      "text": "Virtual Machines"
+    },
+    "unreadable": [
+      {
+        "icon": "warning",
+        "text": {
+          "text": "old: written by a newer omaflake (version 9)"
+        },
+        "tone": "warning"
+      }
+    ]
+  },
+  "page": "vms",
+  "params": {
+    "filter": {
+      "status": true
+    }
+  }
+}

@@ -28,7 +28,7 @@ fn dir() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("testdata/api")
 }
 
-fn date(s: &str) -> chrono::DateTime<chrono::Utc> {
+pub(crate) fn date(s: &str) -> chrono::DateTime<chrono::Utc> {
     parse_date(s).unwrap()
 }
 
@@ -164,7 +164,7 @@ fn initialize_result() -> InitializeResult {
     }
 }
 
-fn settings_answer() -> SettingsAnswer {
+pub(crate) fn settings_answer() -> SettingsAnswer {
     SettingsAnswer {
         settings: SettingsDto {
             developer_mode: true,
@@ -204,7 +204,7 @@ fn settings_answer() -> SettingsAnswer {
     }
 }
 
-fn agent() -> Value {
+pub(crate) fn agent() -> Value {
     let state: AgentState = serde_json::from_value(json!({
         "hello": {"agent": "omaflake-agent 0.1.0", "protocol": {"min": 1, "max": 1}, "osName": "NixOS"},
         "helloAt": "2026-10-20T08:00:18Z",
@@ -216,7 +216,7 @@ fn agent() -> Value {
     serde_json::to_value(state).unwrap()
 }
 
-fn vm_full() -> Vm {
+pub(crate) fn vm_full() -> Vm {
     Vm {
         name: "research".into(),
         recipe: "omaflake.nixos.dev@velvet-tiger-orbit".into(),
@@ -252,7 +252,7 @@ fn vm_full() -> Vm {
 }
 
 /// A VM with every optional field left out
-fn vm_mac() -> Vm {
+pub(crate) fn vm_mac() -> Vm {
     Vm {
         name: "work".into(),
         recipe: "omaflake.macos.dev@ocean-maple".into(),
@@ -287,7 +287,7 @@ fn vm_mac() -> Vm {
     }
 }
 
-fn image(size: bool) -> ImageDto {
+pub(crate) fn image(size: bool) -> ImageDto {
     ImageDto {
         name: "omaflake.nixos.dev@cedar-mango-lift".into(),
         recipe: "omaflake.nixos.dev@velvet-tiger-orbit".into(),
@@ -310,7 +310,7 @@ fn image(size: bool) -> ImageDto {
 }
 
 /// An image with every optional field left out
-fn image_old() -> ImageDto {
+pub(crate) fn image_old() -> ImageDto {
     ImageDto {
         name: "omaflake.macos.dev@stone-lamp".into(),
         recipe: "omaflake.macos.dev@ocean-maple".into(),
@@ -331,7 +331,7 @@ fn image_old() -> ImageDto {
     }
 }
 
-fn version(id: &str, newest: bool, live: bool, images: &[&str]) -> VersionDto {
+pub(crate) fn version(id: &str, newest: bool, live: bool, images: &[&str]) -> VersionDto {
     VersionDto {
         id: id.into(),
         source: "github:omaflake/recipes@main".into(),
@@ -343,7 +343,7 @@ fn version(id: &str, newest: bool, live: bool, images: &[&str]) -> VersionDto {
     }
 }
 
-fn recipe_list() -> RecipeList {
+pub(crate) fn recipe_list() -> RecipeList {
     let versions = vec![
         version("omaflake.nixos.dev@velvet-tiger-orbit", true, false, &["omaflake.nixos.dev@cedar-mango-lift"]),
         version("omaflake.nixos.dev@amber-oak-lamp", false, false, &[]),
@@ -437,7 +437,7 @@ fn recipe_list() -> RecipeList {
     }
 }
 
-fn catalog(id: &str, lab: bool) -> CatalogRecipeDto {
+pub(crate) fn catalog(id: &str, lab: bool) -> CatalogRecipeDto {
     let mut parts = id.split('.');
     CatalogRecipeDto {
         id: id.into(),
@@ -461,7 +461,7 @@ fn catalog(id: &str, lab: bool) -> CatalogRecipeDto {
     }
 }
 
-fn available() -> Available {
+pub(crate) fn available() -> Available {
     Available {
         offered: vec![catalog("omaflake.nixos.minimal", false), catalog("lab.nixos.try", true)],
         updates: vec![RecipeUpdate {
@@ -473,7 +473,7 @@ fn available() -> Available {
     }
 }
 
-fn source_official() -> SourceDto {
+pub(crate) fn source_official() -> SourceDto {
     SourceDto {
         id: "github:omaflake/recipes@main".into(),
         kind: RecipeSourceKind::Github,
@@ -487,7 +487,7 @@ fn source_official() -> SourceDto {
     }
 }
 
-fn source_private() -> SourceDto {
+pub(crate) fn source_private() -> SourceDto {
     SourceDto {
         id: "url:https://example.org/catalog.json".into(),
         kind: RecipeSourceKind::Url,
@@ -501,7 +501,7 @@ fn source_private() -> SourceDto {
     }
 }
 
-fn prerequisite(item: PrerequisiteItem, status: PrerequisiteStatus) -> PrerequisiteDto {
+pub(crate) fn prerequisite(item: PrerequisiteItem, status: PrerequisiteStatus) -> PrerequisiteDto {
     PrerequisiteDto {
         item,
         status,
@@ -518,7 +518,7 @@ fn prerequisite(item: PrerequisiteItem, status: PrerequisiteStatus) -> Prerequis
     }
 }
 
-fn doctor() -> DoctorReport {
+pub(crate) fn doctor() -> DoctorReport {
     use PrerequisiteItem as I;
     use PrerequisiteStatus as S;
     let qemu = prerequisite(I::Qemu, S::Missing);
@@ -558,7 +558,7 @@ fn doctor() -> DoctorReport {
     }
 }
 
-fn job(id: &str, kind: JobKind, state: JobState, result: Option<Value>) -> JobDto {
+pub(crate) fn job(id: &str, kind: JobKind, state: JobState, result: Option<Value>) -> JobDto {
     let ended = !state.is_active();
     JobDto {
         id: id.into(),
@@ -580,7 +580,7 @@ fn job(id: &str, kind: JobKind, state: JobState, result: Option<Value>) -> JobDt
     }
 }
 
-fn jobs() -> Vec<JobDto> {
+pub(crate) fn jobs() -> Vec<JobDto> {
     fn r<T: Serialize>(t: T) -> Option<Value> {
         Some(serde_json::to_value(t).unwrap())
     }
@@ -681,9 +681,119 @@ fn jobs() -> Vec<JobDto> {
     ]
 }
 
+/// The page models (docs/api.md §10), in `testdata/api/views/`: every page from the views' test context
+/// (`views::tests::ctx`, built from the fixtures above), the `view.changed` event and what a client sends
+fn view_goldens() -> Vec<(&'static str, Value)> {
+    use super::views::{build, import, tests::ctx, PageRef};
+    let c = ctx();
+    let page = |p: &str, params: Value| build(&c, &PageRef { page: p.into(), params }).unwrap();
+    let mut failed = ctx();
+    failed.jobs[0].state = JobState::Failed;
+    failed.jobs[0].error = Some("nix build failed".into());
+    let mut mac = ctx();
+    mac.recipes.recipes[0].runs_here = true;
+    let inspection = Inspection {
+        kind: PackageKindDto::Vm,
+        valid: true,
+        reason: None,
+        conflict: Some(ConflictDto {
+            vm_name: Some("research".into()),
+            suggested_name: Some("research-2".into()),
+            image: None,
+        }),
+        network_volume: false,
+    };
+    let import_params =
+        import::ImportParams { path: "/Volumes/Disk/research.omaflake-vm".into(), expect: None, external: false };
+    vec![
+        ("home", page("home", json!({}))),
+        ("vms", page("vms", json!({}))),
+        ("vms.filtered", page("vms", json!({"filter": {"status": false, "kind": "nixos"}}))),
+        ("vm", page("vm", json!({"name": "research"}))),
+        ("images", page("images", json!({}))),
+        ("image", page("image", json!({"name": "omaflake.macos.dev@stone-lamp"}))),
+        ("recipes", page("recipes", json!({"filter": {"otherSystems": true}}))),
+        ("newVm", page("newVm", json!({"image": "omaflake.nixos.dev@cedar-mango-lift"}))),
+        ("newVm.macos", page("newVm", json!({"image": "omaflake.macos.dev@stone-lamp", "values": {"name": "Work"}}))),
+        ("build", page("build", json!({"recipe": "omaflake.nixos.dev@velvet-tiger-orbit"}))),
+        (
+            "build.failed",
+            build(
+                &failed,
+                &PageRef { page: "build".into(), params: json!({"recipe": "omaflake.nixos.dev@velvet-tiger-orbit"}) },
+            )
+            .unwrap(),
+        ),
+        (
+            "build.macos",
+            build(&mac, &PageRef { page: "build".into(), params: json!({"recipe": "lab.macos.base@ocean-maple"}) })
+                .unwrap(),
+        ),
+        ("doctor", page("doctor", json!({}))),
+        ("macBase", page("macBase", json!({}))),
+        ("settings", page("settings", json!({"values": {"input": "acme/recipes", "private": true}}))),
+        ("activity", page("activity", json!({}))),
+        ("import", serde_json::to_value(import::page(&import_params, inspection)).unwrap()),
+        (
+            "event.view.changed",
+            json!({"page": "vms", "params": {"filter": {"status": true}}, "model": page("vms", json!({"filter": {"status": true}}))}),
+        ),
+    ]
+}
+
 /// What a client sends: (file name, the JSON) – parsed here with the server's types
 fn params_files() -> Vec<String> {
     vec!["initialize.params".into(), "vms.create.params".into()]
+}
+
+fn view_params_files() -> Vec<String> {
+    vec!["views.get.params".into(), "views.subscribe.params".into()]
+}
+
+/// Compares (or with OMAF_UPDATE_GOLDEN writes) the golden files of `dir`; returns those that differ
+fn compare(dir: &std::path::Path, goldens: Vec<(&'static str, Value)>) -> Vec<&'static str> {
+    let update = std::env::var_os("OMAF_UPDATE_GOLDEN").is_some();
+    std::fs::create_dir_all(dir).unwrap();
+    let mut stale = Vec::new();
+    for (name, value) in goldens {
+        let file = dir.join(format!("{name}.json"));
+        let text = serde_json::to_string_pretty(&value).unwrap() + "\n";
+        if update {
+            std::fs::write(&file, &text).unwrap();
+            continue;
+        }
+        match std::fs::read_to_string(&file) {
+            Ok(old) if serde_json::from_str::<Value>(&old).ok() == Some(value) => {}
+            _ => stale.push(name),
+        }
+    }
+    stale
+}
+
+#[test]
+fn view_golden_files_match_the_types() {
+    let stale = compare(&dir().join("views"), view_goldens());
+    assert!(
+        stale.is_empty(),
+        "view golden files differ: {stale:?} – OMAF_UPDATE_GOLDEN=1 cargo test -p omaflake-core api::contract"
+    );
+}
+
+#[test]
+fn view_params_parse() {
+    let read = |name: &str| -> Value {
+        serde_json::from_str(&std::fs::read_to_string(dir().join("views").join(format!("{name}.json"))).unwrap())
+            .unwrap()
+    };
+    let get: super::views::PageRef = serde_json::from_value(read("views.get.params")).unwrap();
+    assert_eq!(get.page, "newVm");
+    #[derive(serde::Deserialize)]
+    struct Sub {
+        pages: Vec<super::views::PageRef>,
+    }
+    let sub: Sub = serde_json::from_value(read("views.subscribe.params")).unwrap();
+    assert_eq!(sub.pages.len(), 3);
+    assert_eq!(sub.pages[0].params, json!({}), "params may be left out");
 }
 
 #[test]
@@ -718,7 +828,20 @@ fn every_golden_file_is_known() {
         goldens().into_iter().map(|(n, _)| n.to_string()).chain(params_files()).map(|n| format!("{n}.json")).collect();
     for entry in std::fs::read_dir(dir()).unwrap().flatten() {
         let name = entry.file_name().to_string_lossy().into_owned();
+        if entry.path().is_dir() && name == "views" {
+            continue;
+        }
         assert!(known.contains(&name), "testdata/api/{name} is not written by api::contract");
+    }
+    let known: Vec<String> = view_goldens()
+        .into_iter()
+        .map(|(n, _)| n.to_string())
+        .chain(view_params_files())
+        .map(|n| format!("{n}.json"))
+        .collect();
+    for entry in std::fs::read_dir(dir().join("views")).unwrap().flatten() {
+        let name = entry.file_name().to_string_lossy().into_owned();
+        assert!(known.contains(&name), "testdata/api/views/{name} is not written by api::contract");
     }
 }
 

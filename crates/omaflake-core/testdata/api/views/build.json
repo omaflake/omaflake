@@ -1,0 +1,95 @@
+{
+  "actions": [
+    {
+      "enabled": true,
+      "icon": "cancel",
+      "id": "cancel",
+      "label": {
+        "key": "Cancel",
+        "text": "Cancel"
+      },
+      "method": "jobs.cancel",
+      "params": {
+        "id": "j1"
+      }
+    }
+  ],
+  "badges": [],
+  "description": "Entwicklungsumgebung",
+  "job": {
+    "cancellable": true,
+    "guestKind": "nixos",
+    "hiddenLines": 37,
+    "id": "j1",
+    "kind": "build",
+    "lastOutput": "2026-10-23T09:04:59Z",
+    "logFile": "/data/logs/j1.log",
+    "logLines": 3,
+    "progress": {
+      "done": 120,
+      "fraction": 0.62,
+      "of": 400,
+      "step": 3,
+      "title": "Copying the image",
+      "total": 5
+    },
+    "recipe": "omaflake.nixos.dev@velvet-tiger-orbit",
+    "started": "2026-10-23T09:00:00Z",
+    "state": "running",
+    "title": "Build"
+  },
+  "kind": {
+    "help": {
+      "key": "NixOS guest",
+      "text": "NixOS guest"
+    },
+    "icon": "nixos",
+    "id": "kind",
+    "tone": "normal"
+  },
+  "log": {
+    "file": "/data/logs/j1.log",
+    "full": {
+      "enabled": true,
+      "help": {
+        "key": "Every line, also the routine ones left out above",
+        "text": "Every line, also the routine ones left out above"
+      },
+      "icon": "log",
+      "id": "fullLog",
+      "label": {
+        "key": "Full Log …",
+        "text": "Full Log …"
+      },
+      "method": "ui.open",
+      "params": {
+        "path": "/data/logs/j1.log"
+      }
+    },
+    "job": "j1",
+    "lines": 3
+  },
+  "name": "dev (velvet)",
+  "progress": {
+    "count": {
+      "text": "120/400"
+    },
+    "fraction": 0.62,
+    "lastOutput": "2026-10-23T09:04:59Z",
+    "quietHelp": {
+      "key": "Some steps print nothing for minutes (writing the disk image, copying); Cancel stops the build",
+      "text": "Some steps print nothing for minutes (writing the disk image, copying); Cancel stops the build"
+    },
+    "quietWarning": 120,
+    "started": "2026-10-23T09:00:00Z",
+    "step": {
+      "text": "3/5"
+    },
+    "title": {
+      "key": "Copying the image",
+      "text": "Copying the image"
+    }
+  },
+  "recipe": "omaflake.nixos.dev@velvet-tiger-orbit",
+  "state": "running"
+}

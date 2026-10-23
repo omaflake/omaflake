@@ -1,0 +1,7 @@
+{
+  "pages": [
+    {"page": "home"},
+    {"page": "vms", "params": {"filter": {"status": true, "kind": "nixos"}}},
+    {"page": "build", "params": {"recipe": "omaflake.nixos.dev@velvet-tiger-orbit"}}
+  ]
+}

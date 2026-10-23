@@ -13,6 +13,12 @@ are collected under *Unreleased*. Releases: [GitHub](https://github.com/omaflake
 
 ## [Unreleased]
 
+### Added
+
+- **The core says what each page shows** (`views.get`, `views.subscribe`, docs/api.md §10): rows, actions with why
+  they are not possible now, the questions they ask, filters, form defaults and validation, and the activity list –
+  in English with message keys, so every interface (the macOS app, the coming Linux app and `omaf ui`) shows the same.
+
 ### Changed
 
 - **The menu bar app is a client of omaflake's new Rust core**: it starts `omaf serve` (bundled next to the app) and

@@ -1,0 +1,1237 @@
+{
+  "actions": [
+    {
+      "enabled": true,
+      "help": {
+        "key": "Look for new recipes in the sources",
+        "text": "Look for new recipes in the sources"
+      },
+      "icon": "refresh",
+      "id": "refresh",
+      "label": {
+        "key": "Refresh",
+        "text": "Refresh"
+      },
+      "method": "recipes.available",
+      "params": {}
+    },
+    {
+      "ask": [
+        {
+          "accept": "recipe",
+          "button": {
+            "key": "Import",
+            "text": "Import"
+          },
+          "check": {
+            "method": "packages.inspect",
+            "param": "path",
+            "params": {
+              "expect": "recipe",
+              "external": false
+            }
+          },
+          "kind": "package",
+          "label": {
+            "key": "Package",
+            "text": "Package"
+          },
+          "multiple": true,
+          "param": "params.path",
+          "prompt": {
+            "key": "Recipes (.omaflake-recipe) or a folder of recipes – copied into your recipes",
+            "text": "Recipes (.omaflake-recipe) or a folder of recipes – copied into your recipes"
+          }
+        }
+      ],
+      "enabled": true,
+      "help": {
+        "key": "Import recipes – a copy into your recipes (sources to use as they are: Settings)",
+        "text": "Import recipes – a copy into your recipes (sources to use as they are: Settings)"
+      },
+      "icon": "import",
+      "id": "import",
+      "label": {
+        "key": "Import",
+        "text": "Import"
+      },
+      "method": "ui.step",
+      "params": {
+        "page": "import",
+        "params": {
+          "expect": "recipe"
+        }
+      }
+    }
+  ],
+  "catalogsLoaded": true,
+  "count": 2,
+  "errors": [
+    {
+      "icon": "warning",
+      "text": {
+        "text": "example.org: HTTP 404"
+      },
+      "tone": "warning"
+    }
+  ],
+  "filter": {
+    "active": true,
+    "groups": [
+      {
+        "id": "status",
+        "kind": "choice",
+        "label": {
+          "key": "Status",
+          "text": "Status"
+        },
+        "options": [
+          {
+            "label": {
+              "key": "All",
+              "text": "All"
+            },
+            "value": null
+          },
+          {
+            "label": {
+              "key": "With image",
+              "text": "With image"
+            },
+            "value": true
+          },
+          {
+            "label": {
+              "key": "Without image",
+              "text": "Without image"
+            },
+            "value": false
+          }
+        ],
+        "value": null
+      },
+      {
+        "id": "kind",
+        "kind": "choice",
+        "label": {
+          "key": "System",
+          "text": "System"
+        },
+        "options": [
+          {
+            "label": {
+              "key": "All",
+              "text": "All"
+            },
+            "value": null
+          },
+          {
+            "icon": "nixos",
+            "label": {
+              "text": "NixOS"
+            },
+            "value": "nixos"
+          },
+          {
+            "icon": "macos",
+            "label": {
+              "text": "macOS"
+            },
+            "value": "macos"
+          }
+        ],
+        "value": null
+      },
+      {
+        "id": "tag",
+        "kind": "choice",
+        "label": {
+          "key": "Tag",
+          "text": "Tag"
+        },
+        "options": [
+          {
+            "label": {
+              "key": "All",
+              "text": "All"
+            },
+            "value": null
+          },
+          {
+            "label": {
+              "text": "dev"
+            },
+            "value": "dev"
+          },
+          {
+            "label": {
+              "text": "gui"
+            },
+            "value": "gui"
+          }
+        ],
+        "value": null
+      },
+      {
+        "id": "otherSystems",
+        "kind": "toggle",
+        "label": {
+          "key": "Other Architectures",
+          "text": "Other Architectures"
+        },
+        "value": true
+      }
+    ]
+  },
+  "labHidden": false,
+  "loading": false,
+  "offered": [
+    {
+      "actions": [
+        {
+          "enabled": true,
+          "icon": "install",
+          "id": "install",
+          "label": {
+            "args": [
+              "omaflake/recipes"
+            ],
+            "key": "Install from %@",
+            "text": "Install from omaflake/recipes"
+          },
+          "method": "recipes.install",
+          "params": {
+            "id": "omaflake.nixos.minimal",
+            "source": "github:omaflake/recipes@main"
+          }
+        }
+      ],
+      "author": "omaflake",
+      "badges": [
+        {
+          "help": {
+            "key": "Official recipe",
+            "text": "Official recipe"
+          },
+          "icon": "official",
+          "id": "official",
+          "tone": "accent"
+        }
+      ],
+      "detail": {
+        "description": "A small NixOS",
+        "info": [
+          {
+            "label": {
+              "key": "ID",
+              "text": "ID"
+            },
+            "value": {
+              "text": "omaflake/nixos/minimal"
+            }
+          },
+          {
+            "label": {
+              "key": "Source",
+              "text": "Source"
+            },
+            "value": {
+              "args": [
+                {
+                  "text": "omaflake/recipes"
+                },
+                {
+                  "key": "official",
+                  "text": "official"
+                }
+              ],
+              "key": "%@ · %@",
+              "text": "omaflake/recipes · official"
+            }
+          },
+          {
+            "label": {
+              "key": "Architectures",
+              "text": "Architectures"
+            },
+            "value": {
+              "text": "aarch64-linux"
+            }
+          },
+          {
+            "label": {
+              "key": "License",
+              "text": "License"
+            },
+            "value": {
+              "text": "MIT"
+            }
+          },
+          {
+            "label": {
+              "key": "Requires",
+              "text": "Requires"
+            },
+            "value": {
+              "text": "omaflake.nixos.base"
+            }
+          },
+          {
+            "label": {
+              "key": "Files",
+              "text": "Files"
+            },
+            "value": {
+              "args": [
+                2,
+                {
+                  "bytes": 2460
+                }
+              ],
+              "key": "%lld files, %@",
+              "text": "2 files, 2.5 KB"
+            }
+          }
+        ]
+      },
+      "id": "omaflake.nixos.minimal",
+      "kind": {
+        "help": {
+          "key": "NixOS guest",
+          "text": "NixOS guest"
+        },
+        "icon": "nixos",
+        "id": "kind",
+        "tone": "normal"
+      },
+      "lamp": {
+        "help": {
+          "key": "Not installed",
+          "text": "Not installed"
+        },
+        "state": "off"
+      },
+      "name": "minimal",
+      "recipe": {
+        "author": "omaflake",
+        "description": "A small NixOS",
+        "files": [
+          {
+            "path": "recipe.toml",
+            "sha256": "9f86d081884c7d65",
+            "size": 412
+          },
+          {
+            "path": "configuration.nix",
+            "sha256": "60303ae22b998861",
+            "size": 2048
+          }
+        ],
+        "id": "omaflake.nixos.minimal",
+        "kind": "nixos",
+        "lab": false,
+        "license": "MIT",
+        "name": "minimal",
+        "requires": [
+          "omaflake.nixos.base"
+        ],
+        "runsHere": true,
+        "source": "github:omaflake/recipes@main",
+        "systems": [
+          "aarch64-linux"
+        ],
+        "tags": [
+          "minimal"
+        ],
+        "version": "2"
+      },
+      "tags": [
+        "minimal"
+      ]
+    },
+    {
+      "actions": [
+        {
+          "enabled": true,
+          "icon": "install",
+          "id": "install",
+          "label": {
+            "args": [
+              "omaflake/recipes"
+            ],
+            "key": "Install from %@",
+            "text": "Install from omaflake/recipes"
+          },
+          "method": "recipes.install",
+          "params": {
+            "id": "lab.nixos.try",
+            "source": "github:omaflake/recipes@main"
+          }
+        }
+      ],
+      "author": "lab",
+      "badges": [
+        {
+          "help": {
+            "key": "Development recipe (developer mode)",
+            "text": "Development recipe (developer mode)"
+          },
+          "icon": "lab",
+          "id": "lab",
+          "tone": "warning"
+        }
+      ],
+      "detail": {
+        "description": "A small NixOS",
+        "info": [
+          {
+            "label": {
+              "key": "ID",
+              "text": "ID"
+            },
+            "value": {
+              "text": "lab/nixos/try"
+            }
+          },
+          {
+            "label": {
+              "key": "Source",
+              "text": "Source"
+            },
+            "value": {
+              "text": "omaflake/recipes"
+            }
+          },
+          {
+            "label": {
+              "key": "Architectures",
+              "text": "Architectures"
+            },
+            "value": {
+              "text": "aarch64-linux"
+            }
+          },
+          {
+            "label": {
+              "key": "Files",
+              "text": "Files"
+            },
+            "value": {
+              "args": [
+                2,
+                {
+                  "bytes": 2460
+                }
+              ],
+              "key": "%lld files, %@",
+              "text": "2 files, 2.5 KB"
+            }
+          }
+        ],
+        "warning": {
+          "key": "Not reviewed by the omaflake team – its Nix code runs on this Mac when you build it.",
+          "text": "Not reviewed by the omaflake team – its Nix code runs on this Mac when you build it."
+        }
+      },
+      "id": "lab.nixos.try",
+      "kind": {
+        "help": {
+          "key": "NixOS guest",
+          "text": "NixOS guest"
+        },
+        "icon": "nixos",
+        "id": "kind",
+        "tone": "normal"
+      },
+      "lamp": {
+        "help": {
+          "key": "Not installed",
+          "text": "Not installed"
+        },
+        "state": "off"
+      },
+      "name": "try",
+      "recipe": {
+        "author": "lab",
+        "description": "A small NixOS",
+        "files": [
+          {
+            "path": "recipe.toml",
+            "sha256": "9f86d081884c7d65",
+            "size": 412
+          },
+          {
+            "path": "configuration.nix",
+            "sha256": "60303ae22b998861",
+            "size": 2048
+          }
+        ],
+        "id": "lab.nixos.try",
+        "kind": "nixos",
+        "lab": true,
+        "name": "try",
+        "requires": [],
+        "runsHere": true,
+        "source": "github:omaflake/recipes@main",
+        "systems": [
+          "aarch64-linux"
+        ],
+        "tags": [
+          "minimal"
+        ],
+        "version": "2"
+      },
+      "tags": [
+        "minimal"
+      ]
+    }
+  ],
+  "rows": [
+    {
+      "actions": [
+        {
+          "enabled": true,
+          "icon": "folder",
+          "id": "reveal",
+          "label": {
+            "key": "Show in Finder",
+            "text": "Show in Finder"
+          },
+          "method": "ui.reveal",
+          "params": {
+            "path": "/data/recipes/omaflake.nixos.dev@velvet-tiger-orbit"
+          }
+        },
+        {
+          "enabled": true,
+          "help": {
+            "args": [
+              {
+                "args": [
+                  {
+                    "key": "Linux builder answers",
+                    "text": "Linux builder answers"
+                  }
+                ],
+                "key": "%@",
+                "text": "Linux builder answers"
+              }
+            ],
+            "key": "Open the Doctor first: %@",
+            "text": "Open the Doctor first: Linux builder answers"
+          },
+          "icon": "warning",
+          "id": "doctor",
+          "label": {
+            "key": "Doctor",
+            "text": "Doctor"
+          },
+          "method": "ui.show",
+          "params": {
+            "page": "doctor",
+            "params": {}
+          }
+        }
+      ],
+      "badges": [],
+      "detail": {
+        "actions": [
+          {
+            "enabled": true,
+            "icon": "install",
+            "id": "update",
+            "label": {
+              "key": "Update",
+              "text": "Update"
+            },
+            "method": "recipes.install",
+            "params": {
+              "id": "omaflake.nixos.dev",
+              "source": "github:omaflake/recipes@main"
+            }
+          },
+          {
+            "confirm": {
+              "button": {
+                "key": "Remove All",
+                "text": "Remove All"
+              },
+              "destructive": true,
+              "text": {
+                "key": "Versions images are built from stay while those images are there; a recipe in a local folder stays in its folder. Images and VMs stay.",
+                "text": "Versions images are built from stay while those images are there; a recipe in a local folder stays in its folder. Images and VMs stay."
+              },
+              "title": {
+                "args": [
+                  "dev"
+                ],
+                "key": "Remove all versions of “%@”?",
+                "text": "Remove all versions of “dev”?"
+              }
+            },
+            "destructive": true,
+            "enabled": true,
+            "icon": "trash",
+            "id": "removeAll",
+            "label": {
+              "key": "Remove All Versions …",
+              "text": "Remove All Versions …"
+            },
+            "method": "recipes.removeLine",
+            "params": {
+              "line": "omaflake.nixos.dev@github:omaflake/recipes@main"
+            }
+          }
+        ],
+        "description": "Entwicklungsumgebung",
+        "info": [
+          {
+            "label": {
+              "key": "Resources",
+              "text": "Resources"
+            },
+            "value": {
+              "text": "4 CPU · 8 GB RAM · 64 GB"
+            }
+          },
+          {
+            "label": {
+              "key": "Architectures",
+              "text": "Architectures"
+            },
+            "value": {
+              "text": "aarch64-linux"
+            }
+          },
+          {
+            "label": {
+              "key": "Network",
+              "text": "Network"
+            },
+            "value": {
+              "text": "shared"
+            }
+          },
+          {
+            "label": {
+              "key": "New VMs",
+              "text": "New VMs"
+            },
+            "value": {
+              "args": [
+                {
+                  "key": "Clipboard",
+                  "text": "Clipboard"
+                },
+                {
+                  "key": "Sound",
+                  "text": "Sound"
+                },
+                {
+                  "key": "Share folder",
+                  "text": "Share folder"
+                }
+              ],
+              "key": "%@ · %@ · %@",
+              "text": "Clipboard · Sound · Share folder"
+            }
+          },
+          {
+            "label": {
+              "key": "Images",
+              "text": "Images"
+            },
+            "value": {
+              "args": [
+                1,
+                {
+                  "date": "2026-10-21T10:00:00Z"
+                }
+              ],
+              "key": "%lld built, the newest %@",
+              "text": "1 built, the newest 2026-10-21 10:00 UTC"
+            }
+          },
+          {
+            "full": "omaflake/recipes",
+            "label": {
+              "key": "Source",
+              "text": "Source"
+            },
+            "value": {
+              "text": "omaflake/recipes"
+            }
+          },
+          {
+            "label": {
+              "key": "License",
+              "text": "License"
+            },
+            "value": {
+              "text": "MIT"
+            }
+          }
+        ],
+        "versions": [
+          {
+            "actions": [
+              {
+                "ask": [
+                  {
+                    "button": {
+                      "key": "Export Here",
+                      "text": "Export Here"
+                    },
+                    "kind": "folder",
+                    "label": {
+                      "key": "Folder",
+                      "text": "Folder"
+                    },
+                    "param": "folder",
+                    "prompt": {
+                      "key": "Where to put the recipe (with the recipes it needs) – to keep or to share",
+                      "text": "Where to put the recipe (with the recipes it needs) – to keep or to share"
+                    }
+                  }
+                ],
+                "enabled": true,
+                "icon": "export",
+                "id": "export",
+                "label": {
+                  "key": "Export …",
+                  "text": "Export …"
+                },
+                "method": "packages.export",
+                "params": {
+                  "kind": "recipe",
+                  "name": "omaflake.nixos.dev@velvet-tiger-orbit"
+                }
+              },
+              {
+                "confirm": {
+                  "button": {
+                    "key": "Remove",
+                    "text": "Remove"
+                  },
+                  "destructive": true,
+                  "text": {
+                    "key": "Its files are deleted; images built from it and their VMs stay. You can install it again from its source.",
+                    "text": "Its files are deleted; images built from it and their VMs stay. You can install it again from its source."
+                  },
+                  "title": {
+                    "args": [
+                      "recipe:omaflake/nixos/dev:velvet"
+                    ],
+                    "key": "Remove the recipe version “%@”?",
+                    "text": "Remove the recipe version “recipe:omaflake/nixos/dev:velvet”?"
+                  }
+                },
+                "destructive": true,
+                "enabled": false,
+                "icon": "trash",
+                "id": "remove",
+                "label": {
+                  "key": "Remove this version …",
+                  "text": "Remove this version …"
+                },
+                "method": "recipes.remove",
+                "params": {
+                  "id": "omaflake.nixos.dev@velvet-tiger-orbit"
+                },
+                "reason": {
+                  "key": "Kept while images built from it are there",
+                  "text": "Kept while images built from it are there"
+                }
+              }
+            ],
+            "id": "omaflake.nixos.dev@velvet-tiger-orbit",
+            "state": {
+              "args": [
+                {
+                  "args": [
+                    {
+                      "date": "2026-10-20T08:00:00Z"
+                    }
+                  ],
+                  "key": "%@",
+                  "text": "2026-10-20 08:00 UTC"
+                },
+                {
+                  "key": "newest",
+                  "text": "newest"
+                },
+                {
+                  "args": [
+                    1
+                  ],
+                  "key": "images: %lld",
+                  "text": "images: 1"
+                }
+              ],
+              "key": "%@ · %@ · %@",
+              "text": "2026-10-20 08:00 UTC · newest · images: 1"
+            },
+            "version": {
+              "added": "2026-10-20T08:00:00Z",
+              "id": "omaflake.nixos.dev@velvet-tiger-orbit",
+              "images": [
+                "omaflake.nixos.dev@cedar-mango-lift"
+              ],
+              "label": "recipe:omaflake/nixos/dev:velvet",
+              "live": false,
+              "newest": true,
+              "source": "github:omaflake/recipes@main"
+            },
+            "words": "velvet"
+          },
+          {
+            "actions": [
+              {
+                "ask": [
+                  {
+                    "button": {
+                      "key": "Export Here",
+                      "text": "Export Here"
+                    },
+                    "kind": "folder",
+                    "label": {
+                      "key": "Folder",
+                      "text": "Folder"
+                    },
+                    "param": "folder",
+                    "prompt": {
+                      "key": "Where to put the recipe (with the recipes it needs) – to keep or to share",
+                      "text": "Where to put the recipe (with the recipes it needs) – to keep or to share"
+                    }
+                  }
+                ],
+                "enabled": true,
+                "icon": "export",
+                "id": "export",
+                "label": {
+                  "key": "Export …",
+                  "text": "Export …"
+                },
+                "method": "packages.export",
+                "params": {
+                  "kind": "recipe",
+                  "name": "omaflake.nixos.dev@amber-oak-lamp"
+                }
+              },
+              {
+                "confirm": {
+                  "button": {
+                    "key": "Remove",
+                    "text": "Remove"
+                  },
+                  "destructive": true,
+                  "text": {
+                    "key": "Its files are deleted; images built from it and their VMs stay. You can install it again from its source.",
+                    "text": "Its files are deleted; images built from it and their VMs stay. You can install it again from its source."
+                  },
+                  "title": {
+                    "args": [
+                      "recipe:omaflake/nixos/dev:amber"
+                    ],
+                    "key": "Remove the recipe version “%@”?",
+                    "text": "Remove the recipe version “recipe:omaflake/nixos/dev:amber”?"
+                  }
+                },
+                "destructive": true,
+                "enabled": true,
+                "icon": "trash",
+                "id": "remove",
+                "label": {
+                  "key": "Remove this version …",
+                  "text": "Remove this version …"
+                },
+                "method": "recipes.remove",
+                "params": {
+                  "id": "omaflake.nixos.dev@amber-oak-lamp"
+                }
+              }
+            ],
+            "id": "omaflake.nixos.dev@amber-oak-lamp",
+            "state": {
+              "args": [
+                {
+                  "date": "2026-10-20T08:00:00Z"
+                }
+              ],
+              "key": "%@",
+              "text": "2026-10-20 08:00 UTC"
+            },
+            "version": {
+              "added": "2026-10-20T08:00:00Z",
+              "id": "omaflake.nixos.dev@amber-oak-lamp",
+              "images": [],
+              "label": "recipe:omaflake/nixos/dev:amber",
+              "live": false,
+              "newest": false,
+              "source": "github:omaflake/recipes@main"
+            },
+            "words": "amber"
+          }
+        ]
+      },
+      "id": "omaflake.nixos.dev@velvet-tiger-orbit",
+      "kind": {
+        "help": {
+          "key": "NixOS guest",
+          "text": "NixOS guest"
+        },
+        "icon": "nixos",
+        "id": "kind",
+        "tone": "normal"
+      },
+      "lamp": {
+        "help": {
+          "key": "being built – see Images",
+          "text": "being built – see Images"
+        },
+        "state": "working"
+      },
+      "line": "omaflake.nixos.dev@github:omaflake/recipes@main",
+      "name": "dev",
+      "recipe": {
+        "audio": true,
+        "author": "omaflake",
+        "base": "omaflake.nixos.dev",
+        "camera": false,
+        "clipboard": true,
+        "cpus": 4,
+        "description": "Entwicklungsumgebung",
+        "diskGB": 64,
+        "display": "gpu",
+        "displayName": "dev",
+        "distinction": "velvet",
+        "ephemeral": false,
+        "folder": "/data/recipes/omaflake.nixos.dev@velvet-tiger-orbit",
+        "homepage": "https://omaflake.dev",
+        "id": "omaflake.nixos.dev@velvet-tiger-orbit",
+        "image": "omaflake.nixos.dev@cedar-mango-lift",
+        "installed": {
+          "installed": "2026-10-20T08:00:00Z",
+          "source": "github:omaflake/recipes@main",
+          "version": "3"
+        },
+        "kind": "nixos",
+        "lab": false,
+        "label": "recipe:omaflake/nixos/dev:velvet",
+        "license": "MIT",
+        "line": "omaflake.nixos.dev@github:omaflake/recipes@main",
+        "memoryGB": 8,
+        "microphone": false,
+        "name": "dev",
+        "network": "shared",
+        "outdated": true,
+        "qualified": "omaflake/nixos/dev",
+        "runsHere": true,
+        "share": true,
+        "source": "github:omaflake/recipes@main",
+        "systems": [
+          "aarch64-linux"
+        ],
+        "tags": [
+          "dev",
+          "gui"
+        ],
+        "user": "alex",
+        "versions": [
+          {
+            "added": "2026-10-20T08:00:00Z",
+            "id": "omaflake.nixos.dev@velvet-tiger-orbit",
+            "images": [
+              "omaflake.nixos.dev@cedar-mango-lift"
+            ],
+            "label": "recipe:omaflake/nixos/dev:velvet",
+            "live": false,
+            "newest": true,
+            "source": "github:omaflake/recipes@main"
+          },
+          {
+            "added": "2026-10-20T08:00:00Z",
+            "id": "omaflake.nixos.dev@amber-oak-lamp",
+            "images": [],
+            "label": "recipe:omaflake/nixos/dev:amber",
+            "live": false,
+            "newest": false,
+            "source": "github:omaflake/recipes@main"
+          }
+        ]
+      },
+      "secondary": [
+        "velvet"
+      ],
+      "tags": [
+        "dev",
+        "gui"
+      ]
+    },
+    {
+      "actions": [
+        {
+          "enabled": false,
+          "icon": "folder",
+          "id": "reveal",
+          "label": {
+            "key": "Show in Finder",
+            "text": "Show in Finder"
+          },
+          "method": "ui.reveal",
+          "params": {},
+          "reason": {
+            "key": "Show in Finder",
+            "text": "Show in Finder"
+          }
+        },
+        {
+          "enabled": false,
+          "icon": "build",
+          "id": "build",
+          "label": {
+            "key": "Build image",
+            "text": "Build image"
+          },
+          "method": "ui.show",
+          "params": {
+            "page": "build",
+            "params": {
+              "recipe": "lab.macos.base@ocean-maple"
+            }
+          },
+          "reason": {
+            "args": [
+              "aarch64-darwin"
+            ],
+            "key": "Not for this Mac – it is built for %@",
+            "text": "Not for this Mac – it is built for aarch64-darwin"
+          }
+        }
+      ],
+      "badges": [
+        {
+          "help": {
+            "key": "Development recipe (developer mode)",
+            "text": "Development recipe (developer mode)"
+          },
+          "icon": "lab",
+          "id": "lab",
+          "tone": "warning"
+        },
+        {
+          "help": {
+            "args": [
+              "aarch64-darwin"
+            ],
+            "key": "Not for this Mac – built for %@",
+            "text": "Not for this Mac – built for aarch64-darwin"
+          },
+          "icon": "arch",
+          "id": "arch",
+          "label": {
+            "text": "aarch64"
+          },
+          "tone": "warning"
+        }
+      ],
+      "detail": {
+        "actions": [
+          {
+            "confirm": {
+              "button": {
+                "key": "Remove All",
+                "text": "Remove All"
+              },
+              "destructive": true,
+              "text": {
+                "key": "Versions images are built from stay while those images are there; a recipe in a local folder stays in its folder. Images and VMs stay.",
+                "text": "Versions images are built from stay while those images are there; a recipe in a local folder stays in its folder. Images and VMs stay."
+              },
+              "title": {
+                "args": [
+                  "base"
+                ],
+                "key": "Remove all versions of “%@”?",
+                "text": "Remove all versions of “base”?"
+              }
+            },
+            "destructive": true,
+            "enabled": false,
+            "icon": "trash",
+            "id": "removeAll",
+            "label": {
+              "key": "Remove All Versions …",
+              "text": "Remove All Versions …"
+            },
+            "method": "recipes.removeLine",
+            "params": {
+              "line": "lab.macos.base@"
+            }
+          }
+        ],
+        "info": [
+          {
+            "label": {
+              "key": "Resources",
+              "text": "Resources"
+            },
+            "value": {
+              "text": "4 CPU · 8 GB RAM · 80 GB"
+            }
+          },
+          {
+            "label": {
+              "key": "Architectures",
+              "text": "Architectures"
+            },
+            "value": {
+              "text": "aarch64-darwin"
+            }
+          },
+          {
+            "label": {
+              "key": "Network",
+              "text": "Network"
+            },
+            "value": {
+              "text": "none"
+            }
+          },
+          {
+            "label": {
+              "key": "New VMs",
+              "text": "New VMs"
+            },
+            "value": {
+              "args": [
+                {
+                  "key": "Clipboard",
+                  "text": "Clipboard"
+                },
+                {
+                  "key": "Sound",
+                  "text": "Sound"
+                },
+                {
+                  "key": "Ephemeral",
+                  "text": "Ephemeral"
+                }
+              ],
+              "key": "%@ · %@ · %@",
+              "text": "Clipboard · Sound · Ephemeral"
+            }
+          },
+          {
+            "label": {
+              "key": "Images",
+              "text": "Images"
+            },
+            "value": {
+              "key": "not built yet",
+              "text": "not built yet"
+            }
+          }
+        ],
+        "versions": []
+      },
+      "id": "lab.macos.base@ocean-maple",
+      "kind": {
+        "help": {
+          "key": "macOS guest",
+          "text": "macOS guest"
+        },
+        "icon": "macos",
+        "id": "kind",
+        "tone": "normal"
+      },
+      "lamp": {
+        "help": {
+          "key": "not built yet",
+          "text": "not built yet"
+        },
+        "state": "off"
+      },
+      "line": "lab.macos.base@",
+      "name": "base",
+      "recipe": {
+        "base": "lab.macos.base",
+        "cpus": 4,
+        "diskGB": 80,
+        "displayName": "base",
+        "ephemeral": true,
+        "id": "lab.macos.base@ocean-maple",
+        "kind": "macos",
+        "lab": true,
+        "label": "recipe:lab/macos/base:ocean",
+        "line": "lab.macos.base@",
+        "memoryGB": 8,
+        "network": "none",
+        "outdated": false,
+        "qualified": "lab/macos/base",
+        "runsHere": false,
+        "share": false,
+        "systems": [
+          "aarch64-darwin"
+        ],
+        "tags": [],
+        "versions": []
+      },
+      "secondary": [],
+      "tags": []
+    }
+  ],
+  "title": {
+    "key": "Recipes",
+    "text": "Recipes"
+  },
+  "unreadable": [
+    {
+      "icon": "warning",
+      "text": {
+        "text": "acme/nixos/x: recipe.toml: unknown key"
+      },
+      "tone": "warning"
+    }
+  ],
+  "updates": {
+    "note": {
+      "key": "The new version takes over; the older one goes unless an image is built from it.",
+      "text": "The new version takes over; the older one goes unless an image is built from it."
+    },
+    "rows": [
+      {
+        "action": {
+          "enabled": true,
+          "icon": "install",
+          "id": "update",
+          "label": {
+            "key": "Update",
+            "text": "Update"
+          },
+          "method": "recipes.install",
+          "params": {
+            "id": "omaflake.nixos.dev",
+            "source": "github:omaflake/recipes@main"
+          }
+        },
+        "id": "omaflake.nixos.dev@velvet-tiger-orbit",
+        "kind": {
+          "help": {
+            "key": "NixOS guest",
+            "text": "NixOS guest"
+          },
+          "icon": "nixos",
+          "id": "kind",
+          "tone": "normal"
+        },
+        "name": "omaflake/nixos/dev",
+        "source": "omaflake/recipes"
+      }
+    ],
+    "title": {
+      "key": "Newer recipe versions in your sources",
+      "text": "Newer recipe versions in your sources"
+    }
+  }
+}

@@ -70,7 +70,21 @@ impl Server {
             "settings.get" => Answer::of(self.settings_answer()?),
             "settings.set" => self.settings_set(p),
             "dataFolder.move" => self.data_folder_move(params(p)?),
-            "updates.check" => Answer::of(check_update(self)?),
+            "updates.check" => Answer::of(self.updates_check()?),
+            // Views (plan B121, api.md §10)
+            "views.get" => Answer::of(self.view(&params::<super::views::PageRef>(p)?)?),
+            "views.subscribe" => {
+                #[derive(Deserialize)]
+                struct P {
+                    pages: Vec<super::views::PageRef>,
+                }
+                self.views_subscribe(params::<P>(p)?.pages)?;
+                Ok(Answer::Value(Value::Null))
+            }
+            "activity.clear" => {
+                self.events().clear_activity();
+                Ok(Answer::Value(Value::Null))
+            }
             // VMs
             "vms.list" => Answer::of(self.state().map_err(err)?.view().vms()),
             "vms.get" => Answer::of(self.vm(&params::<Name>(p)?.name)?),
@@ -103,6 +117,7 @@ impl Server {
             "recipes.available" => Answer::of(self.recipes_available(true)?),
             "recipes.install" => self.recipes_install(params(p)?),
             "recipes.installSuggested" => self.recipes_install_suggested(),
+            "recipes.installUpdates" => self.recipes_install_updates(),
             "recipes.remove" => self.recipes_remove(&params::<Id>(p)?.id),
             "recipes.removeLine" => self.recipes_remove_line(params(p)?),
             "recipes.pruneVersions" => {
@@ -222,7 +237,7 @@ impl Server {
 
     // MARK: Settings
 
-    fn settings_answer(&self) -> Result<SettingsAnswer, RpcError> {
+    pub(crate) fn settings_answer(&self) -> Result<SettingsAnswer, RpcError> {
         let paths = self.paths();
         let mac = GuestSettings::mac();
         Ok(SettingsAnswer {
@@ -318,7 +333,10 @@ impl Server {
             // Off: older versions go unless an image uses them (plan B111)
             let removed = RecipeLibrary::new(paths.clone()).prune_versions();
             if !removed.is_empty() {
-                self.events().info(format!("Older recipe versions removed: {}", removed.len()));
+                self.events().message_text(
+                    Level::Info,
+                    super::views::text::tf!("Older recipe versions removed: %lld", removed.len()),
+                );
             }
         }
         let paths_changed =
@@ -786,6 +804,8 @@ impl Server {
 
     /// Fetches the enabled remote sources' catalogs (never in the background – only when asked)
     fn fetch_catalogs(&self) {
+        lock(&self.inner.catalogs).fetching = true;
+        self.poke();
         let sources = Settings::load(&self.paths()).recipe_sources();
         let remote: Vec<RecipeSource> = sources
             .into_iter()
@@ -814,12 +834,24 @@ impl Server {
             }
         }
         c.fetched = true;
+        c.fetching = false;
+        drop(c);
+        self.poke();
     }
 
     fn recipes_available(&self, fetch: bool) -> Result<Available, RpcError> {
         if fetch || !lock(&self.inner.catalogs).fetched {
             self.fetch_catalogs();
         }
+        Ok(self.available_from_catalogs())
+    }
+
+    /// What the catalogs fetched last offer – None while they were not fetched in this session (the views never fetch)
+    pub(crate) fn available_cached(&self) -> Option<Available> {
+        lock(&self.inner.catalogs).fetched.then(|| self.available_from_catalogs())
+    }
+
+    fn available_from_catalogs(&self) -> Available {
         let paths = self.paths();
         let settings = Settings::load(&paths);
         let sources = settings.recipe_sources();
@@ -831,7 +863,7 @@ impl Server {
         let suggested = model::suggested(&offers, &|r| r.runs_here());
         let updates = model::recipe_updates(&recipes.installed, &sources, &c.catalogs, &hash);
         let lang = language.as_deref();
-        Ok(Available {
+        Available {
             offered: offers.iter().map(|(r, s)| catalog_dto(r, s, lang)).collect(),
             updates: updates
                 .iter()
@@ -839,7 +871,7 @@ impl Server {
                 .collect(),
             suggested: suggested.iter().map(|(r, s)| catalog_dto(r, s, lang)).collect(),
             errors: c.errors.clone(),
-        })
+        }
     }
 
     fn recipes_install(&self, p: InstallParams) -> Reply {
@@ -891,6 +923,21 @@ impl Server {
                 jobs.push(job);
             } else if let Some(source) = sources.iter().find(|s| s.id() == r.source) {
                 jobs.push(self.inner.jobs.submit(self.install_spec(r.id.clone(), source.clone())));
+            }
+        }
+        Ok(Answer::Jobs(jobs))
+    }
+
+    /// Every newer version the sources have of downloaded recipes (the Recipes tab's "Update All")
+    fn recipes_install_updates(&self) -> Reply {
+        let available = self.recipes_available(false)?;
+        let sources = Settings::load(&self.paths()).recipe_sources();
+        let mut jobs = Vec::new();
+        for u in available.updates {
+            if let Some(job) = self.inner.jobs.active(JobKind::RecipeInstall, Some(&u.recipe.id)) {
+                jobs.push(job);
+            } else if let Some(source) = sources.iter().find(|s| s.id() == u.recipe.source) {
+                jobs.push(self.inner.jobs.submit(self.install_spec(u.recipe.id.clone(), source.clone())));
             }
         }
         Ok(Answer::Jobs(jobs))
@@ -1015,6 +1062,16 @@ impl Server {
     /// What an open panel checks before it closes, and what an import would ask about (`PackageChecker`,
     /// `AppModel.importPackage`)
     fn packages_inspect(&self, p: InspectParams) -> Result<Inspection, RpcError> {
+        self.packages_inspect_for(&p.path, p.expect, p.external)
+    }
+
+    pub(crate) fn packages_inspect_for(
+        &self,
+        path: &str,
+        expect: Option<PackageKindDto>,
+        external: bool,
+    ) -> Result<Inspection, RpcError> {
+        let p = InspectParams { path: path.to_string(), expect, external };
         let path = PathBuf::from(platform::expand_tilde(&p.path));
         let kind = package_kind(Transfer::kind_of(&path));
         let expect = p.expect.unwrap_or(kind);
@@ -1346,6 +1403,30 @@ impl Server {
 
 // MARK: Helpers
 
+impl Server {
+    /// `updates.check`, kept for the Doctor page (and "omaflake x is available" in the activity list)
+    fn updates_check(&self) -> Result<UpdateAnswer, RpcError> {
+        lock(&self.inner.update).checking = true;
+        self.poke();
+        let answer = check_update(self);
+        {
+            let mut u = lock(&self.inner.update);
+            *u = super::views::UpdateRecord {
+                state: answer.as_ref().ok().map(|a| a.state),
+                release: answer.as_ref().ok().and_then(|a| a.release.clone()),
+                checked: Some(crate::json::now()),
+                error: answer.as_ref().err().map(|e| e.message.clone()),
+                checking: false,
+            };
+        }
+        if let Ok(UpdateAnswer { state: UpdateState::Available, release: Some(r) }) = &answer {
+            self.events().record(Level::Info, super::views::text::tf!("omaflake %@ is available", &r.version), None);
+        }
+        self.poke();
+        answer
+    }
+}
+
 /// The update check (`AppModel.checkForUpdate`) – only when a client asks (`updates.check`)
 pub(crate) fn check_update(server: &Server) -> Result<UpdateAnswer, RpcError> {
     let paths = server.paths();
@@ -1373,7 +1454,7 @@ pub(crate) fn check_update(server: &Server) -> Result<UpdateAnswer, RpcError> {
     })
 }
 
-fn settings_dto(paths: &Paths) -> SettingsDto {
+pub(crate) fn settings_dto(paths: &Paths) -> SettingsDto {
     let s = Settings::load(paths);
     let g = s.guest.clone().unwrap_or_default();
     SettingsDto {

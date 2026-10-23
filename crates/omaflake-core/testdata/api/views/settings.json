@@ -1,0 +1,686 @@
+{
+  "dataFolder": {
+    "actions": [
+      {
+        "confirm": {
+          "button": {
+            "key": "Continue",
+            "text": "Continue"
+          },
+          "destructive": false,
+          "text": {
+            "key": "Images, instances and bases are moved there (renamed, not copied). The settings stay in ~/.omaflake.",
+            "text": "Images, instances and bases are moved there (renamed, not copied). The settings stay in ~/.omaflake."
+          },
+          "title": {
+            "args": [
+              "/home/.omaflake"
+            ],
+            "key": "Move the data folder to %@?",
+            "text": "Move the data folder to /home/.omaflake?"
+          }
+        },
+        "enabled": false,
+        "id": "default",
+        "label": {
+          "key": "Default (~/.omaflake)",
+          "text": "Default (~/.omaflake)"
+        },
+        "method": "dataFolder.move",
+        "params": {
+          "target": "/home/.omaflake"
+        },
+        "reason": {
+          "key": "Stop all VMs before moving the data folder.",
+          "text": "Stop all VMs before moving the data folder."
+        }
+      },
+      {
+        "ask": [
+          {
+            "button": {
+              "key": "Use as Data Folder",
+              "text": "Use as Data Folder"
+            },
+            "kind": "folder",
+            "label": {
+              "key": "Move …",
+              "text": "Move …"
+            },
+            "param": "target",
+            "prompt": {
+              "key": "Empty folder for omaflake's images, instances and bases",
+              "text": "Empty folder for omaflake's images, instances and bases"
+            }
+          }
+        ],
+        "confirm": {
+          "button": {
+            "key": "Continue",
+            "text": "Continue"
+          },
+          "destructive": false,
+          "text": {
+            "key": "Images, instances and bases are moved there (renamed, not copied). The settings stay in ~/.omaflake.",
+            "text": "Images, instances and bases are moved there (renamed, not copied). The settings stay in ~/.omaflake."
+          },
+          "title": {
+            "args": [
+              {
+                "param": "target"
+              }
+            ],
+            "key": "Move the data folder to %@?",
+            "text": "Move the data folder to <target>?"
+          }
+        },
+        "enabled": false,
+        "icon": "folder",
+        "id": "move",
+        "label": {
+          "key": "Move …",
+          "text": "Move …"
+        },
+        "method": "dataFolder.move",
+        "params": {},
+        "reason": {
+          "key": "Stop all VMs before moving the data folder.",
+          "text": "Stop all VMs before moving the data folder."
+        }
+      }
+    ],
+    "isDefault": false,
+    "location": "/data",
+    "moving": false,
+    "note": {
+      "key": "By default omaflake keeps everything in ~/.omaflake and needs no access to Documents or Desktop. A folder there asks for access once.",
+      "text": "By default omaflake keeps everything in ~/.omaflake and needs no access to Documents or Desktop. A folder there asks for access once."
+    },
+    "title": {
+      "key": "Data Folder",
+      "text": "Data Folder"
+    }
+  },
+  "general": {
+    "fields": [
+      {
+        "enabled": true,
+        "help": {
+          "key": "Only while the menu window is closed: VM ready, image built or failed, VM ended. macOS asks once whether omaflake may send them.",
+          "text": "Only while the menu window is closed: VM ready, image built or failed, VM ended. macOS asks once whether omaflake may send them."
+        },
+        "id": "notifications",
+        "kind": "toggle",
+        "label": {
+          "key": "Notifications",
+          "text": "Notifications"
+        },
+        "set": {
+          "method": "settings.set",
+          "param": "notifications",
+          "params": {}
+        },
+        "value": false
+      },
+      {
+        "enabled": true,
+        "help": {
+          "key": "Once a day – the only network access omaflake makes on its own.",
+          "text": "Once a day – the only network access omaflake makes on its own."
+        },
+        "id": "checkForUpdates",
+        "kind": "toggle",
+        "label": {
+          "key": "Check for updates",
+          "text": "Check for updates"
+        },
+        "set": {
+          "method": "settings.set",
+          "param": "checkForUpdates",
+          "params": {}
+        },
+        "value": true
+      },
+      {
+        "enabled": true,
+        "help": {
+          "key": "When a newer version of a recipe comes (an update, an import, a change in a local folder after a build). Off: only the newest stays – and every version an image is built from, as long as the image is there.",
+          "text": "When a newer version of a recipe comes (an update, an import, a change in a local folder after a build). Off: only the newest stays – and every version an image is built from, as long as the image is there."
+        },
+        "id": "keepRecipeVersions",
+        "kind": "toggle",
+        "label": {
+          "key": "Keep older recipe versions",
+          "text": "Keep older recipe versions"
+        },
+        "set": {
+          "method": "settings.set",
+          "param": "keepRecipeVersions",
+          "params": {}
+        },
+        "value": false
+      },
+      {
+        "enabled": true,
+        "help": {
+          "key": "Shows the lab recipes – omaflake's development recipes with test app and debug tools, and recipes others mark with lab = true.",
+          "text": "Shows the lab recipes – omaflake's development recipes with test app and debug tools, and recipes others mark with lab = true."
+        },
+        "id": "developerMode",
+        "kind": "toggle",
+        "label": {
+          "key": "Developer Mode",
+          "text": "Developer Mode"
+        },
+        "set": {
+          "method": "settings.set",
+          "param": "developerMode",
+          "params": {}
+        },
+        "value": true
+      }
+    ],
+    "title": {
+      "key": "General",
+      "text": "General"
+    }
+  },
+  "guest": {
+    "fields": [
+      {
+        "enabled": true,
+        "id": "user",
+        "kind": "text",
+        "label": {
+          "key": "User",
+          "text": "User"
+        },
+        "placeholder": {
+          "text": "mac"
+        },
+        "set": {
+          "method": "settings.set",
+          "param": "guest.user",
+          "params": {
+            "guest": {
+              "keyboard": "ch",
+              "locale": "de_CH.UTF-8",
+              "user": "alex"
+            }
+          }
+        },
+        "value": "alex"
+      },
+      {
+        "enabled": true,
+        "id": "fullName",
+        "kind": "text",
+        "label": {
+          "key": "Full name",
+          "text": "Full name"
+        },
+        "placeholder": {
+          "text": "Mac User"
+        },
+        "set": {
+          "method": "settings.set",
+          "param": "guest.fullName",
+          "params": {
+            "guest": {
+              "keyboard": "ch",
+              "locale": "de_CH.UTF-8",
+              "user": "alex"
+            }
+          }
+        },
+        "value": null
+      },
+      {
+        "enabled": true,
+        "id": "email",
+        "kind": "text",
+        "label": {
+          "key": "E-mail (git)",
+          "text": "E-mail (git)"
+        },
+        "placeholder": {
+          "text": ""
+        },
+        "set": {
+          "method": "settings.set",
+          "param": "guest.email",
+          "params": {
+            "guest": {
+              "keyboard": "ch",
+              "locale": "de_CH.UTF-8",
+              "user": "alex"
+            }
+          }
+        },
+        "value": null
+      },
+      {
+        "choices": [
+          {
+            "label": {
+              "args": [
+                "de_CH.UTF-8"
+              ],
+              "key": "Like this Mac – %@",
+              "text": "Like this Mac – de_CH.UTF-8"
+            },
+            "value": null
+          },
+          {
+            "label": {
+              "text": "de_CH"
+            },
+            "value": "de_CH.UTF-8"
+          },
+          {
+            "label": {
+              "text": "en_US"
+            },
+            "value": "en_US.UTF-8"
+          }
+        ],
+        "enabled": true,
+        "id": "locale",
+        "kind": "choice",
+        "label": {
+          "key": "Language and region",
+          "text": "Language and region"
+        },
+        "set": {
+          "method": "settings.set",
+          "param": "guest.locale",
+          "params": {
+            "guest": {
+              "keyboard": "ch",
+              "locale": "de_CH.UTF-8",
+              "user": "alex"
+            }
+          }
+        },
+        "value": "de_CH.UTF-8"
+      },
+      {
+        "choices": [
+          {
+            "label": {
+              "args": [
+                "ch"
+              ],
+              "key": "Like this Mac – %@",
+              "text": "Like this Mac – ch"
+            },
+            "value": null
+          },
+          {
+            "label": {
+              "text": "ch (de_CH)"
+            },
+            "value": "ch"
+          },
+          {
+            "label": {
+              "text": "us (en_US)"
+            },
+            "value": "us"
+          }
+        ],
+        "enabled": true,
+        "id": "keyboard",
+        "kind": "choice",
+        "label": {
+          "key": "Keyboard",
+          "text": "Keyboard"
+        },
+        "set": {
+          "method": "settings.set",
+          "param": "guest.keyboard",
+          "params": {
+            "guest": {
+              "keyboard": "ch",
+              "locale": "de_CH.UTF-8",
+              "user": "alex"
+            }
+          }
+        },
+        "value": "ch"
+      },
+      {
+        "choices": [
+          {
+            "label": {
+              "args": [
+                "Europe/Zurich"
+              ],
+              "key": "Like this Mac – %@",
+              "text": "Like this Mac – Europe/Zurich"
+            },
+            "value": null
+          },
+          {
+            "label": {
+              "text": "Europe/Berlin"
+            },
+            "value": "Europe/Berlin"
+          },
+          {
+            "label": {
+              "text": "Europe/Zurich"
+            },
+            "value": "Europe/Zurich"
+          }
+        ],
+        "enabled": true,
+        "id": "timeZone",
+        "kind": "choice",
+        "label": {
+          "key": "Time zone",
+          "text": "Time zone"
+        },
+        "set": {
+          "method": "settings.set",
+          "param": "guest.timeZone",
+          "params": {
+            "guest": {
+              "keyboard": "ch",
+              "locale": "de_CH.UTF-8",
+              "user": "alex"
+            }
+          }
+        },
+        "value": null
+      }
+    ],
+    "footer": {
+      "key": "Empty fields and \"Like this Mac\" use your Mac's values. The lists offer only what both NixOS and macOS VMs support. Your SSH keys from ~/.ssh are added automatically. macOS VMs always use the user of the macOS base. A developer flake's local/settings.nix overrides these values.",
+      "text": "Empty fields and \"Like this Mac\" use your Mac's values. The lists offer only what both NixOS and macOS VMs support. Your SSH keys from ~/.ssh are added automatically. macOS VMs always use the user of the macOS base. A developer flake's local/settings.nix overrides these values."
+    },
+    "title": {
+      "key": "Guest user in the VMs",
+      "text": "Guest user in the VMs"
+    }
+  },
+  "sources": {
+    "add": {
+      "fields": [
+        {
+          "ask": {
+            "button": {
+              "key": "Use",
+              "text": "Use"
+            },
+            "kind": "folder",
+            "label": {
+              "key": "Folder …",
+              "text": "Folder …"
+            },
+            "param": "input",
+            "prompt": {
+              "key": "Folder with recipes (recipes/<author>/<kind>/<name>/)",
+              "text": "Folder with recipes (recipes/<author>/<kind>/<name>/)"
+            }
+          },
+          "enabled": true,
+          "id": "input",
+          "kind": "text",
+          "label": {
+            "key": "GitHub repository, HTTPS URL or folder",
+            "text": "GitHub repository, HTTPS URL or folder"
+          },
+          "param": "input",
+          "value": "acme/recipes"
+        },
+        {
+          "enabled": true,
+          "id": "private",
+          "kind": "toggle",
+          "label": {
+            "key": "Private repository",
+            "text": "Private repository"
+          },
+          "param": "private",
+          "value": true
+        }
+      ],
+      "title": {
+        "key": "Recipe Sources",
+        "text": "Recipe Sources"
+      }
+    },
+    "addAction": {
+      "ask": [
+        {
+          "kind": "password",
+          "label": {
+            "key": "Fine-grained token (Contents: Read-only on this repository)",
+            "text": "Fine-grained token (Contents: Read-only on this repository)"
+          },
+          "param": "token",
+          "prompt": {
+            "key": "The token is checked against the repository and kept in your Keychain – never in a file.",
+            "text": "The token is checked against the repository and kept in your Keychain – never in a file."
+          }
+        }
+      ],
+      "enabled": true,
+      "icon": "add",
+      "id": "add",
+      "label": {
+        "key": "Check and Add",
+        "text": "Check and Add"
+      },
+      "method": "sources.add",
+      "params": {
+        "input": "acme/recipes",
+        "private": true
+      }
+    },
+    "footer": {
+      "key": "omaflake ships no recipes; it reads them from these sources. Recipes from other sources than omaflake/recipes are not reviewed by the omaflake team – their Nix code runs on this Mac when you build them.",
+      "text": "omaflake ships no recipes; it reads them from these sources. Recipes from other sources than omaflake/recipes are not reviewed by the omaflake team – their Nix code runs on this Mac when you build them."
+    },
+    "rows": [
+      {
+        "actions": [
+          {
+            "enabled": false,
+            "help": {
+              "key": "Earlier: wins when two sources have the same recipe",
+              "text": "Earlier: wins when two sources have the same recipe"
+            },
+            "icon": "up",
+            "id": "up",
+            "label": {
+              "key": "Earlier",
+              "text": "Earlier"
+            },
+            "method": "sources.move",
+            "params": {
+              "id": "github:omaflake/recipes@main",
+              "up": true
+            }
+          },
+          {
+            "enabled": true,
+            "id": "enabled",
+            "label": {
+              "key": "Enabled",
+              "text": "Enabled"
+            },
+            "method": "sources.setEnabled",
+            "on": true,
+            "params": {
+              "enabled": false,
+              "id": "github:omaflake/recipes@main"
+            }
+          },
+          {
+            "confirm": {
+              "button": {
+                "key": "Remove",
+                "text": "Remove"
+              },
+              "destructive": true,
+              "text": {
+                "key": "Recipes installed from it stay until you remove them; its token goes from the Keychain.",
+                "text": "Recipes installed from it stay until you remove them; its token goes from the Keychain."
+              },
+              "title": {
+                "args": [
+                  "omaflake/recipes"
+                ],
+                "key": "Remove the source “%@”?",
+                "text": "Remove the source “omaflake/recipes”?"
+              }
+            },
+            "destructive": true,
+            "enabled": true,
+            "icon": "trash",
+            "id": "remove",
+            "label": {
+              "key": "Remove this source",
+              "text": "Remove this source"
+            },
+            "method": "sources.remove",
+            "params": {
+              "id": "github:omaflake/recipes@main"
+            }
+          }
+        ],
+        "badges": [
+          {
+            "help": {
+              "key": "Official recipes",
+              "text": "Official recipes"
+            },
+            "icon": "official",
+            "id": "official",
+            "tone": "accent"
+          }
+        ],
+        "icon": "github",
+        "id": "github:omaflake/recipes@main",
+        "name": "omaflake/recipes",
+        "source": {
+          "branch": "main",
+          "displayName": "omaflake/recipes",
+          "enabled": true,
+          "hasToken": false,
+          "id": "github:omaflake/recipes@main",
+          "kind": "github",
+          "location": "omaflake/recipes",
+          "official": true,
+          "private": false
+        },
+        "subtitle": {
+          "key": "GitHub",
+          "text": "GitHub"
+        }
+      },
+      {
+        "actions": [
+          {
+            "enabled": true,
+            "help": {
+              "key": "Earlier: wins when two sources have the same recipe",
+              "text": "Earlier: wins when two sources have the same recipe"
+            },
+            "icon": "up",
+            "id": "up",
+            "label": {
+              "key": "Earlier",
+              "text": "Earlier"
+            },
+            "method": "sources.move",
+            "params": {
+              "id": "url:https://example.org/catalog.json",
+              "up": true
+            }
+          },
+          {
+            "enabled": true,
+            "id": "enabled",
+            "label": {
+              "key": "Enabled",
+              "text": "Enabled"
+            },
+            "method": "sources.setEnabled",
+            "on": false,
+            "params": {
+              "enabled": true,
+              "id": "url:https://example.org/catalog.json"
+            }
+          },
+          {
+            "confirm": {
+              "button": {
+                "key": "Remove",
+                "text": "Remove"
+              },
+              "destructive": true,
+              "text": {
+                "key": "Recipes installed from it stay until you remove them; its token goes from the Keychain.",
+                "text": "Recipes installed from it stay until you remove them; its token goes from the Keychain."
+              },
+              "title": {
+                "args": [
+                  "example.org"
+                ],
+                "key": "Remove the source “%@”?",
+                "text": "Remove the source “example.org”?"
+              }
+            },
+            "destructive": true,
+            "enabled": true,
+            "icon": "trash",
+            "id": "remove",
+            "label": {
+              "key": "Remove this source",
+              "text": "Remove this source"
+            },
+            "method": "sources.remove",
+            "params": {
+              "id": "url:https://example.org/catalog.json"
+            }
+          }
+        ],
+        "badges": [
+          {
+            "help": {
+              "key": "Private – token in the Keychain",
+              "text": "Private – token in the Keychain"
+            },
+            "icon": "lock",
+            "id": "private",
+            "tone": "normal"
+          }
+        ],
+        "icon": "url",
+        "id": "url:https://example.org/catalog.json",
+        "name": "example.org",
+        "source": {
+          "displayName": "example.org",
+          "enabled": false,
+          "hasToken": true,
+          "id": "url:https://example.org/catalog.json",
+          "kind": "url",
+          "location": "https://example.org/catalog.json",
+          "official": false,
+          "private": true
+        },
+        "subtitle": {
+          "key": "HTTPS",
+          "text": "HTTPS"
+        }
+      }
+    ],
+    "title": {
+      "key": "Recipe Sources",
+      "text": "Recipe Sources"
+    }
+  }
+}

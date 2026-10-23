@@ -1,0 +1,829 @@
+{
+  "actions": [
+    {
+      "ask": [
+        {
+          "accept": "image",
+          "button": {
+            "key": "Import",
+            "text": "Import"
+          },
+          "check": {
+            "method": "packages.inspect",
+            "param": "path",
+            "params": {
+              "expect": "image",
+              "external": false
+            }
+          },
+          "kind": "package",
+          "label": {
+            "key": "Package",
+            "text": "Package"
+          },
+          "multiple": true,
+          "param": "params.path",
+          "prompt": {
+            "key": "An image (.omaflake-image) – it is copied into the data folder",
+            "text": "An image (.omaflake-image) – it is copied into the data folder"
+          }
+        }
+      ],
+      "enabled": true,
+      "help": {
+        "key": "Import an image – a copy into the data folder",
+        "text": "Import an image – a copy into the data folder"
+      },
+      "icon": "import",
+      "id": "import",
+      "label": {
+        "key": "Import",
+        "text": "Import"
+      },
+      "method": "ui.step",
+      "params": {
+        "page": "import",
+        "params": {
+          "expect": "image"
+        }
+      }
+    }
+  ],
+  "count": 2,
+  "filter": {
+    "active": false,
+    "groups": [
+      {
+        "id": "status",
+        "kind": "choice",
+        "label": {
+          "key": "Status",
+          "text": "Status"
+        },
+        "options": [
+          {
+            "label": {
+              "key": "All",
+              "text": "All"
+            },
+            "value": null
+          },
+          {
+            "label": {
+              "key": "In use",
+              "text": "In use"
+            },
+            "value": true
+          },
+          {
+            "label": {
+              "key": "Not in use",
+              "text": "Not in use"
+            },
+            "value": false
+          }
+        ],
+        "value": null
+      },
+      {
+        "id": "kind",
+        "kind": "choice",
+        "label": {
+          "key": "System",
+          "text": "System"
+        },
+        "options": [
+          {
+            "label": {
+              "key": "All",
+              "text": "All"
+            },
+            "value": null
+          },
+          {
+            "icon": "nixos",
+            "label": {
+              "text": "NixOS"
+            },
+            "value": "nixos"
+          },
+          {
+            "icon": "macos",
+            "label": {
+              "text": "macOS"
+            },
+            "value": "macos"
+          }
+        ],
+        "value": null
+      },
+      {
+        "id": "recipe",
+        "kind": "choice",
+        "label": {
+          "key": "Recipe",
+          "text": "Recipe"
+        },
+        "options": [
+          {
+            "label": {
+              "key": "All",
+              "text": "All"
+            },
+            "value": null
+          },
+          {
+            "label": {
+              "text": "dev"
+            },
+            "value": "omaflake.macos.dev@ocean-maple"
+          },
+          {
+            "label": {
+              "text": "dev (velvet)"
+            },
+            "value": "omaflake.nixos.dev@velvet-tiger-orbit"
+          }
+        ],
+        "value": null
+      }
+    ]
+  },
+  "jobs": [
+    {
+      "actions": [
+        {
+          "enabled": true,
+          "icon": "cancel",
+          "id": "cancel",
+          "label": {
+            "key": "Cancel build",
+            "text": "Cancel build"
+          },
+          "method": "jobs.cancel",
+          "params": {
+            "id": "j1"
+          }
+        }
+      ],
+      "count": {
+        "text": "120/400"
+      },
+      "fraction": 0.62,
+      "id": "j1",
+      "job": {
+        "cancellable": true,
+        "guestKind": "nixos",
+        "hiddenLines": 37,
+        "id": "j1",
+        "kind": "build",
+        "lastOutput": "2026-10-23T09:04:59Z",
+        "logFile": "/data/logs/j1.log",
+        "logLines": 3,
+        "progress": {
+          "done": 120,
+          "fraction": 0.62,
+          "of": 400,
+          "step": 3,
+          "title": "Copying the image",
+          "total": 5
+        },
+        "recipe": "omaflake.nixos.dev@velvet-tiger-orbit",
+        "started": "2026-10-23T09:00:00Z",
+        "state": "running",
+        "title": "Build"
+      },
+      "kind": {
+        "help": {
+          "key": "NixOS guest",
+          "text": "NixOS guest"
+        },
+        "icon": "nixos",
+        "id": "kind",
+        "tone": "normal"
+      },
+      "name": "dev (velvet)",
+      "open": {
+        "enabled": true,
+        "id": "open",
+        "label": {
+          "key": "Show the build and its log",
+          "text": "Show the build and its log"
+        },
+        "method": "ui.show",
+        "params": {
+          "page": "build",
+          "params": {
+            "recipe": "omaflake.nixos.dev@velvet-tiger-orbit"
+          }
+        }
+      },
+      "state": "running",
+      "title": {
+        "args": [
+          3,
+          5,
+          {
+            "key": "Copying the image",
+            "text": "Copying the image"
+          }
+        ],
+        "key": "%lld/%lld %@",
+        "text": "3/5 Copying the image"
+      }
+    },
+    {
+      "actions": [
+        {
+          "enabled": true,
+          "icon": "cancel",
+          "id": "cancel",
+          "label": {
+            "key": "Remove from the queue",
+            "text": "Remove from the queue"
+          },
+          "method": "jobs.cancel",
+          "params": {
+            "id": "j2"
+          }
+        }
+      ],
+      "id": "j2",
+      "job": {
+        "cancellable": true,
+        "guestKind": "macos",
+        "hiddenLines": 0,
+        "id": "j2",
+        "kind": "build",
+        "logFile": "/data/logs/j2.log",
+        "logLines": 0,
+        "recipe": "omaflake.macos.dev@ocean-maple",
+        "state": "queued",
+        "title": "Build"
+      },
+      "kind": {
+        "help": {
+          "key": "macOS guest",
+          "text": "macOS guest"
+        },
+        "icon": "macos",
+        "id": "kind",
+        "tone": "normal"
+      },
+      "name": "dev",
+      "open": {
+        "enabled": true,
+        "id": "open",
+        "label": {
+          "key": "Show the build and its log",
+          "text": "Show the build and its log"
+        },
+        "method": "ui.show",
+        "params": {
+          "page": "build",
+          "params": {
+            "recipe": "omaflake.macos.dev@ocean-maple"
+          }
+        }
+      },
+      "state": "queued",
+      "title": {
+        "key": "Waiting to build",
+        "text": "Waiting to build"
+      }
+    }
+  ],
+  "rows": [
+    {
+      "actions": [
+        {
+          "enabled": true,
+          "icon": "folder",
+          "id": "reveal",
+          "label": {
+            "key": "Show in Finder",
+            "text": "Show in Finder"
+          },
+          "method": "ui.reveal",
+          "params": {
+            "path": "/data/images/omaflake.nixos.dev@cedar-mango-lift"
+          }
+        },
+        {
+          "enabled": true,
+          "help": {
+            "args": [
+              {
+                "args": [
+                  {
+                    "key": "QEMU (NixOS guests)",
+                    "text": "QEMU (NixOS guests)"
+                  }
+                ],
+                "key": "%@",
+                "text": "QEMU (NixOS guests)"
+              }
+            ],
+            "key": "Open the Doctor first: %@",
+            "text": "Open the Doctor first: QEMU (NixOS guests)"
+          },
+          "icon": "warning",
+          "id": "doctor",
+          "label": {
+            "key": "Doctor",
+            "text": "Doctor"
+          },
+          "method": "ui.show",
+          "params": {
+            "page": "doctor",
+            "params": {}
+          }
+        }
+      ],
+      "badges": [],
+      "detail": {
+        "actions": [
+          {
+            "ask": [
+              {
+                "button": {
+                  "key": "Export Here",
+                  "text": "Export Here"
+                },
+                "kind": "folder",
+                "label": {
+                  "key": "Folder",
+                  "text": "Folder"
+                },
+                "param": "folder",
+                "prompt": {
+                  "key": "Where to put the image – an external disk, a NAS or a folder. It carries the user it was built for: share recipes instead.",
+                  "text": "Where to put the image – an external disk, a NAS or a folder. It carries the user it was built for: share recipes instead."
+                }
+              }
+            ],
+            "enabled": true,
+            "icon": "export",
+            "id": "export",
+            "label": {
+              "key": "Export …",
+              "text": "Export …"
+            },
+            "method": "packages.export",
+            "params": {
+              "kind": "image",
+              "name": "omaflake.nixos.dev@cedar-mango-lift"
+            }
+          },
+          {
+            "confirm": {
+              "button": {
+                "key": "Remove",
+                "text": "Remove"
+              },
+              "destructive": true,
+              "text": {
+                "key": "It is deleted and cannot be restored. VMs that use it must be removed first.",
+                "text": "It is deleted and cannot be restored. VMs that use it must be removed first."
+              },
+              "title": {
+                "args": [
+                  "omaflake.nixos.dev@cedar-mango-lift"
+                ],
+                "key": "Remove the image “%@”?",
+                "text": "Remove the image “omaflake.nixos.dev@cedar-mango-lift”?"
+              }
+            },
+            "destructive": true,
+            "enabled": false,
+            "icon": "trash",
+            "id": "remove",
+            "label": {
+              "key": "Remove …",
+              "text": "Remove …"
+            },
+            "method": "images.remove",
+            "params": {
+              "name": "omaflake.nixos.dev@cedar-mango-lift"
+            },
+            "reason": {
+              "key": "Used by VMs – remove or upgrade them first",
+              "text": "Used by VMs – remove or upgrade them first"
+            }
+          }
+        ],
+        "info": [
+          {
+            "full": "image:omaflake/nixos/dev:cedar-mango-lift-amber-lake-quiet-otter-lamp-river-stone-cloud-maple",
+            "label": {
+              "key": "omaflake ID",
+              "text": "omaflake ID"
+            },
+            "value": {
+              "text": "image:omaflake/nixos/dev:cedar"
+            }
+          },
+          {
+            "full": "omaflake.nixos.dev@velvet-tiger-orbit",
+            "label": {
+              "key": "Recipe",
+              "text": "Recipe"
+            },
+            "value": {
+              "text": "recipe:omaflake/nixos/dev:velvet"
+            }
+          },
+          {
+            "label": {
+              "key": "Built",
+              "text": "Built"
+            },
+            "value": {
+              "args": [
+                {
+                  "date": "2026-10-21T10:00:00Z"
+                }
+              ],
+              "key": "%@",
+              "text": "2026-10-21 10:00 UTC"
+            }
+          },
+          {
+            "label": {
+              "key": "Recipe state",
+              "text": "Recipe state"
+            },
+            "value": {
+              "args": [
+                "abc123",
+                {
+                  "key": "(with uncommitted changes)",
+                  "text": "(with uncommitted changes)"
+                }
+              ],
+              "key": "%@ %@",
+              "text": "abc123 (with uncommitted changes)"
+            }
+          },
+          {
+            "label": {
+              "key": "Status",
+              "text": "Status"
+            },
+            "value": {
+              "key": "matches the recipe",
+              "text": "matches the recipe"
+            }
+          },
+          {
+            "full": "research",
+            "label": {
+              "key": "Used by",
+              "text": "Used by"
+            },
+            "value": {
+              "text": "research"
+            }
+          },
+          {
+            "label": {
+              "key": "Size",
+              "text": "Size"
+            },
+            "value": {
+              "key": "unknown",
+              "text": "unknown"
+            }
+          },
+          {
+            "full": "github:omaflake/recipes@main",
+            "label": {
+              "key": "Source",
+              "text": "Source"
+            },
+            "value": {
+              "text": "github:omaflake/recipes@main"
+            }
+          },
+          {
+            "full": "/nix/store/abc-nixos-disk-image",
+            "label": {
+              "key": "Disk image",
+              "text": "Disk image"
+            },
+            "value": {
+              "text": "abc-nixos-disk-image"
+            }
+          }
+        ]
+      },
+      "image": {
+        "created": "2026-10-21T10:00:00Z",
+        "current": true,
+        "instances": [
+          "research"
+        ],
+        "kind": "nixos",
+        "label": "image:omaflake/nixos/dev:cedar",
+        "line": "omaflake.nixos.dev@github:omaflake/recipes@main",
+        "name": "omaflake.nixos.dev@cedar-mango-lift",
+        "omaflakeId": "image:omaflake/nixos/dev:cedar-mango-lift-amber-lake-quiet-otter-lamp-river-stone-cloud-maple",
+        "outdated": false,
+        "path": "/data/images/omaflake.nixos.dev@cedar-mango-lift",
+        "recipe": "omaflake.nixos.dev@velvet-tiger-orbit",
+        "revision": "abc123-dirty",
+        "source": "github:omaflake/recipes@main",
+        "storePath": "/nix/store/abc-nixos-disk-image",
+        "system": "aarch64-linux"
+      },
+      "kind": {
+        "help": {
+          "key": "NixOS guest",
+          "text": "NixOS guest"
+        },
+        "icon": "nixos",
+        "id": "kind",
+        "tone": "normal"
+      },
+      "lamp": {
+        "help": {
+          "key": "Used by VMs",
+          "text": "Used by VMs"
+        },
+        "state": "on"
+      },
+      "name": "omaflake.nixos.dev@cedar-mango-lift",
+      "subtitle": {
+        "args": [
+          {
+            "args": [
+              "dev (velvet)"
+            ],
+            "key": "recipe %@",
+            "text": "recipe dev (velvet)"
+          },
+          {
+            "args": [
+              {
+                "date": "2026-10-21T10:00:00Z"
+              }
+            ],
+            "key": "%@",
+            "text": "2026-10-21 10:00 UTC"
+          },
+          {
+            "key": "1 VM",
+            "text": "1 VM"
+          }
+        ],
+        "key": "%@ · %@ · %@",
+        "text": "recipe dev (velvet) · 2026-10-21 10:00 UTC · 1 VM"
+      },
+      "usedBy": [
+        "research"
+      ]
+    },
+    {
+      "actions": [
+        {
+          "enabled": true,
+          "icon": "folder",
+          "id": "reveal",
+          "label": {
+            "key": "Show in Finder",
+            "text": "Show in Finder"
+          },
+          "method": "ui.reveal",
+          "params": {
+            "path": "/data/images/omaflake.macos.dev@stone-lamp"
+          }
+        },
+        {
+          "enabled": true,
+          "icon": "new-vm",
+          "id": "newVm",
+          "label": {
+            "key": "New VM from this image",
+            "text": "New VM from this image"
+          },
+          "method": "ui.show",
+          "params": {
+            "page": "newVm",
+            "params": {
+              "image": "omaflake.macos.dev@stone-lamp"
+            }
+          }
+        }
+      ],
+      "badges": [],
+      "detail": {
+        "actions": [
+          {
+            "ask": [
+              {
+                "button": {
+                  "key": "Export Here",
+                  "text": "Export Here"
+                },
+                "kind": "folder",
+                "label": {
+                  "key": "Folder",
+                  "text": "Folder"
+                },
+                "param": "folder",
+                "prompt": {
+                  "key": "Where to put the image – an external disk, a NAS or a folder. It carries the user it was built for: share recipes instead.",
+                  "text": "Where to put the image – an external disk, a NAS or a folder. It carries the user it was built for: share recipes instead."
+                }
+              }
+            ],
+            "enabled": true,
+            "icon": "export",
+            "id": "export",
+            "label": {
+              "key": "Export …",
+              "text": "Export …"
+            },
+            "method": "packages.export",
+            "params": {
+              "kind": "image",
+              "name": "omaflake.macos.dev@stone-lamp"
+            }
+          },
+          {
+            "confirm": {
+              "button": {
+                "key": "Remove",
+                "text": "Remove"
+              },
+              "destructive": true,
+              "text": {
+                "key": "It is deleted and cannot be restored. VMs that use it must be removed first.",
+                "text": "It is deleted and cannot be restored. VMs that use it must be removed first."
+              },
+              "title": {
+                "args": [
+                  "omaflake.macos.dev@stone-lamp"
+                ],
+                "key": "Remove the image “%@”?",
+                "text": "Remove the image “omaflake.macos.dev@stone-lamp”?"
+              }
+            },
+            "destructive": true,
+            "enabled": true,
+            "icon": "trash",
+            "id": "remove",
+            "label": {
+              "key": "Remove …",
+              "text": "Remove …"
+            },
+            "method": "images.remove",
+            "params": {
+              "name": "omaflake.macos.dev@stone-lamp"
+            }
+          }
+        ],
+        "info": [
+          {
+            "full": "image:omaflake/macos/dev:stone-lamp",
+            "label": {
+              "key": "omaflake ID",
+              "text": "omaflake ID"
+            },
+            "value": {
+              "text": "image:omaflake/macos/dev:stone"
+            }
+          },
+          {
+            "full": "omaflake.macos.dev@ocean-maple",
+            "label": {
+              "key": "Recipe",
+              "text": "Recipe"
+            },
+            "value": {
+              "text": "omaflake/macos/dev"
+            }
+          },
+          {
+            "label": {
+              "key": "Built",
+              "text": "Built"
+            },
+            "value": {
+              "args": [
+                {
+                  "date": "2026-10-19T07:00:00Z"
+                }
+              ],
+              "key": "%@",
+              "text": "2026-10-19 07:00 UTC"
+            }
+          },
+          {
+            "label": {
+              "key": "Recipe state",
+              "text": "Recipe state"
+            },
+            "value": {
+              "key": "no git revision",
+              "text": "no git revision"
+            }
+          },
+          {
+            "label": {
+              "key": "Status",
+              "text": "Status"
+            },
+            "value": {
+              "text": "–"
+            }
+          },
+          {
+            "full": "",
+            "label": {
+              "key": "Used by",
+              "text": "Used by"
+            },
+            "value": {
+              "key": "no VM",
+              "text": "no VM"
+            }
+          },
+          {
+            "label": {
+              "key": "Size",
+              "text": "Size"
+            },
+            "value": {
+              "key": "unknown",
+              "text": "unknown"
+            }
+          }
+        ]
+      },
+      "image": {
+        "created": "2026-10-19T07:00:00Z",
+        "current": false,
+        "instances": [],
+        "kind": "macos",
+        "label": "image:omaflake/macos/dev:stone",
+        "line": "omaflake.macos.dev@",
+        "name": "omaflake.macos.dev@stone-lamp",
+        "omaflakeId": "image:omaflake/macos/dev:stone-lamp",
+        "path": "/data/images/omaflake.macos.dev@stone-lamp",
+        "recipe": "omaflake.macos.dev@ocean-maple",
+        "revision": "nogit",
+        "system": "aarch64-darwin"
+      },
+      "kind": {
+        "help": {
+          "key": "macOS guest",
+          "text": "macOS guest"
+        },
+        "icon": "macos",
+        "id": "kind",
+        "tone": "normal"
+      },
+      "lamp": {
+        "help": {
+          "key": "No VM uses this image",
+          "text": "No VM uses this image"
+        },
+        "state": "off"
+      },
+      "name": "omaflake.macos.dev@stone-lamp",
+      "subtitle": {
+        "args": [
+          {
+            "args": [
+              "dev"
+            ],
+            "key": "recipe %@",
+            "text": "recipe dev"
+          },
+          {
+            "args": [
+              {
+                "date": "2026-10-19T07:00:00Z"
+              }
+            ],
+            "key": "%@",
+            "text": "2026-10-19 07:00 UTC"
+          },
+          {
+            "key": "no VM",
+            "text": "no VM"
+          }
+        ],
+        "key": "%@ · %@ · %@",
+        "text": "recipe dev · 2026-10-19 07:00 UTC · no VM"
+      },
+      "usedBy": []
+    }
+  ],
+  "title": {
+    "key": "Images",
+    "text": "Images"
+  },
+  "unreadable": []
+}
