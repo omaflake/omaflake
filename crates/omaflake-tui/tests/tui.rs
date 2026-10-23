@@ -139,10 +139,12 @@ fn draws_the_vms_tab() {
         "research",
         "work",
         "dev (velvet) · 4 CPU · 8 GB · SSH 2201",
+        " omaflake ",
+        // home's short labels; the letters come from what is written
         "D Doctor 3",
         "S Settings",
-        "H ▤",
-        "q Quit omaflake",
+        "A Data Folder",
+        "q Quit",
         "/ Filter",
         "i ⇩ Import",
         "r ↗ Run from There",
@@ -170,26 +172,59 @@ fn draws_the_vms_tab() {
 
 #[test]
 fn draws_every_page() {
+    // The titles are the model's (`‹ Esc  <title>`)
     let pages = [
-        ("images", "images", vec!["dev (velvet)", "Copying the image", "120/400", "62 %", "cedar-mango-lift"]),
+        (
+            "images",
+            "images",
+            vec!["‹ Esc  Images", "dev (velvet)", "Copying the image", "120/400", "62 %", "cedar-mango-lift"],
+        ),
         (
             "recipes",
             "recipes",
-            vec!["Newer recipe versions in your sources", "omaflake/nixos/dev", "minimal", "example.org: HTTP 404"],
+            vec![
+                "‹ Esc  Recipes",
+                "Newer recipe versions in your sources",
+                "omaflake/nixos/dev",
+                "minimal",
+                "example.org: HTTP 404",
+                "More recipes in your sources",
+            ],
+        ),
+        (
+            "recipes",
+            "recipes.loading",
+            vec![
+                "Looking into the recipe sources …",
+                "More recipes in your sources",
+                "Lab recipes are hidden – Developer Mode in Settings shows them.",
+            ],
         ),
         ("activity", "activity", vec!["research is ready", "work: running – stop it first", "c ✕ Clear History"]),
-        ("build", "build", vec!["dev (velvet)", "Copying the image", "62 %", "Full Log", "Cancel"]),
-        ("build", "build.failed", vec!["Build failed"]),
-        ("doctor", "doctor", vec!["omaf ui", "Core", "Up to date", "Nix", "Check Again"]),
+        (
+            "build",
+            "build",
+            vec!["‹ Esc  Build Image", "dev (velvet)", "Copying the image", "62 %", "Full Log", "Cancel"],
+        ),
+        ("build", "build.failed", vec!["‹ Esc  Build Image", "Build failed"]),
+        ("doctor", "doctor", vec!["‹ Esc  Doctor", "omaf ui", "Core", "Up to date", "Nix", "Check Again"]),
         (
             "settings",
             "settings",
-            vec!["Recipe Sources", "omaflake/recipes", "General", "[x] Check for updates", "Data Folder"],
+            vec![
+                "‹ Esc  Settings",
+                "Recipe Sources",
+                "omaflake/recipes",
+                "General",
+                "[x] Check for updates",
+                "Data Folder",
+            ],
         ),
-        ("newVm", "newVm", vec!["New VM", "CPU cores: 4", "‹ 4 ›", "Create", "Cancel"]),
-        ("macBase", "macBase", vec!["macOS Base", "Create Base", "differs from macUser"]),
-        ("vm", "vm", vec!["research", "Runs from", "Remove …"]),
-        ("image", "image", vec!["stone-lamp", "Remove …"]),
+        ("settings", "settings.linux", vec!["‹ Esc  Settings", "Recipe Sources", "on this computer"]),
+        ("newVm", "newVm", vec!["‹ Esc  New VM", "CPU cores: 4", "‹ 4 ›", "Create", "Cancel"]),
+        ("macBase", "macBase", vec!["‹ Esc  Create macOS Base", "Create Base", "differs from macUser", "Full Log"]),
+        ("vm", "vm", vec!["‹ Esc  research", "Runs from", "Remove …"]),
+        ("image", "image", vec!["‹ Esc  omaflake.macos.dev@stone-lamp", "Remove …"]),
     ];
     for (page, file, wants) in pages {
         let mut h = Harness::new(none);
@@ -217,10 +252,93 @@ fn build_log_comes_from_jobs_log_and_job_log() {
     });
     h.show("build", json!({"recipe": "r"}), fixture("build"));
     h.settle();
-    assert_eq!(h.calls("jobs.log"), [json!({"id": "j1"})]);
+    assert_eq!(h.calls("jobs.log"), [json!({"id": "j1", "from": 0})]);
     h.app.handle(Msg::Event("job.log".into(), json!({"id": "j1", "lines": ["[3/5] Copying the image"]})));
     let s = h.screen();
     assert!(s.contains("building '/nix/store/abc'") && s.contains("[3/5] Copying the image"), "{s}");
+}
+
+#[test]
+fn mac_base_log_is_a_log_ref_and_the_ipsw_is_shown_once() {
+    let mut h = Harness::new(|m, _| match m {
+        "jobs.log" => json!({"lines": ["Installing macOS"], "next": 41}),
+        _ => Value::Null,
+    });
+    let mut model = fixture("macBase");
+    model["log"]["from"] = json!(40);
+    h.show("macBase", json!({}), model);
+    h.settle();
+    assert_eq!(h.calls("jobs.log"), [json!({"id": "j6", "from": 40})]);
+    let s = h.screen();
+    assert!(s.contains("Installing macOS"), "{s}");
+    assert_eq!(s.matches("macOS from Apple (IPSW)").count(), 1, "{s}");
+}
+
+#[test]
+fn ui_field_sets_the_value_of_its_page_by_value_param() {
+    let mut h = Harness::new(none);
+    h.show("macBase", json!({}), fixture("macBase"));
+    let field = |value: Option<Value>| {
+        let mut a = json!({"id": "chooseIpsw", "label": {"text": "Choose IPSW …"}, "method": "ui.field",
+            "enabled": true, "params": {"page": "macBase", "params": {}, "field": "ipsw", "valueParam": "ipsw"}});
+        match value {
+            Some(v) => a["params"]["value"] = v,
+            None => {
+                a["ask"] = json!([{"kind": "text", "label": {"text": "Choose IPSW …"}, "param": "value"}]);
+            }
+        }
+        a
+    };
+    // No value: asked with its ask
+    h.app.run_action(&field(None));
+    h.type_text("/tmp/a.ipsw");
+    h.key(KeyCode::Enter);
+    assert_eq!(h.app.stack.last().unwrap().params, json!({"values": {"ipsw": "/tmp/a.ipsw"}}));
+    // The user field keeps its value under its valueParam too
+    let page = h.app.page();
+    let at = page.items.iter().position(|i| i.key == "macBase:field:user").unwrap();
+    let first = h.app.selected_index(&page).unwrap();
+    for _ in 0..page.items[first..at].iter().filter(|i| i.selectable).count() {
+        h.key(KeyCode::Down);
+    }
+    h.key(KeyCode::Enter);
+    h.app.key(KeyEvent::new(KeyCode::Char('u'), KeyModifiers::CONTROL));
+    h.type_text("sam");
+    h.key(KeyCode::Enter);
+    assert_eq!(h.app.stack.last().unwrap().params, json!({"values": {"ipsw": "/tmp/a.ipsw", "user": "sam"}}));
+    // value null: back to the default (Apple's)
+    h.app.run_action(&field(Some(Value::Null)));
+    h.settle();
+    assert_eq!(h.app.stack.last().unwrap().params, json!({"values": {"user": "sam"}}));
+    let last = h.calls("views.subscribe").pop().unwrap();
+    assert_eq!(last["pages"][3], json!({"page": "macBase", "params": {"values": {"user": "sam"}}}));
+}
+
+#[test]
+fn enter_does_the_primary_action_only() {
+    let mut h = Harness::new(none);
+    // A build job row: its primary `open` shows the build page
+    h.model("images", json!({}), fixture("images"));
+    h.key(KeyCode::Tab);
+    h.model("images", json!({}), fixture("images"));
+    h.key(KeyCode::Enter);
+    assert_eq!(h.app.stack.last().map(|p| p.page.as_str()), Some("build"));
+    h.key(KeyCode::Esc);
+    // A row whose primary is the Doctor's warning
+    let images = fixture("images");
+    let page = h.app.page();
+    let row = page.items.iter().find(|i| i.key.starts_with("image:")).unwrap();
+    assert_eq!(row.default.map(|d| row.actions[d]["id"].clone()), Some(images["rows"][0]["actions"][1]["id"].clone()));
+    // A hint without a primary (the lab hint) has no default: Enter opens its actions
+    let mut h = Harness::new(none);
+    h.key(KeyCode::Tab);
+    h.key(KeyCode::Tab);
+    h.model("recipes", json!({}), fixture("recipes.loading"));
+    let page = h.app.page();
+    let lab = page.items.iter().find(|i| i.key == "labHint").unwrap();
+    assert_eq!(lab.default, None);
+    let offered = page.items.iter().find(|i| i.key.starts_with("offered:")).unwrap();
+    assert_eq!(offered.default.map(|d| offered.actions[d]["id"].clone()), Some(json!("install")));
 }
 
 #[test]
@@ -329,7 +447,7 @@ fn import_steps_through_the_check_and_the_question() {
 fn a_package_the_check_refuses_stays_in_the_prompt() {
     let dir = tempfile::tempdir().unwrap();
     let mut h = Harness::new(|m, _| match m {
-        "packages.inspect" => json!({"kind": "image", "valid": false, "reason": "Not a VM"}),
+        "packages.inspect" => json!({"kind": "image", "valid": false, "reason": {"text": "Not a VM"}}),
         _ => Value::Null,
     });
     h.model("vms", json!({}), fixture("vms"));
@@ -432,6 +550,25 @@ fn help_lists_the_rows_actions_and_activity_reaches_the_status_line() {
     );
     h.model("activity", json!({}), act);
     assert_eq!(h.app.status.as_ref().unwrap().0, "Image ready: dev can be used now.");
+    // A new server: its ids start at 1 again – lower than the mark, which is forgotten: its entry is unseen
+    h.app.status = None;
+    h.model(
+        "activity",
+        json!({}),
+        json!({"title": {"text": "Activity"}, "entries": [
+        {"id": 1, "level": "info", "time": "2026-10-23T10:00:00Z", "text": {"text": "Service started again"}}]}),
+    );
+    assert_eq!(h.app.status.as_ref().unwrap().0, "Service started again");
+    // Cleared: the mark stays, nothing new
+    h.app.status = None;
+    h.model("activity", json!({}), json!({"title": {"text": "Activity"}, "entries": []}));
+    h.model(
+        "activity",
+        json!({}),
+        json!({"title": {"text": "Activity"}, "entries": [
+        {"id": 1, "level": "info", "time": "2026-10-23T10:00:00Z", "text": {"text": "Service started again"}}]}),
+    );
+    assert!(h.app.status.is_none());
 }
 
 #[test]
@@ -441,7 +578,11 @@ fn ui_verbs_open_reveal_and_show_the_guide() {
         |m: &str, p: Value| json!({"id": "x", "label": {"text": "x"}, "method": m, "enabled": true, "params": p});
     h.app.run_action(&verb("ui.open", json!({"path": "/data/logs/j1.log"})));
     h.app.run_action(&verb("ui.reveal", json!({"path": "/data/share/research"})));
-    h.app.run_action(&verb("ui.show", json!({"page": "guide", "params": {"file": "linux-builder"}})));
+    // The Doctor's guide action as the model has it: its `url` (no bundled `path` in the tests)
+    let doctor = fixture("doctor");
+    let guide = &doctor["sections"][1]["items"][0]["actions"][0];
+    assert_eq!(guide["params"]["page"], "guide");
+    h.app.run_action(guide);
     h.app.run_action(&verb("ui.terminal", json!({"line": "echo hi"})));
     assert_eq!(
         h.app.effects.drain(..).collect::<Vec<_>>(),
@@ -452,4 +593,25 @@ fn ui_verbs_open_reveal_and_show_the_guide() {
             Effect::Terminal(Command::Shell("echo hi".into())),
         ]
     );
+}
+
+#[test]
+fn linux_home_and_an_import_refused_with_a_text_reason() {
+    let mut h = Harness::new(|m, _| match m {
+        "views.get" => {
+            let mut import = fixture("import");
+            import["valid"] = json!(false);
+            import["reason"] = json!({"text": "Not an image package (.omaflake-image)"});
+            import
+        }
+        _ => Value::Null,
+    });
+    h.model("home", json!({}), fixture("home.linux"));
+    h.model("vms", json!({}), fixture("vms"));
+    let s = h.screen();
+    assert!(s.contains(" omaflake ") && s.contains("A Data Folder") && s.contains("D Doctor"), "{s}");
+    h.app.run_action(&json!({"id": "x", "label": {"text": "x"}, "method": "ui.step", "enabled": true,
+                             "params": {"page": "import", "params": {"path": "/x"}}}));
+    h.settle();
+    assert_eq!(h.app.status.as_ref().unwrap().0, "Not an image package (.omaflake-image)");
 }

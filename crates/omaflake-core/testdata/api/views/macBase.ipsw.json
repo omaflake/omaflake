@@ -1,0 +1,161 @@
+{
+  "actions": [
+    {
+      "ask": [
+        {
+          "kind": "password",
+          "label": {
+            "key": "Password",
+            "text": "Password"
+          },
+          "param": "password",
+          "repeat": true
+        }
+      ],
+      "enabled": true,
+      "icon": "create",
+      "id": "create",
+      "label": {
+        "key": "Create Base",
+        "text": "Create Base"
+      },
+      "method": "macos.installBase",
+      "params": {
+        "fullName": "Alex Example",
+        "ipsw": "/Volumes/Disk/UniversalMac.ipsw",
+        "user": "alex"
+      },
+      "primary": true
+    }
+  ],
+  "base": {
+    "icon": "warning",
+    "text": {
+      "args": [
+        "alex",
+        "sam",
+        "alex",
+        "sam"
+      ],
+      "key": "The base's user %@ differs from macUser %@ in your image flake's settings – set macUser to %@ in nix/local/settings.nix, or create the base again with %@.",
+      "text": "The base's user alex differs from macUser sam in your image flake's settings – set macUser to alex in nix/local/settings.nix, or create the base again with sam."
+    },
+    "tone": "warning"
+  },
+  "fields": [
+    {
+      "enabled": true,
+      "id": "user",
+      "kind": "text",
+      "label": {
+        "key": "Guest user",
+        "text": "Guest user"
+      },
+      "param": "user",
+      "value": "alex",
+      "valueParam": "user"
+    },
+    {
+      "enabled": true,
+      "id": "fullName",
+      "kind": "text",
+      "label": {
+        "key": "Full name",
+        "text": "Full name"
+      },
+      "param": "fullName",
+      "value": "Alex Example",
+      "valueParam": "fullName"
+    }
+  ],
+  "installing": false,
+  "intro": {
+    "key": "Creates your macOS base from the IPSW: your guest user, automatic login, SSH with your keys from ~/.ssh. No manual steps; a missing IPSW is downloaded first.",
+    "text": "Creates your macOS base from the IPSW: your guest user, automatic login, SSH with your keys from ~/.ssh. No manual steps; a missing IPSW is downloaded first."
+  },
+  "ipsw": {
+    "actions": [
+      {
+        "enabled": true,
+        "id": "useApple",
+        "label": {
+          "key": "Use Apple's",
+          "text": "Use Apple's"
+        },
+        "method": "ui.field",
+        "params": {
+          "field": "ipsw",
+          "page": "macBase",
+          "params": {},
+          "value": null,
+          "valueParam": "ipsw"
+        }
+      },
+      {
+        "ask": [
+          {
+            "accept": "ipsw",
+            "kind": "file",
+            "label": {
+              "key": "Choose IPSW …",
+              "text": "Choose IPSW …"
+            },
+            "param": "value",
+            "prompt": {
+              "key": "A macOS restore image (.ipsw) from Apple",
+              "text": "A macOS restore image (.ipsw) from Apple"
+            }
+          }
+        ],
+        "enabled": true,
+        "icon": "folder",
+        "id": "chooseIpsw",
+        "label": {
+          "key": "Choose IPSW …",
+          "text": "Choose IPSW …"
+        },
+        "method": "ui.field",
+        "params": {
+          "field": "ipsw",
+          "page": "macBase",
+          "params": {},
+          "valueParam": "ipsw"
+        }
+      }
+    ],
+    "label": {
+      "key": "macOS from Apple (IPSW)",
+      "text": "macOS from Apple (IPSW)"
+    },
+    "text": {
+      "text": "UniversalMac.ipsw"
+    }
+  },
+  "log": {
+    "file": "/data/logs/j6.log",
+    "from": 0,
+    "full": {
+      "enabled": true,
+      "help": {
+        "key": "Every line, also the routine ones left out above",
+        "text": "Every line, also the routine ones left out above"
+      },
+      "icon": "log",
+      "id": "fullLog",
+      "label": {
+        "key": "Full Log …",
+        "text": "Full Log …"
+      },
+      "method": "ui.open",
+      "params": {
+        "path": "/data/logs/j6.log"
+      }
+    },
+    "job": "j6",
+    "lines": 3
+  },
+  "title": {
+    "key": "Create macOS Base",
+    "text": "Create macOS Base"
+  }
+}

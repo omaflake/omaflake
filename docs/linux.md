@@ -83,6 +83,8 @@ A `custom` module fed by `omaf status --waybar` (VM and build counts as JSON) is
   (`crates/omaflake-core/testdata/api/views/`) and draw it, build the tray menu from them and check the terminal choice.
 - `OMAFLAKE_DEMO_VIEWS=crates/omaflake-core/testdata/api/views` draws those golden models without a core (for looking
   at pages without VMs); `OMAFLAKE_DEMO_TAB=images`, `OMAFLAKE_DEMO_PAGE=build` (or `build.failed`, `doctor`,
-  `settings`, `newVm`, `macBase`) and `OMAFLAKE_DEMO_EXPAND=vm:research` pick what is shown. Actions do nothing there.
+  `settings`, `settings.linux`, `newVm`, `macBase`, `vm`, `image`), `OMAFLAKE_DEMO_VARIANT=linux,loading` (the home
+  tabs' `<page>.<variant>.json` where there is one: `home.linux`, `recipes.loading`) and
+  `OMAFLAKE_DEMO_EXPAND=vm:research` pick what is shown. Actions do nothing there.
 - Icons: [Lucide](https://lucide.dev) (ISC, see `crates/omaflake-gui/NOTICE`), mapped from the views' icon names in
   `src/icons.rs`. Brand logos are not part of Lucide: macOS guests show an apple, GitHub sources a branch.

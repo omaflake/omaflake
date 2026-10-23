@@ -203,7 +203,8 @@
           "params": {
             "id": "omaflake.nixos.minimal",
             "source": "github:omaflake/recipes@main"
-          }
+          },
+          "primary": true
         }
       ],
       "author": "omaflake",
@@ -366,7 +367,8 @@
           "params": {
             "id": "lab.nixos.try",
             "source": "github:omaflake/recipes@main"
-          }
+          },
+          "primary": true
         }
       ],
       "author": "lab",
@@ -486,6 +488,10 @@
       ]
     }
   ],
+  "offeredTitle": {
+    "key": "More recipes in your sources",
+    "text": "More recipes in your sources"
+  },
   "rows": [
     {
       "actions": [
@@ -530,7 +536,8 @@
           "params": {
             "page": "doctor",
             "params": {}
-          }
+          },
+          "primary": true
         }
       ],
       "badges": [],
@@ -1000,6 +1007,7 @@
               "recipe": "lab.macos.base@ocean-maple"
             }
           },
+          "primary": true,
           "reason": {
             "args": [
               "aarch64-darwin"
@@ -1213,7 +1221,8 @@
           "params": {
             "id": "omaflake.nixos.dev",
             "source": "github:omaflake/recipes@main"
-          }
+          },
+          "primary": true
         },
         "id": "omaflake.nixos.dev@velvet-tiger-orbit",
         "kind": {

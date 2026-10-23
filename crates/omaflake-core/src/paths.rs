@@ -433,6 +433,15 @@ impl Settings {
         candidates.push(home_dir().join("Applications/omaflake.app/Contents/Resources/nix"));
         candidates.into_iter().find(|c| c.join("flake.nix").exists())
     }
+
+    /// The guides omaflake.app bundles (Contents/Resources/Guides, scripts/bundle-app.sh) next to the running
+    /// executable – None outside the app
+    pub fn bundled_guides() -> Option<PathBuf> {
+        let exe = std::env::current_exe().ok()?;
+        let exe = fs::canonicalize(&exe).unwrap_or(exe);
+        let dir = exe.parent()?.parent()?.join("Resources/Guides");
+        dir.is_dir().then_some(dir)
+    }
 }
 
 #[cfg(test)]

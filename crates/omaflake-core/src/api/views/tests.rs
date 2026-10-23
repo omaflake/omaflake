@@ -67,6 +67,8 @@ pub(crate) fn ctx() -> Ctx {
         ssh: BTreeMap::from([("research".to_string(), "'/usr/bin/ssh' '-p' '2201' 'alex@127.0.0.1'".to_string())]),
         host_user: "alex".into(),
         host_full_name: "Alex Example".into(),
+        host: HostOs::Macos,
+        guides: None,
     }
 }
 
@@ -512,7 +514,16 @@ fn mac_base_page() {
     let create = action(&page["actions"], "create");
     assert_eq!(create["params"], json!({"user": "sam", "fullName": "Alex Example", "ipsw": "/x/UniversalMac.ipsw"}));
     assert_eq!(create["enabled"], true);
-    assert_eq!(page["log"], "j6");
+    assert_eq!(page["log"]["job"], "j6", "the base's creation is a job like any other");
+    assert_eq!(page["log"]["from"], 0);
+    // The IPSW is shown once: in its line, set with ui.field on this page
+    assert!(page["fields"].as_array().unwrap().iter().all(|f| f["id"] != "ipsw"));
+    let choose = action(&page["ipsw"]["actions"], "chooseIpsw");
+    assert_eq!(choose["params"], json!({"page": "macBase", "params": {}, "field": "ipsw", "valueParam": "ipsw"}));
+    assert_eq!(action(&page["ipsw"]["actions"], "useApple")["params"]["value"], Value::Null);
+    let user = action(&page["fields"], "user");
+    assert_eq!((user["param"].clone(), user["valueParam"].clone()), (json!("user"), json!("user")));
+    assert_eq!(create["primary"], true);
 }
 
 // MARK: Settings
@@ -631,10 +642,183 @@ fn import_step_asks_about_what_is_here() {
             .unwrap();
     assert_eq!(page["action"]["method"], "vms.useExternal");
     assert_eq!(page["action"]["confirm"]["title"]["key"], "Run the VM over the network?");
-    let bad = Inspection { valid: false, reason: Some("Not a VM package (.omaflake-vm)".into()), conflict: None, ..vm };
+    let bad = Inspection {
+        valid: false,
+        reason: Some(Text::verbatim("Not a VM package (.omaflake-vm)")),
+        conflict: None,
+        ..vm
+    };
     let page = serde_json::to_value(import::page(&ext, bad)).unwrap();
     assert_eq!(page["reason"]["text"], "research.omaflake-vm: Not a VM package (.omaflake-vm)");
     assert!(page.get("action").is_none());
+}
+
+// MARK: What the interfaces needed (plan B121)
+
+#[test]
+fn primary_actions_and_short_labels() {
+    let mut c = ctx();
+    let primaries = |actions: &Value| -> Vec<String> {
+        actions.as_array().unwrap().iter().filter(|a| a["primary"] == true).map(|a| s(a, "id")).collect()
+    };
+    fn s(a: &Value, k: &str) -> String {
+        a[k].as_str().unwrap().to_string()
+    }
+    let vms = get(&c, "vms", json!({}));
+    assert_eq!(primaries(&vms["rows"][0]["actions"]), ["terminal"], "running: its terminal");
+    let images = get(&c, "images", json!({}));
+    assert_eq!(images["jobs"][0]["open"]["primary"], true, "a build row opens its page");
+    assert_eq!(primaries(&images["rows"][0]["actions"]), ["doctor"], "blocked: the way to the Doctor");
+    assert_eq!(primaries(&images["rows"][1]["actions"]), ["newVm"]);
+    let recipes = get(&c, "recipes", json!({}));
+    assert_eq!(primaries(&recipes["offered"][0]["actions"]), ["install"]);
+    assert_eq!(recipes["updates"]["rows"][0]["action"]["primary"], true);
+    let new_vm = get(&c, "newVm", json!({"image": "omaflake.nixos.dev@cedar-mango-lift"}));
+    assert_eq!(primaries(&new_vm["actions"]), ["create"]);
+    let settings = get(&c, "settings", json!({}));
+    assert_eq!(settings["sources"]["addAction"]["primary"], true);
+    assert!(settings["sources"]["rows"][0]["actions"].as_array().unwrap().iter().all(|a| a.get("primary").is_none()));
+    c.vms[0].status = VmStatus::Stopped;
+    c.doctor.as_mut().unwrap().start_blockers.nixos.clear();
+    assert_eq!(primaries(&get(&c, "vms", json!({}))["rows"][0]["actions"]), ["startWindow"]);
+
+    let home = get(&c, "home", json!({}));
+    let short: Vec<Option<&str>> =
+        home["actions"].as_array().unwrap().iter().map(|a| a["shortLabel"]["key"].as_str()).collect();
+    assert_eq!(short, [Some("Doctor"), None, Some("Data Folder"), Some("Quit")]);
+}
+
+#[test]
+fn form_fields_name_their_value_and_every_page_has_a_title() {
+    let c = ctx();
+    let new_vm = get(&c, "newVm", json!({"image": "omaflake.nixos.dev@cedar-mango-lift"}));
+    for f in new_vm["sections"].as_array().unwrap().iter().flat_map(|s| s["fields"].as_array().unwrap()) {
+        assert_eq!(f["valueParam"], f["id"], "{f}");
+    }
+    assert_eq!(action(&new_vm["sections"][1]["fields"], "memoryGB")["param"], "settings.memoryGB");
+    let mac = get(&c, "newVm", json!({"image": "omaflake.macos.dev@stone-lamp"}));
+    assert!(action(&mac["sections"][1]["fields"], "diskGB").get("valueParam").is_none(), "shown, not edited");
+    let settings = get(&c, "settings", json!({"values": {"input": "acme/recipes"}}));
+    let add: Vec<&str> = settings["sources"]["add"]["fields"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|f| f["valueParam"].as_str().unwrap())
+        .collect();
+    assert_eq!(add, ["input", "private"]);
+    assert!(settings["general"]["fields"][0].get("valueParam").is_none(), "stored at once");
+
+    for (p, params, title) in [
+        ("home", json!({}), "omaflake"),
+        ("vms", json!({}), "Virtual Machines"),
+        ("vm", json!({"name": "research"}), "research"),
+        ("images", json!({}), "Images"),
+        ("image", json!({"name": "omaflake.macos.dev@stone-lamp"}), "omaflake.macos.dev@stone-lamp"),
+        ("recipes", json!({}), "Recipes"),
+        ("activity", json!({}), "Activity"),
+    ] {
+        assert_eq!(get(&c, p, params)["title"]["text"], title);
+    }
+}
+
+#[test]
+fn recipes_say_what_they_show() {
+    let mut c = ctx();
+    let page = get(&c, "recipes", json!({}));
+    assert_eq!(page["offeredTitle"]["key"], "More recipes in your sources");
+    assert!(page.get("loadingText").is_none() && page.get("labHint").is_none());
+    c.fetching = true;
+    c.recipes.lab_hidden = true;
+    let page = get(&c, "recipes", json!({}));
+    assert_eq!(page["loadingText"]["key"], "Looking into the recipe sources …");
+    assert_eq!(page["labHint"]["text"]["key"], "Lab recipes are hidden – Developer Mode in Settings shows them.");
+    assert_eq!(page["labHint"]["action"]["params"], json!({"page": "settings", "params": {}}));
+    c.available.as_mut().unwrap().offered.clear();
+    assert!(get(&c, "recipes", json!({})).get("offeredTitle").is_none());
+}
+
+#[test]
+fn guides_and_logs_say_where_they_are() {
+    let mut c = ctx();
+    let builder = fx::prerequisite(
+        crate::prerequisites::PrerequisiteItem::LinuxBuilder,
+        crate::prerequisites::PrerequisiteStatus::Ok,
+    );
+    c.doctor.as_mut().unwrap().prerequisites.push(builder);
+    let dir = tempfile::tempdir().unwrap();
+    std::fs::write(dir.path().join("linux-builder.md"), "# Linux builder").unwrap();
+    let guide_of = |c: &Ctx| {
+        let page = get(c, "doctor", json!({}));
+        let item = page["sections"][0]["items"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|i| i["item"] == "linuxBuilder")
+            .unwrap()
+            .clone();
+        action(&item["actions"], "guide").clone()
+    };
+    let guide = guide_of(&c);
+    assert_eq!(guide["method"], "ui.show");
+    assert_eq!(guide["params"]["page"], "guide");
+    assert_eq!(guide["params"]["params"]["url"], "https://omaflake.dev/linux-builder/");
+    assert_eq!(guide["params"]["params"]["title"]["key"], "Linux Builder Guide");
+    assert!(guide["params"]["params"].get("path").is_none(), "no app bundle here");
+    c.guides = Some(dir.path().to_path_buf());
+    let path = dir.path().join("linux-builder.md").to_string_lossy().into_owned();
+    assert_eq!(guide_of(&c)["params"]["params"]["path"], path);
+
+    // The build page names its job and where its log starts
+    c.jobs[0].log_lines = 5012;
+    let page = get(&c, "build", json!({"recipe": "omaflake.nixos.dev@velvet-tiger-orbit"}));
+    assert_eq!((page["log"]["job"].clone(), page["log"]["from"].clone()), (json!("j1"), json!(12)));
+}
+
+#[test]
+fn linux_hosts_get_their_own_words() {
+    let mut c = ctx();
+    c.host = HostOs::Linux;
+    let home = get(&c, "home", json!({}));
+    assert_eq!(action(&home["actions"], "dataFolder")["label"]["key"], "Show Data Folder");
+    let new_vm = get(&c, "newVm", json!({"image": "omaflake.nixos.dev@cedar-mango-lift"}));
+    assert_eq!(action(&new_vm["sections"][2]["fields"], "share")["label"]["key"], "Share a folder with the VM");
+    let doctor = get(&c, "doctor", json!({}));
+    assert_eq!(
+        doctor["intro"]["key"],
+        "omaflake uses what this computer already has. Set up missing parts here or enter their path."
+    );
+    let settings = get(&c, "settings", json!({}));
+    let locale = action(&settings["guest"]["fields"], "locale");
+    assert_eq!(locale["choices"][0]["label"]["key"], "Like this computer – %@");
+    assert_eq!(settings["sources"]["rows"][1]["badges"][0]["help"]["key"], "Private – token in the keyring");
+    let images = get(&c, "images", json!({}));
+    assert_eq!(images["rows"][0]["actions"][0]["label"]["key"], "Show in File Manager");
+    let recipes = get(&c, "recipes", json!({"filter": {"otherSystems": true}}));
+    assert_eq!(recipes["rows"][1]["actions"][1]["reason"]["key"], "Not for this computer – it is built for %@");
+    // Every text that names the Mac, Finder or the Keychain has its other variant
+    for page in [home, new_vm, doctor, settings, images, recipes] {
+        let text = page.to_string();
+        for word in ["Finder", "Keychain", "this Mac", "your Mac", "a Mac folder", "Like this Mac"] {
+            assert!(!text.contains(word), "{word} in {text}");
+        }
+    }
+}
+
+#[test]
+fn inspection_reasons_are_texts() {
+    let bad = Inspection {
+        kind: PackageKindDto::Image,
+        valid: false,
+        reason: Some(Text::verbatim("Not an image package (.omaflake-image)")),
+        conflict: None,
+        network_volume: false,
+    };
+    let v = serde_json::to_value(&bad).unwrap();
+    assert_eq!(v["reason"], json!({"text": "Not an image package (.omaflake-image)"}));
+    let p = import::ImportParams { path: "/x/a.omaflake-image".into(), expect: None, external: false };
+    let page = serde_json::to_value(import::page(&p, bad)).unwrap();
+    assert_eq!(page["reason"]["args"][1], json!({"text": "Not an image package (.omaflake-image)"}));
+    assert_eq!(page["title"]["key"], "Import");
 }
 
 #[test]
@@ -655,6 +839,8 @@ fn every_page_reads_back_as_its_type() {
     back::<doctor::MacBasePage>(&get(&c, "macBase", json!({})));
     back::<settings::SettingsPage>(&get(&c, "settings", json!({})));
     back::<activity::ActivityPage>(&get(&c, "activity", json!({})));
+    back::<vms::VmPage>(&get(&c, "vm", json!({"name": "research"})));
+    back::<images::ImagePage>(&get(&c, "image", json!({"name": "omaflake.macos.dev@stone-lamp"})));
     let e = build(&c, &PageRef { page: "nope".into(), params: json!({}) }).unwrap_err();
     assert_eq!(e.code, crate::api::protocol::INVALID_PARAMS);
 }

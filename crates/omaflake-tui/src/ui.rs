@@ -63,7 +63,9 @@ fn key_span(app: &App, k: String) -> Span<'static> {
 fn draw_header(f: &mut Frame, app: &App, area: Rect) {
     let th = app.theme;
     let ctx = app.ctx();
-    let mut spans = vec![Span::styled(" omaflake ", th.accent().add_modifier(Modifier::BOLD))];
+    // home's title ("omaflake", as the model says it)
+    let name = app.home.as_ref().map(|h| t(&h["title"])).filter(|n| !n.is_empty()).unwrap_or_else(|| "omaflake".into());
+    let mut spans = vec![Span::styled(format!(" {name} "), th.accent().add_modifier(Modifier::BOLD))];
     match &app.home {
         Some(home) => spans.extend(model::tabs(&ctx, home, &app.tab)),
         None => spans.push(Span::styled(" connecting …", th.secondary())),
@@ -76,11 +78,8 @@ fn draw_header(f: &mut Frame, app: &App, area: Rect) {
             right.push(key_span(app, l.to_string()));
             right.push(Span::raw(" "));
         }
-        // Short: the label up to " – ", or its icon when that is still long (OPEN in the core: no short label)
-        let label = t(&a["label"]);
-        let short = label.split(" – ").next().unwrap_or_default().to_string();
-        let short = if short.chars().count() > 14 { app.icons.get(s(a, "icon")).to_string() } else { short };
-        right.push(Span::styled(short, th.text()));
+        // A narrow header: the model's short label, else the label
+        right.push(Span::styled(t(a.get("shortLabel").unwrap_or(&a["label"])), th.text()));
         if let Some(n) = a.get("badge").and_then(Value::as_u64) {
             right.push(Span::styled(format!(" {n}"), th.tone(Tone::Warning)));
         }

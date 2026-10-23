@@ -11,17 +11,17 @@ use iced::widget::image;
 use iced::{window, Size, Subscription, Task};
 use omaflake_core::api::types::JobDto;
 use omaflake_core::api::views::activity::ActivityPage;
-use omaflake_core::api::views::build::BuildPage;
+use omaflake_core::api::views::build::{BuildPage, LogRef};
 use omaflake_core::api::views::common::{set_param, Action, Ask, AskKind, Confirm, Field, Then};
 use omaflake_core::api::views::doctor::{DoctorPage, MacBasePage};
 use omaflake_core::api::views::home::HomePage;
-use omaflake_core::api::views::images::ImagesPage;
+use omaflake_core::api::views::images::{ImagePage, ImagesPage};
 use omaflake_core::api::views::import::ImportPage;
 use omaflake_core::api::views::new_vm::NewVmPage;
 use omaflake_core::api::views::recipes::RecipesPage;
 use omaflake_core::api::views::settings::SettingsPage;
-use omaflake_core::api::views::vms::VmsPage;
-use omaflake_core::api::views::PageRef;
+use omaflake_core::api::views::vms::{VmPage, VmsPage};
+use omaflake_core::api::views::{PageRef, Text};
 use serde_json::{json, Map, Value};
 
 use crate::backend::{self, CallError, Handle};
@@ -42,6 +42,8 @@ pub enum Model {
     MacBase(Box<MacBasePage>),
     Settings(Box<SettingsPage>),
     Activity(Box<ActivityPage>),
+    Vm(Box<VmPage>),
+    Image(Box<ImagePage>),
     /// A page that cannot be built (`model: {error}`) or that this app cannot read
     Error(String),
 }
@@ -68,8 +70,52 @@ pub fn decode(page: &str, v: Value) -> Model {
         "macBase" => de(v, Model::MacBase),
         "settings" => de(v, Model::Settings),
         "activity" => de(v, Model::Activity),
+        "vm" => de(v, Model::Vm),
+        "image" => de(v, Model::Image),
         other => Model::Error(format!("Unknown page {other}")),
     }
+}
+
+impl Model {
+    /// The page's title as its model gives it (the window's for home, the header's for the others)
+    pub fn title(&self) -> Option<&Text> {
+        Some(match self {
+            Model::Home(p) => &p.title,
+            Model::Vms(p) => &p.head.title,
+            Model::Images(p) => &p.head.title,
+            Model::Recipes(p) => &p.head.title,
+            Model::Activity(p) => &p.head.title,
+            Model::NewVm(p) => &p.title,
+            Model::Build(p) => &p.title,
+            Model::Doctor(p) => &p.title,
+            Model::MacBase(p) => &p.title,
+            Model::Settings(p) => &p.title,
+            Model::Vm(p) => &p.title,
+            Model::Image(p) => &p.title,
+            Model::Error(_) => return None,
+        })
+    }
+
+    /// The job log the page shows (build, macOS base)
+    pub fn log(&self) -> Option<&LogRef> {
+        match self {
+            Model::Build(b) => b.log.as_ref(),
+            Model::MacBase(m) => m.log.as_ref(),
+            _ => None,
+        }
+    }
+}
+
+/// What a guide opens: the bundled file (`path`, only inside omaflake.app), else its page on omaflake.dev (`url`)
+pub fn guide_target(params: &Value) -> String {
+    params["path"].as_str().or_else(|| params["url"].as_str()).unwrap_or_default().to_string()
+}
+
+/// Why a check (`packages.inspect`) refused a chosen value: its `reason` is a Text
+pub fn refusal(value: &str, answer: &Value) -> String {
+    let why =
+        serde_json::from_value::<Text>(answer["reason"].clone()).map(|t| s(&t)).unwrap_or_else(|_| "not usable".into());
+    format!("{value}: {why}")
 }
 
 pub fn page_ref(page: &str, params: Value) -> PageRef {
@@ -106,10 +152,11 @@ pub enum Message {
         value: Value,
     },
     Run(Box<Action>, Option<String>),
-    /// A form field's value (newVm, macBase, the new source)
+    /// A form field's value (newVm, macBase, the new source), kept under `values.<key>` (the field's `valueParam`);
+    /// `null` drops it (back to the default)
     FormSet {
         page: String,
-        field: String,
+        key: String,
         value: Value,
     },
     /// Choosing a form field's path (its `ask`)
@@ -275,7 +322,10 @@ impl App {
     }
 
     pub fn title(&self, _: window::Id) -> String {
-        "omaflake".into()
+        match self.models.get(&page_ref("home", json!({})).key()).and_then(Model::title) {
+            Some(t) => s(t),
+            None => "omaflake".into(),
+        }
     }
 
     pub fn subscription(&self) -> Subscription<Message> {
@@ -304,13 +354,12 @@ impl App {
 
     // MARK: Pages
 
-    /// The page shown: the top of the stack, with the form values typed so far
+    /// The page shown: the top of the stack, with the form values typed so far (`params.values`, keyed by the fields'
+    /// `valueParam`)
     pub fn effective(&self, p: &PageRef) -> PageRef {
         let mut p = p.clone();
         if let Some(values) = self.forms.get(&p.page).filter(|v| !v.is_empty()) {
-            if matches!(p.page.as_str(), "newVm" | "macBase" | "settings") {
-                p.params["values"] = Value::Object(values.clone());
-            }
+            p.params["values"] = Value::Object(values.clone());
         }
         p
     }
@@ -386,8 +435,16 @@ impl App {
         self.demo = true;
         self.status = None;
         let read = |file: &str| -> Option<Value> { serde_json::from_slice(&std::fs::read(dir.join(file)).ok()?).ok() };
+        // `OMAFLAKE_DEMO_VARIANT=linux,loading`: `<page>.<variant>.json` where there is one (home.linux, recipes.loading)
+        let variants: Vec<String> = std::env::var("OMAFLAKE_DEMO_VARIANT")
+            .map(|v| v.split(',').map(str::to_string).collect())
+            .unwrap_or_default();
         for page in ["home", "vms", "images", "recipes", "activity"] {
-            if let Some(v) = read(&format!("{page}.json")) {
+            let v = variants
+                .iter()
+                .find_map(|x| read(&format!("{page}.{x}.json")))
+                .or_else(|| read(&format!("{page}.json")));
+            if let Some(v) = v {
                 self.models.insert(page_ref(page, json!({})).key(), decode(page, v));
             }
         }
@@ -406,11 +463,9 @@ impl App {
         if let Ok(keys) = std::env::var("OMAFLAKE_DEMO_EXPAND") {
             self.expanded.extend(keys.split(',').map(str::to_string));
         }
-        if let Some(Model::Build(b)) = self.current().as_ref().and_then(|p| self.model(p)) {
-            if let Some(l) = &b.log {
-                let lines = (1..=l.lines).map(|i| format!("[demo] log line {i}")).collect();
-                self.logs.insert(l.job.clone(), Log { lines, loaded: true });
-            }
+        if let Some(l) = self.current().as_ref().and_then(|p| self.model(p)).and_then(Model::log).cloned() {
+            let lines = (l.from + 1..=l.lines).map(|i| format!("[demo] log line {i}")).collect();
+            self.logs.insert(l.job.clone(), Log { lines, loaded: true });
         }
     }
 
@@ -476,30 +531,26 @@ impl App {
                 self.resubscribe()
             }
             Message::Run(action, form) => self.start(*action, form),
-            Message::FormSet { page, field, value } => {
-                self.forms.entry(page).or_default().insert(field, value);
+            Message::FormSet { page, key, value } => {
+                self.set_form(page, key, Some(value));
                 self.resubscribe()
             }
             Message::FormChoose { page, field } => {
-                let Some(mut ask) = field.ask.clone() else { return Task::none() };
-                ask.param = "value".into();
-                let action = Action {
-                    id: format!("choose-{}", field.id),
-                    label: field.label.clone(),
-                    icon: None,
-                    method: "ui.field".into(),
-                    params: json!({"field": field.id, "page": page}),
-                    enabled: true,
-                    reason: None,
-                    help: None,
-                    destructive: false,
-                    on: None,
-                    busy: false,
-                    badge: None,
-                    ask: vec![ask],
-                    confirm: None,
-                    then: None,
+                // The field's own ask, as a `ui.field` action of its page (api.md §10.4)
+                let (Some(mut ask), Some(key)) = (field.ask.clone(), field.value_param.as_deref()) else {
+                    return Task::none();
                 };
+                ask.param = "value".into();
+                let action = Action::field(
+                    &format!("choose-{}", field.id),
+                    field.label.clone(),
+                    None,
+                    &page,
+                    json!({}),
+                    &field.id,
+                    key,
+                )
+                .ask(ask);
                 self.start(action, None)
             }
             Message::Edit { field, text } => {
@@ -652,9 +703,9 @@ impl App {
 
     fn show(&mut self, page: &str, params: Value) -> Task<Message> {
         if page == "guide" {
-            // The guide is the macOS app's (the Linux builder); the docs site has it
-            let file = params["file"].as_str().unwrap_or("linux-builder").to_string();
-            return match system::open(&format!("https://omaflake.dev/{file}/")) {
+            // A guide of the docs: the bundled file where the core has one (`path`), else its page on omaflake.dev
+            // (`url`); the desktop opens it, so its `title` names no page here
+            return match system::open(&guide_target(&params)) {
                 Ok(()) => Task::none(),
                 Err(e) => {
                     self.say(e, true);
@@ -669,6 +720,20 @@ impl App {
             return Task::batch([self.open_window(), self.resubscribe()]);
         }
         self.resubscribe()
+    }
+
+    /// A form value of a page under `values.<key>`; `None` or `null` drops it (back to the page's default)
+    fn set_form(&mut self, page: String, key: String, value: Option<Value>) {
+        match value.filter(|v| !v.is_null()) {
+            Some(v) => {
+                self.forms.entry(page).or_default().insert(key, v);
+            }
+            None => {
+                if let Some(f) = self.forms.get_mut(&page) {
+                    f.remove(&key);
+                }
+            }
+        }
     }
 
     fn mark_activity_seen(&mut self) {
@@ -783,16 +848,13 @@ impl App {
             }
             _ => {}
         }
-        // Logs the page shows
-        let log_job = match self.current().as_ref().and_then(|p| self.model(p)) {
-            Some(Model::Build(b)) => b.log.as_ref().map(|l| l.job.clone()),
-            Some(Model::MacBase(m)) => m.log.clone(),
-            _ => None,
-        };
-        if let Some(id) = log_job {
+        // Logs the page shows (build, macOS base): what `jobs.log` keeps from `from` on, then the `job.log` events
+        let log =
+            self.current().as_ref().and_then(|p| self.model(p)).and_then(Model::log).map(|l| (l.job.clone(), l.from));
+        if let Some((id, from)) = log {
             if !self.logs.contains_key(&id) {
                 self.logs.insert(id.clone(), Log::default());
-                tasks.push(self.call("jobs.log", json!({"id": id}), Purpose::Log(id)));
+                tasks.push(self.call("jobs.log", json!({"id": id, "from": from}), Purpose::Log(id)));
             }
         }
         Task::batch(tasks)
@@ -801,6 +863,15 @@ impl App {
     fn activity_arrived(&mut self) {
         let Some(Model::Activity(a)) = self.models.get(&page_ref("activity", json!({})).key()) else { return };
         let newest = a.entries.first().map(|e| e.id).unwrap_or(0);
+        // Unseen = an id above the highest one shown (api.md §10.6). Ids start again at 1 with a new server: when the
+        // newest id is lower than the one remembered, the mark is forgotten – the new server's entries are unseen. The
+        // notification mark starts again at the newest (what the new server said before this app saw it is not news).
+        if newest < self.seen_activity {
+            self.seen_activity = 0;
+        }
+        if self.notified.is_some_and(|n| newest < n) {
+            self.notified = Some(newest);
+        }
         let Some(last) = self.notified else {
             // What happened before this app opened is not news
             self.notified = Some(newest);
@@ -899,7 +970,7 @@ impl App {
         }
     }
 
-    /// Puts the form's typed values into the page action's params, at each field's `param`
+    /// Puts the form's typed values (`values.<valueParam>`) into the page action's params, at each field's `param`
     fn apply_form(&self, page: &str, params: &mut Value) {
         let Some(values) = self.forms.get(page) else { return };
         let fields: Vec<Field> = match self.current().as_ref().and_then(|p| self.model(p)) {
@@ -909,7 +980,7 @@ impl App {
             _ => vec![],
         };
         for f in fields {
-            if let (Some(param), Some(v)) = (&f.param, values.get(&f.id)) {
+            if let (Some(param), Some(v)) = (&f.param, f.value_param.as_ref().and_then(|k| values.get(k))) {
                 set_param(params, param, v.clone());
             }
         }
@@ -996,9 +1067,7 @@ impl App {
                     let mut params = check.params.clone();
                     set_param(&mut params, &check.param, json!(v));
                     match core.call(&check.method, params).await {
-                        Ok(r) if r["valid"] == json!(false) => {
-                            refused.push(format!("{v}: {}", r["reason"].as_str().unwrap_or("not usable")))
-                        }
+                        Ok(r) if r["valid"] == json!(false) => refused.push(refusal(&v, &r)),
                         Ok(_) => ok.push(v),
                         Err(e) => refused.push(format!("{v}: {}", e.message)),
                     }
@@ -1064,9 +1133,16 @@ impl App {
                 self.resubscribe()
             }
             "field" => {
-                let page = str_of("page").or_else(|| self.stack.last().map(|s| s.page.clone())).unwrap_or_default();
-                let field = str_of("field").unwrap_or_default();
-                self.forms.entry(page).or_default().insert(field, p.get("value").cloned().unwrap_or(Value::Null));
+                // `{page, params, field, valueParam, value?}`: `values.<valueParam>` of that page; `value: null` drops it
+                // (the asks ran before, so an absent value means nothing was chosen)
+                let (Some(page), Some(key)) = (str_of("page"), str_of("valueParam")) else {
+                    self.say("ui.field without page or valueParam", true);
+                    return Task::none();
+                };
+                match p.get("value") {
+                    Some(v) => self.set_form(page, key, Some(v.clone())),
+                    None => return Task::none(),
+                }
                 self.resubscribe()
             }
             "reveal" => done(system::reveal(&str_of("path").unwrap_or_default()), self),

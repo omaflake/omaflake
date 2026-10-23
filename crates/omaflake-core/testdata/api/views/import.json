@@ -32,7 +32,8 @@
     "method": "packages.import",
     "params": {
       "path": "/Volumes/Disk/research.omaflake-vm"
-    }
+    },
+    "primary": true
   },
   "inspection": {
     "conflict": {
@@ -46,5 +47,9 @@
   "kind": "vm",
   "name": "research.omaflake-vm",
   "path": "/Volumes/Disk/research.omaflake-vm",
+  "title": {
+    "key": "Import",
+    "text": "Import"
+  },
   "valid": true
 }

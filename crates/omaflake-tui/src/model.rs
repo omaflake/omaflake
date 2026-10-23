@@ -37,7 +37,7 @@ pub struct Item {
     pub lines: Vec<Line<'static>>,
     /// Every action it offers, in the model's order (row actions, switches, detail actions)
     pub actions: Vec<Value>,
-    /// The one Enter does
+    /// The one Enter does: the model's `primary` (none: Enter opens the details)
     pub default: Option<usize>,
     /// A form field (Enter edits it)
     pub field: Option<Value>,
@@ -63,10 +63,25 @@ pub struct Page {
     pub log: Option<LogBox>,
 }
 
+/// A job's log (the model's LogRef `{job, from, lines, note?, file?, full?}`)
 #[derive(Debug, Clone, Default)]
 pub struct LogBox {
     pub job: String,
+    /// The first line the core keeps (`jobs.log {id: job, from}`)
+    pub from: u64,
     pub note: Option<String>,
+}
+
+impl LogBox {
+    /// From a page's `log`; None when it is not a LogRef with a job
+    pub fn from_model(log: &Value) -> Option<LogBox> {
+        let job = s(log, "job");
+        (!job.is_empty()).then(|| LogBox {
+            job: job.to_string(),
+            from: log.get("from").and_then(Value::as_u64).unwrap_or(0),
+            note: log.get("note").map(t),
+        })
+    }
 }
 
 impl Item {
@@ -78,22 +93,17 @@ impl Item {
         Item::line("", Line::raw(""))
     }
 
-    /// A row with actions: Enter does the default one
+    /// A row with actions: Enter does the primary one
     fn row(key: String, lines: Vec<Line<'static>>, actions: Vec<Value>) -> Item {
-        let default = default_action(&actions);
+        let default = primary(&actions);
         Item { key, lines, actions, default, selectable: true, ..Item::default() }
     }
 }
 
-/// The action Enter does: the last enabled one of the row's own actions that removes nothing (start in a window, open
-/// a terminal, build, New VM – the app's rightmost button), else the first enabled one. The model marks none (OPEN in
-/// the core: a `primary` flag would make this the model's decision).
-pub fn default_action(actions: &[Value]) -> Option<usize> {
-    let usable = |a: &Value| b(a, "enabled") && a.get("on").is_none();
-    actions
-        .iter()
-        .rposition(|a| usable(a) && !b(a, "destructive") && s(a, "method") != "ui.reveal")
-        .or_else(|| actions.iter().position(usable))
+/// The action Enter does: the one the model marks `primary` (api.md §10.3) – a disabled one too, so Enter says why
+/// it cannot run. None: the row has no default (Enter opens its details).
+pub fn primary(actions: &[Value]) -> Option<usize> {
+    actions.iter().position(|a| b(a, "primary"))
 }
 
 // MARK: - Building blocks
@@ -151,6 +161,9 @@ pub fn button(ctx: &Ctx, a: &Value) -> Vec<Span<'static>> {
         th.disabled()
     } else if b(a, "destructive") {
         th.tone(Tone::Danger)
+    } else if b(a, "primary") {
+        // The prominent button: the default action of its row or page
+        th.text().add_modifier(Modifier::BOLD)
     } else {
         th.text()
     };
@@ -335,15 +348,13 @@ fn list_row(ctx: &Ctx, prefix: &str, row: &Value, out: &mut Vec<Item>) {
                     Span::styled(s(v, "words").to_string(), ctx.theme.text()),
                     Span::styled(format!("  {}", t(&v["state"])), ctx.theme.secondary()),
                 ]);
-                let mut it = Item::row(vkey, vec![vline], arr(v, "actions").to_vec());
-                it.default = None;
-                sub_items.push(it);
+                sub_items.push(Item::row(vkey, vec![vline], arr(v, "actions").to_vec()));
             }
         }
     }
     let mut item = Item::row(key, lines, actions);
-    // Enter: one of the row's own buttons, not a detail action
-    item.default = default_action(&item.actions[..main]);
+    // Enter: the row's own primary button, not a detail action
+    item.default = primary(&item.actions[..main]);
     item.expandable = detail.is_some();
     item.open = open;
     out.push(item);
@@ -433,7 +444,6 @@ fn blockers(ctx: &Ctx, key: &str, bl: &Value, out: &mut Vec<Item>) {
 }
 
 fn list_head(page: &mut Page, model: &Value) {
-    page.title = t(&model["title"]);
     let count = model.get("count").and_then(Value::as_u64).unwrap_or(0);
     page.count = Some(match model.get("of").and_then(Value::as_u64) {
         Some(of) => format!("{count}/{of}"),
@@ -453,13 +463,14 @@ pub fn page(ctx: &Ctx, name: &str, model: &Value) -> Page {
         p.items.push(Item::line("", toned_line(ctx, t(&e["message"]), Tone::Danger, 2)));
         return p;
     }
+    // Every page has its title (api.md §10.5); the TUI keeps no table of its own
+    p.title = t(&model["title"]);
     match name {
         "vms" => vms(ctx, model, &mut p),
         "images" => images(ctx, model, &mut p),
         "recipes" => recipes(ctx, model, &mut p),
         "activity" => activity(ctx, model, &mut p),
         "vm" | "image" => {
-            p.title = s(&model["row"], "name").to_string();
             let mut open = ctx.expanded.clone();
             let key = format!("{name}:{}", s(&model["row"], "name"));
             open.insert(key);
@@ -471,7 +482,10 @@ pub fn page(ctx: &Ctx, name: &str, model: &Value) -> Page {
         "macBase" => mac_base(ctx, model, &mut p),
         "newVm" => new_vm(ctx, model, &mut p),
         "settings" => settings(ctx, model, &mut p),
-        _ => p.title = name.to_string(),
+        _ => {}
+    }
+    if p.title.is_empty() {
+        p.title = name.to_string();
     }
     p
 }
@@ -516,12 +530,10 @@ fn images(ctx: &Ctx, model: &Value, p: &mut Page) {
         if let Some(f) = job.get("fraction").and_then(Value::as_f64) {
             lines.push(Line::from(vec![Span::raw("    "), Span::styled(gauge(f, 30), th.accent())]));
         }
-        // Enter opens the build page; the row's own buttons follow
-        let mut actions = vec![job["open"].clone()];
+        // `open` (the build page) first, the row's own buttons follow; Enter does the primary one
+        let mut actions: Vec<Value> = job.get("open").filter(|o| o.is_object()).into_iter().cloned().collect();
         actions.extend(arr(job, "actions").iter().cloned());
-        let mut it = Item::row(format!("job:{}", s(job, "id")), lines, actions);
-        it.default = Some(0);
-        p.items.push(it);
+        p.items.push(Item::row(format!("job:{}", s(job, "id")), lines, actions));
     }
     for row in arr(model, "rows") {
         list_row(ctx, "image", row, &mut p.items);
@@ -532,8 +544,11 @@ fn images(ctx: &Ctx, model: &Value, p: &mut Page) {
 fn recipes(ctx: &Ctx, model: &Value, p: &mut Page) {
     list_head(p, model);
     if b(model, "loading") {
-        // OPEN in the core: the model says it loads but has no text for it
-        p.items.push(Item::line("", Line::from(Span::styled(spinner(ctx.tick), ctx.theme.accent()))));
+        let mut spans = vec![Span::raw("  "), Span::styled(spinner(ctx.tick), ctx.theme.accent())];
+        if let Some(text) = model.get("loadingText") {
+            spans.push(Span::styled(format!(" {}", t(text)), ctx.theme.secondary()));
+        }
+        p.items.push(Item::line("", Line::from(spans)));
     }
     for (i, e) in arr(model, "errors").iter().enumerate() {
         p.items.push(hint(ctx, format!("error:{i}"), e));
@@ -569,13 +584,18 @@ fn recipes(ctx: &Ctx, model: &Value, p: &mut Page) {
     }
     let offered = arr(model, "offered");
     if !offered.is_empty() {
-        // OPEN in the core: the offered recipes have no section title in the model – a rule instead
-        p.items.push(Item::line("", Line::from(Span::styled("─".repeat(24), ctx.theme.border()))));
+        if let Some(title) = model.get("offeredTitle") {
+            p.items.push(Item::blank());
+            p.items.push(heading(ctx, t(title)));
+        }
         for row in offered {
             list_row(ctx, "offered", row, &mut p.items);
         }
     }
     empty_and_unreadable(ctx, model, p);
+    if let (true, Some(h)) = (b(model, "labHidden"), model.get("labHint")) {
+        p.items.push(hint(ctx, "labHint".into(), h));
+    }
 }
 
 fn activity(ctx: &Ctx, model: &Value, p: &mut Page) {
@@ -604,7 +624,6 @@ fn activity(ctx: &Ctx, model: &Value, p: &mut Page) {
 
 fn build(ctx: &Ctx, model: &Value, p: &mut Page) {
     let th = ctx.theme;
-    p.title = s(model, "name").to_string();
     p.tools = arr(model, "actions").to_vec();
     let mut head = vec![Span::raw(" ")];
     head.extend(icon(ctx, s(&model["kind"], "icon"), th.secondary()));
@@ -687,13 +706,12 @@ fn build(ctx: &Ctx, model: &Value, p: &mut Page) {
                 p.items.push(bar);
             }
         }
-        p.log = Some(LogBox { job: s(log, "job").to_string(), note: log.get("note").map(t) });
+        p.log = LogBox::from_model(log);
     }
 }
 
 fn doctor(ctx: &Ctx, model: &Value, p: &mut Page) {
     let th = ctx.theme;
-    p.title = "Doctor".into();
     p.tools = arr(model, "actions").to_vec();
     // The UI's own version comes first (api.md §10.5)
     let own = serde_json::json!({"label": {"text": "omaf ui"}, "value": {"text": omaflake_core::VERSION}});
@@ -791,7 +809,6 @@ fn doctor(ctx: &Ctx, model: &Value, p: &mut Page) {
 
 fn mac_base(ctx: &Ctx, model: &Value, p: &mut Page) {
     let th = ctx.theme;
-    p.title = "macOS Base".into();
     p.tools = arr(model, "actions").to_vec();
     p.items.push(Item::line("", secondary_line(ctx, t(&model["intro"]), 2)));
     if let Some(h) = model.get("base") {
@@ -830,14 +847,19 @@ fn mac_base(ctx: &Ctx, model: &Value, p: &mut Page) {
     if let Some(bar) = button_bar(ctx, "macBase:actions", arr(model, "actions")) {
         p.items.push(bar);
     }
-    if let Some(job) = model.get("log").and_then(Value::as_str) {
-        p.log = Some(LogBox { job: job.to_string(), note: None });
+    // The IPSW is shown once, in its line above (it is no field); the log as the build page's
+    if let Some(log) = model.get("log").filter(|l| l.is_object()) {
+        if let Some(full) = log.get("full") {
+            if let Some(bar) = button_bar(ctx, "macBase:log", std::slice::from_ref(full)) {
+                p.items.push(bar);
+            }
+        }
+        p.log = LogBox::from_model(log);
     }
 }
 
 fn new_vm(ctx: &Ctx, model: &Value, p: &mut Page) {
     let th = ctx.theme;
-    p.title = "New VM".into();
     p.tools = arr(model, "actions").to_vec();
     let mut head = vec![Span::raw(" ")];
     head.extend(icon(ctx, s(&model["kind"], "icon"), th.secondary()));
@@ -873,7 +895,6 @@ fn new_vm(ctx: &Ctx, model: &Value, p: &mut Page) {
 
 fn settings(ctx: &Ctx, model: &Value, p: &mut Page) {
     let th = ctx.theme;
-    p.title = "Settings".into();
     let src = &model["sources"];
     p.items.push(heading(ctx, t(&src["title"])));
     for row in arr(src, "rows") {

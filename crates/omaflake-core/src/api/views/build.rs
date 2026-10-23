@@ -95,11 +95,16 @@ pub struct Outcome {
     pub action: Option<Action>,
 }
 
-/// Where the log is: `jobs.log {id, from}` and the `job.log` events (topic `jobs`); the whole log in `file`
+/// Where the log is: `jobs.log {id: job, from}` reads what it has so far (from the oldest line kept), the `job.log`
+/// events (topic `jobs`) bring the new ones; the whole log in `file`
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct LogRef {
+    /// The job's id (a build, the macOS base's creation)
     pub job: String,
+    /// The first line `jobs.log` still has (older ones than the newest 5000 are gone)
+    pub from: usize,
+    /// Lines so far (`jobs.log`'s `next`)
     pub lines: usize,
     /// "(n routine lines … hidden – full log: …)" once it ended
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -190,17 +195,15 @@ pub(crate) fn page(ctx: &Ctx, p: &BuildParams) -> BuildPage {
             }
             build = build
                 .enabled_if(r.is_some(), None)
-                .enabled_if(
-                    r.is_none_or(|r| r.runs_here),
-                    r.map(|r| tf!("Not for this Mac – it is built for %@", r.systems.join(", "))),
-                )
+                .enabled_if(r.is_none_or(|r| r.runs_here), r.map(|r| super::recipes::not_here(ctx, &r.systems)))
                 .enabled_if(blockers.is_empty(), Some(tf!("Open the Doctor first: %@", blocker_titles(&blockers))))
                 .enabled_if(
                     !mac || has_base,
                     Some(Text::new(
                         "No macOS base yet – it is needed for macOS images and is created from Apple's macOS once.",
                     )),
-                );
+                )
+                .primary();
             actions.push(build);
         }
     }
@@ -211,22 +214,7 @@ pub(crate) fn page(ctx: &Ctx, p: &BuildParams) -> BuildPage {
         Some(j) => (None, None, outcome(ctx, j)),
         None => (None, None, None),
     };
-    let log = job.as_ref().map(|j| LogRef {
-        job: j.id.clone(),
-        lines: j.log_lines,
-        note: (!j.state.is_active() && j.hidden_lines > 0).then(|| {
-            tf!(
-                "(%lld routine lines of the disk image tool hidden – full log: %@)",
-                j.hidden_lines,
-                j.log_file.clone().unwrap_or_default()
-            )
-        }),
-        file: j.log_file.clone(),
-        full: j.log_file.as_ref().map(|f| {
-            Action::call("fullLog", Text::new("Full Log …"), Some("log"), "ui.open", json!({"path": f}))
-                .help(Text::new("Every line, also the routine ones left out above"))
-        }),
-    });
+    let log = job.as_ref().map(log_ref);
     BuildPage {
         title: Text::new("Build Image"),
         recipe: p.recipe.clone(),
@@ -260,6 +248,27 @@ pub(crate) fn page(ctx: &Ctx, p: &BuildParams) -> BuildPage {
     }
 }
 
+/// A job's log as a page shows it: where to read it, the note on hidden lines once it ended, the whole file
+pub fn log_ref(j: &JobDto) -> LogRef {
+    LogRef {
+        job: j.id.clone(),
+        from: j.log_lines.saturating_sub(crate::api::jobs::MAX_LINES),
+        lines: j.log_lines,
+        note: (!j.state.is_active() && j.hidden_lines > 0).then(|| {
+            tf!(
+                "(%lld routine lines of the disk image tool hidden – full log: %@)",
+                j.hidden_lines,
+                j.log_file.clone().unwrap_or_default()
+            )
+        }),
+        file: j.log_file.clone(),
+        full: j.log_file.as_ref().map(|f| {
+            Action::call("fullLog", Text::new("Full Log …"), Some("log"), "ui.open", json!({"path": f}))
+                .help(Text::new("Every line, also the routine ones left out above"))
+        }),
+    }
+}
+
 fn outcome(ctx: &Ctx, j: &JobDto) -> Option<Outcome> {
     Some(match j.state {
         JobState::Finished => {
@@ -275,6 +284,7 @@ fn outcome(ctx: &Ctx, j: &JobDto) -> Option<Outcome> {
                     .map(|name| Text::verbatim(known.map(|i| i.label.clone()).unwrap_or_else(|| name.clone()))),
                 action: known.map(|i| {
                     Action::show("newVm", Text::new("New VM …"), Some("new-vm"), "newVm", json!({"image": i.name}))
+                        .primary()
                 }),
             }
         }

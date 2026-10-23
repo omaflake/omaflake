@@ -198,6 +198,7 @@
             "params": {
               "name": "research"
             },
+            "primary": true,
             "then": "terminal"
           },
           {

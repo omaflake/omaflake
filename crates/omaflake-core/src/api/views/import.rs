@@ -14,6 +14,8 @@ use crate::api::types::{Inspection, PackageKindDto};
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ImportPage {
+    /// "Import" (a UI shows no page for it – a dialog's title)
+    pub title: Text,
     pub path: String,
     /// The package's file name
     pub name: String,
@@ -40,7 +42,7 @@ pub struct ImportParams {
 pub fn page(p: &ImportParams, inspection: Inspection) -> ImportPage {
     let name = p.path.trim_end_matches('/').rsplit('/').next().unwrap_or(&p.path).to_string();
     let reason = (!inspection.valid).then(|| {
-        let why = inspection.reason.clone().map(Text::verbatim).unwrap_or_else(|| Text::new("Not an omaflake package"));
+        let why = inspection.reason.clone().unwrap_or_else(|| Text::new("Not an omaflake package"));
         tf!("%@: %@", &name, why)
     });
     let action = inspection.valid.then(|| {
@@ -51,7 +53,8 @@ pub fn page(p: &ImportParams, inspection: Inspection) -> ImportPage {
                 Some("external"),
                 "vms.useExternal",
                 json!({"path": p.path, "confirmNetwork": true}),
-            );
+            )
+            .primary();
             if inspection.network_volume {
                 a.confirm(
                     Confirm::new(
@@ -67,7 +70,8 @@ pub fn page(p: &ImportParams, inspection: Inspection) -> ImportPage {
                 a
             }
         } else {
-            let a = Action::call("import", Text::new("Import"), Some("import"), "packages.import", json!({"path": p.path}));
+            let a = Action::call("import", Text::new("Import"), Some("import"), "packages.import", json!({"path": p.path}))
+                .primary();
             match &inspection.conflict {
                 Some(c) if c.vm_name.is_some() => {
                     let existing = c.vm_name.clone().unwrap_or_default();
@@ -100,6 +104,7 @@ pub fn page(p: &ImportParams, inspection: Inspection) -> ImportPage {
         }
     });
     ImportPage {
+        title: Text::new(if p.external { "Run from There" } else { "Import" }),
         path: p.path.clone(),
         name,
         kind: inspection.kind,

@@ -8,7 +8,7 @@ use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 
 /// A user-facing text: `key` (absent: shown as it is), the English `text`, and the `args` its placeholders take, in order
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Text {
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -21,7 +21,7 @@ pub struct Text {
 /// A value of a placeholder. Numbers go into `%lld`; the others into `%@`: a plain text (data, not translated), a time
 /// and a size (formatted by the UI in its language), a text of its own (translated by its key, then filled in), and the
 /// value the UI asked for an action's `param` (a confirmation that names the folder just chosen).
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum Arg {
     Int(i64),

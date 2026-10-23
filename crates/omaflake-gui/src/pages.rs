@@ -8,8 +8,8 @@ use std::fmt;
 use iced::widget::{button, column, container, pick_list, progress_bar, row, space, text, text_input, toggler, Column};
 use iced::{Alignment, Color, Length};
 use omaflake_core::api::views::activity::ActivityPage;
-use omaflake_core::api::views::build::{BuildPage, Outcome};
-use omaflake_core::api::views::common::{Blockers, Field, FieldKind, Filter, FilterKind, ListHead, Tone};
+use omaflake_core::api::views::build::{BuildPage, LogRef, Outcome};
+use omaflake_core::api::views::common::{Action, Blockers, Field, FieldKind, Filter, FilterKind, ListHead, Tone};
 use omaflake_core::api::views::doctor::{DoctorItem, DoctorPage, Download, MacBasePage};
 use omaflake_core::api::views::images::{BuildJobRow, ImageRowView, ImagesPage};
 use omaflake_core::api::views::new_vm::NewVmPage;
@@ -28,21 +28,6 @@ use crate::widgets::{
     self, action_button, action_icon, badge, caption, chip, detail_box, divider, expandable, hint, info_line, kind,
     lamp, primary_button, secondary, section_title, wrap, El,
 };
-
-/// A page's title in its header
-pub fn title(page: &str) -> String {
-    match page {
-        "newVm" => "New VM",
-        "build" => "Build Image",
-        "doctor" => "Doctor",
-        "macBase" => "Create macOS Base",
-        "settings" => "Settings",
-        "vm" => "VM",
-        "image" => "Image",
-        _ => "omaflake",
-    }
-    .into()
-}
 
 /// While a page's model has not come yet
 pub fn waiting<'a>(status: Option<&str>) -> El<'a> {
@@ -225,7 +210,12 @@ fn name_line<'a>(name: String, badges: Vec<El<'a>>, subtitle: Option<String>, ta
     c.into()
 }
 
-fn row_actions<'a>(app: &'a App, actions: &'a [omaflake_core::api::views::common::Action]) -> El<'a> {
+/// A row's or page's primary action (api.md §10.3): what a click on a build row does, drawn prominent on a page
+pub fn primary_of(actions: &[Action]) -> Option<&Action> {
+    actions.iter().find(|a| a.primary)
+}
+
+fn row_actions<'a>(app: &'a App, actions: &'a [Action]) -> El<'a> {
     let mut r = row![].spacing(spacing::XXS).align_y(Alignment::Center);
     for a in actions {
         r = r.push(action_icon(a, app.pulse));
@@ -275,7 +265,8 @@ fn images<'a>(app: &'a App, p: &'a ImagesPage) -> El<'a> {
     section(app, "images", &p.head, rows)
 }
 
-/// A build that waits, runs, failed or was cancelled (`BuildJobRow`); a click opens its build page
+/// A build that waits, runs, failed or was cancelled (`BuildJobRow`); a click runs its primary action (`open`: the
+/// build page)
 fn job_row<'a>(app: &'a App, j: &'a BuildJobRow) -> El<'a> {
     use omaflake_core::api::types::JobState;
     let (state, color): (_, Color) = match j.state {
@@ -316,7 +307,12 @@ fn job_row<'a>(app: &'a App, j: &'a BuildJobRow) -> El<'a> {
     )
     .padding(0)
     .style(|_, _| button::Style { text_color: style::TEXT, ..Default::default() })
-    .on_press_maybe(j.open.enabled.then(|| Message::Run(Box::new(j.open.clone()), None)));
+    .on_press_maybe(
+        primary_of(std::slice::from_ref(&j.open))
+            .or_else(|| primary_of(&j.actions))
+            .filter(|a| a.enabled)
+            .map(|a| Message::Run(Box::new(a.clone()), None)),
+    );
     container(row![open, row_actions(app, &j.actions)].spacing(spacing::XL).align_y(Alignment::Center))
         .padding([7.0, spacing::XL])
         .into()
@@ -363,6 +359,20 @@ fn tags<'a>(tags: &'a [String]) -> Vec<El<'a>> {
 
 fn recipes<'a>(app: &'a App, p: &'a RecipesPage) -> El<'a> {
     let mut rows: Vec<El<'a>> = Vec::new();
+    if let (true, Some(t)) = (p.loading, &p.loading_text) {
+        rows.push(
+            container(
+                row![
+                    widgets::lamp_dot(omaflake_core::api::views::common::LampState::Working, app.pulse),
+                    secondary(s(t))
+                ]
+                .spacing(spacing::L)
+                .align_y(Alignment::Center),
+            )
+            .padding(spacing::CARD_PADDING)
+            .into(),
+        );
+    }
     if let Some(u) = &p.updates {
         let mut title = row![
             icon("upgradable", text_size::CALLOUT, style::WARNING),
@@ -394,9 +404,15 @@ fn recipes<'a>(app: &'a App, p: &'a RecipesPage) -> El<'a> {
         rows.push(hint(h, app.pulse));
     }
     rows.extend(p.rows.iter().map(|r| recipe_row(app, r)));
+    if let (false, Some(t)) = (p.offered.is_empty(), &p.offered_title) {
+        rows.push(container(section_title(t)).padding([spacing::M, spacing::XL]).into());
+    }
     rows.extend(p.offered.iter().map(|r| offered_row(app, r)));
     rows.extend(p.unreadable.iter().map(|h| hint(h, app.pulse)));
     rows.extend(p.errors.iter().map(|h| hint(h, app.pulse)));
+    if let (true, Some(h)) = (p.lab_hidden, &p.lab_hint) {
+        rows.push(hint(h, app.pulse));
+    }
     section(app, "recipes", &p.head, rows)
 }
 
@@ -500,9 +516,16 @@ pub fn page<'a>(app: &'a App, p: &PageRef, m: &'a Model) -> El<'a> {
         Model::Doctor(d) => doctor(app, d),
         Model::MacBase(m) => mac_base(app, &p.page, m),
         Model::Settings(st) => settings(app, &p.page, st),
+        Model::Vm(v) => detail_page(vm_row(app, &v.row)),
+        Model::Image(i) => detail_page(image_row(app, &i.row)),
         Model::Error(e) => error(e),
         other => list(app, &p.page, other),
     }
+}
+
+/// A VM's or image's page: its row (opened with a click) in a card
+fn detail_page(row: El<'_>) -> El<'_> {
+    container(row).padding([spacing::XS, 0.0]).width(Length::Fill).style(style::card).into()
 }
 
 /// The Doctor's report against an action (`DoctorBanner`)
@@ -557,18 +580,22 @@ fn new_vm<'a>(app: &'a App, page: &str, n: &'a NewVmPage) -> El<'a> {
     c.push(page_actions(app, page, &n.actions)).into()
 }
 
-/// A page's actions at its end: the last one is the main one
-fn page_actions<'a>(app: &'a App, page: &str, actions: &'a [omaflake_core::api::views::common::Action]) -> El<'a> {
+/// A page's actions at its end: the primary one prominent
+fn page_actions<'a>(app: &'a App, page: &str, actions: &'a [Action]) -> El<'a> {
     let mut r = row![space::horizontal()].spacing(spacing::L).align_y(Alignment::Center);
-    let last = actions.len().saturating_sub(1);
-    for (i, a) in actions.iter().enumerate() {
-        r = r.push(if i == last && a.method != "ui.back" {
-            primary_button(a, Some(page), app.pulse)
-        } else {
-            action_button(a, Some(page), app.pulse)
-        });
+    for a in actions {
+        r = r.push(button_of(a, Some(page), app.pulse));
     }
     r.into()
+}
+
+/// An action as a button: the primary one filled, the others framed
+fn button_of<'a>(a: &Action, form: Option<&str>, pulse: bool) -> El<'a> {
+    if a.primary {
+        primary_button(a, form, pulse)
+    } else {
+        action_button(a, form, pulse)
+    }
 }
 
 fn build<'a>(app: &'a App, b: &'a BuildPage) -> El<'a> {
@@ -590,11 +617,7 @@ fn build<'a>(app: &'a App, b: &'a BuildPage) -> El<'a> {
         status = status.push(space::horizontal());
     }
     for a in &b.actions {
-        status = status.push(if a.id == "build" {
-            primary_button(a, None, app.pulse)
-        } else {
-            action_button(a, None, app.pulse)
-        });
+        status = status.push(button_of(a, None, app.pulse));
     }
     c = c.push(status);
     if let Some(p) = &b.progress {
@@ -625,17 +648,22 @@ fn build<'a>(app: &'a App, b: &'a BuildPage) -> El<'a> {
         c = c.push(secondary(s(n)));
     }
     if let Some(l) = &b.log {
-        let mut head = row![section_title(&Text::new("Log")), space::horizontal()].align_y(Alignment::Center);
-        if let Some(full) = &l.full {
-            head = head.push(action_button(full, None, app.pulse));
-        }
-        let mut lc = column![head].spacing(spacing::M);
-        if let Some(n) = &l.note {
-            lc = lc.push(secondary(s(n)));
-        }
-        c = c.push(lc.push(log_console(app, &l.job)));
+        c = c.push(log_section(app, l));
     }
     c.into()
+}
+
+/// A job's log (build, macOS base): its note, the whole file, the newest lines
+fn log_section<'a>(app: &'a App, l: &'a LogRef) -> El<'a> {
+    let mut head = row![section_title(&Text::new("Log")), space::horizontal()].align_y(Alignment::Center);
+    if let Some(full) = &l.full {
+        head = head.push(action_button(full, None, app.pulse));
+    }
+    let mut lc = column![head].spacing(spacing::M);
+    if let Some(n) = &l.note {
+        lc = lc.push(secondary(s(n)));
+    }
+    lc.push(log_console(app, &l.job)).into()
 }
 
 fn outcome<'a>(app: &'a App, o: &'a Outcome) -> El<'a> {
@@ -651,7 +679,7 @@ fn outcome<'a>(app: &'a App, o: &'a Outcome) -> El<'a> {
         c = c.push(caption(s(d)).color(style::SECONDARY));
     }
     if let Some(a) = &o.action {
-        c = c.push(primary_button(a, None, app.pulse));
+        c = c.push(button_of(a, None, app.pulse));
     }
     container(c).padding(spacing::CARD_PADDING).width(Length::Fill).style(style::notice(color)).into()
 }
@@ -805,7 +833,7 @@ fn mac_base<'a>(app: &'a App, page: &str, m: &'a MacBasePage) -> El<'a> {
     }
     c = c.push(container(ipsw).padding(spacing::CARD_PADDING).width(Length::Fill).style(style::card));
     let mut f = Column::new().spacing(spacing::L);
-    for field in m.fields.iter().filter(|f| f.id != "ipsw") {
+    for field in &m.fields {
         f = f.push(field_view(app, page, field, false));
     }
     c = c.push(container(f).padding(spacing::CARD_PADDING).width(Length::Fill).style(style::card));
@@ -813,8 +841,8 @@ fn mac_base<'a>(app: &'a App, page: &str, m: &'a MacBasePage) -> El<'a> {
         c = c.push(row![widgets::working(app.pulse), secondary("Creating the base …")].align_y(Alignment::Center));
     }
     c = c.push(page_actions(app, page, &m.actions));
-    if let Some(job) = &m.log {
-        c = c.push(column![section_title(&Text::new("Log")), log_console(app, job)].spacing(spacing::M));
+    if let Some(l) = &m.log {
+        c = c.push(log_section(app, l));
     }
     c.into()
 }
@@ -848,7 +876,7 @@ fn settings<'a>(app: &'a App, page: &str, st: &'a SettingsPage) -> El<'a> {
     for field in &src.add.fields {
         add = add.push(field_view(app, page, field, false));
     }
-    add = add.push(row![space::horizontal(), primary_button(&src.add_action, Some(page), app.pulse)]);
+    add = add.push(row![space::horizontal(), button_of(&src.add_action, Some(page), app.pulse)]);
     let mut c = column![column![
         section_title(&src.title),
         container(column![rows, divider(), container(add).padding(spacing::CARD_PADDING)])
@@ -936,9 +964,9 @@ impl fmt::Display for ChoiceItem {
     }
 }
 
-/// A field's value now: what was typed into the form, else the model's
+/// A field's value now: what was typed into the form (`values.<valueParam>`), else the model's
 pub fn field_value(app: &App, page: &str, field: &Field) -> Value {
-    app.forms.get(page).and_then(|v| v.get(&field.id)).cloned().unwrap_or_else(|| field.value.clone())
+    field.value_param.as_ref().and_then(|k| app.forms.get(page)?.get(k)).cloned().unwrap_or_else(|| field.value.clone())
 }
 
 /// One form field (api.md §10.3 Field). `store`: Settings – a change is stored at once (`set`); else the value goes
@@ -946,13 +974,16 @@ pub fn field_value(app: &App, page: &str, field: &Field) -> Value {
 pub fn field_view<'a>(app: &'a App, page: &str, field: &'a Field, store: bool) -> El<'a> {
     let value = field_value(app, page, field);
     let page_s = page.to_string();
+    // A form keeps only fields with a `valueParam` (the others are shown, not kept)
+    let kept = store || field.value_param.is_some();
+    let enabled = field.enabled && kept;
     let set = {
-        let (page, id) = (page_s.clone(), field.id.clone());
+        let (page, key) = (page_s.clone(), field.value_param.clone().unwrap_or_default());
         move |v: Value| -> Message {
             if store {
                 Message::Store(Box::new(field.clone()), v)
             } else {
-                Message::FormSet { page: page.clone(), field: id.clone(), value: v }
+                Message::FormSet { page: page.clone(), key: key.clone(), value: v }
             }
         }
     };
@@ -967,7 +998,7 @@ pub fn field_view<'a>(app: &'a App, page: &str, field: &'a Field, store: bool) -
             let t = toggler(on)
                 .size(16)
                 .style(style::switch)
-                .on_toggle_maybe(field.enabled.then_some(move |v: bool| set(json!(v))));
+                .on_toggle_maybe(enabled.then_some(move |v: bool| set(json!(v))));
             row![container(label).width(Length::Fill), t].align_y(Alignment::Center).into()
         }
         FieldKind::Text => {
@@ -981,7 +1012,7 @@ pub fn field_view<'a>(app: &'a App, page: &str, field: &'a Field, store: bool) -
                 .padding(spacing::M)
                 .size(text_size::CALLOUT)
                 .style(if field.error.is_some() { style::input_error } else { style::input });
-            if field.enabled {
+            if enabled {
                 if store {
                     let id = field.id.clone();
                     let submitted = current.clone();
@@ -996,8 +1027,7 @@ pub fn field_view<'a>(app: &'a App, page: &str, field: &'a Field, store: bool) -
                 }
             }
             let mut r = row![container(label).width(150), input].spacing(spacing::L).align_y(Alignment::Center);
-            if let Some(ask) = &field.ask {
-                let _ = ask;
+            if field.ask.is_some() && enabled {
                 r = r.push(choose_button(page, field));
             }
             r.into()
@@ -1006,8 +1036,8 @@ pub fn field_view<'a>(app: &'a App, page: &str, field: &'a Field, store: bool) -
             let n = value.as_i64().unwrap_or(0);
             let step = field.step.unwrap_or(1);
             let (min, max) = (field.min.unwrap_or(i64::MIN), field.max.unwrap_or(i64::MAX));
-            let minus = (field.enabled && n - step >= min).then(|| set(json!(n - step)));
-            let plus = (field.enabled && n + step <= max).then(|| set(json!(n + step)));
+            let minus = (enabled && n - step >= min).then(|| set(json!(n - step)));
+            let plus = (enabled && n + step <= max).then(|| set(json!(n + step)));
             row![
                 container(label).width(Length::Fill),
                 stepper_button("−", minus),
@@ -1044,7 +1074,7 @@ pub fn field_view<'a>(app: &'a App, page: &str, field: &'a Field, store: bool) -
             ]
             .spacing(spacing::L)
             .align_y(Alignment::Center);
-            if !value.is_null() && field.enabled {
+            if !value.is_null() && enabled {
                 let reset = field.help.as_ref().map(s).unwrap_or_else(|| "Default".into());
                 r = r.push(
                     button(caption(reset))
@@ -1053,7 +1083,7 @@ pub fn field_view<'a>(app: &'a App, page: &str, field: &'a Field, store: bool) -
                         .on_press(set(Value::Null)),
                 );
             }
-            if field.ask.is_some() && field.enabled {
+            if field.ask.is_some() && enabled {
                 r = r.push(choose_button(page, field));
             }
             r.into()
@@ -1150,6 +1180,8 @@ pub mod tests {
             "macBase" => "macBase",
             "settings" => "settings",
             "activity" => "activity",
+            "vm" => "vm",
+            "image" => "image",
             _ => return None,
         })
     }
@@ -1182,7 +1214,163 @@ pub mod tests {
             let _ = app.view(iced::window::Id::unique());
             drawn += 1;
         }
-        assert!(drawn >= 12, "{drawn}");
+        // home.linux, settings.linux and recipes.loading among them
+        assert!(drawn >= 18, "{drawn}");
+    }
+
+    #[test]
+    fn titles_come_from_the_models() {
+        for (file, v) in golden_files() {
+            let Some(page) = page_of(&file) else { continue };
+            let model = decode(page, v);
+            assert!(model.title().is_some_and(|t| !s(t).is_empty()), "{file}");
+        }
+        let home = decode("home", golden("home"));
+        assert_eq!(home.title().map(s).as_deref(), Some("omaflake"));
+        let vm: omaflake_core::api::views::vms::VmPage = golden("vm");
+        assert_eq!(s(&vm.title), vm.row.name);
+        let (app, _) = App::boot();
+        let mut app = app;
+        app.models.insert(page_ref("home", serde_json::json!({})).key(), home);
+        assert_eq!(app.title(iced::window::Id::unique()), "omaflake");
+        // A VM's page is drawn with its row
+        let mut app = app_with("vm", serde_json::json!({"name": vm.row.name}), Model::Vm(Box::new(vm)), true);
+        app.expanded.insert("vm:research".into());
+        let _ = app.view(iced::window::Id::unique());
+    }
+
+    #[test]
+    fn the_primary_action_is_the_models() {
+        let vms: VmsPage = golden("vms");
+        // A row without one (a VM that is starting) has no default action
+        let primaries: Vec<&str> =
+            vms.rows.iter().filter_map(|r| primary_of(&r.actions)).map(|a| a.id.as_str()).collect();
+        assert!(!primaries.is_empty());
+        assert!(primaries.iter().all(|id| matches!(*id, "terminal" | "startWindow" | "doctor")), "{primaries:?}");
+        // A build row's click is its `open`
+        let images: ImagesPage = golden("images");
+        let j = images.jobs.first().unwrap();
+        assert!(j.open.primary && primary_of(&j.actions).is_none());
+        // Build is the build page's primary; Cancel (while it runs) is not
+        let b: BuildPage = golden("build.failed");
+        assert_eq!(primary_of(&b.actions).map(|a| a.id.as_str()), Some("build"));
+        let b: BuildPage = golden("build");
+        assert!(primary_of(&b.actions).is_none());
+        let n: NewVmPage = golden("newVm");
+        assert_eq!(primary_of(&n.actions).map(|a| a.id.as_str()), Some("create"));
+        let st: SettingsPage = golden("settings");
+        assert!(st.sources.add_action.primary);
+        // The home header's short labels
+        let home: omaflake_core::api::views::home::HomePage = golden("home");
+        let short: Vec<String> = home.actions.iter().filter_map(|a| a.short_label.as_ref().map(s)).collect();
+        assert_eq!(short, ["Doctor", "Data Folder", "Quit"]);
+    }
+
+    #[test]
+    fn recipes_say_what_they_load_and_hide() {
+        let r: RecipesPage = golden("recipes.loading");
+        assert!(r.loading && r.loading_text.is_some());
+        assert!(r.lab_hidden && r.lab_hint.as_ref().and_then(|h| h.action.as_ref()).is_some());
+        let r: RecipesPage = golden("recipes");
+        assert_eq!(r.offered_title.is_some(), !r.offered.is_empty());
+    }
+
+    #[test]
+    fn mac_base_shows_the_ipsw_once_and_its_log() {
+        let m: MacBasePage = golden("macBase");
+        assert!(m.fields.iter().all(|f| f.id != "ipsw" && f.value_param.is_some()));
+        let model = Model::MacBase(Box::new(m.clone()));
+        let log = model.log().unwrap();
+        assert_eq!(log.job, m.log.as_ref().unwrap().job);
+        assert!(log.from <= log.lines);
+    }
+
+    #[test]
+    fn ui_field_sets_the_value_of_its_page() {
+        let m: MacBasePage = golden("macBase");
+        let mut app = app_with("macBase", serde_json::json!({}), Model::MacBase(Box::new(m.clone())), true);
+        let mut choose = omaflake_core::api::views::common::Action::field(
+            "chooseIpsw",
+            Text::new("Choose IPSW …"),
+            None,
+            "macBase",
+            serde_json::json!({}),
+            "ipsw",
+            "ipsw",
+        );
+        choose.params["value"] = serde_json::json!("/tmp/x.ipsw");
+        let _ = app.update(Message::Run(Box::new(choose), None));
+        assert_eq!(app.forms["macBase"]["ipsw"], serde_json::json!("/tmp/x.ipsw"));
+        assert_eq!(app.current().unwrap().params["values"]["ipsw"], serde_json::json!("/tmp/x.ipsw"));
+        // "Use Apple's": value null – back to the default
+        let apple = m.ipsw.actions.iter().find(|a| a.id == "useApple").cloned().unwrap_or_else(|| {
+            let mut a = omaflake_core::api::views::common::Action::field(
+                "useApple",
+                Text::new("Use Apple's"),
+                None,
+                "macBase",
+                serde_json::json!({}),
+                "ipsw",
+                "ipsw",
+            );
+            a.params["value"] = Value::Null;
+            a
+        });
+        assert_eq!(apple.params["page"], "macBase");
+        let _ = app.update(Message::Run(Box::new(apple), None));
+        assert!(!app.forms["macBase"].contains_key("ipsw"));
+        // Typed values are kept by valueParam
+        let user = m.fields.iter().find(|f| f.id == "user").unwrap();
+        let _ = app.update(Message::FormSet {
+            page: "macBase".into(),
+            key: user.value_param.clone().unwrap(),
+            value: serde_json::json!("guest"),
+        });
+        assert_eq!(field_value(&app, "macBase", user), serde_json::json!("guest"));
+    }
+
+    #[test]
+    fn guides_open_their_file_or_url() {
+        let d: DoctorPage = golden("doctor");
+        let guide = d
+            .sections
+            .iter()
+            .flat_map(|s| &s.items)
+            .flat_map(|i| &i.actions)
+            .find(|a| a.id == "guide")
+            .expect("a guide in the doctor");
+        let params = &guide.params["params"];
+        assert!(params["title"]["text"].is_string());
+        assert_eq!(crate::app::guide_target(params), "https://omaflake.dev/linux-builder/");
+        let bundled = serde_json::json!({"url": "https://omaflake.dev/linux-builder/", "path": "/x/linux-builder.md"});
+        assert_eq!(crate::app::guide_target(&bundled), "/x/linux-builder.md");
+    }
+
+    #[test]
+    fn a_refusal_reads_its_reason_as_text() {
+        let v: Value =
+            serde_json::from_slice(&std::fs::read(dir().join("../packages.inspect.invalid.json")).unwrap()).unwrap();
+        let answer = v.get("result").cloned().unwrap_or(v);
+        let why = crate::app::refusal("/x", &answer);
+        assert!(why.starts_with("/x: ") && !why.ends_with("not usable"), "{why}");
+        let import: omaflake_core::api::views::import::ImportPage = golden("import");
+        assert!(!s(&import.title).is_empty());
+    }
+
+    #[test]
+    fn activity_marks_are_forgotten_with_a_new_server() {
+        let a: Value = golden("activity");
+        let newest = a["entries"][0]["id"].as_u64().unwrap();
+        let (mut app, _) = App::boot();
+        app.seen_activity = newest + 100;
+        app.notified = Some(newest + 100);
+        let _ = app.update(Message::Core(crate::backend::Event::Notification(
+            "view.changed".into(),
+            serde_json::json!({"page": "activity", "params": {}, "model": a}),
+        )));
+        assert_eq!(app.seen_activity, 0);
+        assert!(app.unseen_activity());
+        assert_eq!(app.notified, Some(newest));
     }
 
     #[test]

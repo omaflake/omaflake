@@ -25,12 +25,18 @@ pub struct RecipesPage {
     pub catalogs_loaded: bool,
     /// They are being looked into now
     pub loading: bool,
+    /// What a UI says while `loading` ("Looking into the recipe sources …", next to a spinner)
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub loading_text: Option<Text>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub updates: Option<UpdatesSection>,
     /// The first start: omaflake ships no recipes – the official ones are suggested
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub suggestion: Option<Hint>,
     pub rows: Vec<RecipeRowView>,
+    /// The heading over `offered` (while there are offers)
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub offered_title: Option<Text>,
     /// Not installed, offered by a remote source
     pub offered: Vec<OfferedRow>,
     pub unreadable: Vec<Hint>,
@@ -38,6 +44,9 @@ pub struct RecipesPage {
     pub errors: Vec<Hint>,
     /// Lab recipes are left out (developer mode is off)
     pub lab_hidden: bool,
+    /// Said under the list while `labHidden`, with the way to Settings
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub lab_hint: Option<Hint>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -237,13 +246,16 @@ pub(crate) fn page(ctx: &Ctx, p: &RecipesParams) -> RecipesPage {
         None
     };
     let suggestion = ctx.available.as_ref().filter(|a| all.is_empty() && !a.suggested.is_empty()).map(|_| {
-        Hint::new("official", Text::new("Start with the official recipes?"), Tone::Accent).action(Action::call(
-            "installSuggested",
-            Text::new("Install suggested"),
-            Some("install"),
-            "recipes.installSuggested",
-            json!({}),
-        ))
+        Hint::new("official", Text::new("Start with the official recipes?"), Tone::Accent).action(
+            Action::call(
+                "installSuggested",
+                Text::new("Install suggested"),
+                Some("install"),
+                "recipes.installSuggested",
+                json!({}),
+            )
+            .primary(),
+        )
     });
     let errors = ctx
         .available
@@ -265,24 +277,37 @@ pub(crate) fn page(ctx: &Ctx, p: &RecipesParams) -> RecipesPage {
             h
         })
         .collect();
+    let lab_hidden = ctx.recipes.lab_hidden;
     RecipesPage {
         head,
         catalogs_loaded: ctx.available.is_some(),
         loading: ctx.fetching,
+        loading_text: ctx.fetching.then(|| Text::new("Looking into the recipe sources …")),
         updates: updates(ctx),
         suggestion,
         rows,
+        offered_title: (!offered.is_empty()).then(|| Text::new("More recipes in your sources")),
         offered,
         unreadable,
         errors,
-        lab_hidden: ctx.recipes.lab_hidden,
+        lab_hidden,
+        lab_hint: lab_hidden.then(|| {
+            Hint::new("lab", Text::new("Lab recipes are hidden – Developer Mode in Settings shows them."), Tone::Normal)
+                .action(Action::show("settings", Text::new("Settings"), Some("settings"), "settings", json!({})))
+        }),
     }
 }
 
-fn arch_badge(systems: &[String]) -> Badge {
+fn arch_badge(ctx: &Ctx, systems: &[String]) -> Badge {
     let arch: Vec<&str> = systems.iter().map(|s| s.split('-').next().unwrap_or(s)).collect();
-    Badge::new("arch", "arch", tf!("Not for this Mac – built for %@", systems.join(", ")), Tone::Warning)
-        .label(Text::verbatim(arch.join(", ")))
+    let key = ctx.on_host("Not for this Mac – built for %@", "Not for this computer – built for %@");
+    Badge::new("arch", "arch", tf!(key, systems.join(", ")), Tone::Warning).label(Text::verbatim(arch.join(", ")))
+}
+
+/// "Not for this Mac – it is built for …": why a recipe for another architecture cannot be built here
+pub(crate) fn not_here(ctx: &Ctx, systems: &[String]) -> Text {
+    let key = ctx.on_host("Not for this Mac – it is built for %@", "Not for this computer – it is built for %@");
+    tf!(key, systems.join(", "))
 }
 
 fn lab_badge() -> Badge {
@@ -310,25 +335,28 @@ pub(crate) fn row(ctx: &Ctx, r: &RecipeDto) -> RecipeRowView {
         badges.push(lab_badge());
     }
     if !r.runs_here {
-        badges.push(arch_badge(&r.systems));
+        badges.push(arch_badge(ctx, &r.systems));
     }
+    let reveal_label = ctx.on_host("Show in Finder", "Show in File Manager");
     let reveal = match &r.folder {
         Some(folder) => {
-            Action::call("reveal", Text::new("Show in Finder"), Some("folder"), "ui.reveal", json!({"path": folder}))
+            Action::call("reveal", Text::new(reveal_label), Some("folder"), "ui.reveal", json!({"path": folder}))
         }
-        None => Action::call("reveal", Text::new("Show in Finder"), Some("folder"), "ui.reveal", json!({}))
-            .disabled(Text::new("Show in Finder")),
+        None => Action::call("reveal", Text::new(reveal_label), Some("folder"), "ui.reveal", json!({}))
+            .disabled(Text::new(reveal_label)),
     };
     let blockers = ctx.build_blockers(r.kind);
     let build = if !r.runs_here {
         Action::show("build", Text::new("Build image"), Some("build"), "build", json!({"recipe": r.id}))
-            .disabled(tf!("Not for this Mac – it is built for %@", r.systems.join(", ")))
+            .disabled(not_here(ctx, &r.systems))
+            .primary()
     } else if !blockers.is_empty() {
         Action::doctor_warning(&blockers)
     } else {
         let label = if r.image.is_none() { "Build image" } else { "Build a new version of this image" };
         Action::show("build", Text::new(label), Some("build"), "build", json!({"recipe": r.id}))
             .enabled_if(!building, Some(Text::new("being built – see Images")))
+            .primary()
     };
     RecipeRowView {
         id: r.id.clone(),
@@ -503,7 +531,7 @@ fn offered_row(ctx: &Ctx, r: &CatalogRecipeDto) -> OfferedRow {
         badges.push(lab_badge());
     }
     if !r.runs_here {
-        badges.push(arch_badge(&r.systems));
+        badges.push(arch_badge(ctx, &r.systems));
     }
     let size: u64 = r.files.iter().map(|f| f.size).sum();
     let mut info = vec![
@@ -551,12 +579,16 @@ fn offered_row(ctx: &Ctx, r: &CatalogRecipeDto) -> OfferedRow {
             json!({"id": r.id, "source": r.source}),
         )
         .enabled_if(!installing, None)
-        .busy(installing)],
+        .busy(installing)
+        .primary()],
         detail: OfferedDetail {
             description: r.description.clone(),
             info,
             warning: (!official).then(|| {
-                Text::new("Not reviewed by the omaflake team – its Nix code runs on this Mac when you build it.")
+                Text::new(ctx.on_host(
+                    "Not reviewed by the omaflake team – its Nix code runs on this Mac when you build it.",
+                    "Not reviewed by the omaflake team – its Nix code runs on this computer when you build it.",
+                ))
             }),
         },
         recipe: r.clone(),
@@ -583,7 +615,8 @@ fn updates(ctx: &Ctx) -> Option<UpdatesSection> {
                 "recipes.install",
                 json!({"id": u.recipe.id, "source": u.recipe.source}),
             )
-            .enabled_if(!ctx.installing(&u.recipe.id), None),
+            .enabled_if(!ctx.installing(&u.recipe.id), None)
+            .primary(),
         })
         .collect();
     Some(UpdatesSection {

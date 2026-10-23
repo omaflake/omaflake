@@ -190,7 +190,8 @@ impl App {
     // MARK: Pages one level deeper
 
     fn page_frame<'a>(&'a self, page: &PageRef) -> El<'a> {
-        let title = pages::title(&page.page);
+        // The model's title; none while it has not come
+        let title = self.model(page).and_then(Model::title).map(s).unwrap_or_default();
         let back = widgets::icon_button("chevron-left", "Back".into(), Some(Message::Back), style::TEXT, false);
         let header = row![back, text(title).size(text_size::HEADLINE).font(style::bold())]
             .spacing(spacing::M)

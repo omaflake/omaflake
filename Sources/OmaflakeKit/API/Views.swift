@@ -172,6 +172,8 @@ public enum Then: String, OpenEnum { case reveal, terminal, back, unknown }
 public struct ViewAction: Decodable, Sendable, Equatable, Identifiable {
     public var id: String
     public var label: ViewText
+    /// What a narrow header or toolbar writes instead of `label`
+    public var shortLabel: ViewText?
     public var icon: String?
     public var method: String
     public var params: JSONValue
@@ -186,15 +188,19 @@ public struct ViewAction: Decodable, Sendable, Equatable, Identifiable {
     public var ask: [Ask]
     public var confirm: Confirm?
     public var then: Then?
+    /// The default action of its row or page (Enter, a double click, a click on a build row), drawn prominent
+    public var primary: Bool
 
     enum CodingKeys: String, CodingKey {
-        case id, label, icon, method, params, enabled, reason, help, destructive, on, busy, badge, ask, confirm, then
+        case id, label, shortLabel, icon, method, params, enabled, reason, help, destructive, on, busy, badge, ask, confirm,
+             then, primary
     }
 
     public init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         id = try c.decode(String.self, forKey: .id)
         label = try c.decode(ViewText.self, forKey: .label)
+        shortLabel = try c.decodeIfPresent(ViewText.self, forKey: .shortLabel)
         icon = try c.decodeIfPresent(String.self, forKey: .icon)
         method = try c.decode(String.self, forKey: .method)
         params = try c.decode(JSONValue.self, forKey: .params)
@@ -208,7 +214,13 @@ public struct ViewAction: Decodable, Sendable, Equatable, Identifiable {
         ask = try c.decode(.ask, or: [])
         confirm = try c.decodeIfPresent(Confirm.self, forKey: .confirm)
         then = try c.decodeIfPresent(Then.self, forKey: .then)
+        primary = try c.decode(.primary, or: false)
     }
+}
+
+extension Array where Element == ViewAction {
+    /// The row's or page's default action (`primary`), if it has one
+    public var primary: ViewAction? { first(where: \.primary) }
 }
 
 /// What the Doctor reports against an action, with the way to it
@@ -268,7 +280,8 @@ public struct ListHead: Decodable, Sendable, Equatable {
 
 public enum FieldKind: String, OpenEnum { case toggle, text, number, choice, path, info, unknown }
 
-/// A form field: on a form page its value goes into the page action's params at `param`; in Settings `set` stores it
+/// A form field: on a form page the UI keeps the user's value under `params.values.<valueParam>` of the page (and it
+/// lands in the page action's params at `param`); in Settings `set` stores it
 public struct Field: Decodable, Sendable, Equatable, Identifiable {
     public struct Setter: Decodable, Sendable, Equatable {
         public var method: String
@@ -290,11 +303,14 @@ public struct Field: Decodable, Sendable, Equatable, Identifiable {
     public var reason: ViewText?
     public var error: ViewText?
     public var param: String?
+    /// The key under the page's `params.values` the user's value is kept under; nil: not kept
+    public var valueParam: String?
     public var set: Setter?
     public var ask: Ask?
 
     enum CodingKeys: String, CodingKey {
-        case id, kind, label, value, help, placeholder, choices, min, max, step, enabled, reason, error, param, set, ask
+        case id, kind, label, value, help, placeholder, choices, min, max, step, enabled, reason, error, param, valueParam,
+             set, ask
     }
 
     public init(from decoder: Decoder) throws {
@@ -313,6 +329,7 @@ public struct Field: Decodable, Sendable, Equatable, Identifiable {
         reason = try c.decodeIfPresent(ViewText.self, forKey: .reason)
         error = try c.decodeIfPresent(ViewText.self, forKey: .error)
         param = try c.decodeIfPresent(String.self, forKey: .param)
+        valueParam = try c.decodeIfPresent(String.self, forKey: .valueParam)
         set = try c.decodeIfPresent(Setter.self, forKey: .set)
         ask = try c.decodeIfPresent(Ask.self, forKey: .ask)
     }
@@ -336,6 +353,8 @@ public struct HomePage: Decodable, Sendable, Equatable {
         public var help: ViewText
     }
 
+    /// The window's title ("omaflake", data)
+    public var title: ViewText
     public var actions: [ViewAction]
     public var tabs: [Tab]
     public var firstTab: String
@@ -375,7 +394,10 @@ public struct VmRow: Decodable, Sendable, Equatable, Identifiable {
     public var vm: Vm
 }
 
-public struct VmPage: Decodable, Sendable, Equatable { public var row: VmRow }
+public struct VmPage: Decodable, Sendable, Equatable {
+    public var title: ViewText
+    public var row: VmRow
+}
 
 public struct ImagesPage: Decodable, Sendable, Equatable {
     public var head: ListHead
@@ -425,7 +447,10 @@ public struct ImageRow: Decodable, Sendable, Equatable, Identifiable {
     public var image: VmImage
 }
 
-public struct ImagePage: Decodable, Sendable, Equatable { public var row: ImageRow }
+public struct ImagePage: Decodable, Sendable, Equatable {
+    public var title: ViewText
+    public var row: ImageRow
+}
 
 public struct RecipesPage: Decodable, Sendable, Equatable {
     public struct Updates: Decodable, Sendable, Equatable {
@@ -446,28 +471,40 @@ public struct RecipesPage: Decodable, Sendable, Equatable {
     public var head: ListHead
     public var catalogsLoaded: Bool
     public var loading: Bool
+    /// Drawn next to the spinner while `loading`
+    public var loadingText: ViewText?
     public var updates: Updates?
     public var suggestion: Hint?
     public var rows: [RecipeRow]
+    /// The heading over `offered`
+    public var offeredTitle: ViewText?
     public var offered: [OfferedRow]
     public var unreadable: [Hint]
     public var errors: [Hint]
     public var labHidden: Bool
+    /// While `labHidden`: the hint with the way to Settings
+    public var labHint: Hint?
 
-    enum CodingKeys: String, CodingKey { case catalogsLoaded, loading, updates, suggestion, rows, offered, unreadable, errors, labHidden }
+    enum CodingKeys: String, CodingKey {
+        case catalogsLoaded, loading, loadingText, updates, suggestion, rows, offeredTitle, offered, unreadable, errors,
+             labHidden, labHint
+    }
 
     public init(from decoder: Decoder) throws {
         head = try ListHead(from: decoder)
         let c = try decoder.container(keyedBy: CodingKeys.self)
         catalogsLoaded = try c.decode(Bool.self, forKey: .catalogsLoaded)
         loading = try c.decode(Bool.self, forKey: .loading)
+        loadingText = try c.decodeIfPresent(ViewText.self, forKey: .loadingText)
         updates = try c.decodeIfPresent(Updates.self, forKey: .updates)
         suggestion = try c.decodeIfPresent(Hint.self, forKey: .suggestion)
         rows = try c.decode([RecipeRow].self, forKey: .rows)
+        offeredTitle = try c.decodeIfPresent(ViewText.self, forKey: .offeredTitle)
         offered = try c.decode([OfferedRow].self, forKey: .offered)
         unreadable = try c.decode([Hint].self, forKey: .unreadable)
         errors = try c.decode([Hint].self, forKey: .errors)
         labHidden = try c.decode(Bool.self, forKey: .labHidden)
+        labHint = try c.decodeIfPresent(Hint.self, forKey: .labHint)
     }
 }
 
@@ -582,9 +619,11 @@ public struct BuildPage: Decodable, Sendable, Equatable {
     public var job: Job?
 }
 
-/// Where a job's log is (`jobs.log`, `job.log`)
+/// Where a job's log is: `jobs.log {id: job, from}` reads what is kept, then `job.log` brings new lines
 public struct LogRef: Decodable, Sendable, Equatable {
     public var job: String
+    /// The first line `jobs.log` keeps
+    public var from: Int
     public var lines: Int
     public var note: ViewText?
     public var file: String?
@@ -654,8 +693,8 @@ public struct MacBasePage: Decodable, Sendable, Equatable {
     public var fields: [Field]
     public var installing: Bool
     public var actions: [ViewAction]
-    /// The latest base creation's job (its log)
-    public var log: String?
+    /// The latest base creation's job log
+    public var log: LogRef?
 }
 
 public struct SettingsPage: Decodable, Sendable, Equatable {
@@ -731,6 +770,8 @@ public struct ActivityPage: Decodable, Sendable, Equatable {
 
 /// The import step (§10.4): run `action` (asking its `confirm`) or show `reason`
 public struct ImportPage: Decodable, Sendable, Equatable {
+    /// The dialog's title
+    public var title: ViewText
     public var path: String
     public var name: String
     public var kind: PackageInspection.Kind

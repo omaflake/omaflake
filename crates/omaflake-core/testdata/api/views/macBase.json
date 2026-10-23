@@ -23,7 +23,8 @@
       "params": {
         "fullName": "Alex Example",
         "user": "alex"
-      }
+      },
+      "primary": true
     }
   ],
   "base": {
@@ -50,7 +51,8 @@
         "text": "Guest user"
       },
       "param": "user",
-      "value": "alex"
+      "value": "alex",
+      "valueParam": "user"
     },
     {
       "enabled": true,
@@ -61,18 +63,8 @@
         "text": "Full name"
       },
       "param": "fullName",
-      "value": "Alex Example"
-    },
-    {
-      "enabled": true,
-      "id": "ipsw",
-      "kind": "path",
-      "label": {
-        "key": "macOS from Apple (IPSW)",
-        "text": "macOS from Apple (IPSW)"
-      },
-      "param": "ipsw",
-      "value": null
+      "value": "Alex Example",
+      "valueParam": "fullName"
     }
   ],
   "installing": false,
@@ -120,7 +112,29 @@
       "text": "/opt/homebrew/bin/qemu-system-aarch64"
     }
   },
-  "log": "j6",
+  "log": {
+    "file": "/data/logs/j6.log",
+    "from": 0,
+    "full": {
+      "enabled": true,
+      "help": {
+        "key": "Every line, also the routine ones left out above",
+        "text": "Every line, also the routine ones left out above"
+      },
+      "icon": "log",
+      "id": "fullLog",
+      "label": {
+        "key": "Full Log …",
+        "text": "Full Log …"
+      },
+      "method": "ui.open",
+      "params": {
+        "path": "/data/logs/j6.log"
+      }
+    },
+    "job": "j6",
+    "lines": 3
+  },
   "title": {
     "key": "Create macOS Base",
     "text": "Create macOS Base"

@@ -133,7 +133,9 @@ struct APIContractTests {
             },
             "packages.inspect.invalid": {
                 let i: PackageInspection = try load("packages.inspect.invalid")
-                #expect(i.kind == .image && !i.valid && i.reason != nil && i.conflict == nil && i.networkVolume)
+                #expect(i.kind == .image && !i.valid && i.conflict == nil && i.networkVolume)
+                // A text (today the core's English message, no key)
+                #expect(i.reason == ViewText(verbatim: "Not an image package (.omaflake-image)"))
             },
             "doctor.check": { try doctor("doctor.check") },
             "event.doctor.changed": { try doctor("event.doctor.changed") },

@@ -291,6 +291,10 @@ pub enum Then {
 pub struct Action {
     pub id: String,
     pub label: Text,
+    /// What a narrow header or toolbar writes instead of `label` ("Doctor" for "Doctor – requirements and preflight");
+    /// absent: `label`
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub short_label: Option<Text>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub icon: Option<String>,
     pub method: String,
@@ -320,6 +324,10 @@ pub struct Action {
     pub confirm: Option<Confirm>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub then: Option<Then>,
+    /// The default action of its row or page: what Enter, a double click or a click on a build row does, drawn as the
+    /// prominent button (at most one per row or page)
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub primary: bool,
 }
 
 impl Action {
@@ -328,6 +336,7 @@ impl Action {
         Action {
             id: id.into(),
             label,
+            short_label: None,
             icon: icon.map(str::to_string),
             method: method.into(),
             params,
@@ -341,6 +350,7 @@ impl Action {
             ask: Vec::new(),
             confirm: None,
             then: None,
+            primary: false,
         }
     }
 
@@ -349,10 +359,50 @@ impl Action {
         Action::call(id, label, icon, "ui.show", json!({"page": page, "params": params}))
     }
 
-    /// The Doctor's warning sign in place of an action it blocks
+    /// `ui.field`: set the form field `field` of the page `page` (with `params`, without its `values`) – its value goes
+    /// to `values.<value_param>`; `value` absent: the UI asks it (`ask`), `null`: back to the default
+    pub fn field(
+        id: &str,
+        label: Text,
+        icon: Option<&str>,
+        page: &str,
+        params: Value,
+        field: &str,
+        value_param: &str,
+    ) -> Action {
+        Action::call(
+            id,
+            label,
+            icon,
+            "ui.field",
+            json!({"page": page, "params": params, "field": field, "valueParam": value_param}),
+        )
+    }
+
+    /// `ui.show guide`: a guide of the docs – its page on omaflake.dev and, where the app bundles it, the file
+    pub fn guide(file: &str, permalink: &str, title: Text, bundled: Option<String>) -> Action {
+        let mut params = json!({"file": file, "url": format!("https://omaflake.dev/{permalink}/"), "title": title});
+        if let Some(path) = bundled {
+            params["path"] = json!(path);
+        }
+        Action::show("guide", Text::new("Guide"), Some("guide"), "guide", params)
+    }
+
+    /// The Doctor's warning sign in place of an action it blocks (the row's primary action: it is the way on)
     pub fn doctor_warning(blockers: &[PrerequisiteDto]) -> Action {
         Action::show("doctor", Text::new("Doctor"), Some("warning"), "doctor", json!({}))
             .help(tf!("Open the Doctor first: %@", blocker_titles(blockers)))
+            .primary()
+    }
+
+    pub fn primary(mut self) -> Action {
+        self.primary = true;
+        self
+    }
+
+    pub fn short(mut self, label: &str) -> Action {
+        self.short_label = Some(Text::new(label));
+        self
     }
 
     pub fn enabled_if(mut self, enabled: bool, reason: Option<Text>) -> Action {
@@ -645,6 +695,10 @@ pub struct Field {
     /// Where the value goes in the page action's params (dotted path)
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub param: Option<String>,
+    /// On a form page: the key in the page's `params.values` the UI keeps the user's value under (the page is asked
+    /// again with it)
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub value_param: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub set: Option<Setter>,
     /// Path fields: how to choose one
@@ -669,6 +723,7 @@ impl Field {
             reason: None,
             error: None,
             param: None,
+            value_param: None,
             set: None,
             ask: None,
         }
@@ -676,6 +731,12 @@ impl Field {
 
     pub fn param(mut self, p: &str) -> Field {
         self.param = Some(p.into());
+        self
+    }
+
+    /// A form field: the user's value is kept under `values.<key>` of the page's params
+    pub fn value_param(mut self, key: &str) -> Field {
+        self.value_param = Some(key.into());
         self
     }
 

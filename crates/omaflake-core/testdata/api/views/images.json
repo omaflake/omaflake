@@ -216,7 +216,8 @@
           "params": {
             "recipe": "omaflake.nixos.dev@velvet-tiger-orbit"
           }
-        }
+        },
+        "primary": true
       },
       "state": "running",
       "title": {
@@ -284,7 +285,8 @@
           "params": {
             "recipe": "omaflake.macos.dev@ocean-maple"
           }
-        }
+        },
+        "primary": true
       },
       "state": "queued",
       "title": {
@@ -337,7 +339,8 @@
           "params": {
             "page": "doctor",
             "params": {}
-          }
+          },
+          "primary": true
         }
       ],
       "badges": [],
@@ -612,7 +615,8 @@
             "params": {
               "image": "omaflake.macos.dev@stone-lamp"
             }
-          }
+          },
+          "primary": true
         }
       ],
       "badges": [],

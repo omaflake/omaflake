@@ -432,7 +432,8 @@
             "text": "GitHub repository, HTTPS URL or folder"
           },
           "param": "input",
-          "value": "acme/recipes"
+          "value": "acme/recipes",
+          "valueParam": "input"
         },
         {
           "enabled": true,
@@ -443,7 +444,8 @@
             "text": "Private repository"
           },
           "param": "private",
-          "value": true
+          "value": true,
+          "valueParam": "private"
         }
       ],
       "title": {
@@ -477,7 +479,8 @@
       "params": {
         "input": "acme/recipes",
         "private": true
-      }
+      },
+      "primary": true
     },
     "footer": {
       "key": "omaflake ships no recipes; it reads them from these sources. Recipes from other sources than omaflake/recipes are not reviewed by the omaflake team – their Nix code runs on this Mac when you build them.",

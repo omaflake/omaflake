@@ -49,6 +49,7 @@
   },
   "log": {
     "file": "/data/logs/j1.log",
+    "from": 0,
     "full": {
       "enabled": true,
       "help": {

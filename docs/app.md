@@ -118,7 +118,7 @@ while omaflake is not in front (menu window closed, app window hidden or in the 
   not sleep during downloads and builds. Linux builder row: "Clean Up …" (unused store paths) and "Apply Settings …"
   (`darwin-rebuild switch` with omaflake's builder host; warns first when this Mac's nix-darwin system is not
   omaflake's) – both ask through macOS' administrator dialog (spec §11.5), log in `<data>/logs/linux-builder.log`;
-  "Guide" opens the Linux builder guide (bundled, offline)
+  "Guide" opens the Linux builder guide (the file the core names, bundled and offline; without one its page on omaflake.dev)
 - What the Doctor reports blocks the actions it concerns: building images of a guest kind (macOS e.g. without a
   finished base, NixOS without an answering Linux builder) and starting NixOS VMs without QEMU. An orange warning sign
   appears on the Doctor icon and in place of the blocked action; it opens the Doctor, its tooltip names the reason.

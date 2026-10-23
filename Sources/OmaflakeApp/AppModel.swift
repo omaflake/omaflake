@@ -88,13 +88,10 @@ final class AppModel {
         formValues[last.page] = nil
     }
 
-    /// Titles of the pages the core has none for
-    static let guideTitle = String(localized: "Linux Builder Guide")
-
     // MARK: Forms (newVm, macBase, the new source in settings)
 
-    /// What the user put into a form page's fields so far, by page and field id – the page is asked with them
-    /// (`params.values`), so the core validates them and its action holds them
+    /// What the user put into a form page's fields so far, by page and the fields' `valueParam` – the page is asked
+    /// with them (`params.values`), so the core validates them and its action holds them
     private(set) var formValues: [String: [String: JSONValue]] = [:]
     private var resubscribe: Task<Void, Never>?
 
@@ -106,12 +103,20 @@ final class AppModel {
         return PageRef(ref.page, params)
     }
 
-    func formValue(_ page: String, _ field: String) -> JSONValue? { formValues[page]?[field] }
+    /// The user's value of a form field (nil: the page's); a field without `valueParam` keeps none
+    func formValue(_ page: String, _ field: Field) -> JSONValue? {
+        field.valueParam.flatMap { formValues[page]?[$0] }
+    }
 
-    /// A field's new value (nil: back to the page's default); typed text is sent after a moment
-    func setFormValue(_ page: String, _ field: String, _ value: JSONValue?, typing: Bool = false) {
+    func setFormValue(_ page: String, _ field: Field, _ value: JSONValue?, typing: Bool = false) {
+        guard let key = field.valueParam else { return }
+        setFormValue(page, key: key, value, typing: typing)
+    }
+
+    /// `values.<key>` of a form page (nil: back to the page's default); typed text is sent after a moment
+    func setFormValue(_ page: String, key: String, _ value: JSONValue?, typing: Bool = false) {
         var values = formValues[page] ?? [:]
-        values[field] = value
+        values[key] = value
         formValues[page] = values
         resubscribe?.cancel()
         resubscribe = Task {
@@ -147,9 +152,14 @@ final class AppModel {
 
     // MARK: Activity, footer, notifications
 
+    // Unseen activity is the app's own (docs/api.md §10.6): entry ids are stable and rise; the app remembers the highest
+    // id it has shown (on the activity tab; what was there when it connected counts as shown) and entries above it are
+    // unseen. A new server starts its ids at 1 again: when the newest id in the list is lower than the remembered one,
+    // the mark is forgotten.
+
     /// The newest activity entry this app has announced (footer, notification); nil before the first list
     private var announced: Int?
-    /// The newest entry seen on the activity tab
+    /// The highest entry id shown on the activity tab
     private var seen = 0
     var unseenActivity: Bool { (activity?.entries.first?.id ?? 0) > seen }
 
@@ -177,6 +187,11 @@ final class AppModel {
     /// New activity entries: in the footer, and as a system notification where the core words one
     private func announce(_ a: ActivityPage) {
         let newest = a.entries.first?.id ?? 0
+        if newest < max(announced ?? 0, seen) {
+            // A new server: its ids start again – forget the marks
+            if announced != nil { announced = 0 }
+            seen = 0
+        }
         defer {
             announced = max(announced ?? 0, newest)
             markActivitySeen()
@@ -197,21 +212,23 @@ final class AppModel {
     /// Log lines of jobs (`job.log`), at most 5000 per job
     private(set) var jobLogs: [String: [String]] = [:]
 
-    func log(_ job: String, lines: Int) -> [String] {
-        if jobLogs[job] == nil, lines > 0 { loadLog(job) }
-        return jobLogs[job] ?? []
+    /// A job's log as its page names it: `jobs.log {id, from}` once, then the `job.log` events
+    func log(_ ref: LogRef) -> [String] {
+        if jobLogs[ref.job] == nil, ref.lines > 0 { loadLog(ref) }
+        return jobLogs[ref.job] ?? []
     }
 
     private var loadingLogs: Set<String> = []
 
-    private func loadLog(_ job: String) {
-        guard !loadingLogs.contains(job) else { return }
-        loadingLogs.insert(job)
+    private func loadLog(_ ref: LogRef) {
+        guard !loadingLogs.contains(ref.job) else { return }
+        loadingLogs.insert(ref.job)
         Task {
-            if let log: JobLog = try? await client.call("jobs.log", ["id": job]) {
-                jobLogs[job] = Array(log.lines.suffix(5000))
+            struct Params: Encodable, Sendable { let id: String; let from: Int }
+            if let log: JobLog = try? await client.call("jobs.log", Params(id: ref.job, from: ref.from)) {
+                jobLogs[ref.job] = Array(log.lines.suffix(5000))
             }
-            loadingLogs.remove(job)
+            loadingLogs.remove(ref.job)
         }
     }
 
@@ -374,7 +391,7 @@ final class AppModel {
         guard let values = formValues[form.page], !values.isEmpty else { return params }
         var p = params
         for field in fields(of: form) {
-            if let param = field.param, let value = values[field.id] { p.set(value, at: param) }
+            if let param = field.param, let key = field.valueParam, let value = values[key] { p.set(value, at: param) }
         }
         return p
     }
@@ -433,7 +450,13 @@ final class AppModel {
         switch method {
         case "ui.show":
             guard let page = params["page"]?.string else { return }
-            show(PageRef(page, params["params"] ?? .object([:])))
+            let pageParams = params["params"] ?? .object([:])
+            // A guide the app cannot show itself (no file of it here) opens on omaflake.dev
+            if page == "guide", GuideView.source(pageParams) == nil {
+                if let url = pageParams["url"]?.string.flatMap(URL.init(string:)) { NSWorkspace.shared.open(url) }
+                return
+            }
+            show(PageRef(page, pageParams))
         case "ui.back":
             back()
         case "ui.step":
@@ -444,9 +467,11 @@ final class AppModel {
             if case .object(let f)? = params["filter"] { filters[tab] = f } else { filters[tab] = nil }
             subscribe()
         case "ui.field":
-            guard let field = params["field"]?.string, let page = path.last?.page else { return }
-            let value = params["value"]
-            setFormValue(page, field, value == nil || value == .null ? nil : value)
+            // `values.<valueParam>` of the page it names; `value: null` = back to the default (an asked value is in
+            // `value` already)
+            guard let page = params["page"]?.string, let key = params["valueParam"]?.string,
+                  let value = params["value"] else { return }
+            setFormValue(page, key: key, value.isNull ? nil : value)
         case "ui.reveal":
             if let path = params["path"]?.string { reveal(path) }
         case "ui.open":
@@ -527,7 +552,7 @@ final class AppModel {
         guard let ask = field.ask else { return }
         Task {
             guard let value = await askFor(ask)?.first else { return }
-            setFormValue(page, field.id, value)
+            setFormValue(page, field, value)
         }
     }
 
@@ -751,8 +776,15 @@ final class PathChecker: NSObject, NSOpenSavePanelDelegate {
         }
         if answer["valid"] == .bool(false) {
             throw NSError(domain: "app.omaflake", code: 1, userInfo: [
-                NSLocalizedDescriptionKey: answer["reason"]?.string ?? String(localized: "Not an omaflake package"),
+                NSLocalizedDescriptionKey: reason(answer["reason"]) ?? String(localized: "Not an omaflake package"),
             ])
         }
+    }
+
+    /// The refusal's `reason`, a text of the views, in the app's language
+    private func reason(_ value: JSONValue?) -> String? {
+        guard let value, let data = try? JSONEncoder.api.encode(value),
+              let text = try? JSONDecoder.api.decode(ViewText.self, from: data) else { return nil }
+        return renderer.render(text)
     }
 }

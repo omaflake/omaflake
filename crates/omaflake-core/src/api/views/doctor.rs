@@ -4,7 +4,7 @@
 //! creates the macOS base (`macBase`, the app's `MacBaseView`).
 
 use serde::{Deserialize, Serialize};
-use serde_json::json;
+use serde_json::{json, Value};
 
 use super::common::*;
 use super::text::{tf, Arg, Text};
@@ -235,13 +235,7 @@ fn item(ctx: &Ctx, p: &PrerequisiteDto) -> DoctorItem {
         ));
     }
     if matches!(p.item, I::LinuxBuilder | I::BuilderRunning) {
-        actions.push(Action::show(
-            "guide",
-            Text::new("Guide"),
-            Some("guide"),
-            "guide",
-            json!({"file": "linux-builder"}),
-        ));
+        actions.push(ctx.guide("linux-builder", "linux-builder", "Linux Builder Guide"));
     }
     if p.settable_path {
         let (kind, prompt) = match p.item {
@@ -316,7 +310,10 @@ pub(crate) fn page(ctx: &Ctx) -> DoctorPage {
         title: Text::new("Doctor"),
         versions: vec![InfoLine::new("Core", Text::verbatim(&ctx.omaf_version))],
         update: update_line(ctx),
-        intro: Text::new("omaflake uses what your Mac already has. Set up missing parts here or enter their path."),
+        intro: Text::new(ctx.on_host(
+            "omaflake uses what your Mac already has. Set up missing parts here or enter their path.",
+            "omaflake uses what this computer already has. Set up missing parts here or enter their path.",
+        )),
         checking: ctx.checking,
         checked: report.map(|d| d.checked),
         actions: vec![Action::call("check", Text::new("Check Again"), Some("refresh"), "doctor.check", json!({}))
@@ -384,15 +381,17 @@ pub struct MacBasePage {
     /// The base as the Doctor sees it: ready (success) or unfinished (warning)
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub base: Option<Hint>,
-    /// "macOS from Apple (IPSW)": the file chosen or Apple's, the download
+    /// "macOS from Apple (IPSW)": the file chosen or Apple's, the download – the IPSW's only place on the page (its
+    /// actions set `values.ipsw` with `ui.field`)
     pub ipsw: IpswLine,
+    /// The guest user and its full name
     pub fields: Vec<Field>,
     pub installing: bool,
     /// Create Base (asks the password twice)
     pub actions: Vec<Action>,
-    /// The latest base creation's log (`jobs.log`)
+    /// The latest base creation's log (its job, as the build page's)
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub log: Option<String>,
+    pub log: Option<super::build::LogRef>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -453,21 +452,20 @@ pub(crate) fn mac_base_page(ctx: &Ctx, p: &MacBaseParams) -> MacBasePage {
         )),
         None => {
             if ipsw.is_some() {
-                ipsw_actions.push(Action::call(
-                    "useApple",
-                    Text::new("Use Apple's"),
-                    None,
-                    "ui.field",
-                    json!({"field": "ipsw", "value": null}),
-                ));
+                let mut apple =
+                    Action::field("useApple", Text::new("Use Apple's"), None, "macBase", json!({}), "ipsw", "ipsw");
+                apple.params["value"] = Value::Null;
+                ipsw_actions.push(apple);
             }
             ipsw_actions.push(
-                Action::call(
+                Action::field(
                     "chooseIpsw",
                     Text::new("Choose IPSW …"),
                     Some("folder"),
-                    "ui.field",
-                    json!({"field": "ipsw"}),
+                    "macBase",
+                    json!({}),
+                    "ipsw",
+                    "ipsw",
                 )
                 .ask({
                     let mut a = Ask::new("value", AskKind::File, Text::new("Choose IPSW …"))
@@ -486,11 +484,12 @@ pub(crate) fn mac_base_page(ctx: &Ctx, p: &MacBaseParams) -> MacBasePage {
     let fields = vec![
         Field::new("user", FieldKind::Text, Text::new("Guest user"), json!(user))
             .param("user")
+            .value_param("user")
             .enabled_if(!installing, None),
         Field::new("fullName", FieldKind::Text, Text::new("Full name"), json!(full_name))
             .param("fullName")
+            .value_param("fullName")
             .enabled_if(!installing, None),
-        Field::new("ipsw", FieldKind::Path, Text::new("macOS from Apple (IPSW)"), json!(ipsw)).param("ipsw"),
     ];
     let mut params = json!({"user": user, "fullName": full_name});
     if let Some(i) = &ipsw {
@@ -503,7 +502,8 @@ pub(crate) fn mac_base_page(ctx: &Ctx, p: &MacBaseParams) -> MacBasePage {
         .enabled_if(!installing, Some(Text::new("running …")))
         .enabled_if(downloading.is_none(), None)
         .enabled_if(!user.is_empty(), Some(Text::new("Guest user")))
-        .enabled_if(base_item.is_none_or(|b| b.status != S::Ok), base_item.map(|b| Text::verbatim(&b.detail)));
+        .enabled_if(base_item.is_none_or(|b| b.status != S::Ok), base_item.map(|b| Text::verbatim(&b.detail)))
+        .primary();
     MacBasePage {
         title: Text::new("Create macOS Base"),
         intro: Text::new("Creates your macOS base from the IPSW: your guest user, automatic login, SSH with your keys from ~/.ssh. No manual steps; a missing IPSW is downloaded first."),
@@ -517,6 +517,6 @@ pub(crate) fn mac_base_page(ctx: &Ctx, p: &MacBaseParams) -> MacBasePage {
         fields,
         installing,
         actions: vec![create],
-        log: ctx.jobs.iter().rev().find(|j| j.kind == JobKind::MacosInstall).map(|j| j.id.clone()),
+        log: ctx.jobs.iter().rev().find(|j| j.kind == JobKind::MacosInstall).map(super::build::log_ref),
     }
 }

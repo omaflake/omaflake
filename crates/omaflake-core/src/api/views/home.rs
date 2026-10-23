@@ -14,6 +14,8 @@ use crate::models::VmStatus;
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct HomePage {
+    /// "omaflake" – the window's title
+    pub title: Text,
     /// Doctor (with its issue count), Settings, the data folder, Quit
     pub actions: Vec<Action>,
     pub tabs: Vec<Tab>,
@@ -48,7 +50,7 @@ pub struct TabBadge {
 pub(crate) fn page(ctx: &Ctx) -> HomePage {
     let running: Vec<&str> =
         ctx.vms.iter().filter(|v| v.status == VmStatus::Running).map(|v| v.name.as_str()).collect();
-    let mut quit = Action::call("quit", Text::new("Quit omaflake"), Some("quit"), "ui.quit", json!({}));
+    let mut quit = Action::call("quit", Text::new("Quit omaflake"), Some("quit"), "ui.quit", json!({})).short("Quit");
     if !running.is_empty() {
         quit = quit.confirm(
             Confirm::new(
@@ -63,18 +65,20 @@ pub(crate) fn page(ctx: &Ctx) -> HomePage {
     }
     let issues = ctx.doctor.as_ref().map(|d| d.issues).unwrap_or(0);
     let mut doctor =
-        Action::show("doctor", Text::new("Doctor – requirements and preflight"), Some("doctor"), "doctor", json!({}));
+        Action::show("doctor", Text::new("Doctor – requirements and preflight"), Some("doctor"), "doctor", json!({}))
+            .short("Doctor");
     doctor.badge = (issues > 0).then_some(issues);
     let actions = vec![
         doctor,
         Action::show("settings", Text::new("Settings"), Some("settings"), "settings", json!({})),
         Action::call(
             "dataFolder",
-            Text::new("Show Data Folder in Finder"),
+            Text::new(ctx.on_host("Show Data Folder in Finder", "Show Data Folder")),
             Some("folder"),
             "ui.open",
             json!({"path": ctx.settings.data_folder}),
-        ),
+        )
+        .short("Data Folder"),
         quit,
     ];
     let builds: Vec<_> = ctx.builds().collect();
@@ -117,5 +121,10 @@ pub(crate) fn page(ctx: &Ctx) -> HomePage {
         },
         Tab { id: "activity".into(), label: Text::new("Activity"), icon: "activity".into(), badge: None },
     ];
-    HomePage { actions, tabs, first_tab: if ctx.vms.is_empty() { "recipes".into() } else { "vms".into() } }
+    HomePage {
+        title: Text::verbatim("omaflake"),
+        actions,
+        tabs,
+        first_tab: if ctx.vms.is_empty() { "recipes".into() } else { "vms".into() },
+    }
 }

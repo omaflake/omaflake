@@ -46,6 +46,10 @@ are collected under *Unreleased*. Releases: [GitHub](https://github.com/omaflake
 
 ### Changed
 
+- **Linux wording.** On Linux the Linux app and `omaf ui` no longer speak of the Mac, Finder or the Keychain: "Show
+  Data Folder", "Show in File Manager", "Share a folder with the VM", "Like this computer", "this computer" in the
+  Doctor and Settings, the keyring for tokens. The recipes tab says when it looks into the sources and when lab recipes
+  are hidden, with a heading over the recipes your sources offer.
 - **The menu bar app is a client of omaflake's new Rust core**: it starts `omaf serve` (bundled next to the app) and
   gets VMs, images, recipes, builds and the Doctor's checks from it (docs/api.md); it no longer reads the data folder
   every 2 s itself. Everything you see and do in the app stays the same.

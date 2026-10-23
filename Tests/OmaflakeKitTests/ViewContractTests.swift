@@ -27,6 +27,15 @@ extension APIContractTests {
                 #expect(h.actions[3].confirm?.text.args == [.string("research")] && h.firstTab == "vms")
                 #expect(h.tabs.map(\.id) == ["vms", "images", "recipes", "activity"] && h.tabs[0].badge?.count == 1)
                 #expect(h.tabs[1].badge?.kind == "working" && h.tabs[2].badge?.tone == .warning && h.tabs[3].badge == nil)
+                // The window's title is data; the header's short labels
+                #expect(h.title == ViewText(verbatim: "omaflake"))
+                #expect(h.actions.map { $0.shortLabel?.key } == ["Doctor", nil, "Data Folder", "Quit"])
+                #expect(h.actions[2].label.key == "Show Data Folder in Finder" && !h.actions.contains { $0.primary })
+            },
+            "home.linux": {
+                // Host wording is the core's: the host-neutral variant on Linux
+                guard case .home(let h) = try page("home.linux", as: "home") else { throw Unexpected() }
+                #expect(h.actions[2].label.key == "Show Data Folder" && h.actions[2].shortLabel?.key == "Data Folder")
             },
             "vms": {
                 guard case .vms(let p) = try page("vms", as: "vms") else { throw Unexpected() }
@@ -35,6 +44,8 @@ extension APIContractTests {
                 #expect(p.head.actions[0].ask.first?.check?.method == "packages.inspect" && p.head.actions[1].ask.first?.multiple == false)
                 let r = try #require(p.rows.first)
                 #expect(r.lamp.state == .on && r.actions.map(\.id) == ["showShare", "terminal", "stop"])
+                // The running VM's default is its terminal; the other row has none
+                #expect(r.actions.primary?.id == "terminal" && p.rows.last?.actions.primary == nil)
                 #expect(r.actions[1].then == .terminal && r.actions[2].destructive && r.vm.name == "research")
                 #expect(r.detail.switches.first?.on == true && r.detail.switchesNote != nil)
                 #expect(r.detail.actions.allSatisfy { !$0.enabled && $0.reason?.key == "Shut the VM down first" })
@@ -49,7 +60,7 @@ extension APIContractTests {
             },
             "vm": {
                 guard case .vm(let p) = try page("vm", as: "vm") else { throw Unexpected() }
-                #expect(p.row.name == "research")
+                #expect(p.row.name == "research" && p.title == ViewText(verbatim: "research"))
             },
             "event.view.changed": {
                 let params = try viewObject("event.view.changed")
@@ -63,14 +74,16 @@ extension APIContractTests {
                 #expect(p.head.count == 2 && !p.jobs.isEmpty && p.rows.count == 2)
                 let job = try #require(p.jobs.first)
                 #expect(job.state == .running && job.fraction != nil && job.actions.first?.method == "jobs.cancel")
-                #expect(job.open.method == "ui.show" && job.open.params["page"] == .string("build"))
+                #expect(job.open.method == "ui.show" && job.open.params["page"] == .string("build") && job.open.primary)
                 let row = try #require(p.rows.first)
                 #expect(row.actions.map(\.id) == ["reveal", "newVm"] || row.actions.map(\.id) == ["reveal", "doctor"])
+                #expect(p.rows.map { $0.actions.primary?.id } == ["doctor", "newVm"])
                 #expect(row.detail.actions.map(\.id) == ["export", "remove"])
             },
             "image": {
                 guard case .image(let p) = try page("image", as: "image") else { throw Unexpected() }
                 #expect(p.row.name == "omaflake.macos.dev@stone-lamp" && p.row.image.kind == .macos)
+                #expect(p.title == ViewText(verbatim: p.row.name))
             },
             "recipes": {
                 guard case .recipes(let p) = try page("recipes", as: "recipes") else { throw Unexpected() }
@@ -81,6 +94,16 @@ extension APIContractTests {
                 #expect(r.lamp.state == .working || r.lamp.state == .attention)
                 #expect(!r.detail.versions.isEmpty && r.detail.versions[0].actions.map(\.id) == ["export", "remove"])
                 #expect(p.head.filter?.groups.contains { $0.kind == .toggle && $0.id == "otherSystems" } == true)
+                #expect(p.offeredTitle?.key == "More recipes in your sources" && p.loadingText == nil && p.labHint == nil)
+                #expect(p.offered.allSatisfy { $0.actions.primary?.id == "install" })
+                #expect(p.rows.map { $0.actions.primary?.id } == ["doctor", "build"])
+                #expect(p.updates?.rows.allSatisfy(\.action.primary) == true)
+            },
+            "recipes.loading": {
+                guard case .recipes(let p) = try page("recipes.loading", as: "recipes") else { throw Unexpected() }
+                #expect(p.loading && p.loadingText?.key == "Looking into the recipe sources …")
+                #expect(p.labHidden && p.labHint?.action?.params["page"] == .string("settings") && p.labHint?.icon == "lab")
+                #expect(p.head.actions.first { $0.id == "refresh" }?.busy == true)
             },
             "newVm": {
                 guard case .newVm(let p) = try page("newVm", as: "newVm") else { throw Unexpected() }
@@ -90,22 +113,29 @@ extension APIContractTests {
                 #expect(cpus.kind == .number && cpus.min == 1 && cpus.max == 10 && cpus.label.args == [.int(4)])
                 #expect(cpus.param == "settings.cpus" && p.actions[1].then == .back && p.actions[1].method == "vms.create")
                 #expect(fields.first { $0.id == "network" }?.choices.count == 3)
+                // Form values are kept by `valueParam`; create is the page's primary, cancel not
+                #expect(cpus.valueParam == "cpus" && fields.first { $0.id == "sharePath" }?.valueParam == "sharePath")
+                #expect(fields.allSatisfy { $0.kind == .info || $0.valueParam != nil })
+                #expect(p.actions.map(\.primary) == [false, true])
             },
             "newVm.macos": {
                 guard case .newVm(let p) = try page("newVm.macos", as: "newVm") else { throw Unexpected() }
                 let fields = p.sections.flatMap(\.fields)
                 #expect(!p.valid && fields.first { $0.id == "name" }?.error != nil && fields.first { $0.id == "diskGB" }?.kind == .info)
                 #expect(fields.first { $0.id == "network" }?.choices.count == 2 && !p.actions[1].enabled)
+                #expect(fields.first { $0.id == "diskGB" }?.valueParam == nil && p.actions[1].primary)
             },
             "build": {
                 guard case .build(let p) = try page("build", as: "build") else { throw Unexpected() }
                 #expect(p.state == .running && p.progress?.quietWarning == 120 && p.actions.map(\.id) == ["cancel"])
-                #expect(p.log?.job == p.job?.id && p.log?.full?.method == "ui.open")
+                #expect(p.log?.job == p.job?.id && p.log?.full?.method == "ui.open" && p.log?.from == 0)
+                // Cancel is not the page's default
+                #expect(p.actions.primary == nil)
             },
             "build.failed": {
                 guard case .build(let p) = try page("build.failed", as: "build") else { throw Unexpected() }
                 #expect(p.state == .failed && p.outcome?.tone == .danger && p.outcome?.detail?.text == "nix build failed")
-                #expect(p.actions.first?.id == "build")
+                #expect(p.actions.first?.id == "build" && p.actions.primary?.id == "build")
             },
             "build.macos": {
                 guard case .build(let p) = try page("build.macos", as: "build") else { throw Unexpected() }
@@ -117,20 +147,43 @@ extension APIContractTests {
                 #expect(p.versions.first?.label.key == "Core" && p.actions.first?.method == "doctor.check")
                 let nix = try #require(p.sections[0].items.first { $0.item == .nix })
                 #expect(nix.status == .ok && !nix.expanded && nix.actions.map(\.id) == ["install", "setPath"])
+                // The guide: its title, its page on omaflake.dev; no `path` outside omaflake.app
+                let guide = try #require(p.sections.flatMap(\.items).flatMap(\.actions).first { $0.params["page"] == .string("guide") })
+                #expect(guide.params["params"]?["url"] == .string("https://omaflake.dev/linux-builder/"))
+                #expect(guide.params["params"]?["title"]?["key"] == .string("Linux Builder Guide"))
+                #expect(guide.params["params"]?["file"] == .string("linux-builder") && guide.params["params"]?["path"] == nil)
             },
             "macBase": {
                 guard case .macBase(let p) = try page("macBase", as: "macBase") else { throw Unexpected() }
-                #expect(p.fields.map(\.id) == ["user", "fullName", "ipsw"] && p.actions.first?.ask.first?.repeat == true)
+                // The IPSW is shown once: in `ipsw`, not among the fields
+                #expect(p.fields.map(\.id) == ["user", "fullName"] && p.actions.first?.ask.first?.repeat == true)
+                #expect(p.fields.map(\.valueParam) == ["user", "fullName"] && p.actions.primary?.id == "create")
                 #expect(p.base?.tone == .warning && p.ipsw.download != nil && p.ipsw.actions.map(\.method) == ["jobs.cancel"])
+                // The log as the build page's: the base creation's real job
+                #expect(p.log?.job == "j6" && p.log?.from == 0 && p.log?.lines == 3 && p.log?.full?.method == "ui.open")
+            },
+            "macBase.ipsw": {
+                // A chosen IPSW: its line names it; both actions set values.ipsw of this page
+                guard case .macBase(let p) = try page("macBase.ipsw", as: "macBase") else { throw Unexpected() }
+                #expect(p.ipsw.text.text == "UniversalMac.ipsw" && p.ipsw.actions.map(\.id) == ["useApple", "chooseIpsw"])
+                #expect(p.ipsw.actions.allSatisfy { $0.method == "ui.field" && $0.params["page"] == .string("macBase") && $0.params["valueParam"] == .string("ipsw") })
+                #expect(p.ipsw.actions[0].params["value"] == .null && p.actions.first?.params["ipsw"] == .string("/Volumes/Disk/UniversalMac.ipsw"))
             },
             "settings": {
                 guard case .settings(let p) = try page("settings", as: "settings") else { throw Unexpected() }
                 #expect(p.sources.rows.count == 2 && p.sources.add.fields.map(\.id) == ["input", "private"])
+                #expect(p.sources.add.fields.map(\.valueParam) == ["input", "private"] && p.sources.addAction.primary)
+                #expect(p.general.fields.allSatisfy { $0.valueParam == nil })
                 #expect(p.sources.addAction.ask.first?.kind == .password && p.sources.rows[0].actions[1].on != nil)
                 #expect(p.general.fields.allSatisfy { $0.set?.method == "settings.set" })
                 #expect(p.guest.fields.first { $0.id == "locale" }?.choices.first?.value == .null)
                 #expect(p.dataFolder.actions.map(\.id) == ["default", "move"])
                 #expect(p.dataFolder.actions[1].confirm?.title.args == [.param("target")])
+                #expect(p.guest.fields.first { $0.id == "locale" }?.choices.first?.label.key == "Like this Mac – %@")
+            },
+            "settings.linux": {
+                guard case .settings(let p) = try page("settings.linux", as: "settings") else { throw Unexpected() }
+                #expect(p.guest.fields.first { $0.id == "locale" }?.choices.first?.label.key == "Like this computer – %@")
             },
             "activity": {
                 guard case .activity(let p) = try page("activity", as: "activity") else { throw Unexpected() }
@@ -140,6 +193,7 @@ extension APIContractTests {
             "import": {
                 guard case .importStep(let p) = try page("import", as: "import") else { throw Unexpected() }
                 #expect(p.valid && p.kind == .vm && p.action?.confirm?.input?.default == "research-2")
+                #expect(p.title.key == "Import" && p.action?.primary == true && p.inspection.reason == nil)
             },
             "views.get.params": {
                 let ref = PageRef("newVm", .object([

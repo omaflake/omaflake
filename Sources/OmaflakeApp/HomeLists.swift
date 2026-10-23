@@ -26,9 +26,23 @@ struct HomeList: View {
             section(p.head) {
                 if let updates = p.updates { RecipeUpdatesView(updates: updates, model: model) }
                 if let suggestion = p.suggestion { HintRow(hint: suggestion, model: model) }
+                if p.loading, let text = p.loadingText {
+                    HStack(spacing: BrandTokens.Spacing.l) {
+                        ProgressView().controlSize(.small)
+                        Text(verbatim: model.t(text)).font(.callout).foregroundStyle(.secondary)
+                        Spacer()
+                    }
+                    .padding(BrandTokens.Spacing.cardPadding)
+                }
                 ForEach(p.rows) { RecipeRowView(row: $0, model: model) }
+                if let title = p.offeredTitle, !p.offered.isEmpty {
+                    Text(verbatim: model.t(title)).font(.caption.weight(.medium)).foregroundStyle(.secondary)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.horizontal, BrandTokens.Spacing.xl).padding(.top, BrandTokens.Spacing.l)
+                }
                 ForEach(p.offered) { OfferedRowView(row: $0, model: model) }
                 ForEach(Array((p.unreadable + p.errors).enumerated()), id: \.offset) { HintRow(hint: $1, model: model) }
+                if p.labHidden, let hint = p.labHint { HintRow(hint: hint, model: model) }
             }
             .onAppear {
                 // The remote catalogs are looked into when the tab opens, never in the background
@@ -146,10 +160,12 @@ struct DetailActions: View {
 
 // MARK: - Images
 
-/// A build that waits, runs or failed: its state, progress; a click opens the build page
+/// A build that waits, runs or failed: its state, progress; a click runs its primary action (`open`: the build page)
 struct BuildJobRowView: View {
     let row: BuildJobRow
     let model: AppModel
+
+    private var primary: ViewAction? { row.open.primary ? row.open : row.actions.primary }
 
     var body: some View {
         HStack(spacing: BrandTokens.Spacing.l) {
@@ -184,8 +200,8 @@ struct BuildJobRowView: View {
         }
         .padding(.leading, 10).padding(.trailing, BrandTokens.Spacing.xl).padding(.vertical, 7)
         .contentShape(Rectangle())
-        .onTapGesture { model.run(row.open) }
-        .help(Text(verbatim: model.t(row.open.label)))
+        .onTapGesture { if let primary { model.run(primary) } }
+        .help(Text(verbatim: model.t(primary?.label)))
     }
 }
 

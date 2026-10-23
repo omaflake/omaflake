@@ -149,23 +149,26 @@ pub(crate) fn page(ctx: &Ctx, p: &NewVmParams) -> Option<NewVmPage> {
     let start = v.start.unwrap_or(true);
 
     let mut first = vec![
-        Field::new("name", FieldKind::Text, Text::new("Name"), json!(name)).param("name"),
+        Field::new("name", FieldKind::Text, Text::new("Name"), json!(name)).param("name").value_param("name"),
         Field::new(
             "ephemeral",
             FieldKind::Toggle,
             Text::new("Ephemeral (changes are discarded on shutdown)"),
             s["ephemeral"].clone(),
         )
-        .param("settings.ephemeral"),
+        .param("settings.ephemeral")
+        .value_param("ephemeral"),
     ];
     first[0].error = name_error.clone();
     first[0].placeholder = Some(Text::verbatim(&suggested));
     let mut resources = vec![
         Field::new("cpus", FieldKind::Number, tf!("CPU cores: %lld", get_int("cpus")), s["cpus"].clone())
             .param("settings.cpus")
+            .value_param("cpus")
             .range(1, 10, 1),
         Field::new("memoryGB", FieldKind::Number, tf!("RAM: %lld GB", get_int("memoryGB")), s["memoryGB"].clone())
             .param("settings.memoryGB")
+            .value_param("memoryGB")
             .range(1, 48, 1),
     ];
     if mac {
@@ -175,30 +178,36 @@ pub(crate) fn page(ctx: &Ctx, p: &NewVmParams) -> Option<NewVmPage> {
         resources.push(
             Field::new("diskGB", FieldKind::Number, tf!("Disk: %lld GB", get_int("diskGB")), s["diskGB"].clone())
                 .param("settings.diskGB")
+                .value_param("diskGB")
                 .range(10, 500, 10),
         );
     }
     resources.push(
         Field::new("audio", FieldKind::Toggle, Text::new("Sound from the VM"), s["audio"].clone())
-            .param("settings.audio"),
+            .param("settings.audio")
+            .value_param("audio"),
     );
     resources.push(
         Field::new("microphone", FieldKind::Toggle, Text::new("Microphone in the VM"), s["microphone"].clone())
             .param("settings.microphone")
+            .value_param("microphone")
             .enabled_if(get_bool("audio"), None),
     );
     resources.push(
         Field::new("clipboard", FieldKind::Toggle, Text::new("Shared clipboard"), s["clipboard"].clone())
-            .param("settings.clipboard"),
+            .param("settings.clipboard")
+            .value_param("clipboard"),
     );
     if !mac {
         resources.push(
             Field::new("camera", FieldKind::Toggle, Text::new("Camera in the VM"), s["camera"].clone())
-                .param("settings.camera"),
+                .param("settings.camera")
+                .value_param("camera"),
         );
     }
-    let mut network =
-        Field::new("network", FieldKind::Choice, Text::new("Network"), s["network"].clone()).param("settings.network");
+    let mut network = Field::new("network", FieldKind::Choice, Text::new("Network"), s["network"].clone())
+        .param("settings.network")
+        .value_param("network");
     network.choices = NetworkMode::ALL
         .iter()
         .filter(|n| !mac || **n != NetworkMode::Isolated)
@@ -206,12 +215,18 @@ pub(crate) fn page(ctx: &Ctx, p: &NewVmParams) -> Option<NewVmPage> {
         .collect();
     resources.push(network);
 
-    let mut share_fields =
-        vec![Field::new("share", FieldKind::Toggle, Text::new("Share a Mac folder with the VM"), json!(share))
-            .param("settings.share")];
+    let mut share_fields = vec![Field::new(
+        "share",
+        FieldKind::Toggle,
+        Text::new(ctx.on_host("Share a Mac folder with the VM", "Share a folder with the VM")),
+        json!(share),
+    )
+    .param("settings.share")
+    .value_param("share")];
     if share {
-        let mut folder =
-            Field::new("sharePath", FieldKind::Path, Text::new("Folder"), json!(share_path)).param("sharePath");
+        let mut folder = Field::new("sharePath", FieldKind::Path, Text::new("Folder"), json!(share_path))
+            .param("sharePath")
+            .value_param("sharePath");
         folder.placeholder = Some(Text::verbatim(default_share));
         folder.ask = Some(
             Ask::new("sharePath", AskKind::Folder, Text::new("Choose …"))
@@ -221,8 +236,9 @@ pub(crate) fn page(ctx: &Ctx, p: &NewVmParams) -> Option<NewVmPage> {
         folder.help = Some(Text::new("Default"));
         share_fields.push(folder);
     }
-    let start_field =
-        Field::new("start", FieldKind::Toggle, Text::new("Start afterwards"), json!(start)).param("start");
+    let start_field = Field::new("start", FieldKind::Toggle, Text::new("Start afterwards"), json!(start))
+        .param("start")
+        .value_param("start");
 
     let mut warnings = Vec::new();
     if let (true, true, Some(reason)) = (mac, start, mac_limit(ctx)) {
@@ -236,7 +252,8 @@ pub(crate) fn page(ctx: &Ctx, p: &NewVmParams) -> Option<NewVmPage> {
     }
     let create = Action::call("create", Text::new("Create"), Some("create"), "vms.create", params)
         .then(Then::Back)
-        .enabled_if(valid, name_error);
+        .enabled_if(valid, name_error)
+        .primary();
     Some(NewVmPage {
         title: Text::new("New VM"),
         image: image.name.clone(),

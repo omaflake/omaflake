@@ -224,7 +224,8 @@ public struct PackageInspection: Decodable, Sendable, Equatable {
 
     public var kind: Kind
     public var valid: Bool
-    public var reason: String?
+    /// Why it is not valid (a text, docs/api.md §10.2)
+    public var reason: ViewText?
     public var conflict: Conflict?
     public var networkVolume: Bool
 }

@@ -120,7 +120,7 @@ fn goldens() -> Vec<(&'static str, Value)> {
             v(Inspection {
                 kind: PackageKindDto::Image,
                 valid: false,
-                reason: Some("Not an image package (.omaflake-image)".into()),
+                reason: Some(super::views::Text::verbatim("Not an image package (.omaflake-image)")),
                 conflict: None,
                 network_volume: true,
             }),
@@ -692,6 +692,13 @@ fn view_goldens() -> Vec<(&'static str, Value)> {
     failed.jobs[0].error = Some("nix build failed".into());
     let mut mac = ctx();
     mac.recipes.recipes[0].runs_here = true;
+    let mut linux = ctx();
+    linux.host = super::views::HostOs::Linux;
+    let mut no_download = ctx();
+    no_download.jobs.retain(|j| j.id != "j4");
+    let mut loading = ctx();
+    loading.fetching = true;
+    loading.recipes.lab_hidden = true;
     let inspection = Inspection {
         kind: PackageKindDto::Vm,
         valid: true,
@@ -731,8 +738,22 @@ fn view_goldens() -> Vec<(&'static str, Value)> {
         ),
         ("doctor", page("doctor", json!({}))),
         ("macBase", page("macBase", json!({}))),
+        (
+            "macBase.ipsw",
+            build(
+                &no_download,
+                &PageRef {
+                    page: "macBase".into(),
+                    params: json!({"values": {"ipsw": "/Volumes/Disk/UniversalMac.ipsw"}}),
+                },
+            )
+            .unwrap(),
+        ),
         ("settings", page("settings", json!({"values": {"input": "acme/recipes", "private": true}}))),
         ("activity", page("activity", json!({}))),
+        ("home.linux", build(&linux, &PageRef { page: "home".into(), params: json!({}) }).unwrap()),
+        ("settings.linux", build(&linux, &PageRef { page: "settings".into(), params: json!({}) }).unwrap()),
+        ("recipes.loading", build(&loading, &PageRef { page: "recipes".into(), params: json!({}) }).unwrap()),
         ("import", serde_json::to_value(import::page(&import_params, inspection)).unwrap()),
         (
             "event.view.changed",

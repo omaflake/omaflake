@@ -25,6 +25,7 @@
       "params": {
         "recipe": "lab.macos.base@ocean-maple"
       },
+      "primary": true,
       "reason": {
         "args": [
           {

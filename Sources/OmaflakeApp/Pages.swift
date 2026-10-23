@@ -3,7 +3,7 @@ import SwiftUI
 import OmaflakeKit
 
 // The pages one level deeper (New VM, Build Image, Doctor, macOS base, Settings) as the core's pages say; the guide
-// is the app's own (bundled, offline).
+// shows the docs' file the core names (bundled, offline).
 
 struct PageView: View {
     let ref: PageRef
@@ -11,7 +11,7 @@ struct PageView: View {
 
     var body: some View {
         if ref.page == "guide" {
-            GuideView(file: ref.echoed["file"]?.string ?? "linux-builder")
+            GuideView(params: ref.echoed)
         } else {
             switch model.pageModel(ref) {
             case .newVm(let p)?: NewVMView(page: p, ref: ref, model: model)
@@ -46,9 +46,9 @@ struct FormField: View {
     let page: String
     let model: AppModel
 
-    private var value: JSONValue { model.formValue(page, field.id) ?? field.value }
+    private var value: JSONValue { model.formValue(page, field) ?? field.value }
 
-    private func set(_ v: JSONValue?, typing: Bool = false) { model.setFormValue(page, field.id, v, typing: typing) }
+    private func set(_ v: JSONValue?, typing: Bool = false) { model.setFormValue(page, field, v, typing: typing) }
 
     var body: some View {
         VStack(alignment: .leading, spacing: BrandTokens.Spacing.xxs) {
@@ -192,7 +192,7 @@ struct NewVMView: View {
             HStack {
                 Spacer()
                 ForEach(page.actions) { a in
-                    ActionPlainButton(action: a, model: model, form: ref, isDefault: a.id == "create")
+                    ActionPlainButton(action: a, model: model, form: ref, isDefault: a.primary)
                 }
             }
         }
@@ -239,7 +239,7 @@ struct BuildView: View {
             // Go: build (a macOS recipe asks the password) or cancel – other recipes can be queued meanwhile
             HStack(spacing: BrandTokens.Spacing.l) {
                 Spacer()
-                ForEach(page.actions) { ActionPlainButton(action: $0, model: model, isDefault: $0.id == "build") }
+                ForEach(page.actions) { ActionPlainButton(action: $0, model: model, isDefault: $0.primary) }
             }
             if let blockers = page.blockers { BlockersBanner(blockers: blockers, model: model) }
             if let hint = page.macBase {
@@ -260,15 +260,27 @@ struct BuildView: View {
             } else if let newest = page.newest {
                 Text(verbatim: model.t(newest)).font(.caption).foregroundStyle(.secondary).lineLimit(1).truncationMode(.middle)
             }
-            LogView(lines: page.log.map { model.log($0.job, lines: $0.lines) + ($0.note.map { [model.t($0)] } ?? []) } ?? [])
-            if let full = page.log?.full {
-                HStack {
-                    Spacer()
-                    Button(model.t(full.label)) { model.run(full) }.help(Text(verbatim: model.t(full.help)))
-                }
-            }
+            JobLogView(log: page.log, model: model)
         }
         .padding(BrandStyle.margin)
+    }
+}
+
+/// A job's log as its page names it (the build, the macOS base): the lines, the note, "Full Log …"
+struct JobLogView: View {
+    let log: LogRef?
+    let model: AppModel
+    var minHeight: CGFloat? = nil
+
+    var body: some View {
+        LogView(lines: log.map { model.log($0) + ($0.note.map { [model.t($0)] } ?? []) } ?? [])
+            .frame(minHeight: minHeight)
+        if let full = log?.full {
+            HStack {
+                Spacer()
+                Button(model.t(full.label)) { model.run(full) }.help(Text(verbatim: model.t(full.help)))
+            }
+        }
     }
 }
 
@@ -495,8 +507,8 @@ struct MacBaseView: View {
                     ForEach(page.fields.filter { $0.kind == .text }) { field in
                         GridRow {
                             Text(verbatim: model.t(field.label))
-                            TextField("", text: Binding(get: { (model.formValue(ref.page, field.id) ?? field.value).string ?? "" },
-                                                        set: { model.setFormValue(ref.page, field.id, .string($0), typing: true) }))
+                            TextField("", text: Binding(get: { (model.formValue(ref.page, field) ?? field.value).string ?? "" },
+                                                        set: { model.setFormValue(ref.page, field, .string($0), typing: true) }))
                                 .labelsHidden().disabled(!field.enabled)
                         }
                     }
@@ -510,9 +522,9 @@ struct MacBaseView: View {
                     Text(verbatim: model.t(page.actions.first?.reason)).foregroundStyle(.secondary)
                 }
                 Spacer()
-                ForEach(page.actions) { ActionPlainButton(action: $0, model: model, form: ref, isDefault: true) }
+                ForEach(page.actions) { ActionPlainButton(action: $0, model: model, form: ref, isDefault: $0.primary) }
             }
-            LogView(lines: page.log.map { model.log($0, lines: 1) } ?? []).frame(minHeight: 160)
+            JobLogView(log: page.log, model: model, minHeight: 160)
         }
         .padding(16)
         .onAppear { model.checkDoctor() }
@@ -618,8 +630,8 @@ struct SettingsView: View {
                     if field.kind == .text {
                         HStack {
                             TextField(model.t(field.label), text: Binding(
-                                get: { (model.formValue(ref.page, field.id) ?? field.value).string ?? "" },
-                                set: { model.setFormValue(ref.page, field.id, .string($0), typing: true) }),
+                                get: { (model.formValue(ref.page, field) ?? field.value).string ?? "" },
+                                set: { model.setFormValue(ref.page, field, .string($0), typing: true) }),
                                       prompt: Text(verbatim: model.t(field.label)))
                                 .textFieldStyle(.roundedBorder).labelsHidden()
                             if let ask = field.ask { Button(model.t(ask.label)) { model.choose(field, on: ref.page) } }
@@ -630,7 +642,8 @@ struct SettingsView: View {
                 }
                 HStack {
                     Spacer()
-                    ActionPlainButton(action: page.sources.addAction, model: model, form: ref)
+                    ActionPlainButton(action: page.sources.addAction, model: model, form: ref,
+                                      isDefault: page.sources.addAction.primary)
                 }
             }
         } header: {

@@ -353,23 +353,29 @@ impl App {
             }
             _ => {}
         }
-        // A job's log: what it has so far, then `job.log`
-        let job = match page.page.as_str() {
-            "build" => model.get("log").map(|l| s(l, "job").to_string()),
-            "macBase" => model.get("log").and_then(Value::as_str).map(str::to_string),
+        // A job's log (build, macBase: a LogRef): what the core keeps from `from` on, then `job.log`
+        let log = match page.page.as_str() {
+            "build" | "macBase" => model.get("log").and_then(model::LogBox::from_model),
             _ => None,
         };
-        if let Some(job) = job.filter(|j| !j.is_empty() && !self.logs.contains_key(j)) {
-            self.logs.insert(job.clone(), vec![]);
-            self.request("jobs.log", json!({"id": job}), Pending::Log(job.clone()));
+        if let Some(log) = log.filter(|l| !self.logs.contains_key(&l.job)) {
+            self.logs.insert(log.job.clone(), vec![]);
+            self.request("jobs.log", json!({"id": log.job, "from": log.from}), Pending::Log(log.job.clone()));
         }
     }
 
-    /// New activity lines go to the status line (a TUI's notifications, api.md §10.6)
+    /// New activity lines go to the status line (a TUI's notifications, api.md §10.6). Seen or not is the UI's: it
+    /// remembers the highest entry `id` it has shown (`last_activity`); entries above it are unseen. Ids are stable
+    /// and rise; a cleared list keeps the mark. When the newest id in the list is lower than the mark, the server is
+    /// a new one (its ids start at 1 again): the mark is forgotten, so its entries count as unseen. The first list
+    /// after the start only sets the mark (nothing was shown before).
     fn notify_activity(&mut self, model: &Value) {
         let entries = arr(model, "entries");
         let newest = entries.iter().filter_map(|e| e.get("id").and_then(Value::as_u64)).max();
-        let seen = self.last_activity;
+        let seen = match (self.last_activity, newest) {
+            (Some(mark), Some(n)) if n < mark => Some(0),
+            (mark, _) => mark,
+        };
         self.last_activity = newest.or(seen);
         let Some(seen) = seen else { return };
         if let Some(e) = entries.iter().find(|e| e.get("id").and_then(Value::as_u64).is_some_and(|id| id > seen)) {
@@ -391,6 +397,7 @@ impl App {
             (Pending::Action(flow), Ok(result)) => self.then(&flow, &result),
             (Pending::Check(flow, value), Ok(result)) => {
                 if result.get("valid").and_then(Value::as_bool) == Some(false) {
+                    // `reason` is a text (§10.2)
                     let reason = result.get("reason").map(t).unwrap_or_else(|| "Not accepted".into());
                     if let Some(Modal::Prompt(p)) = &mut self.modal {
                         p.checking = false;
@@ -502,8 +509,15 @@ impl App {
             "show" => {
                 let page = s(p, "page");
                 if page == "guide" {
-                    // The bundled guide of the app; a terminal reads it on the website
-                    self.effects.push_back(Effect::Open(format!("https://omaflake.dev/{}/", s(&p["params"], "file"))));
+                    // A guide of the docs: a terminal cannot show the bundled file (`path`, only inside omaflake.app)
+                    // itself, so it opens its page on omaflake.dev – or prints it where there is no desktop
+                    let g = &p["params"];
+                    match g.get("url").and_then(Value::as_str) {
+                        Some(url) => {
+                            self.effects.push_back(Effect::Open(url.into()));
+                        }
+                        None => self.set_status(format!("{}: no page to open", t(&g["title"])), Tone::Warning),
+                    }
                 } else {
                     self.stack.push(PageRef::new(page, p["params"].clone()));
                     self.resubscribe();
@@ -523,8 +537,11 @@ impl App {
                 self.resubscribe();
             }
             "field" => {
+                // `values.<valueParam>` of the form page `page` with `params`; its `ask` filled `value` already,
+                // `value: null` puts the default back
                 let value = p.get("value").cloned().unwrap_or(Value::Null);
-                self.set_value(s(p, "field"), value);
+                let target = PageRef::new(s(p, "page"), p["params"].clone());
+                self.set_value(Some(&target), s(p, "valueParam"), value);
             }
             "reveal" => match p.get("path").and_then(Value::as_str) {
                 Some(path) => self.effects.push_back(Effect::Reveal(path.into())),
@@ -580,26 +597,43 @@ impl App {
             let mut params = set.get("params").filter(|p| p.is_object()).cloned().unwrap_or_else(|| json!({}));
             set_path(&mut params, s(set, "param"), value);
             self.request(s(set, "method"), params, Pending::Quiet);
+        } else if let Some(key) = f.get("valueParam").and_then(Value::as_str) {
+            // A form field of the page shown now
+            self.set_value(None, key, value);
         } else {
-            self.set_value(s(f, "id"), value);
+            self.set_status("This value is not kept", Tone::Warning);
         }
     }
 
-    /// `values.<id>` of the page on top (OPEN in the model: the values' keys are the fields' ids by convention)
-    fn set_value(&mut self, id: &str, value: Value) {
-        let Some(top) = self.stack.last_mut() else {
+    /// `values.<key>` of a form page: `target` (its params without `values`), else the page on top – then asked again
+    fn set_value(&mut self, target: Option<&PageRef>, key: &str, value: Value) {
+        let without_values = |p: &PageRef| {
+            let mut params = p.params.clone();
+            if let Some(o) = params.as_object_mut() {
+                o.remove("values");
+            }
+            PageRef::new(&p.page, params)
+        };
+        let slot = match target {
+            Some(t) => {
+                let t = without_values(t);
+                self.stack.iter_mut().rev().find(|p| without_values(p) == t)
+            }
+            None => self.stack.last_mut(),
+        };
+        let (Some(page), false) = (slot, key.is_empty()) else {
             self.set_status("No form here", Tone::Warning);
             return;
         };
-        let values = top.params.as_object_mut().expect("params are an object").entry("values").or_insert(json!({}));
+        let values = page.params.as_object_mut().expect("params are an object").entry("values").or_insert(json!({}));
         if !values.is_object() {
             *values = json!({});
         }
         let obj = values.as_object_mut().expect("made an object");
         if value.is_null() {
-            obj.remove(id);
+            obj.remove(key);
         } else {
-            obj.insert(id.into(), value);
+            obj.insert(key.into(), value);
         }
         self.resubscribe();
     }
@@ -713,7 +747,8 @@ impl App {
                 if s(a, "method") == "ui.quit" {
                     return Some('q');
                 }
-                let label = t(&a["label"]);
+                // The letter is one of what is written: the short label where there is one
+                let label = t(a.get("shortLabel").unwrap_or(&a["label"]));
                 let c = label
                     .chars()
                     .filter(|c| c.is_ascii_alphabetic())

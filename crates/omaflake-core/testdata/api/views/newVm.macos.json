@@ -37,6 +37,7 @@
         },
         "start": true
       },
+      "primary": true,
       "reason": {
         "args": [
           "Work"
@@ -81,7 +82,8 @@
           "placeholder": {
             "text": "dev"
           },
-          "value": "Work"
+          "value": "Work",
+          "valueParam": "name"
         },
         {
           "enabled": true,
@@ -92,7 +94,8 @@
             "text": "Ephemeral (changes are discarded on shutdown)"
           },
           "param": "settings.ephemeral",
-          "value": false
+          "value": false,
+          "valueParam": "ephemeral"
         }
       ]
     },
@@ -113,7 +116,8 @@
           "min": 1,
           "param": "settings.cpus",
           "step": 1,
-          "value": 4
+          "value": 4,
+          "valueParam": "cpus"
         },
         {
           "enabled": true,
@@ -130,7 +134,8 @@
           "min": 1,
           "param": "settings.memoryGB",
           "step": 1,
-          "value": 8
+          "value": 8,
+          "valueParam": "memoryGB"
         },
         {
           "enabled": true,
@@ -154,7 +159,8 @@
             "text": "Sound from the VM"
           },
           "param": "settings.audio",
-          "value": true
+          "value": true,
+          "valueParam": "audio"
         },
         {
           "enabled": true,
@@ -165,7 +171,8 @@
             "text": "Microphone in the VM"
           },
           "param": "settings.microphone",
-          "value": false
+          "value": false,
+          "valueParam": "microphone"
         },
         {
           "enabled": true,
@@ -176,7 +183,8 @@
             "text": "Shared clipboard"
           },
           "param": "settings.clipboard",
-          "value": true
+          "value": true,
+          "valueParam": "clipboard"
         },
         {
           "choices": [
@@ -201,7 +209,8 @@
             "text": "Network"
           },
           "param": "settings.network",
-          "value": "shared"
+          "value": "shared",
+          "valueParam": "network"
         }
       ],
       "title": {
@@ -220,7 +229,8 @@
             "text": "Share a Mac folder with the VM"
           },
           "param": "settings.share",
-          "value": false
+          "value": false,
+          "valueParam": "share"
         }
       ],
       "title": {
@@ -239,7 +249,8 @@
             "text": "Start afterwards"
           },
           "param": "start",
-          "value": true
+          "value": true,
+          "valueParam": "start"
         }
       ]
     }

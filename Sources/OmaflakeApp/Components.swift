@@ -358,13 +358,22 @@ enum AppVersion {
     }
 }
 
-/// A guide from docs/, shipped in the app (Resources/Guides/<file>.md, scripts/bundle-app.sh) – no network needed.
+/// A guide from docs/ (`ui.show guide {file, title, url, path?}`): the file the core names (`path`, omaflake.app's
+/// Resources/Guides, scripts/bundle-app.sh), else the one bundled with this app – no network needed. Without either
+/// the app opens `url` instead (AppModel).
 struct GuideView: View {
-    let file: String
+    let params: JSONValue
+
+    /// The guide's Markdown file: `path`, else `file` in the app's bundle
+    static func source(_ params: JSONValue) -> URL? {
+        if let path = params["path"]?.string, FileManager.default.fileExists(atPath: path) {
+            return URL(fileURLWithPath: path)
+        }
+        return params["file"]?.string.flatMap { Bundle.main.url(forResource: $0, withExtension: "md", subdirectory: "Guides") }
+    }
 
     private var blocks: [MarkdownBlock] {
-        guard let url = Bundle.main.url(forResource: file, withExtension: "md", subdirectory: "Guides"),
-              let text = try? String(contentsOf: url, encoding: .utf8) else { return [] }
+        guard let url = Self.source(params), let text = try? String(contentsOf: url, encoding: .utf8) else { return [] }
         return MarkdownBlock.parse(text)
     }
 

@@ -13,6 +13,10 @@
       "params": {
         "page": "doctor",
         "params": {}
+      },
+      "shortLabel": {
+        "key": "Doctor",
+        "text": "Doctor"
       }
     },
     {
@@ -40,6 +44,10 @@
       "method": "ui.open",
       "params": {
         "path": "/data"
+      },
+      "shortLabel": {
+        "key": "Data Folder",
+        "text": "Data Folder"
       }
     },
     {
@@ -69,7 +77,11 @@
         "text": "Quit omaflake"
       },
       "method": "ui.quit",
-      "params": {}
+      "params": {},
+      "shortLabel": {
+        "key": "Quit",
+        "text": "Quit"
+      }
     }
   ],
   "firstTab": "vms",
@@ -131,5 +143,8 @@
         "text": "Activity"
       }
     }
-  ]
+  ],
+  "title": {
+    "text": "omaflake"
+  }
 }

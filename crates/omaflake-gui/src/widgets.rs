@@ -255,7 +255,8 @@ pub fn hint<'a>(h: &Hint, pulse: bool) -> El<'a> {
     .spacing(spacing::L)
     .align_y(Alignment::Center);
     if let Some(a) = &h.action {
-        r = r.push(action_button(a, None, pulse));
+        // A hint's primary action (the suggestion's Install) is the prominent one
+        r = r.push(if a.primary { primary_button(a, None, pulse) } else { action_button(a, None, pulse) });
     }
     container(r).padding(spacing::CARD_PADDING).width(Length::Fill).into()
 }

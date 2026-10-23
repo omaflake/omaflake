@@ -360,7 +360,7 @@ Params and results in short; the types are those of §4.
 
 | Method | Params | Result |
 |---|---|---|
-| `packages.inspect` | `path, expect?: "vm"|"image"|"recipe", external?` | `{kind, valid, reason?, conflict?: {vmName, suggestedName}|{image}, networkVolume}` – what an open panel checks before it closes, and what an import would ask about (`suggestedName`: the first free name to import a VM under) |
+| `packages.inspect` | `path, expect?: "vm"|"image"|"recipe", external?` | `{kind, valid, reason?, conflict?: {vmName, suggestedName}|{image}, networkVolume}` – `reason` a text (§10.2; today the core's English message, no key); what an open panel checks before it closes, and what an import would ask about (`suggestedName`: the first free name to import a VM under) |
 | `packages.import` | `path, name?, replace?` | Job `import` → `result: {kind, names, notes}` (§5) |
 | `packages.export` | `kind: "vm"|"image"|"recipe", name, folder, withImage?` | Job `export` → `result: {path}` (`withImage` unset: as `Transfer::carries_image` decides) |
 
@@ -507,6 +507,8 @@ Everything a user reads is a **text**: `{key, text, args}`.
 |---|---|
 | `id` | stable within its list (`start`, `startHeadless`, `stop`, `terminal`, `export`, …) |
 | `label`, `icon` | what the button says / shows; icon-only UIs use `label` (or `help`) as the tooltip |
+| `shortLabel` | what a narrow header or toolbar writes ("Doctor" for "Doctor – requirements and preflight", "Data Folder"); absent: `label` |
+| `primary` | the default action of its row or page – what Enter, a double click or a click on a build row does, drawn as the prominent button; at most one per row (`actions`) or page. A row without one has no default (Enter opens its details) |
 | `method`, `params` | what to send: a core method (§7) or a `ui.*` verb (§10.4) |
 | `enabled`, `reason` | greyed out, and why (the first reason that applies) |
 | `help` | tooltip while enabled |
@@ -531,7 +533,7 @@ it likes (a toast, a status line) – the activity list has it already (§10.6).
 open panel's message and button. `multiple`: several may be chosen – the action is done once per value. `repeat`: a
 password asked twice, sent only when both agree. `check: {method, params, param}`: before the panel closes, call
 `method` with `params` and the chosen value at `param` (`packages.inspect`); `valid: false` refuses it with its
-`reason`. A TUI asks folders and files as a path with completion.
+`reason` (a text, §10.2). A TUI asks folders and files as a path with completion.
 
 **Lamp** – `{state: on|off|attention|working, help}`: green on/active/built, grey off, orange needs attention, cyan
 pulsing something happens (plan B99). **Badge** – `{id, icon, help, tone, label?}` (`label`: a short text drawn instead
@@ -550,12 +552,13 @@ group ids are the keys of `params.filter`: `status` (true/false/null – running
 The core applies them; a UI keeps the chosen values per tab and asks with them.
 
 **Field** – `{id, kind, label, value, help?, placeholder?, choices?, min?, max?, step?, enabled, reason?, error?,
-param?, set?, ask?}`; `kind`: `toggle`, `text`, `number`, `choice`, `path` (chosen with `ask`), `info` (shown, not
-edited; `value` is a text). On a form page (`newVm`, `macBase`, the new source) the value goes into the page action's
-`params` at `param`; the page was built with the values it was asked with (`params.values`), so its action already
-holds them – a UI that changes a field either asks the page again (validation: `error`, `enabled`) or puts the value
-in itself. In Settings `set: {method, params, param}` stores a change at once: send `method` with `params` and the new
-value at `param` (`null` = back to the default).
+param?, valueParam?, set?, ask?}`; `kind`: `toggle`, `text`, `number`, `choice`, `path` (chosen with `ask`), `info`
+(shown, not edited; `value` is a text). On a form page (`newVm`, `macBase`, the new source in `settings`) the UI keeps
+what the user set under **`params.values.<valueParam>`** of that page and asks the page again with it (validation:
+`error`, `enabled`); the page's action already holds the values it was built with, and `param` says where a field's
+value lands in that action's `params` (a UI that sends before the page came back may put it there itself). A field
+without `valueParam` is not kept (an `info` field, a Settings field). In Settings `set: {method, params, param}` stores
+a change at once: send `method` with `params` and the new value at `param` (`null` = back to the default).
 
 **Icons** are names a UI maps to its symbols (SF Symbols, Nerd Font glyphs or plain characters in a TUI): `vm`,
 `image`, `recipe`, `activity`, `nixos`, `macos`, `start-window`, `start-headless`, `stop`, `terminal`, `folder`,
@@ -569,11 +572,11 @@ value at `param` (`null` = back to the default).
 
 | Method | Params | |
 |---|---|---|
-| `ui.show` | `page, params` | open a page one level deeper (`build {recipe}`, `newVm {image}`, `doctor`, `macBase`, `settings`, `guide {file}` – the bundled guide) |
+| `ui.show` | `page, params` | open a page one level deeper (`build {recipe}`, `newVm {image}`, `doctor`, `macBase`, `settings`) – or `guide {file, title, url, path?}`: a guide of the docs, not a core page; `url` its page on omaflake.dev (`https://omaflake.dev/<permalink>/`), `path` the file omaflake.app bundles (macOS, only when the core runs from the app); a UI shows `path` itself or opens `url` |
 | `ui.back` | – | leave the page |
 | `ui.step` | `page, params` | get that page (only `import`) and run its `action` at once – asking its `confirm` first – or show its `reason`; with an `ask` of `multiple`, once per chosen value |
 | `ui.filter` | `page, filter` | set the list's filter (`null`: reset) and ask for the page again |
-| `ui.field` | `field, value?` | set a form field's value (`ask` asks it; no value = clear it) |
+| `ui.field` | `page, params, field, valueParam, value?` | set `values.<valueParam>` of the form page `page` with `params` (field `field`; `ask` asks the value; `value: null` = back to the page's default) and ask that page again |
 | `ui.reveal` | `path` | show in the file manager (a TUI prints the path) |
 | `ui.open` | `path` or `url` | open with the system's default app (a log file, the data folder, a release page) |
 | `ui.terminal` | `line` | run a command line in a terminal (the Doctor's install commands) |
@@ -585,9 +588,18 @@ Rows carry their details (what an expanded row shows) and the API object they co
 `job`, `version`, `source`, `prerequisite`) for anything else a UI wants to show. The examples are cut short; the whole
 models are in `testdata/api/views/*.json`.
 
-Every page one level deeper (`doctor`, `settings`, `newVm`, `build`, `macBase`) has a `title` (its header).
+Every page has a `title`: the window's for `home` ("omaflake", data), the list's for the tabs, the header of every page
+one level deeper (`doctor`, `settings`, `newVm`, `build`, `macBase`), the name for `vm` and `image`, the dialog's for
+`import`. A UI draws it as it is and keeps no table of page titles.
 
-**home** – `actions` (doctor with `badge`, settings, dataFolder, quit), `tabs: [{id, label, icon, badge?}]` with
+**Host wording.** Texts that name the Mac, Finder, the Keychain or the menu window come in the variant for the host
+the core runs on (`initialize`'s `host`): on macOS the app's English source strings as before, elsewhere host-neutral
+keys – "Show Data Folder in Finder" / "Show Data Folder", "Show in Finder" / "Show in File Manager", "Share a Mac
+folder with the VM" / "Share a folder with the VM", "Like this Mac – %@" / "Like this computer – %@", "Not for this
+Mac – …" / "Not for this computer – …", "… in the Keychain" / "… in the keyring", the Doctor's intro, the notification
+help, the data folder's note, the sources' footer. Both are keys; translations have both.
+
+**home** – `title`, `actions` (doctor with `badge`, settings, dataFolder, quit – with `shortLabel`s for a narrow header), `tabs: [{id, label, icon, badge?}]` with
 `badge: {kind: count|working|failed|dot, count?, tone, help}` (running VMs; a build runs or failed; a recipe changed
 since its image), `firstTab` (`recipes` while there is no VM – a UI opening for the first time starts there).
 
@@ -620,23 +632,26 @@ runs ("Shut the VM down first") or is busy.
 
 **images** – list head (filter `status`: In use/Not in use, `kind`, `recipe`; tool: import), `jobs` (builds that wait,
 run, failed or were cancelled: `{id, name, kind, state, title, count?, fraction?, actions: [cancel | dismiss], open,
-job}`), `rows` (macOS before NixOS, by recipe name, newest first: lamp green when a VM uses it, badge `outdated`,
-subtitle "recipe dev · <date> · 1 VM", actions reveal and newVm – or the Doctor's warning –, details: info omaflake ID,
+job}` – `open` is the row's `primary`: a click opens the build page), `rows` (macOS before NixOS, by recipe name,
+newest first: lamp green when a VM uses it, badge `outdated`, subtitle "recipe dev · <date> · 1 VM", actions reveal and
+newVm (primary) – or the Doctor's warning (primary) –, details: info omaflake ID,
 Recipe, Built, Recipe state, Status, Used by, Size, Source, Disk image/System; actions export, remove – disabled while
-VMs use it), `unreadable`. **image** – `{row}` with the size.
+VMs use it), `unreadable`. **image** – `{title, row}` with the size.
 
 **recipes** – list head (filter `status`: With image/Without image, `kind`, `tag`, `otherSystems`; tools: refresh –
 `recipes.available`, busy while it runs – and import), `catalogsLoaded` (else the UI runs `refresh` when the tab
-opens, as the app did; the views never fetch), `loading`, `updates?` (`{title, all?, rows: [{id, name, kind, source,
+opens, as the app did; the views never fetch), `loading` with `loadingText` ("Looking into the recipe sources …", next to
+a spinner), `updates?` (`{title, all?, rows: [{id, name, kind, source,
 action}], note}`; "Add Version"/"Add All" when older versions are kept), `suggestion?` (no recipe yet: "Start with the
 official recipes?" with `recipes.installSuggested`), `rows` (one per line, named by its newest version; built ones
 first, then by kind and name: lamp – working while it builds, off not built, attention changed since its image, on –,
 `secondary` (author, distinction), badges lab and arch, `tags`, actions reveal and build – `ui.show build`, or the
 Doctor's warning, or disabled for another architecture –, details: description, info, `versions` (`{id, words,
 state, actions: [export, remove], version}`; remove disabled for a folder's version or one images are built from) and
-actions update, removeAll), `offered` (not installed: lamp off or working, badges official/lab/arch, install, details
-with the "not reviewed" warning for recipes not from omaflake/recipes), `unreadable`, `errors` (sources that failed),
-`labHidden`.
+actions update, removeAll; build is the row's primary), `offeredTitle` ("More recipes in your sources", while there are
+offers) and `offered` (not installed: lamp off or working, badges official/lab/arch, install (primary), details with
+the "not reviewed" warning for recipes not from omaflake/recipes), `unreadable`, `errors` (sources that failed),
+`labHidden` with `labHint` (a hint with the way to Settings).
 
 **newVm** – `{image, recipe, kind, subtitle, description?, lab, blockers?, sections: [{title?, fields}], warnings,
 valid, actions: [cancel, create]}`. Params `{image, values?: {name, cpus, memoryGB, diskGB, network, share, sharePath,
@@ -646,11 +661,12 @@ needed", the name rule, "“%@” is here already"), ephemeral, CPU cores (1–1
 `info` "as the image" for macOS), sound, microphone (needs sound), clipboard, camera (NixOS), network (no `isolated`
 for macOS), share, share folder (`path`, placeholder the default `share/<name>`), start afterwards. `warnings`: the
 macOS limit ("… – the VM is created but not started."). `create` is `vms.create` with `{name, image, settings,
-sharePath?, start}` and `then: back`, disabled while a value is wrong.
+sharePath?, start}` and `then: back` (primary), disabled while a value is wrong. Every editable field has `valueParam`
+= the key above (`cpus` → `params.values.cpus`, its `param` `settings.cpus`).
 
 ```json
 {"id": "cpus", "kind": "number", "label": {"key": "CPU cores: %lld", "text": "CPU cores: 4", "args": [4]},
- "value": 4, "min": 1, "max": 10, "step": 1, "enabled": true, "param": "settings.cpus"}
+ "value": 4, "min": 1, "max": 10, "step": 1, "enabled": true, "param": "settings.cpus", "valueParam": "cpus"}
 ```
 
 **build** – `{recipe, name, kind, badges, description?, state: idle|queued|checking|running|finished|failed|cancelled,
@@ -659,8 +675,10 @@ Queue" while another build of the guest kind runs; a macOS recipe asks "Password
 architecture, Doctor blockers, a missing macOS base) – or `cancel` ("Cancel"/"Remove from Queue") while it waits or
 runs. `progress: {step, title, count?, fraction, started, lastOutput, quietWarning, quietHelp}` – the UI counts the
 running time and the quiet time itself (orange after `quietWarning` s). `outcome: {state, icon, tone, title, detail?,
-action?}` ("Image ready" with "New VM …", "Build failed" with the error, "Build cancelled"). `log: {job, lines, note?,
-file?, full?}` – lines from `jobs.log`/`job.log`, `full` opens the whole file.
+action?}` ("Image ready" with "New VM …", "Build failed" with the error, "Build cancelled"). `log: {job, from, lines,
+note?, file?, full?}` – the job's id and where its log is: `jobs.log {id: job, from}` reads what is kept (the newest
+5000 lines, `from` the first of them), then `job.log` brings new lines; `lines` the count so far, `full` opens the
+whole file. The build is the page's primary action (Cancel is not).
 
 **doctor** – `{versions, update, intro, checking, checked?, actions: [check], sections: [{id: requirements|nixos|macos,
 title, items}], issues}`. The UI puts its own version before `versions` (the core's). `update: {label, text, tone, busy,
@@ -673,22 +691,23 @@ work runs). Actions as the app had them: Install … (Nix: `builder.installNix` 
 or folder, `doctor.setPath`), Download / Continue Download / Pause (the IPSW, with `download: {done, of, text}`),
 Create … / Show … (`ui.show macBase`). Linux builder tasks run one at a time: the others say which runs.
 
-**macBase** – `{intro, base?, ipsw: {label, text, download?, actions}, fields: [user, fullName, ipsw], installing,
+**macBase** – `{title, intro, base?, ipsw: {label, text, download?, actions}, fields: [user, fullName], installing,
 actions: [create], log?}`; params `{values?: {user, fullName, ipsw}}` (defaults: the macOS recipes' guest user or this
-computer's, its full name, Apple's IPSW). `create` is `macos.installBase` and asks the password twice. `log`: the
-latest base creation's job.
+computer's, its full name, Apple's IPSW). The IPSW is shown once, in `ipsw`: its actions "Choose IPSW …" and "Use
+Apple's" are `ui.field` on `values.ipsw` of this page. `create` (primary) is `macos.installBase` and asks the password
+twice. `log`: the latest base creation's job, as the build page's (`{job, from, lines, …}` – the job's real id).
 
 **settings** – `{sources, general, guest, dataFolder}`. `sources: {title, rows, add, addAction, footer}` – rows `{id,
 name, icon (folder|github|url), badges (official, private with or without token), subtitle, actions: [up, enabled
 (a switch), remove], source}`; `add.fields`: input (with "Folder …"), private (only for a GitHub repository – the core
-decides from `params.values.input`); `addAction` is `sources.add {input, private}` and asks the token for a private
-one. `general.fields`: notifications, checkForUpdates, keepRecipeVersions, developerMode (toggles with `set`).
+decides from `params.values.input`); `addAction` (primary) is `sources.add {input, private}` and asks the token for a
+private one; the two fields keep their values under `values.input` and `values.private`. `general.fields`: notifications, checkForUpdates, keepRecipeVersions, developerMode (toggles with `set`).
 `guest.fields`: user, fullName, email (placeholders: this computer's), locale, keyboard, timeZone (choices with "Like
 this Mac – …" as `null`; names are the plain values – UIs may name them in their language). `dataFolder: {title,
 location, isDefault, moving, actions: [default, move], note}` – both disabled while a VM runs. Launch at login and the
 UI's language are each UI's own.
 
-**import** – `{path, name, kind, valid, reason?, action?, inspection}`: `action` is `packages.import` (a VM whose name
+**import** – `{title, path, name, kind, valid, reason?, action?, inspection}`: `action` is `packages.import` (a VM whose name
 is taken: the question with `input: {param: "name", default: "<name>-2"}`; the same image: "Replace" with `replace`)
 or, with `external`, `vms.useExternal` (on a network volume: "Run the VM over the network?").
 
@@ -707,6 +726,12 @@ The core words what the app's `AppModel.message` said: an action done (`research
 ready, build failed or cancelled, downloads, the base, Linux builder tasks, installs, imports, exports, the data
 folder), a VM that ended on its own or is ready, an update, and every `message`. `notification` is what a system
 notification says, where the app posted one – the UI posts it when `notifications` is true and its window is not in
-front. `id` rises: a UI remembers the newest it has shown (unseen activity, the footer line, a TUI's status line).
-The list is the server's: with the service (§1) every connection sees the same activity, and it lives as long as the
-service runs.
+front. The list is the server's: with the service (§1) every connection sees the same activity, and it lives as long as
+the service runs.
+
+**Seen or not is the UI's** (the model has no unseen badge – every connection would need its own). An entry's `id` is
+stable – it never changes and is never reused while the server runs, `activity.clear` included – and rises with each
+new entry. A UI marks entries seen by remembering the highest `id` it has shown on its activity tab (or posted as a
+notification); entries with a higher `id` are unseen (the tab's dot, the footer line, a TUI's status line). The ids
+start again at 1 with a new server: when the newest `id` in the list is lower than the one remembered, the UI forgets
+its mark.

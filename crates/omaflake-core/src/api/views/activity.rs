@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 //! The activity list (`activity`): what happened in this server – actions done or refused, jobs that ended, VMs that
 //! ended or are ready, the core's own messages – worded once here for every UI (the app's `AppModel.message`,
-//! `finished(_:)`). Newest first, at most `MAX` entries. Whether the user has seen them is the UI's business.
+//! `finished(_:)`). Newest first, at most `MAX` entries. Whether the user has seen them is the UI's business: by `id`.
 
 use std::collections::VecDeque;
 
@@ -21,7 +21,8 @@ pub const MAX: usize = 100;
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ActivityEntry {
-    /// Rising: a UI remembers the newest it has shown (new = unseen)
+    /// Stable and rising, never reused while the server runs (`clear` included): a UI marks entries seen by
+    /// remembering the highest id it has shown – higher ones are unseen (api.md §10.6)
     pub id: u64,
     #[serde(with = "crate::json::iso8601")]
     pub time: DateTime<Utc>,

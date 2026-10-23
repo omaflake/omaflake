@@ -55,6 +55,24 @@ pub const PAGES: [&str; 13] = [
     "import",
 ];
 
+/// The computer the core runs on (`initialize`'s `host`): texts that name the Mac, Finder or the Keychain have a
+/// host-neutral variant for the others
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum HostOs {
+    Macos,
+    Linux,
+}
+
+impl HostOs {
+    pub fn this() -> HostOs {
+        if cfg!(target_os = "macos") {
+            HostOs::Macos
+        } else {
+            HostOs::Linux
+        }
+    }
+}
+
 /// The last `updates.check` (the Doctor's "Updates" line)
 #[derive(Debug, Clone, Default, PartialEq)]
 pub(crate) struct UpdateRecord {
@@ -95,9 +113,31 @@ pub(crate) struct Ctx {
     pub ssh: BTreeMap<String, String>,
     pub host_user: String,
     pub host_full_name: String,
+    pub host: HostOs,
+    /// The guides the app bundles (omaflake.app's `Contents/Resources/Guides`), when there is such a folder
+    pub guides: Option<std::path::PathBuf>,
 }
 
 impl Ctx {
+    /// The macOS app's text on a Mac, the host-neutral one elsewhere (both are keys)
+    pub fn on_host<'a>(&self, mac: &'a str, other: &'a str) -> &'a str {
+        match self.host {
+            HostOs::Macos => mac,
+            HostOs::Linux => other,
+        }
+    }
+
+    /// "Guide" for a doc of `docs/` (its file name and permalink on omaflake.dev)
+    pub fn guide(&self, file: &str, permalink: &str, title: &str) -> common::Action {
+        let bundled = self
+            .guides
+            .as_ref()
+            .map(|d| d.join(format!("{file}.md")))
+            .filter(|p| p.exists())
+            .map(|p| p.to_string_lossy().into_owned());
+        common::Action::guide(file, permalink, Text::new(title), bundled)
+    }
+
     pub fn start_blockers(&self, kind: GuestKind) -> Vec<PrerequisiteDto> {
         self.doctor.as_ref().map(|d| per_kind(&d.start_blockers, kind).clone()).unwrap_or_default()
     }
@@ -301,6 +341,8 @@ impl Server {
             ssh,
             host_user: crate::platform::user_name(),
             host_full_name: crate::platform::full_user_name(),
+            host: HostOs::this(),
+            guides: crate::paths::Settings::bundled_guides(),
         })
     }
 

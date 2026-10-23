@@ -12,6 +12,7 @@
       "params": {
         "recipe": "omaflake.nixos.dev@velvet-tiger-orbit"
       },
+      "primary": true,
       "reason": {
         "args": [
           {
@@ -98,6 +99,7 @@
   },
   "log": {
     "file": "/data/logs/j1.log",
+    "from": 0,
     "full": {
       "enabled": true,
       "help": {

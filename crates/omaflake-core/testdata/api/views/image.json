@@ -28,7 +28,8 @@
           "params": {
             "image": "omaflake.macos.dev@stone-lamp"
           }
-        }
+        },
+        "primary": true
       }
     ],
     "badges": [],
@@ -235,5 +236,8 @@
       "text": "recipe dev · 2026-10-19 07:00 UTC · no VM"
     },
     "usedBy": []
+  },
+  "title": {
+    "text": "omaflake.macos.dev@stone-lamp"
   }
 }

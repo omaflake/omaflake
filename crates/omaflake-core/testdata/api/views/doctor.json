@@ -193,7 +193,12 @@
               "params": {
                 "page": "guide",
                 "params": {
-                  "file": "linux-builder"
+                  "file": "linux-builder",
+                  "title": {
+                    "key": "Linux Builder Guide",
+                    "text": "Linux Builder Guide"
+                  },
+                  "url": "https://omaflake.dev/linux-builder/"
                 }
               }
             }

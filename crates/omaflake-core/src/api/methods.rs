@@ -1115,7 +1115,7 @@ impl Server {
                 PackageKindDto::Recipe => RecipeLibrary::new(paths.clone()).recipes_in(&path).map(|_| ()),
             }
         };
-        let reason = super::jobs::guarded(check).err().map(|e| e.message().to_string());
+        let reason = super::jobs::guarded(check).err().map(|e| super::views::Text::verbatim(e.message()));
         let conflict = if reason.is_none() && !p.external {
             let c =
                 super::jobs::guarded(|| Transfer::new(paths.clone(), "qemu-img", None).conflict(&path)).map_err(err)?;

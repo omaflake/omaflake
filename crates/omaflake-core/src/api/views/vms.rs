@@ -58,6 +58,8 @@ pub struct VmDetail {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct VmPage {
+    /// The VM's name
+    pub title: Text,
     pub row: VmRowView,
 }
 
@@ -201,7 +203,8 @@ pub(crate) fn row(ctx: &Ctx, v: &Vm) -> VmRowView {
                 "vms.ssh",
                 json!({"name": name}),
             )
-            .then(Then::Terminal),
+            .then(Then::Terminal)
+            .primary(),
         );
         actions.push(
             Action::call("stop", Text::new("Shut down"), Some("stop"), "vms.stop", json!({"name": name})).destructive(),
@@ -228,7 +231,8 @@ pub(crate) fn row(ctx: &Ctx, v: &Vm) -> VmRowView {
                 "vms.start",
                 json!({"name": name, "display": "auto"}),
             )
-            .enabled_if(limit.is_none(), limit),
+            .enabled_if(limit.is_none(), limit)
+            .primary(),
         );
     }
     VmRowView {
@@ -457,5 +461,5 @@ pub struct VmParams {
 }
 
 pub(crate) fn vm_page(ctx: &Ctx, p: &VmParams) -> Option<VmPage> {
-    ctx.vms.iter().find(|v| v.name == p.name).map(|v| VmPage { row: row(ctx, v) })
+    ctx.vms.iter().find(|v| v.name == p.name).map(|v| VmPage { title: Text::verbatim(&v.name), row: row(ctx, v) })
 }

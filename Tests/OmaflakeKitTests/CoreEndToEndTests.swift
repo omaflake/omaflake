@@ -117,6 +117,29 @@ struct CoreEndToEndTests {
         }
         let recipesPage: RecipesPage = try await client.call("views.get", PageRef("recipes"))
         #expect(recipesPage.rows.contains { $0.recipe.base == "test.nixos.tiny" })
+        let homePage: HomePage = try await client.call("views.get", PageRef("home"))
+        #expect(homePage.title.text == "omaflake" && homePage.actions.first { $0.id == "doctor" }?.shortLabel != nil)
+
+        // Form values by `valueParam`: the page is asked again with them; the IPSW is in its line only, set by
+        // `ui.field` actions on `values.ipsw` of macBase
+        let macBase: MacBasePage = try await client.call("views.get", PageRef("macBase", .object(["values": .object([
+            "user": .string("e2e"), "ipsw": .string("/nowhere/test.ipsw"),
+        ])])))
+        #expect(macBase.fields.first { $0.valueParam == "user" }?.value == .string("e2e"))
+        #expect(!macBase.fields.contains { $0.id == "ipsw" } && macBase.actions.primary?.id == "create")
+        let useApple = macBase.ipsw.actions.first { $0.method == "ui.field" && $0.params["value"] == .null }
+        let choose = macBase.ipsw.actions.first { $0.method == "ui.field" && $0.params["value"] == nil }
+        for a in [useApple, choose].compactMap({ $0 }) {
+            #expect(a.params["page"] == .string("macBase") && a.params["valueParam"] == .string("ipsw"))
+        }
+        #expect(choose?.ask.isEmpty == false || macBase.ipsw.download != nil)
+
+        // `packages.inspect` refuses with a text
+        let notAPackage = flake.appendingPathComponent("flake.nix")
+        let inspection: PackageInspection = try await client.call("packages.inspect", [
+            "path": notAPackage.path, "expect": "image",
+        ])
+        #expect(!inspection.valid && inspection.reason?.text.isEmpty == false)
         let undecodable = events.all.compactMap { if case .undecodable(let m, let e) = $0 { "\(m): \(e)" } else { nil } }
         #expect(undecodable.isEmpty, "events this app cannot read: \(undecodable)")
         #expect(!events.all.contains { if case .disconnected = $0 { true } else { false } })

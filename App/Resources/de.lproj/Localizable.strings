@@ -603,3 +603,24 @@
 "Enabled" = "Aktiv";
 "Package" = "Paket";
 "Refresh" = "Aktualisieren";
+
+/* Presentation model (plan B121): texts the interfaces needed, and the host-neutral variants the core sends on hosts
+   other than macOS */
+"Lab recipes are hidden – Developer Mode in Settings shows them." = "Lab-Rezepte sind ausgeblendet – der Entwicklermodus in den Einstellungen zeigt sie.";
+"More recipes in your sources" = "Weitere Rezepte in deinen Quellen";
+"Show Data Folder" = "Datenordner zeigen";
+"Show in File Manager" = "Im Dateimanager zeigen";
+"Share a folder with the VM" = "Ordner mit der VM teilen";
+"omaflake uses what this computer already has. Set up missing parts here or enter their path." = "omaflake nutzt, was dieser Computer schon mitbringt. Fehlendes richtest du hier ein oder gibst den Pfad an.";
+"Like this computer – %@" = "Wie dieser Computer – %@";
+"Empty fields and \"Like this computer\" use this computer's values. The lists offer only what both NixOS and macOS VMs support. Your SSH keys from ~/.ssh are added automatically. A developer flake's local/settings.nix overrides these values." = "Leere Felder und „Wie dieser Computer“ übernehmen die Werte dieses Computers. Die Listen bieten nur an, was NixOS- und macOS-VMs beide können. Deine SSH-Schlüssel aus ~/.ssh kommen automatisch dazu. local/settings.nix eines Entwickler-Flakes überschreibt diese Werte.";
+"Not for this computer – built for %@" = "Nicht für diesen Computer – gebaut für %@";
+"Not for this computer – it is built for %@" = "Nicht für diesen Computer – gebaut für %@";
+"Not reviewed by the omaflake team – its Nix code runs on this computer when you build it." = "Nicht vom omaflake-Team geprüft – sein Nix-Code läuft auf diesem Computer, wenn du es baust.";
+"omaflake ships no recipes; it reads them from these sources. Recipes from other sources than omaflake/recipes are not reviewed by the omaflake team – their Nix code runs on this computer when you build them." = "omaflake bringt keine Rezepte mit, sondern liest sie aus diesen Quellen. Rezepte aus anderen Quellen als omaflake/recipes prüft das omaflake-Team nicht – ihr Nix-Code läuft auf diesem Computer, wenn du sie baust.";
+"Only while omaflake is not in front: VM ready, image built or failed, VM ended." = "Nur wenn omaflake nicht vorne ist: VM startklar, Vorlage fertig oder fehlgeschlagen, VM beendet.";
+"By default omaflake keeps everything in ~/.omaflake." = "Standardmäßig liegt alles in ~/.omaflake.";
+"Private – token in the keyring" = "Privat – Token im Schlüsselbund";
+"Private – no token in the keyring" = "Privat – kein Token im Schlüsselbund";
+"Recipes installed from it stay until you remove them; its token goes from the keyring." = "Daraus installierte Rezepte bleiben, bis du sie entfernst; ihr Token wird aus dem Schlüsselbund gelöscht.";
+"The token is checked against the repository and kept in your keyring – never in a file." = "Der Token wird am Repository geprüft und in deinem Schlüsselbund abgelegt – nie in einer Datei.";

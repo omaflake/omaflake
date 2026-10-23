@@ -140,10 +140,12 @@ struct MainView: View {
         .onAppear { AppDelegate.openMain = { [openWindow] in openWindow(id: AppFrame.windowID); NSApp.activate() } }
     }
 
-    /// The page's title: the core's, the guide's own
+    /// The page's title: the core's (the guide's in its params)
     private func title(_ ref: PageRef) -> String {
-        if ref.page == "guide" { return AppModel.guideTitle }
+        if ref.page == "guide" { return model.t(ref.echoed["title"]?.viewText) }
         switch model.pageModel(ref) {
+        case .vm(let p)?: return model.t(p.title)
+        case .image(let p)?: return model.t(p.title)
         case .doctor(let p)?: return model.t(p.title)
         case .settings(let p)?: return model.t(p.title)
         case .newVm(let p)?: return model.t(p.title)

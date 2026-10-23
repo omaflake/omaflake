@@ -44,6 +44,7 @@ pub struct BuildJobRow {
     pub fraction: Option<f64>,
     /// Cancel / remove from the queue, or hide an ended one
     pub actions: Vec<Action>,
+    /// The build page (the row's primary action: a click on the row)
     pub open: Action,
     pub job: JobDto,
 }
@@ -79,6 +80,8 @@ pub struct ImageDetail {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ImagePage {
+    /// The image's name
+    pub title: Text,
     pub row: ImageRowView,
 }
 
@@ -176,7 +179,8 @@ pub(crate) fn job_row(ctx: &Ctx, j: &JobDto) -> BuildJobRow {
         count: progress.filter(|p| p.of > 0).map(|p| Text::verbatim(format!("{}/{}", p.done.min(p.of), p.of))),
         fraction: progress.map(|p| p.fraction),
         actions,
-        open: Action::show("open", Text::new("Show the build and its log"), None, "build", json!({"recipe": recipe})),
+        open: Action::show("open", Text::new("Show the build and its log"), None, "build", json!({"recipe": recipe}))
+            .primary(),
         job: j.clone(),
     }
 }
@@ -220,11 +224,18 @@ pub(crate) fn row(ctx: &Ctx, i: &ImageDto) -> ImageRowView {
     let blockers = ctx.start_blockers(i.kind);
     let new_vm = if blockers.is_empty() {
         Action::show("newVm", Text::new("New VM from this image"), Some("new-vm"), "newVm", json!({"image": i.name}))
+            .primary()
     } else {
         Action::doctor_warning(&blockers)
     };
     let actions = vec![
-        Action::call("reveal", Text::new("Show in Finder"), Some("folder"), "ui.reveal", json!({"path": i.path})),
+        Action::call(
+            "reveal",
+            Text::new(ctx.on_host("Show in Finder", "Show in File Manager")),
+            Some("folder"),
+            "ui.reveal",
+            json!({"path": i.path}),
+        ),
         new_vm,
     ];
     ImageRowView {
@@ -314,5 +325,5 @@ pub struct ImageParams {
 }
 
 pub(crate) fn image_page(ctx: &Ctx, p: &ImageParams) -> Option<ImagePage> {
-    ctx.images.iter().find(|i| i.name == p.name).map(|i| ImagePage { row: row(ctx, i) })
+    ctx.images.iter().find(|i| i.name == p.name).map(|i| ImagePage { title: Text::verbatim(&i.name), row: row(ctx, i) })
 }

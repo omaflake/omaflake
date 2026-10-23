@@ -677,8 +677,9 @@ pub struct ConflictDto {
 pub struct Inspection {
     pub kind: PackageKindDto,
     pub valid: bool,
+    /// Why it is not valid – a text of the views (docs/api.md §10.2; the core's English message has no key yet)
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub reason: Option<String>,
+    pub reason: Option<super::views::Text>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub conflict: Option<ConflictDto>,
     pub network_volume: bool,
