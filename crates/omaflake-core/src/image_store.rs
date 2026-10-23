@@ -764,7 +764,6 @@ mod tests {
     }
 
     #[test]
-    #[ignore = "needs F3 RecipeLibrary::{available, prune_versions} (todo! until merged)"]
     fn removing_an_image_is_refused_while_used_and_moves_current() {
         let (_t, p) = temp_paths();
         let store = ImageStore::new(p.clone());
@@ -786,7 +785,6 @@ mod tests {
 
     /// Swift RetentionTests: current + one before + used ones stay; the rest goes
     #[test]
-    #[ignore = "needs F3 RecipeLibrary::{available, prune_versions} (todo! until merged)"]
     fn prune_keeps_current_previous_and_used() {
         let (_t, p) = temp_paths();
         let store = ImageStore::new(p.clone());

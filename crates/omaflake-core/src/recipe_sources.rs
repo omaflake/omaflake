@@ -1960,7 +1960,6 @@ mod tests {
 
     /// The full Swift `installStageRemove` (removals need `ImageStore::list`, F1) – run after the merge
     #[test]
-    #[ignore = "needs F1 (ImageStore::list)"]
     fn install_stage_remove() {
         let (_t, paths) = temp_paths();
         let src = paths.root.join("source");
@@ -2080,7 +2079,6 @@ mod tests {
 
     /// Imports make versions of one line; without keeping only the newest stays – and one an image is built from
     #[test]
-    #[ignore = "needs F1 (ImageStore::write_info, list)"]
     fn versions_are_kept_while_used_or_when_asked() {
         let (_t, p) = temp_paths();
         let lib = RecipeLibrary::new(p.clone());
@@ -2118,7 +2116,6 @@ mod tests {
 
     /// A build keeps the version of a local folder's recipe it used; the folder changes, the version stays
     #[test]
-    #[ignore = "needs F1 (ImageStore::write_info, list)"]
     fn build_keeps_the_version_of_a_local_folder() {
         let (_t, p) = temp_paths();
         let lib = RecipeLibrary::new(p.clone());

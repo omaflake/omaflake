@@ -49,9 +49,9 @@ pub mod word_list;
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 
 /// A log callback: one line of progress or output (Swift `@Sendable (String) -> Void`)
-pub type Log = dyn Fn(&str) + Send + Sync;
+pub type Log<'a> = dyn Fn(&str) + Send + Sync + 'a;
 /// A progress callback: (done, total) bytes or units (Swift `@Sendable (Int64, Int64) -> Void`)
-pub type Progress = dyn Fn(i64, i64) + Send + Sync;
+pub type Progress<'a> = dyn Fn(i64, i64) + Send + Sync + 'a;
 
 pub use error::{Error, Result};
 

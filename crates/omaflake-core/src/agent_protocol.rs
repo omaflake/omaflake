@@ -511,7 +511,7 @@ pub struct AgentLink {
     state_file: PathBuf,
     host: String,
     status_interval: u32,
-    log: Arc<Log>,
+    log: Arc<Log<'static>>,
     state: AgentState,
     decoder: AgentDecoder,
     parts: AgentReassembler,
@@ -543,7 +543,7 @@ impl AgentLink {
         host: &str,
         status_interval: u32,
         allowed: HashSet<String>,
-        log: Arc<Log>,
+        log: Arc<Log<'static>>,
     ) -> Result<Self> {
         let writer = stream.try_clone()?;
         let mut allowed = allowed;

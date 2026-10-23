@@ -414,7 +414,6 @@ mod tests {
     /// Needs `MacBaseInstaller::{default_public_keys, user_of}` and `MacImageBuilder::newest_base_in` (F4) and
     /// `MacVmBundle` – run after the merge with `cargo test -- --ignored`
     #[test]
-    #[ignore = "needs F4 (MacBaseInstaller, MacImageBuilder, MacVmBundle)"]
     fn overrides_and_base_user_win() {
         use crate::guest_settings::GuestOverrides;
         use crate::mac_vm::{MacVmBundle, MacVmConfig};
@@ -441,7 +440,6 @@ mod tests {
 
     /// Needs `GuestSettings::current` → F4 (see above)
     #[test]
-    #[ignore = "needs F4 (MacBaseInstaller::default_public_keys) and F1 (ImageStore::list via stage)"]
     fn guest_arguments_only_for_flakes_with_the_input() {
         let (_t, p) = temp_paths();
         let with_input = p.root.join("a");

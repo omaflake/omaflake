@@ -503,7 +503,6 @@ mod tests {
     }
 
     #[test]
-    #[ignore = "needs F2 QemuRuntime::locate and F3 RecipeLibrary::{installed, available} (todo! until merged)"]
     fn migrates_legacy_mac_image_current_link_and_instance() {
         let (_t, p) = temp_paths();
         let img = p.images().join("mac-minimal-46c254685a-dirty-8ymcgbkl");

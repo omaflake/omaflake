@@ -564,7 +564,7 @@ mod tests {
     use crate::paths::Settings;
     use std::os::unix::fs::PermissionsExt;
 
-    fn quiet() -> &'static Log {
+    fn quiet() -> &'static Log<'static> {
         &|_| {}
     }
 
@@ -777,7 +777,6 @@ mod tests {
     }
 
     #[test]
-    #[ignore = "needs F3 RecipeLibrary (import_recipes, export_recipe, installed, available, stage – todo! until merged)"]
     fn recipes_travel_with_what_they_require() {
         let (_t, p) = temp_paths();
         let src = p.root.join("src/recipes/me/nixos");

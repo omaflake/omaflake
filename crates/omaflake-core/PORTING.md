@@ -127,8 +127,8 @@ packages F1–F5 fill in the bodies **in parallel** – the signatures are the c
 | Backend.swift | `backend` | done | F2 runtime |
 | AgentProtocol.swift | `agent_protocol` | done | F2 runtime |
 | BuildProgress.swift | `build_progress` | done | F2 runtime |
-| RecipeSources.swift | `recipe_sources` | done (tests needing F1's `ImageStore::list`/`write_info` are `#[ignore]`d until the merge) | F3 recipes |
-| GuestSettings.swift | `guest_settings` | done (tests needing F4 are `#[ignore]`d until the merge) | F3 recipes |
+| RecipeSources.swift | `recipe_sources` | done | F3 recipes |
+| GuestSettings.swift | `guest_settings` | done | F3 recipes |
 | GuestChoices.swift | `guest_choices` | done | F3 recipes |
 | UpdateCheck.swift | `update_check` | done | F3 recipes |
 | MacVM.swift | `mac_vm` | done | F4 macOS |
