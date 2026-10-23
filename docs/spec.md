@@ -289,6 +289,8 @@ omaf-runner install <vm-dir> --ipsw <file> --disk-gb 80                 # fresh 
 Planned (plan B119): a setting "Show omaflake in: menu bar / window / both" – the same pages in a regular app window
 with a Dock icon. Linux gets its own app (Rust, iced) in the same brand look: a window, a tray icon over
 StatusNotifierItem and a waybar module, all coming with omaflake.
+Planned (plan B121): the core also says what each page shows (a presentation model); SwiftUI, iced and a terminal
+interface (`omaf ui`, ratatui, macOS and Linux) only draw it.
 
 - List of instances of both guest kinds with status dot and guest-kind icon; click = start or bring window to front
 - "New VM…" (recipes grouped by guest kind, name, ephemeral yes/no), "Reset", "Stop", "Rebuild image" (with log view)

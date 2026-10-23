@@ -8,7 +8,7 @@ permalink: /api/
 
 omaflake's logic lives in one **Rust core** (`crates/omaflake-core`). Every user interface talks to it through the
 interface described here: the macOS app (SwiftUI; menu bar, window or both – plan B119), later the Linux app (native Rust
-with iced, plan B119, issue #4), scripts and tests. The CLI `omaf` is built on the same core. No UI holds logic of its own beyond presentation: what a VM, an
+with iced, plan B119, issue #4), a terminal interface (`omaf ui`, macOS and Linux, plan B121), scripts and tests. The CLI `omaf` is built on the same core. No UI holds logic of its own beyond presentation: what a VM, an
 image or a recipe is, what may be done with it and what happens then is decided in the core.
 
 ```
