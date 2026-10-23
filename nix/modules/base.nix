@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
-# Shared base for all recipes: user, locale, SSH, Nix
+# Shared base for all recipes: user, locale, SSH, Nix – no editor (modules/editor.nix)
 { pkgs, settings, ... }:
 
 let
@@ -50,8 +50,7 @@ in
     options = "--delete-older-than 14d";
   };
 
-  environment.systemPackages = with pkgs; [ git neovim curl wget htop ];
-  environment.variables.EDITOR = "nvim"; # the user gets the configured Neovim from home/
+  environment.systemPackages = with pkgs; [ git curl wget htop ]; # no editor: the recipe's line brings it (editor.nix)
 
   system.stateVersion = "26.05";
 }

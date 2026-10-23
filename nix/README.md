@@ -25,7 +25,7 @@ or nix-darwin module); its fields and rules are in omaflake/recipes' CONTRIBUTIN
 cd nix
 R=../../recipes/recipes                      # a checkout of omaflake/recipes, or any folder of recipe folders
 nix eval --json "path:$PWD#lib.recipeDefaults" --override-input omaflake-recipes "path:$R"
-nix build "path:$PWD#images.aarch64-linux.\"omaflake.nixos.minimal\"" --override-input omaflake-recipes "path:$R"
+nix build "path:$PWD#images.aarch64-linux.\"omaflake.nixos.neovim-minimal\"" --override-input omaflake-recipes "path:$R"
 nix flake check "path:$PWD"                  # without recipes
 ```
 

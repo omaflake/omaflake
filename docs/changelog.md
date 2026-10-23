@@ -22,6 +22,10 @@ are collected under *Unreleased*. Releases: [GitHub](https://github.com/omaflake
   recipe sources show again whether their token is in the Keychain, the catalog shows a recipe's files, an image tells
   whether its recipe changed since, and activity messages for ended jobs and VMs come once, in the app's language.
   QEMU's Dock icon is written by the core when it starts a VM window; the app writes nothing into the data folder.
+- **Editor lines for NixOS recipes.** The desktop no longer brings an editor; a recipe picks the neovim line
+  (Neovim and Zellij, as before) or the new emacs line (`omaflake.editor = "emacs"`). The official recipes are named
+  after their line: `nixos/minimal` is now `nixos/neovim-minimal`, `nixos/research` is `nixos/neovim-research`, and
+  `nixos/emacs-minimal` is new. Images and VMs made from the old names stay as they are; new images come from the renamed recipes.
 
 ### Fixed
 

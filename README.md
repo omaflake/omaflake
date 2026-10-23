@@ -67,7 +67,7 @@ command line:
 
 ```sh
 omaf recipes available                     # what the sources offer
-omaf recipes install omaflake/nixos/minimal
+omaf recipes install omaflake/nixos/neovim-minimal
 omaf build minimal
 omaf new test --recipe minimal
 omaf start test --wait

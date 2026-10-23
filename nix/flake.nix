@@ -3,7 +3,7 @@
   description = "omaflake – builds VM images from recipes (the recipes themselves come from recipe sources)";
 
   # Use this flake as a `path:` reference (omaflake does that automatically for this folder):
-  #   nix build 'path:$PWD#images.aarch64-linux."omaflake.nixos.minimal"' --override-input omaflake-recipes path:<recipes>
+  #   nix build 'path:$PWD#images.aarch64-linux."omaflake.nixos.neovim-minimal"' --override-input omaflake-recipes path:<recipes>
   # A `path:` flake sees every file in this folder, including the git-ignored local/ folder with
   # your personal settings. A plain `.#…` (git) reference would silently ignore local/.
 
@@ -133,13 +133,14 @@
       ];
 
       # A recipe VM for one system = guest hardware (also the root flake's nixosModules.vm-guest) + base + desktop +
-      # the recipe (and its variant for the system) + your local extras
+      # editor line (the recipe picks it) + the recipe (and its variant for the system) + your local extras
       mkVm = system: recipe: nixpkgs.lib.nixosSystem {
         specialArgs = { inherit settings; };
         modules = [
           ./modules/vm-guest.nix
           ./modules/base.nix
           ./modules/hyprland.nix
+          ./modules/editor.nix
           { nixpkgs.hostPlatform = system; }
         ] ++ recipeModules recipe system ++ optionalLocal "nixos.nix" ++ homeManager;
       };
