@@ -1,0 +1,16 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+[package]
+name = "omaf"
+description = "omaflake's command line and JSON-RPC server (omaf serve)"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+repository.workspace = true
+
+[[bin]]
+name = "omaf"
+path = "src/main.rs"
+
+[dependencies]
+omaflake-core.workspace = true

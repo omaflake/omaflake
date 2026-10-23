@@ -1,0 +1,19 @@
+{
+  "$schema" : "https://omaflake.dev/schema/instance/v1.json",
+  "cpus" : 4,
+  "created" : "2026-10-21T10:00:00Z",
+  "diskGB" : 100,
+  "ephemeral" : false,
+  "identity" : "abandon-ability-able-about-above-absent-absorb-abstract-absurd-abuse-access-accident",
+  "image" : "omaflake.nixos.minimal@spice-mention-spice-salmon-donor-layer-still-close-stock-job-element-dove",
+  "imagePath" : "/Volumes/data/omaflake/images/omaflake.nixos.minimal@spice-mention-spice-salmon-donor-layer-still-close-stock-job-element-dove.omaflake-image/disk.qcow2",
+  "kind" : "nixos",
+  "memoryGB" : 16,
+  "name" : "research",
+  "network" : "shared",
+  "recipe" : "omaflake.nixos.minimal@regular-joke-crowd-layer-shed-village-toast-cricket-devote-beyond-insect-deny",
+  "share" : true,
+  "sharePath" : "/Volumes/data/share",
+  "sshPort" : 2222,
+  "system" : "aarch64-linux"
+}

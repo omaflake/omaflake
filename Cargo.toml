@@ -1,0 +1,29 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Rust core of omaflake (port of Sources/OmaflakeCore, see crates/omaflake-core/PORTING.md).
+# nix/agent is the guest agent's own Cargo project (built by Nix), not a member of this workspace.
+
+[workspace]
+resolver = "2"
+members = ["crates/omaflake-core", "crates/omaf"]
+exclude = ["nix/agent"]
+
+[workspace.package]
+version = "0.2.0"
+edition = "2021"
+license = "AGPL-3.0-or-later"
+publish = false
+repository = "https://github.com/omaflake/omaflake"
+
+[workspace.dependencies]
+omaflake-core = { path = "crates/omaflake-core" }
+serde = { version = "1.0.228", features = ["derive"] }
+serde_json = "1.0.149"
+toml = "1.1.8"
+chrono = { version = "0.4.45", default-features = false, features = ["std", "clock", "serde"] }
+sha2 = "0.11.1"
+hex = "0.4.3"
+base64 = "0.22.1"
+libc = "0.2.186"
+ureq = { version = "3.5.0", features = ["json"] }
+security-framework = "3.7.0"
+tempfile = "3.27.0"

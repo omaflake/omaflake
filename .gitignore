@@ -29,3 +29,6 @@ _to_delete/
 # Local Jekyll builds of docs/ (omaflake.dev)
 docs/.jekyll-cache/
 docs/_site/
+
+# Rust build output of the core workspace (Cargo.toml, crates/)
+/target/
