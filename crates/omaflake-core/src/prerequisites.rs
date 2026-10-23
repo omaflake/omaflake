@@ -964,7 +964,6 @@ mod tests {
     }
 
     #[test]
-    #[ignore = "needs ipsw_downloader::free_space (F4)"]
     fn free_space_falls_back_for_the_nix_store() {
         // the read-only store volume reports 0 for "important usage" – the plain value is used then
         assert!(free_space(Path::new("/nix/store")).unwrap_or(0) > 0 || !Path::new("/nix/store").exists());

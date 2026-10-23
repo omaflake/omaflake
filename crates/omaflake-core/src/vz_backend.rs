@@ -528,7 +528,6 @@ pub(crate) mod tests {
     }
 
     #[test]
-    #[ignore = "needs InstanceStore::validate/exists (F1)"]
     fn isolated_network_is_rejected() {
         let (_t, p) = temp_paths();
         let vz = backend(&p, "/usr/bin/false");
@@ -610,7 +609,6 @@ pub(crate) mod tests {
     }
 
     #[test]
-    #[ignore = "needs InstanceStore::validate (F1)"]
     fn the_runner_socket_limits_instance_names() {
         // the longer runner socket name limits instance names
         let store = InstanceStore::new(Paths::new(format!("/{}", "x".repeat(60)), None), "");
