@@ -18,19 +18,42 @@ open build/omaflake.app
 
 ## Architecture
 
-The app holds no logic of its own beyond presentation (plan B117): it starts **`omaf serve`** – the Rust `omaf` next
-to its executable, `Contents/MacOS/omaf` (development: `OMAF_BIN`, or the repository's `target/{debug,release}/omaf`
-above the SwiftPM build) – and talks JSON-RPC 2.0 with it over stdio (docs/api.md). `OmaflakeKit`'s `CoreClient`
-sends `initialize` (client `omaflake-macos`, the app's version, API version 1, the UI language, the update feed from
-Info.plist), subscribes to every event topic, matches responses to requests by id and starts the server again when it
-ends on its own; quitting the app ends it (`shutdown`, then its stdin closes). `AppModel` loads the lists once
-(`vms.list`, `images.list`, `recipes.list`, `sources.list`, `settings.get`, `jobs.list`, `doctor.check`) and then
-follows the events (`vms.changed`, `images.changed`, `recipes.changed`, `jobs.changed`, `job.log`, `doctor.changed`,
-`vm.ready`, `vm.ended`, `message`) – there is no polling in the app. Everything that takes minutes (builds, the IPSW
-download, the macOS base, Linux builder tasks, imports, exports, moving the data folder) is a job in the server; the
-build queue, the Doctor's blockers, the recipes' freshness and what the sources offer come from the server. What the
-app keeps: pages, filters, questions (confirmations inside the open window), the activity list, notifications, launch
-at login, the app's language, Terminal via AppleScript, open panels (their content checked by `packages.inspect`).
+The app holds no logic of its own beyond presentation (plans B117, B121): it **draws the core's pages**. It connects to
+**`omaf serve`** – the core service on its socket, started on demand with the bundled `omaf service start --json`, else
+a private `omaf serve` over stdio (plan B120); the Rust `omaf` sits next to its executable, `Contents/MacOS/omaf`
+(development: `OMAF_BIN`, or the repository's `target/{debug,release}/omaf` above the SwiftPM build). `OmaflakeKit`'s
+`CoreClient` sends `initialize` (client `omaflake-macos`, the app's version, API version 1, the UI language, the update
+feed from Info.plist), subscribes to the `jobs` topic only (for the build and base logs, `job.log`) and connects again
+when the connection ends; quitting ends only its session.
+
+**Pages.** `AppModel` subscribes (`views.subscribe`, docs/api.md §10) to `home` (the header's buttons, the tabs and
+their badges), `activity`, the three lists `vms`, `images`, `recipes` (with the filter the user chose, so switching tabs
+is instant) and the page open one level deeper (`doctor`, `settings`, `newVm {image}`, `build {recipe}`, `macBase`, with
+the form values typed so far). Every `view.changed` replaces that page's model (`PageModel`, OmaflakeKit's `Views.swift`);
+the SwiftUI views (`HomeLists.swift`, `Pages.swift`, `ModelViews.swift`) draw rows, lamps, badges, info lines, hints,
+filters and fields from it with the design tokens (`BrandTokens`, `BrandStyle`, `Components.swift`). What a row says,
+which buttons it has, whether they are enabled and why not, sorting, filtering, the questions' texts, the next free VM
+name, the form's validation and the activity's wording are the core's.
+
+**Actions** are generic (`AppModel.run`): an action's `ask`s first – a text or a password (twice for `repeat`) in the
+in-window question, a folder, file or package in an open panel as a sheet (packages checked by the ask's `check`,
+`packages.inspect`, before the panel closes; `multiple`: the action once per chosen package) – put into the params at
+their `param`; then its `confirm` (the same in-window question, with an `input` field where it has one); then its
+`method`: a core method, or a `ui.*` verb the app does itself – `ui.show`/`ui.back` (pages), `ui.step` (the import step:
+`views.get import`, then its action), `ui.filter`, `ui.field` (a form field), `ui.reveal`/`ui.open` (NSWorkspace),
+`ui.terminal` (Terminal via AppleScript), `ui.quit`. The answer's `then`: reveal `result.path`, run `result.shellLine`
+in Terminal, or leave the page. A refusal shows in the footer line (the activity list has it already).
+
+**Texts** are `{key, text, args}`: the key is this app's English source string, so `de.lproj/Localizable.strings`
+translates it (`Bundle.localizedString`); args are filled in by `ViewTextRenderer` – numbers, data, times and sizes in
+the app's language, nested texts translated first, asked params – also positional (`%2$@`) for translations that
+reorder. A translation whose placeholders do not fit falls back to the core's English `text`.
+
+What the app keeps: the session, which tab and page are open, the filter and form values, panels and questions, the
+footer line and system notifications (an activity entry's `notification`, when the activity page says notifications
+are on and the app is not in front), unseen activity, launch at login, the app's language, the frame (below), tooltips.
+For screenshots and checks without clicks, `OMAFLAKE_PAGE=<page>` (with `OMAFLAKE_PAGE_PARAMS` as JSON) opens the app
+on a page.
 
 ## Menu bar, window or both (plan B119)
 
@@ -80,7 +103,8 @@ while omaflake is not in front (menu window closed, app window hidden or in the 
     for unreviewed sources, a warning. Installed recipes show their source and, when downloaded, "Update" (a newer
     catalog version) and "Remove …" (red) in their details. With nothing installed, "Install suggested" brings the
     official recipes (plan B107)
-  - **Activity** (badge: dot for unread messages): what happened in this session, newest first, "Clear History"
+  - **Activity** (badge: dot for unread messages): what happened in the core service, newest first (the same list in
+    every interface, worded by the core), "Clear History"
 - The newest message also shows for 6 s at the bottom of the main window (a click opens Activity)
 - Notifications (Settings → Notifications, on by default; macOS asks once): VM ready (SSH answers), image ready, build
   failed, VM ended on its own – only while omaflake is not in front
@@ -165,8 +189,8 @@ while omaflake is not in front (menu window closed, app window hidden or in the 
   data folder (default `~/.omaflake`, move it elsewhere or back; `DataFolder.move`)
 
 UI languages: English (development language and fallback) and German, `App/Resources/<lang>.lproj/Localizable.strings`
-(keys are the English texts). Messages from the core (errors, `message` events) are English, like the CLI; where an
-error has a `kind` the app has its own text for (e.g. `vm-running`), it shows that.
+(keys are the English texts; the core's page texts use the same keys, docs/api.md §10.2). Error messages from the core
+are English, like the CLI (OPEN: translated by `data.kind`).
 
 `omaf-runner` is embedded as its own helper app (`Contents/Helpers/omaf-runner.app`, shown as "omaflake VM"; inside
 `Contents/MacOS` a runner with a VM window made macOS take it for omaflake.app, plan B65), signed by `bundle-app.sh` with its entitlement

@@ -120,5 +120,9 @@
       "text": "/opt/homebrew/bin/qemu-system-aarch64"
     }
   },
-  "log": "j6"
+  "log": "j6",
+  "title": {
+    "key": "Create macOS Base",
+    "text": "Create macOS Base"
+  }
 }

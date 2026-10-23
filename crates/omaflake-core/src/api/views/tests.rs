@@ -576,7 +576,17 @@ fn activity_page_and_job_wording() {
     let page = get(&c, "activity", json!({}));
     assert_eq!(page["entries"][0]["notification"]["title"]["key"], "VM ready");
     assert_eq!(action(&page["actions"], "clear")["method"], "activity.clear");
-    let empty = activity::page(&[]);
+    assert_eq!(page["notifications"], json!(c.settings.notifications));
+    for (p, params, title) in [
+        ("doctor", json!({}), "Doctor"),
+        ("settings", json!({}), "Settings"),
+        ("newVm", json!({"image": "omaflake.nixos.dev@cedar-mango-lift"}), "New VM"),
+        ("build", json!({"recipe": "omaflake.nixos.dev@velvet-tiger-orbit"}), "Build Image"),
+        ("macBase", json!({}), "Create macOS Base"),
+    ] {
+        assert_eq!(get(&c, p, params)["title"]["key"], title);
+    }
+    let empty = activity::page(&[], true);
     assert_eq!(empty.head.empty.unwrap().text.key.as_deref(), Some("Nothing happened yet in this session."));
     let jobs = fx::jobs();
     let worded: Vec<Option<String>> = jobs.iter().map(|j| activity::job_ended(j).map(|(_, t, _)| t.text)).collect();
@@ -654,6 +664,7 @@ fn every_page_reads_back_as_its_type() {
 mod server {
     use super::*;
     use crate::api::events::tests::recorder;
+    use crate::api::server::lock;
     use crate::api::Server;
     use crate::paths::tests::temp_paths;
 
@@ -671,6 +682,11 @@ mod server {
         assert_eq!(e.code, crate::api::protocol::INVALID_PARAMS);
         let e = server.call("views.get", json!({"page": "vm", "params": {"name": "x"}})).unwrap_err();
         assert_eq!(e.kind, Some(crate::error::codes::NOT_FOUND));
+
+        // Once the catalogs were looked into, the pages use them (this deadlocked: the catalogs' lock taken twice)
+        lock(&server.inner.catalogs).fetched = true;
+        let recipes = server.call("views.get", json!({"page": "recipes"})).unwrap();
+        assert_eq!(recipes["catalogsLoaded"], true);
 
         // A refused action lands in the activity list, worded for every UI
         assert!(server.call("vms.remove", json!({"name": "ghost"})).is_err());
@@ -703,6 +719,20 @@ mod server {
         assert_eq!(last.1["model"]["entries"], json!([]));
         let vms = sent.iter().find(|(m, p)| m == "view.changed" && p["page"] == "vms").unwrap();
         assert_eq!(vms.1["params"], json!({"filter": {"status": true}}));
+
+        // Subscribing again: a page that stays (same params) is not sent again, a new one comes at once
+        let count =
+            |page: &str| got.lock().unwrap().iter().filter(|(m, p)| m == "view.changed" && p["page"] == page).count();
+        let activity_before = count("activity");
+        server.call("views.subscribe", json!({"pages": [{"page": "activity"}, {"page": "home"}]})).unwrap();
+        for _ in 0..50 {
+            if count("home") > 0 {
+                break;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(100));
+        }
+        assert_eq!(count("home"), 1);
+        assert_eq!(count("activity"), activity_before);
         server.call("views.subscribe", json!({"pages": []})).unwrap();
         server.close(std::time::Duration::from_secs(5));
     }

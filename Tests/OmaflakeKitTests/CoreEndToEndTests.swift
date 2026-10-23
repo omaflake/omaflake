@@ -103,6 +103,20 @@ struct CoreEndToEndTests {
             if case .recipesChanged(let l) = $0 { l.recipes.contains { $0.base == "test.nixos.tiny" } } else { false }
         }
         try await events.wait("doctor.changed", seconds: 120) { if case .doctorChanged = $0 { true } else { false } }
+
+        // The presentation model (api.md §10): every page the app shows comes as `view.changed` and decodes
+        struct Subscribe: Encodable, Sendable { let pages: [PageRef] }
+        let pages = ["home", "activity", "vms", "images", "recipes", "doctor", "settings", "macBase"].map { PageRef($0) }
+        let _: Ignored? = try await client.call("views.subscribe", Subscribe(pages: pages))
+        for page in pages.map(\.page) {
+            try await events.wait("view.changed \(page)") {
+                if case .viewChanged(page, _, let model) = $0 {
+                    if case .error = model { false } else if case .unknown = model { false } else { true }
+                } else { false }
+            }
+        }
+        let recipesPage: RecipesPage = try await client.call("views.get", PageRef("recipes"))
+        #expect(recipesPage.rows.contains { $0.recipe.base == "test.nixos.tiny" })
         let undecodable = events.all.compactMap { if case .undecodable(let m, let e) = $0 { "\(m): \(e)" } else { nil } }
         #expect(undecodable.isEmpty, "events this app cannot read: \(undecodable)")
         #expect(!events.all.contains { if case .disconnected = $0 { true } else { false } })

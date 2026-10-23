@@ -15,6 +15,8 @@ use crate::models::{GuestKind, NetworkMode};
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct NewVmPage {
+    /// "New VM"
+    pub title: Text,
     pub image: String,
     pub recipe: String,
     pub kind: Badge,
@@ -236,6 +238,7 @@ pub(crate) fn page(ctx: &Ctx, p: &NewVmParams) -> Option<NewVmPage> {
         .then(Then::Back)
         .enabled_if(valid, name_error);
     Some(NewVmPage {
+        title: Text::new("New VM"),
         image: image.name.clone(),
         recipe: image.recipe.clone(),
         kind: kind_badge(image.kind),

@@ -140,5 +140,9 @@
     "tone": "danger"
   },
   "recipe": "omaflake.nixos.dev@velvet-tiger-orbit",
-  "state": "failed"
+  "state": "failed",
+  "title": {
+    "key": "Build Image",
+    "text": "Build Image"
+  }
 }

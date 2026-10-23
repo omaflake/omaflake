@@ -91,5 +91,9 @@
     }
   },
   "recipe": "omaflake.nixos.dev@velvet-tiger-orbit",
-  "state": "running"
+  "state": "running",
+  "title": {
+    "key": "Build Image",
+    "text": "Build Image"
+  }
 }

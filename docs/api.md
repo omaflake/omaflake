@@ -436,7 +436,9 @@ per page; the Rust types there are the contract, the JSON below their shape).
   not there is `not-found`.
 - `views.subscribe {pages}` replaces **this connection's** subscribed pages (a page with other params is another page –
   a UI that changes a filter subscribes again). With the service (§1) every connection subscribes its own pages and
-  gets `view.changed` only for them, built in its language (`initialize`); `views.get` works on any connection. Each comes at once as `view.changed {page, params, model}`, then again whenever its model
+  gets `view.changed` only for them, built in its language (`initialize`); `views.get` works on any connection. Each
+  page new in the subscription comes at once as `view.changed {page, params, model}` (one that stays subscribed with the
+  same params is not sent again for it), then again whenever its model
   differs from the one sent last: the watcher rebuilds subscribed pages at every look at the data folder (2 s), after
   actions, when a job changes and when the activity list grows (at most every 0.3 s). The whole model comes each
   time – a UI replaces what it shows. A page that cannot be built comes as `model: {"error": {message, kind}}`.
@@ -581,6 +583,8 @@ Rows carry their details (what an expanded row shows) and the API object they co
 `job`, `version`, `source`, `prerequisite`) for anything else a UI wants to show. The examples are cut short; the whole
 models are in `testdata/api/views/*.json`.
 
+Every page one level deeper (`doctor`, `settings`, `newVm`, `build`, `macBase`) has a `title` (its header).
+
 **home** – `actions` (doctor with `badge`, settings, dataFolder, quit), `tabs: [{id, label, icon, badge?}]` with
 `badge: {kind: count|working|failed|dot, count?, tone, help}` (running VMs; a build runs or failed; a recipe changed
 since its image), `firstTab` (`recipes` while there is no VM – a UI opening for the first time starts there).
@@ -688,7 +692,8 @@ or, with `external`, `vms.useExternal` (on a network volume: "Run the VM over th
 
 ### 10.6 Activity
 
-`activity` – list head (tool: clear – `activity.clear`) and `entries` (newest first, at most 100):
+`activity` – list head (tool: clear – `activity.clear`), `notifications` (the user wants system notifications,
+Settings) and `entries` (newest first, at most 100):
 
 ```json
 {"id": 2, "time": "2026-10-23T09:42:00Z", "level": "info", "text": {"key": "%@ is ready", "text": "research is ready", "args": ["research"]},
@@ -696,10 +701,10 @@ or, with `external`, `vms.useExternal` (on a network volume: "Run the VM over th
 ```
 
 The core words what the app's `AppModel.message` said: an action done (`research deleted`, `research created (SSH port
-2201)`, `Image … deleted`, `dev: 2 versions removed`, …) or refused (`research: <error>`), a job that ended (image
+2201)`, `Image … deleted`, `dev: 2 versions removed`, a source added with its note, …) or refused (`research: <error>`), a job that ended (image
 ready, build failed or cancelled, downloads, the base, Linux builder tasks, installs, imports, exports, the data
 folder), a VM that ended on its own or is ready, an update, and every `message`. `notification` is what a system
-notification says, where the app posted one – the UI posts it when notifications are on and its window is not in
+notification says, where the app posted one – the UI posts it when `notifications` is true and its window is not in
 front. `id` rises: a UI remembers the newest it has shown (unseen activity, the footer line, a TUI's status line).
 The list is the server's: with the service (§1) every connection sees the same activity, and it lives as long as the
 service runs.

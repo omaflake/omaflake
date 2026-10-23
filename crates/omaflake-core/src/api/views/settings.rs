@@ -15,6 +15,8 @@ use crate::recipe_sources::RecipeSourceKind;
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SettingsPage {
+    /// "Settings"
+    pub title: Text,
     pub sources: SourcesSection,
     pub general: SettingsSection,
     pub guest: SettingsSection,
@@ -222,7 +224,7 @@ pub(crate) fn page(ctx: &Ctx, answer: &SettingsAnswer, p: &SettingsParams) -> Se
     let general = SettingsSection {
         title: Text::new("General"),
         fields: vec![
-            flag("notifications", "Notifications", "Only while the menu window is closed: VM ready, image built or failed, VM ended. macOS asks once whether omaflake may send them.", s.notifications),
+            flag("notifications", "Notifications", "Only while omaflake is not in front: VM ready, image built or failed, VM ended. macOS asks once whether omaflake may send them.", s.notifications),
             flag("checkForUpdates", "Check for updates", "Once a day – the only network access omaflake makes on its own.", s.check_for_updates),
             flag("keepRecipeVersions", "Keep older recipe versions", "When a newer version of a recipe comes (an update, an import, a change in a local folder after a build). Off: only the newest stays – and every version an image is built from, as long as the image is there.", s.keep_recipe_versions),
             flag("developerMode", "Developer Mode", "Shows the lab recipes – omaflake's development recipes with test app and debug tools, and recipes others mark with lab = true.", s.developer_mode),
@@ -290,6 +292,7 @@ pub(crate) fn page(ctx: &Ctx, answer: &SettingsAnswer, p: &SettingsParams) -> Se
         note: Text::new("By default omaflake keeps everything in ~/.omaflake and needs no access to Documents or Desktop. A folder there asks for access once."),
     };
     SettingsPage {
+        title: Text::new("Settings"),
         sources: SourcesSection {
             title: Text::new("Recipe Sources"),
             rows,
