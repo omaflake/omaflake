@@ -116,11 +116,11 @@ packages F1–F5 fill in the bodies **in parallel** – the signatures are the c
 | SSHCommand.swift | `ssh_command` | done | foundation |
 | Packages.swift | `packages` | done | foundation |
 | – (Foundation behaviour) | `error`, `json` | done | foundation |
-| InstanceStore.swift | `instance_store` | skeleton (`check_runs_here`, `check_config_runs_here` done) | F1 stores |
-| ImageStore.swift | `image_store` | skeleton (types, `ImageInfo::new/line`, `info_file`, `image_name` done) | F1 stores |
-| ImageMigration.swift | `image_migration` | skeleton | F1 stores |
-| DataFolder.swift | `data_folder` | skeleton | F1 stores |
-| Transfer.swift | `transfer` | skeleton | F1 stores |
+| InstanceStore.swift | `instance_store` | done | F1 stores |
+| ImageStore.swift | `image_store` | done | F1 stores |
+| ImageMigration.swift | `image_migration` | done | F1 stores |
+| DataFolder.swift | `data_folder` | done | F1 stores |
+| Transfer.swift | `transfer` | done | F1 stores |
 | QMPClient.swift | `qmp_client` | skeleton | F2 runtime |
 | QEMUCommand.swift | `qemu_command` | skeleton | F2 runtime |
 | QEMURuntime.swift | `qemu_runtime` | skeleton (`tail`, `FileLock`, `InstanceLock` done) | F2 runtime |
@@ -250,8 +250,8 @@ SetupCommandTests, NixInstallerPinTests.
 - **Bundle**: the bundled image flake, the runner next to the executable and the package manifest's version used
   `Bundle.main`; Rust uses `std::env::current_exe()` (`<exe>/../../Resources/nix`) and `crate::VERSION`. The update
   feed URL from Info.plist is passed in by the app.
-- **Volumes**: `DataFolder` compares `st_dev` instead of `volumeIdentifierKey`; `Transfer::is_on_network_volume` –
-  OPEN (`statfs` `MNT_LOCAL`).
+- **Volumes**: `DataFolder` compares `st_dev` instead of `volumeIdentifierKey`; `Transfer::is_on_network_volume` uses
+  `statfs`: macOS `MNT_LOCAL` not set, Linux `f_type` of known network file systems (FUSE such as sshfs: OPEN).
 - **Shell**: stdout and stderr are read concurrently (Swift could block on a full stderr pipe); a cancelled process is
   waited for with `waitid(WNOWAIT)` before it is untracked, so no reused PID is ever signalled.
 - **Sockets**: `connect_unix` returns an owned `UnixStream` (close-on-exec) instead of a descriptor; `Ports::is_free`
