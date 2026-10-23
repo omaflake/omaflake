@@ -548,8 +548,30 @@ pub struct DoctorReport {
     /// This Mac's nix-darwin system comes from omaflake's image flake – `builder.apply` without `force` refuses to
     /// replace one that does not
     pub builder_system_is_omaflakes: bool,
+    /// The `omaf` command's link: what `doctor.installCli` creates and `doctor.uninstallCli` removes
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub cli: Option<CliLinkDto>,
     #[serde(with = "crate::json::iso8601")]
     pub checked: DateTime<Utc>,
+}
+
+/// The `omaf` command's link (plan B122)
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CliLinkDto {
+    /// Where Install puts it: `/usr/local/bin/omaf` (macOS), `~/.local/bin/omaf` (Linux)
+    pub link: String,
+    /// This omaflake's `omaf`, the link's target; absent when the core does not run as `omaf` (no Install)
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub target: Option<String>,
+    /// omaflake's link is there (Uninstall)
+    pub installed: bool,
+    /// A file that is not omaflake's is in the way (Install refuses)
+    pub blocked: bool,
+    /// The link's folder is on the user's PATH
+    pub on_path: bool,
+    /// Install and Uninstall ask for an administrator (macOS)
+    pub admin: bool,
 }
 
 // MARK: Settings and updates
@@ -697,6 +719,8 @@ pub enum JobKind {
     BuilderSetup,
     BuilderApply,
     BuilderCleanUp,
+    /// Install or uninstall the `omaf` command (`doctor.installCli`, `doctor.uninstallCli`)
+    CliInstall,
     Import,
     Export,
     DataMove,
@@ -827,6 +851,15 @@ pub struct BaseResult {
     pub ready: bool,
 }
 
+/// `cli-install`: the link, and whether it is there now (installed) or was removed
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct CliResult {
+    pub link: String,
+    pub installed: bool,
+    /// What it did, in English
+    pub message: String,
+}
+
 /// `builder-install-nix`, `builder-setup`, `builder-apply`, `builder-clean-up`
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct MessageResult {
@@ -904,6 +937,7 @@ mod tests {
         assert_eq!(s(RecipeSourceKind::Github), json!("github"));
         assert_eq!(s(RecipeSourceKind::Url), json!("url"));
         assert_eq!(s(JobKind::BuilderCleanUp), json!("builder-clean-up"));
+        assert_eq!(s(JobKind::CliInstall), json!("cli-install"));
         assert_eq!(s(JobKind::MacosInstall), json!("macos-install"));
         assert_eq!(s(UpdateState::NoFeed), json!("noFeed"));
     }

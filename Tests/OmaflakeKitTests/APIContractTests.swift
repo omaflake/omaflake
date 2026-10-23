@@ -238,7 +238,8 @@ struct APIContractTests {
 
     func doctor(_ name: String) throws {
         let d: DoctorReport = try load(name)
-        #expect(d.prerequisites.map(\.item) == [.nix, .qemu, .git] && d.prerequisites[0].install != nil)
+        #expect(d.prerequisites.map(\.item) == [.nix, .qemu, .git, .cli] && d.prerequisites[0].install != nil)
+        #expect(!d.prerequisites[3].required && d.prerequisites[3].install?.hasSuffix("doctor --install-cli") == true)
         #expect(d.prerequisites[1].title == "QEMU (NixOS guests)" && d.prerequisites[1].settablePath && d.prerequisites[1].required)
         #expect(!d.prerequisites[2].required && d.prerequisites[2].status == .missing)
         #expect(d.buildBlockers[.nixos].map(\.item) == [.builderRunning] && d.buildBlockers[.macos].first?.status == .limited)

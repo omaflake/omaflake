@@ -169,6 +169,66 @@
             "key": "git (optional)",
             "text": "git (optional)"
           }
+        },
+        {
+          "actions": [
+            {
+              "confirm": {
+                "button": {
+                  "key": "Install",
+                  "text": "Install"
+                },
+                "destructive": false,
+                "text": {
+                  "args": [
+                    "/usr/local/bin/omaf",
+                    "/Applications/omaflake.app/Contents/MacOS/omaf"
+                  ],
+                  "key": "omaflake creates the link %@ to its omaf (%@), so omaf works in Terminal. A link that is there already is replaced. macOS asks for an administrator.",
+                  "text": "omaflake creates the link /usr/local/bin/omaf to its omaf (/Applications/omaflake.app/Contents/MacOS/omaf), so omaf works in Terminal. A link that is there already is replaced. macOS asks for an administrator."
+                },
+                "title": {
+                  "key": "Install the omaf command?",
+                  "text": "Install the omaf command?"
+                }
+              },
+              "enabled": true,
+              "help": {
+                "text": "/Applications/omaflake.app/Contents/MacOS/omaf doctor --install-cli"
+              },
+              "icon": "install",
+              "id": "installCli",
+              "label": {
+                "key": "Install …",
+                "text": "Install …"
+              },
+              "method": "doctor.installCli",
+              "params": {}
+            }
+          ],
+          "busy": false,
+          "expandable": true,
+          "expanded": true,
+          "hint": {
+            "key": "Optional: install the omaf command to use omaflake in a terminal.",
+            "text": "Optional: install the omaf command to use omaflake in a terminal."
+          },
+          "item": "cli",
+          "prerequisite": {
+            "detail": "not on your PATH",
+            "hint": "Optional: install the omaf command to use omaflake in a terminal",
+            "install": "/Applications/omaflake.app/Contents/MacOS/omaf doctor --install-cli",
+            "item": "cli",
+            "required": false,
+            "settablePath": false,
+            "status": "missing",
+            "title": "omaf command (optional)"
+          },
+          "status": "missing",
+          "title": {
+            "key": "omaf command (optional)",
+            "text": "omaf command (optional)"
+          }
         }
       ],
       "title": {

@@ -9,6 +9,7 @@ use std::time::{Duration, Instant};
 
 use chrono::Utc;
 use omaflake_core::builder_maintenance::BuilderMaintenance;
+use omaflake_core::cli_link::CliLink;
 use omaflake_core::platform::is_executable_file;
 use omaflake_core::{
     json, AgentState, DataFolder, DisplayMode, Error, GlBackend, GuestKind, GuestSettings, InstanceConfig,
@@ -607,7 +608,10 @@ pub fn config_lines(s: &omaflake_core::Settings, paths: &Paths, g: &GuestSetting
     ]
 }
 
-pub fn doctor() -> Outcome {
+pub fn doctor(a: &cli::Doctor) -> Outcome {
+    if a.install_cli || a.uninstall_cli {
+        return cli_link(a.install_cli);
+    }
     let env = Env::new();
     let pre = Prerequisites::new(env.paths.clone());
     let latest = env.backends().ok().and_then(|b| b.vz().ok().and_then(|vz| MacOsRelease::latest(&vz.runner)));
@@ -645,6 +649,18 @@ pub fn doctor_lines(p: &Prerequisite) -> Vec<String> {
         out.push(format!("      {}", cmd.replace("\\\n", "\\\n      ")));
     }
     out
+}
+
+/// `omaf doctor --install-cli` / `--uninstall-cli`: the link to this omaf (cli_link.rs); root through sudo on macOS
+fn cli_link(install: bool) -> Outcome {
+    let link = CliLink::current();
+    let as_root = |script: &str| -> omaflake_core::Result<()> {
+        println!("{} needs an administrator (sudo) …", link.link.display());
+        sudo(script).map_err(|_| Error::new("sudo failed – nothing was changed"))
+    };
+    let done = if install { link.install(&as_root)? } else { link.uninstall(&as_root)? };
+    println!("{done}");
+    Ok(())
 }
 
 fn stderr_line(line: &str) {

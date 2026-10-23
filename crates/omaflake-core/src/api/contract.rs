@@ -506,7 +506,7 @@ pub(crate) fn prerequisite(item: PrerequisiteItem, status: PrerequisiteStatus) -
         item,
         status,
         title: super::model::requirement_title(item).into(),
-        required: item != PrerequisiteItem::Git,
+        required: !matches!(item, PrerequisiteItem::Git | PrerequisiteItem::Cli),
         detail: "/opt/homebrew/bin/qemu-system-aarch64".into(),
         hint: "Install QEMU".into(),
         install: None,
@@ -537,8 +537,14 @@ pub(crate) fn doctor() -> DoctorReport {
         expected_user: Some("sam".into()),
         ..prerequisite(I::MacBase, S::Limited)
     };
+    let cli = PrerequisiteDto {
+        detail: "not on your PATH".into(),
+        hint: "Optional: install the omaf command to use omaflake in a terminal".into(),
+        install: Some("/Applications/omaflake.app/Contents/MacOS/omaf doctor --install-cli".into()),
+        ..prerequisite(I::Cli, S::Missing)
+    };
     DoctorReport {
-        prerequisites: vec![nix, qemu.clone(), prerequisite(I::Git, S::Missing)],
+        prerequisites: vec![nix, qemu.clone(), prerequisite(I::Git, S::Missing), cli],
         nixos_preflight: vec![builder.clone()],
         macos_preflight: vec![prerequisite(I::Ipsw, S::Ok), base.clone(), space],
         latest_release: Some(MacOsReleaseDto {
@@ -554,6 +560,14 @@ pub(crate) fn doctor() -> DoctorReport {
         has_mac_base: true,
         mac_base_user: Some("alex".into()),
         builder_system_is_omaflakes: false,
+        cli: Some(CliLinkDto {
+            link: "/usr/local/bin/omaf".into(),
+            target: Some("/Applications/omaflake.app/Contents/MacOS/omaf".into()),
+            installed: false,
+            blocked: false,
+            on_path: true,
+            admin: true,
+        }),
         checked: date("2026-10-23T09:41:00Z"),
     }
 }

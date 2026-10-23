@@ -65,7 +65,7 @@ pub fn run(command: Command) -> Outcome {
         Command::Agent(a) => instances::agent(&a),
         Command::Log(a) => instances::log(&a),
         Command::Config(a) => instances::config(&a),
-        Command::Doctor => instances::doctor(),
+        Command::Doctor(a) => instances::doctor(&a),
         Command::Builder { command } => match command {
             BuilderCommand::Setup => instances::builder_setup(),
             BuilderCommand::Apply { force } => instances::builder_apply(force),

@@ -87,8 +87,8 @@ impl Platform {
     }
 }
 
-/// The passwd entry of the user running omaflake: (name, full name, home)
-fn passwd() -> Option<(String, String, String)> {
+/// The passwd entry of the user running omaflake: (name, full name, home, login shell)
+fn passwd() -> Option<(String, String, String, String)> {
     let mut buf = vec![0 as libc::c_char; 16384];
     // SAFETY: zeroed passwd is a valid out-parameter; getpwuid_r writes into it and `buf`, which outlive the reads below
     unsafe {
@@ -105,7 +105,7 @@ fn passwd() -> Option<(String, String, String)> {
                 CStr::from_ptr(p).to_string_lossy().into_owned()
             }
         };
-        Some((s(pw.pw_name), s(pw.pw_gecos), s(pw.pw_dir)))
+        Some((s(pw.pw_name), s(pw.pw_gecos), s(pw.pw_dir), s(pw.pw_shell)))
     }
 }
 
@@ -133,6 +133,15 @@ pub fn home_dir() -> PathBuf {
         return PathBuf::from(h);
     }
     PathBuf::from(passwd().map(|p| p.2).unwrap_or_else(|| "/".into()))
+}
+
+/// The user's login shell: `$SHELL`, else the passwd entry (a launchd agent may have no `SHELL`), else /bin/sh
+pub fn login_shell() -> PathBuf {
+    std::env::var_os("SHELL")
+        .filter(|s| !s.is_empty())
+        .map(PathBuf::from)
+        .or_else(|| passwd().map(|p| PathBuf::from(p.3)).filter(|p| p.is_absolute()))
+        .unwrap_or_else(|| PathBuf::from("/bin/sh"))
 }
 
 /// `~` and `~/…` → the home folder (Swift `NSString.expandingTildeInPath`; `~user` is left as it is)

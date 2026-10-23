@@ -624,3 +624,21 @@
 "Private – no token in the keyring" = "Privat – kein Token im Schlüsselbund";
 "Recipes installed from it stay until you remove them; its token goes from the keyring." = "Daraus installierte Rezepte bleiben, bis du sie entfernst; ihr Token wird aus dem Schlüsselbund gelöscht.";
 "The token is checked against the repository and kept in your keyring – never in a file." = "Der Token wird am Repository geprüft und in deinem Schlüsselbund abgelegt – nie in einer Datei.";
+
+/* The omaf command (plan B122) */
+"omaf command (optional)" = "omaf-Befehl (optional)";
+"Optional: install the omaf command to use omaflake in a terminal." = "Optional: Installiere den omaf-Befehl, um omaflake im Terminal zu nutzen.";
+"Another omaf comes first on your PATH – install this omaflake's, or remove the other one." = "Ein anderes omaf steht zuerst in deinem PATH – installiere das von diesem omaflake oder entferne das andere.";
+"%@ is there and is not omaflake's – remove or rename it, then install." = "%@ existiert und gehört nicht zu omaflake – entferne oder benenne es um, dann installiere.";
+"Add %@ to your PATH in your shell's profile (export PATH=\"%@:$PATH\")." = "Füge %@ im Profil deiner Shell zum PATH hinzu (export PATH=\"%@:$PATH\").";
+"Install the omaf command?" = "omaf-Befehl installieren?";
+"omaflake creates the link %@ to its omaf (%@), so omaf works in Terminal. A link that is there already is replaced. macOS asks for an administrator." = "omaflake legt den Link %@ auf sein omaf (%@) an, damit omaf im Terminal funktioniert. Ein vorhandener Link wird ersetzt. macOS fragt nach einem Administrator.";
+"omaflake creates the link %@ to its omaf (%@), so omaf works in a terminal. A link that is there already is replaced." = "omaflake legt den Link %@ auf sein omaf (%@) an, damit omaf im Terminal funktioniert. Ein vorhandener Link wird ersetzt.";
+"Uninstall …" = "Deinstallieren …";
+"Uninstall" = "Deinstallieren";
+"Uninstall the omaf command?" = "omaf-Befehl deinstallieren?";
+"omaflake removes the link %@; omaf itself stays in omaflake. macOS asks for an administrator." = "omaflake entfernt den Link %@; omaf selbst bleibt in omaflake. macOS fragt nach einem Administrator.";
+"omaflake removes the link %@; omaf itself stays in omaflake." = "omaflake entfernt den Link %@; omaf selbst bleibt in omaflake.";
+"The omaf command is installed: %@" = "Der omaf-Befehl ist installiert: %@";
+"The omaf command is removed: %@" = "Der omaf-Befehl ist entfernt: %@";
+"omaf command: %@" = "omaf-Befehl: %@";

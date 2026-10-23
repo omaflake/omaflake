@@ -94,7 +94,7 @@ pub enum Command {
     #[command(about = "Show/set settings in ~/.omaflake/config.json.")]
     Config(Config),
     #[command(about = "Check what your Mac brings and whether NixOS and macOS images can be built (preflight).")]
-    Doctor,
+    Doctor(Doctor),
     #[command(about = "Linux builder: apply omaflake's builder host, clean up its disk (runs sudo).")]
     #[command(subcommand_required = true, arg_required_else_help = true)]
     Builder {
@@ -467,6 +467,19 @@ pub struct Ssh {
         help = "Command to run in the guest (optional)"
     )]
     pub command: Vec<String>,
+}
+
+/// Plan B122
+#[derive(Debug, Args)]
+pub struct Doctor {
+    #[arg(
+        long,
+        conflicts_with = "uninstall_cli",
+        help = "Install the omaf command: a link to this omaf in /usr/local/bin (macOS, runs sudo) or ~/.local/bin (Linux)"
+    )]
+    pub install_cli: bool,
+    #[arg(long, help = "Remove omaflake's link of the omaf command again")]
+    pub uninstall_cli: bool,
 }
 
 #[derive(Debug, Args)]

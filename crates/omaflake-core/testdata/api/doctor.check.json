@@ -27,6 +27,14 @@
   },
   "builderSystemIsOmaflakes": false,
   "checked": "2026-10-23T09:41:00Z",
+  "cli": {
+    "admin": true,
+    "blocked": false,
+    "installed": false,
+    "link": "/usr/local/bin/omaf",
+    "onPath": true,
+    "target": "/Applications/omaflake.app/Contents/MacOS/omaf"
+  },
   "hasMacBase": true,
   "issues": 3,
   "latestRelease": {
@@ -108,6 +116,16 @@
       "settablePath": false,
       "status": "missing",
       "title": "git (optional)"
+    },
+    {
+      "detail": "not on your PATH",
+      "hint": "Optional: install the omaf command to use omaflake in a terminal",
+      "install": "/Applications/omaflake.app/Contents/MacOS/omaf doctor --install-cli",
+      "item": "cli",
+      "required": false,
+      "settablePath": false,
+      "status": "missing",
+      "title": "omaf command (optional)"
     }
   ],
   "requirementsMissing": true,

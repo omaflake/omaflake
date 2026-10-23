@@ -9,7 +9,7 @@ use serde_json::{json, Value};
 use super::common::*;
 use super::text::{tf, Arg, Text};
 use super::Ctx;
-use crate::api::types::{JobDto, JobKind, PrerequisiteDto, UpdateState};
+use crate::api::types::{CliLinkDto, JobDto, JobKind, PrerequisiteDto, UpdateState};
 use crate::prerequisites::{PrerequisiteItem as I, PrerequisiteStatus as S};
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -119,6 +119,10 @@ pub fn hint(p: &PrerequisiteDto) -> Text {
         I::Flake => "Choose the folder with your recipes (flake.nix).",
         I::SshKey => "Create a key – used for SSH into VMs, image builds and macOS bases.",
         I::Git => "Optional: without it, image names show “nogit” instead of the flake's revision.",
+        I::Cli if limited => {
+            "Another omaf comes first on your PATH – install this omaflake's, or remove the other one."
+        }
+        I::Cli => "Optional: install the omaf command to use omaflake in a terminal.",
         I::BuilderRunning => {
             "The Linux builder VM does not answer – it is started by nix-darwin (launchd: org.nixos.linux-builder)."
         }
@@ -163,21 +167,78 @@ fn builder_task(ctx: &Ctx) -> Option<&JobDto> {
     })
 }
 
+/// The `omaf` command's hint: a file in the way, or the link's folder missing from the PATH; else as `hint`
+fn cli_hint(p: &PrerequisiteDto, cli: Option<&CliLinkDto>) -> Text {
+    match cli {
+        Some(c) if c.blocked && p.status != S::Ok => {
+            tf!("%@ is there and is not omaflake's – remove or rename it, then install.", &c.link)
+        }
+        Some(c) if c.installed && !c.on_path && p.status != S::Ok => {
+            let dir = c.link.rsplit_once('/').map(|(d, _)| d.to_string()).unwrap_or_default();
+            tf!("Add %@ to your PATH in your shell's profile (export PATH=\"%@:$PATH\").", &dir, &dir)
+        }
+        _ => hint(p),
+    }
+}
+
+/// Install … and Uninstall … of the `omaf` command (plan B122)
+fn cli_actions(ctx: &Ctx, p: &PrerequisiteDto, cli: Option<&CliLinkDto>) -> Vec<Action> {
+    let Some(c) = cli else { return vec![] };
+    let running = ctx.active_job(JobKind::CliInstall);
+    let busy_reason = running.map(|j| Text::verbatim(&j.title));
+    let mut actions = Vec::new();
+    if let Some(target) = c.target.as_ref().filter(|_| p.status != S::Ok) {
+        let text = if c.admin {
+            tf!("omaflake creates the link %@ to its omaf (%@), so omaf works in Terminal. A link that is there already is replaced. macOS asks for an administrator.", &c.link, target)
+        } else {
+            tf!("omaflake creates the link %@ to its omaf (%@), so omaf works in a terminal. A link that is there already is replaced.", &c.link, target)
+        };
+        let mut a = Action::call("installCli", Text::new("Install …"), Some("install"), "doctor.installCli", json!({}))
+            .confirm(Confirm::new(Text::new("Install the omaf command?"), text).button("Install"))
+            .busy(running.is_some())
+            .enabled_if(running.is_none(), busy_reason.clone())
+            .enabled_if(!c.blocked, Some(Text::verbatim(&c.link)));
+        a.help = p.install.as_ref().map(Text::verbatim);
+        actions.push(a);
+    }
+    if c.installed {
+        let text = if c.admin {
+            tf!(
+                "omaflake removes the link %@; omaf itself stays in omaflake. macOS asks for an administrator.",
+                &c.link
+            )
+        } else {
+            tf!("omaflake removes the link %@; omaf itself stays in omaflake.", &c.link)
+        };
+        actions.push(
+            Action::call("uninstallCli", Text::new("Uninstall …"), Some("trash"), "doctor.uninstallCli", json!({}))
+                .confirm(Confirm::new(Text::new("Uninstall the omaf command?"), text).button("Uninstall").destructive())
+                .enabled_if(running.is_none(), busy_reason),
+        );
+    }
+    actions
+}
+
 fn item(ctx: &Ctx, p: &PrerequisiteDto) -> DoctorItem {
     let report = ctx.doctor.as_ref();
     let task = builder_task(ctx);
     let downloading = download_job(ctx);
     let installing = ctx.active_job(JobKind::MacosInstall).is_some();
     let builder_actions = p.item == I::LinuxBuilder && p.status == S::Ok;
+    let cli = report.and_then(|d| d.cli.as_ref()).filter(|_| p.item == I::Cli);
+    let cli_installed = cli.is_some_and(|c| c.installed);
     let busy = (p.item == I::Ipsw && downloading.is_some())
         || (p.item == I::MacBase && installing)
-        || (p.item == I::LinuxBuilder && task.is_some());
-    let has_subline = p.status != S::Ok || p.settable_path || busy || builder_actions;
+        || (p.item == I::LinuxBuilder && task.is_some())
+        || (p.item == I::Cli && ctx.active_job(JobKind::CliInstall).is_some());
+    let has_subline = p.status != S::Ok || p.settable_path || busy || builder_actions || cli_installed;
     let task_busy = task.map(|t| Text::verbatim(&t.title));
     let no_task = |a: Action| a.enabled_if(task.is_none(), task_busy.clone());
 
     let mut actions = Vec::new();
-    if p.item == I::Nix && p.status == S::Missing {
+    if p.item == I::Cli {
+        actions.extend(cli_actions(ctx, p, cli));
+    } else if p.item == I::Nix && p.status == S::Missing {
         let mut a = no_task(
             Action::call("installNix", Text::new("Install …"), Some("install"), "builder.installNix", json!({})).confirm(
                 Confirm::new(
@@ -288,7 +349,7 @@ fn item(ctx: &Ctx, p: &PrerequisiteDto) -> DoctorItem {
         status: p.status,
         title: Text::new(&p.title),
         detail: show_detail.then(|| detail(p)),
-        hint: (p.status != S::Ok).then(|| hint(p)),
+        hint: (p.status != S::Ok).then(|| if p.item == I::Cli { cli_hint(p, cli) } else { hint(p) }),
         expandable: has_subline,
         expanded: has_subline && (p.status != S::Ok || busy),
         busy,

@@ -7,6 +7,7 @@ public struct Job: Decodable, Sendable, Equatable, Identifiable {
         case build, macosInstall = "macos-install", ipswDownload = "ipsw-download"
         case builderInstallNix = "builder-install-nix", builderSetup = "builder-setup", builderApply = "builder-apply"
         case builderCleanUp = "builder-clean-up", `import`, export, dataMove = "data-move", recipeInstall = "recipe-install"
+        case cliInstall = "cli-install"
         case unknown
 
         public var isBuilderTask: Bool { [.builderInstallNix, .builderSetup, .builderApply, .builderCleanUp].contains(self) }

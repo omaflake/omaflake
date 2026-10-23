@@ -15,6 +15,11 @@ are collected under *Unreleased*. Releases: [GitHub](https://github.com/omaflake
 
 ### Added
 
+- **The `omaf` command from the Doctor.** A new, optional check says whether `omaf` is on your PATH and is this
+  omaflake's (another or older one is named with its path and version). *Install …* links `/usr/local/bin/omaf` to the
+  app's `omaf` (macOS asks for an administrator), *Uninstall …* removes the link; on Linux the link goes to
+  `~/.local/bin`. In the terminal: `omaf doctor --install-cli` / `--uninstall-cli`.
+
 - **omaflake in a window.** Settings → *Show omaflake in*: Menu Bar (as before), Window (a regular window with a Dock
   icon and the app menu) or Both. The pages are the same; the change applies at once.
 - **One core service for every interface.** `omaf serve --socket` runs omaflake's core once per user on a Unix

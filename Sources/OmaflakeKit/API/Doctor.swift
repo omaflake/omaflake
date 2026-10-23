@@ -6,6 +6,8 @@ public struct Prerequisite: Decodable, Sendable, Equatable, Identifiable {
     public enum Item: String, OpenEnum {
         // what the Mac brings
         case host, nix, flakes, nixDarwin, linuxBuilder, qemu, flake, sshKey, git
+        /// The `omaf` command on the user's PATH (optional)
+        case cli
         // preflight NixOS: builder VM answering, recipes evaluating, space in the Nix store
         case builderRunning, flakeEval, nixSpace
         // preflight macOS: IPSW from Apple, base, space for installation and images

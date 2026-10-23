@@ -299,6 +299,8 @@ pub(crate) struct Doctor {
     pub latest: Option<MacOsRelease>,
     pub has_mac_base: bool,
     pub builder_system_is_omaflakes: bool,
+    /// The `omaf` command's link (plan B122)
+    pub cli: Option<CliLinkDto>,
     pub checked: chrono::DateTime<chrono::Utc>,
 }
 
@@ -339,7 +341,7 @@ pub(crate) fn start_blockers(kind: GuestKind, prerequisites: &[Prerequisite]) ->
 /// Items that need attention (the warning sign on the Doctor)
 pub(crate) fn doctor_issues<'a>(all: impl Iterator<Item = &'a Prerequisite>) -> usize {
     all.filter(|p| {
-        (p.status == PrerequisiteStatus::Missing && p.item != PrerequisiteItem::Git)
+        (p.status == PrerequisiteStatus::Missing && p.required())
             || (p.item == PrerequisiteItem::MacBase && p.status == PrerequisiteStatus::Limited)
     })
     .count()
@@ -358,6 +360,7 @@ pub(crate) fn requirement_title(item: PrerequisiteItem) -> &'static str {
         Flake => "Recipes (your flake)",
         SshKey => "SSH key",
         Git => "git (optional)",
+        Cli => "omaf command (optional)",
         BuilderRunning => "Linux builder answers",
         FlakeEval => "Recipes evaluate",
         NixSpace => "Space in the Nix store",
@@ -408,6 +411,7 @@ pub(crate) fn doctor_report(d: &Doctor) -> DoctorReport {
         requirements_missing: d.prerequisites.iter().any(|p| p.required() && p.status == PrerequisiteStatus::Missing),
         has_mac_base: d.has_mac_base,
         builder_system_is_omaflakes: d.builder_system_is_omaflakes,
+        cli: d.cli.clone(),
         mac_base_user: d.macos.iter().find(|p| p.item == PrerequisiteItem::MacBase).and_then(|p| p.base_user.clone()),
         checked: d.checked,
     }
@@ -417,8 +421,11 @@ pub(crate) fn doctor_report(d: &Doctor) -> DoctorReport {
 pub(crate) fn check_doctor(paths: &Paths) -> Doctor {
     let pre = crate::prerequisites::Prerequisites::new(paths.clone());
     let latest = VzBackend::locate_runner(paths).ok().and_then(|r| MacOsRelease::latest(&r));
+    let (prerequisites, cli) = pre.check_with_cli();
+    let link = crate::cli_link::CliLink::current();
     Doctor {
-        prerequisites: pre.check(),
+        prerequisites,
+        cli: Some(cli_link_dto(&link, &cli)),
         nixos: pre.nixos_preflight(),
         macos: pre.macos_preflight(latest.as_ref()),
         latest,
@@ -426,6 +433,18 @@ pub(crate) fn check_doctor(paths: &Paths) -> Doctor {
         builder_system_is_omaflakes: crate::builder_maintenance::BuilderMaintenance::new(paths.clone())
             .system_is_omaflakes(),
         checked: crate::json::now(),
+    }
+}
+
+/// What Install/Uninstall of the `omaf` command would do (the Doctor's `cli` item)
+pub(crate) fn cli_link_dto(link: &crate::cli_link::CliLink, check: &crate::cli_link::CliCheck) -> CliLinkDto {
+    CliLinkDto {
+        link: link.link.to_string_lossy().into_owned(),
+        target: link.ours.as_ref().map(|o| o.to_string_lossy().into_owned()),
+        installed: check.state.installed(),
+        blocked: check.state.blocked(),
+        on_path: check.on_path,
+        admin: link.mac,
     }
 }
 
@@ -976,6 +995,7 @@ mod tests {
             latest: None,
             has_mac_base: false,
             builder_system_is_omaflakes: false,
+            cli: None,
             checked: crate::json::now(),
         };
         let report = doctor_report(&d);

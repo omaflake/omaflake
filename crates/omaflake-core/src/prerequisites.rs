@@ -2,7 +2,8 @@
 //! Port of Prerequisites.swift – work package F5.
 //!
 //! What the user's Mac brings (spec §11.2): detected without elevated rights, shared by `omaf doctor` and the app's
-//! Requirements page. Nothing here installs anything – `install` is a command the user runs in Terminal.
+//! Requirements page. Nothing here installs anything – `install` is a command the user runs in Terminal. The `omaf`
+//! command's check (`cli`) and its Install/Uninstall live in cli_link.rs.
 //!
 //! Not 1:1: `host()` read `ProcessInfo.operatingSystemVersion`; Rust reads `kern.osproductversion` (sysctl, the same
 //! value `sw_vers -productVersion` prints) on macOS. Any other host is `missing`: Linux hosts are not supported yet
@@ -17,6 +18,7 @@ use std::path::Path;
 use serde::{Deserialize, Serialize, Serializer};
 
 use crate::builder_maintenance::BuilderMaintenance;
+use crate::cli_link::{CliCheck, CliLink};
 use crate::image_store::ImageStore;
 use crate::ipsw_downloader::{free_space, gigabytes, IpswDownloader, MacOsRelease};
 use crate::mac_base_installer::MacBaseInstaller;
@@ -42,6 +44,8 @@ pub enum PrerequisiteItem {
     Flake,
     SshKey,
     Git,
+    /// The `omaf` command on the user's PATH (optional, plan B122)
+    Cli,
     // preflight NixOS: builder VM answering, recipes evaluating, space in the Nix store
     BuilderRunning,
     FlakeEval,
@@ -65,6 +69,7 @@ impl PrerequisiteItem {
             PrerequisiteItem::Flake => "flake",
             PrerequisiteItem::SshKey => "sshKey",
             PrerequisiteItem::Git => "git",
+            PrerequisiteItem::Cli => "cli",
             PrerequisiteItem::BuilderRunning => "builderRunning",
             PrerequisiteItem::FlakeEval => "flakeEval",
             PrerequisiteItem::NixSpace => "nixSpace",
@@ -181,9 +186,9 @@ impl Prerequisite {
         matches!(self.item, PrerequisiteItem::Nix | PrerequisiteItem::Qemu | PrerequisiteItem::Flake)
     }
 
-    /// Needed for every feature; `limited` items still allow some
+    /// Needed for every feature; `limited` items still allow some. git and the `omaf` command are optional.
     pub fn required(&self) -> bool {
-        self.item != PrerequisiteItem::Git
+        !matches!(self.item, PrerequisiteItem::Git | PrerequisiteItem::Cli)
     }
 }
 
@@ -246,8 +251,21 @@ impl Prerequisites {
         format!("sudo sh -c '{}'", BuilderMaintenance::install_nix_command())
     }
 
-    /// All checks, in the order shown: host, nix, flakes, nix-darwin, Linux builder, QEMU, flake, SSH key, git.
+    /// All checks, in the order shown: host, nix, flakes, nix-darwin, Linux builder, QEMU, flake, SSH key, git, the
+    /// `omaf` command.
     pub fn check(&self) -> Vec<Prerequisite> {
+        self.check_with_cli().0
+    }
+
+    /// `check()`, and what the `omaf` command's check found (for Install/Uninstall, cli_link.rs)
+    pub fn check_with_cli(&self) -> (Vec<Prerequisite>, CliCheck) {
+        let cli = CliLink::current().check();
+        let mut items = self.check_without_cli();
+        items.push(cli.item.clone());
+        (items, cli)
+    }
+
+    fn check_without_cli(&self) -> Vec<Prerequisite> {
         let settings = Settings::load(&self.paths);
         let nix = Self::locate_nix(&settings);
         let config = nix.as_deref().map(Self::nix_config).unwrap_or_default();

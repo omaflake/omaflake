@@ -19,6 +19,7 @@ use super::types::*;
 use crate::backend::{Readiness, StartOptions};
 use crate::build_progress::BuildLog;
 use crate::builder_maintenance::{AdminShell, BuilderMaintenance};
+use crate::cli_link::CliLink;
 use crate::data_folder::DataFolder;
 use crate::error::{codes, Error};
 use crate::guest_choices::GuestChoices;
@@ -145,6 +146,8 @@ impl Server {
             // Doctor, macOS base, Linux builder
             "doctor.check" => Answer::of(model::doctor_report(&self.check_doctor())),
             "doctor.setPath" => self.doctor_set_path(params(p)?),
+            "doctor.installCli" => self.cli_job(true),
+            "doctor.uninstallCli" => self.cli_job(false),
             "macos.downloadIpsw" => self.macos_download_ipsw(),
             "macos.installBase" => self.macos_install_base(params(p)?),
             "builder.installNix" => self.builder_job(JobKind::BuilderInstallNix, false),
@@ -1403,6 +1406,40 @@ impl Server {
         let s = self.clone();
         // The admin scripts write logs/linux-builder.log themselves; the job's own lines go next to it
         spec.log_file = Some(self.paths().logs().join(format!("{}.log", job_kind_name(kind))));
+        spec.on_end = Some(Box::new(move |_| s.check_doctor_later()));
+        Ok(Answer::Job(self.inner.jobs.submit(spec)))
+    }
+
+    /// Install or uninstall the `omaf` command (plan B122): the link to this omaflake's `omaf`; on macOS through the
+    /// administrator dialog (a dismissed dialog cancels the job), on Linux in ~/.local/bin without root
+    fn cli_job(&self, install: bool) -> Reply {
+        if let Some(job) = self.inner.jobs.any_active(&[JobKind::CliInstall]) {
+            return Err(RpcError::server(Some(codes::IN_USE), format!("{} runs already", job.title)));
+        }
+        let title = if install { "Install the omaf command" } else { "Uninstall the omaf command" };
+        let mut spec = JobSpec::new(
+            JobKind::CliInstall,
+            title,
+            Box::new(move |ctx: &JobCtx| {
+                let link = CliLink::current();
+                let prompt = if install {
+                    "omaflake wants to install the omaf command in /usr/local/bin."
+                } else {
+                    "omaflake wants to remove the omaf command from /usr/local/bin."
+                };
+                let as_root = |script: &str| AdminShell::run(script, prompt).map(|_| ());
+                let message = if install { link.install(&as_root)? } else { link.uninstall(&as_root)? };
+                ctx.log(&message);
+                result(CliResult {
+                    link: link.link.to_string_lossy().into_owned(),
+                    installed: link.state().installed(),
+                    message,
+                })
+            }),
+        );
+        spec.cancellable = false;
+        let s = self.clone();
+        spec.log_file = Some(self.paths().logs().join("cli-install.log"));
         spec.on_end = Some(Box::new(move |_| s.check_doctor_later()));
         Ok(Answer::Job(self.inner.jobs.submit(spec)))
     }

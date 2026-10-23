@@ -201,9 +201,10 @@ short as it can be).
   `description` in the session's language, `tags`, `license`, `lab`, `systems`, `requires`, `homepage`, `version`,
   `files: [{path, size, sha256}]`) plus `source` and `runsHere`.
 - **Prerequisite** – `item` (`host`, `nix`, `flakes`, `nixDarwin`, `linuxBuilder`, `qemu`, `flake`, `sshKey`, `git`,
-  `builderRunning`, `flakeEval`, `nixSpace`, `ipsw`, `macBase`, `macSpace`), `status` (`ok` | `limited` | `missing`),
+  `cli`, `builderRunning`, `flakeEval`, `nixSpace`, `ipsw`, `macBase`, `macSpace`), `status` (`ok` | `limited` | `missing`),
   `title` (English; UIs translate by `item`), `required`, `detail`, `hint`, `install` (a command), `settablePath`,
-  `freeBytes`, `neededBytes`, `baseUser`, `expectedUser`.
+  `freeBytes`, `neededBytes`, `baseUser`, `expectedUser`. `git` and `cli` (the `omaf` command on the user's PATH) are
+  optional (`required` false, not counted in `issues`).
 - **MacOSRelease** – `version`, `build`, `url`, `bytes`.
 - **Unreadable** – a file this omaflake cannot read (too old, too new, damaged; plan B114): `name` (the VM, image or
   recipe it belongs to – the list it comes in tells which), `reason`.
@@ -219,7 +220,8 @@ comes as events, and `jobs.*` ask and steer.
 {
   "id": "j7",
   "kind": "build",          // build | macos-install | ipsw-download | builder-install-nix | builder-setup
-                            // | builder-apply | builder-clean-up | import | export | data-move | recipe-install
+                            // | builder-apply | builder-clean-up | cli-install | import | export | data-move
+                            // | recipe-install
   "title": "Build dev",
   "recipe": "omaflake.nixos.dev@…",    // build, recipe-install
   "guestKind": "nixos",
@@ -251,6 +253,7 @@ move writes `data-move.log` next to config.json, as `logs/` moves along). Downlo
 | `ipsw-download` | `{file, version}` |
 | `macos-install` | `{base, existing, ready}` |
 | `builder-install-nix`, `builder-setup`, `builder-apply`, `builder-clean-up` | `{message}` – what it did, in English |
+| `cli-install` | `{link, installed, message}` – the link, whether it is there now (install) or was removed; `message` in English |
 
 - **Builds** queue: one build per guest kind at a time, NixOS and macOS side by side (plan B60). Right before it
   starts, a build runs the Doctor's checks for its guest kind and fails with the first blocker (`checking` state).
@@ -368,10 +371,11 @@ Params and results in short; the types are those of §4.
 
 | Method | Params | Result |
 |---|---|---|
-| `doctor.check` | – | `{prerequisites, nixosPreflight, macosPreflight, latestRelease?, buildBlockers: {nixos, macos}, startBlockers: {nixos, macos}, issues, requirementsMissing, hasMacBase, macBaseUser?, builderSystemIsOmaflakes, checked}` – blockers are Prerequisites; `builderSystemIsOmaflakes`: this Mac's nix-darwin system comes from omaflake's image flake (else `builder.apply` needs `force`); a build runs these checks right before it starts, `vms.start` refuses a start blocker of the last check (`prerequisite`) |
+| `doctor.check` | – | `{prerequisites, nixosPreflight, macosPreflight, latestRelease?, buildBlockers: {nixos, macos}, startBlockers: {nixos, macos}, issues, requirementsMissing, hasMacBase, macBaseUser?, builderSystemIsOmaflakes, cli?, checked}` – blockers are Prerequisites; `builderSystemIsOmaflakes`: this Mac's nix-darwin system comes from omaflake's image flake (else `builder.apply` needs `force`); `cli: {link, target?, installed, blocked, onPath, admin}`: the `omaf` command's link (where Install puts it, this omaflake's `omaf` it points to – absent when the core does not run as `omaf` –, omaflake's link is there, a file that is not omaflake's is in the way, the link's folder is on the login PATH, Install asks for an administrator); a build runs these checks right before it starts, `vms.start` refuses a start blocker of the last check (`prerequisite`) |
 | `doctor.setPath` | `item: "nix"|"qemu"|"flake", path` | as `doctor.check` |
 | `macos.downloadIpsw` | – | Job `ipsw-download` → `result: {file, version}` (cancel pauses; it continues from there) |
 | `macos.installBase` | `user, fullName, password, ipsw?` | Job `macos-install` → `result: {base, existing, ready}` |
+| `doctor.installCli` / `doctor.uninstallCli` | – | Job `cli-install` → `result: {link, installed, message}` – the `omaf` command (plan B122): a symlink to this omaflake's `omaf` (inside omaflake.app the bundled `Contents/MacOS/omaf`, else the running executable or the `omaf` next to it). macOS: `/usr/local/bin/omaf` through the administrator dialog (a dismissed dialog cancels the job); Linux: `~/.local/bin/omaf`, no root. Install replaces a link or an older `omaf` there and refuses another file (`exists`); Uninstall removes only omaflake's link (`not-found` otherwise); one at a time (`in-use`) |
 | `builder.installNix` / `builder.setup` / `builder.apply` (`force?`) / `builder.cleanUp` | – | Job → `result: {message}` – each asks for an administrator through the system's own dialog; one at a time (`in-use`); `builder.apply` on a nix-darwin system that is not omaflake's needs `force` (error data `replacesConfiguration`); a dismissed dialog cancels the job |
 
 ### Views (§10)
@@ -689,7 +693,10 @@ work runs). Actions as the app had them: Install … (Nix: `builder.installNix` 
 `builder.setup`; others: `ui.terminal` with the install command), Clean Up … and Apply Settings … (`builder.apply`,
 `force` and "Replace and Apply" when this Mac's nix-darwin system is not omaflake's), Guide, Set Path … (asks a file
 or folder, `doctor.setPath`), Download / Continue Download / Pause (the IPSW, with `download: {done, of, text}`),
-Create … / Show … (`ui.show macBase`). Linux builder tasks run one at a time: the others say which runs.
+Create … / Show … (`ui.show macBase`), the `omaf` command's Install … / Uninstall … (`doctor.installCli` /
+`doctor.uninstallCli`, their questions name the link, its target and the administrator on macOS; Install disabled while
+a file that is not omaflake's is in the way, the hint then says so – or how to add the link's folder to the PATH).
+Linux builder tasks run one at a time: the others say which runs.
 
 **macBase** – `{title, intro, base?, ipsw: {label, text, download?, actions}, fields: [user, fullName], installing,
 actions: [create], log?}`; params `{values?: {user, fullName, ipsw}}` (defaults: the macOS recipes' guest user or this

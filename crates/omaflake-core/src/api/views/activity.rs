@@ -141,6 +141,16 @@ pub fn job_ended(job: &JobDto) -> Option<(Level, Text, Option<Notification>)> {
             let message = result(()).get("message").and_then(Value::as_str).map(str::to_string);
             (Level::Info, message.map(Text::verbatim).unwrap_or_else(|| Text::new("Linux builder cleaned up")), None)
         }
+        (K::CliInstall, S::Finished) => {
+            let r = result(());
+            let link = r.get("link").and_then(Value::as_str).unwrap_or("omaf").to_string();
+            if r.get("installed").and_then(Value::as_bool).unwrap_or(false) {
+                (Level::Info, tf!("The omaf command is installed: %@", link), None)
+            } else {
+                (Level::Info, tf!("The omaf command is removed: %@", link), None)
+            }
+        }
+        (K::CliInstall, S::Failed) => (Level::Error, tf!("omaf command: %@", &error), None),
         (K::RecipeInstall, S::Finished) => {
             let written: Vec<String> =
                 serde_json::from_value::<InstallResult>(result(())).map(|r| r.installed).unwrap_or_default();
@@ -265,7 +275,7 @@ pub fn call_done(method: &str, params: &Value, outcome: &Result<Value, RpcError>
 }
 
 /// The methods a page's actions send whose refusal goes into the activity list (besides `vms.*`)
-const ACTIONS: [&str; 18] = [
+const ACTIONS: [&str; 20] = [
     "images.remove",
     "recipes.install",
     "recipes.installSuggested",
@@ -278,6 +288,8 @@ const ACTIONS: [&str; 18] = [
     "sources.move",
     "dataFolder.move",
     "doctor.setPath",
+    "doctor.installCli",
+    "doctor.uninstallCli",
     "macos.downloadIpsw",
     "builder.installNix",
     "builder.setup",

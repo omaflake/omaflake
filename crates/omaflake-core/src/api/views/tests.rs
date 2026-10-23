@@ -496,6 +496,67 @@ fn doctor_linux_builder_tasks() {
 }
 
 #[test]
+fn doctor_omaf_command() {
+    use crate::prerequisites::PrerequisiteStatus as S;
+    let cli_item = |c: &Ctx| {
+        let page = get(c, "doctor", json!({}));
+        page["sections"][0]["items"].as_array().unwrap().iter().find(|i| i["item"] == "cli").unwrap().clone()
+    };
+    let mut c = ctx();
+    // missing: Install … with what it creates and the administrator; optional, so no issue
+    let item = cli_item(&c);
+    assert_eq!(item["status"], "missing");
+    assert_eq!(ids(&item["actions"]), ["installCli"]);
+    let install = action(&item["actions"], "installCli");
+    assert_eq!(install["method"], "doctor.installCli");
+    assert_eq!(install["confirm"]["text"]["args"][0], "/usr/local/bin/omaf");
+    assert!(install["confirm"]["text"]["key"].as_str().unwrap().ends_with("macOS asks for an administrator."));
+    assert_eq!(get(&c, "doctor", json!({}))["issues"], 3);
+    // a file that is not omaflake's is in the way: Install is disabled and the hint says so
+    c.doctor.as_mut().unwrap().cli.as_mut().unwrap().blocked = true;
+    let item = cli_item(&c);
+    assert_eq!(action(&item["actions"], "installCli")["enabled"], false);
+    assert_eq!(item["hint"]["key"], "%@ is there and is not omaflake's – remove or rename it, then install.");
+    // installed and found: ok, only Uninstall …
+    {
+        let d = c.doctor.as_mut().unwrap();
+        let cli = d.cli.as_mut().unwrap();
+        (cli.blocked, cli.installed) = (false, true);
+        d.prerequisites.last_mut().unwrap().status = S::Ok;
+    }
+    let item = cli_item(&c);
+    assert_eq!((item["expandable"].clone(), item["expanded"].clone()), (json!(true), json!(false)));
+    assert_eq!(ids(&item["actions"]), ["uninstallCli"]);
+    let uninstall = action(&item["actions"], "uninstallCli");
+    assert_eq!(
+        (uninstall["method"].clone(), uninstall["confirm"]["destructive"].clone()),
+        (json!("doctor.uninstallCli"), json!(true))
+    );
+    // Linux: the link in ~/.local/bin, its folder not on the PATH
+    {
+        let d = c.doctor.as_mut().unwrap();
+        let cli = d.cli.as_mut().unwrap();
+        (cli.link, cli.on_path, cli.admin) = ("/home/u/.local/bin/omaf".into(), false, false);
+        d.prerequisites.last_mut().unwrap().status = S::Limited;
+    }
+    let item = cli_item(&c);
+    assert_eq!(
+        item["hint"]["text"],
+        "Add /home/u/.local/bin to your PATH in your shell's profile (export PATH=\"/home/u/.local/bin:$PATH\")."
+    );
+    assert_eq!(ids(&item["actions"]), ["installCli", "uninstallCli"]);
+    assert!(!action(&item["actions"], "installCli")["confirm"]["text"]["key"]
+        .as_str()
+        .unwrap()
+        .contains("administrator"));
+    // while it runs, both wait
+    c.jobs.push(fx::job("j99", JobKind::CliInstall, JobState::Running, None));
+    let item = cli_item(&c);
+    assert_eq!(item["busy"], true);
+    assert_eq!(action(&item["actions"], "uninstallCli")["enabled"], false);
+}
+
+#[test]
 fn mac_base_page() {
     let c = ctx();
     let page = get(&c, "macBase", json!({}));
