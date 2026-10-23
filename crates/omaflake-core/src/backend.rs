@@ -1,10 +1,9 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Port of Backend.swift – work package F2. Done: the trait and the types. Skeleton: the bodies (`todo!`).
+//! Port of Backend.swift.
 //!
 //! Swift's `protocol VMBackend` is the object-safe trait `VmBackend`: `QemuBackend` (here, F2) and `VzBackend`
 //! (vz_backend.rs, F4) implement it independently, and `Backends::backend` hands out `&dyn VmBackend` – so the two
 //! work packages never touch each other's files.
-#![allow(unused_variables, dead_code)]
 
 use std::time::Duration;
 
@@ -18,6 +17,7 @@ use crate::models::{
 use crate::paths::Paths;
 use crate::qemu_runtime::QemuRuntime;
 use crate::spawn::Pid;
+use crate::ssh_command::SshCommand;
 use crate::vz_backend::VzBackend;
 
 /// Options for `start`; `gl` only matters for QEMU windows with 3D.
@@ -63,7 +63,7 @@ pub trait VmBackend: Send + Sync {
         (c.network != NetworkMode::None && self.wait_for_ssh(c, timeout)).then_some(Readiness::Ssh)
     }
     /// What the VM's agent last reported; None without one (macOS guests: not yet, spec §11.9)
-    fn agent_state(&self, c: &InstanceConfig) -> Option<AgentState> {
+    fn agent_state(&self, _c: &InstanceConfig) -> Option<AgentState> {
         None
     }
     /// ssh invocation including `/usr/bin/ssh` in first position.
@@ -84,7 +84,8 @@ impl QemuBackend {
 
     /// QEMU from config.json, VM_QEMU or PATH (see `QemuRuntime::locate`).
     pub fn locate(paths: &Paths) -> Result<QemuBackend> {
-        todo!("port from Backend.swift")
+        let (rt, qemu_img) = QemuRuntime::locate(paths)?;
+        Ok(QemuBackend::new(rt, InstanceStore::new(paths.clone(), &qemu_img)))
     }
 }
 
@@ -94,48 +95,50 @@ impl VmBackend for QemuBackend {
     }
 
     fn create(&self, name: &str, recipe: &str, image: &Image, settings: &RecipeDefaults) -> Result<InstanceConfig> {
-        todo!("port from Backend.swift")
+        self.store.create(name, recipe, image, settings, None)
     }
 
     /// Checks the system (`InstanceStore::check_config_runs_here`), then `QemuRuntime::start`
     fn start(&self, c: &InstanceConfig, options: StartOptions) -> Result<Pid> {
-        todo!("port from Backend.swift")
+        InstanceStore::check_config_runs_here(c)?;
+        self.runtime.start(c, options.display, options.gl)
     }
 
     fn stop(&self, c: &InstanceConfig, timeout: Duration) -> Result<StopResult> {
-        todo!("port from Backend.swift")
+        self.runtime.stop(&c.name, timeout)
     }
 
     fn status(&self, c: &InstanceConfig) -> VmStatus {
-        todo!("port from Backend.swift")
+        self.runtime.status(&c.name)
     }
 
     fn reset(&self, c: &InstanceConfig) -> Result<()> {
-        todo!("port from Backend.swift")
+        self.store.reset(&c.name)
     }
 
     fn upgrade(&self, c: &InstanceConfig, image: &Image) -> Result<()> {
-        todo!("port from Backend.swift")
+        InstanceStore::check_runs_here(image)?;
+        self.store.upgrade(&c.name, image)
     }
 
     fn remove(&self, c: &InstanceConfig) -> Result<()> {
-        todo!("port from Backend.swift")
+        self.store.remove(&c.name)
     }
 
     fn wait_for_ssh(&self, c: &InstanceConfig, timeout: Duration) -> bool {
-        todo!("port from Backend.swift")
+        self.runtime.wait_for_ssh(c, timeout)
     }
 
     fn wait_for_ready(&self, c: &InstanceConfig, timeout: Duration) -> Option<Readiness> {
-        todo!("port from Backend.swift")
+        self.runtime.wait_for_ready(c, timeout)
     }
 
     fn agent_state(&self, c: &InstanceConfig) -> Option<AgentState> {
-        todo!("port from Backend.swift")
+        self.runtime.agent_state(&c.name)
     }
 
     fn ssh_arguments(&self, c: &InstanceConfig, command: &[String]) -> Vec<String> {
-        todo!("port from Backend.swift")
+        SshCommand::arguments(c, &self.store.paths, SshCommand::DEFAULT_HOST, None, command)
     }
 }
 
@@ -153,7 +156,12 @@ impl Backends {
     /// Locates QEMU (`QemuBackend::locate`) and omaf-runner (`VzBackend::locate_runner`); the store uses QEMU's
     /// qemu-img, else "qemu-img". Never fails itself (Swift: `throws`, but nothing in it threw).
     pub fn new(paths: Paths) -> Result<Backends> {
-        todo!("port from Backend.swift")
+        let qemu_result = QemuBackend::locate(&paths);
+        let qemu_img = qemu_result.as_ref().map(|q| q.store.qemu_img.clone()).unwrap_or_else(|_| "qemu-img".into());
+        let store = InstanceStore::new(paths.clone(), &qemu_img);
+        let vz_result =
+            VzBackend::locate_runner(&paths).map(|runner| VzBackend::new(paths.clone(), store.clone(), &runner));
+        Ok(Backends { paths, store, qemu_result, vz_result })
     }
 
     pub fn qemu(&self) -> Result<&QemuBackend> {
@@ -173,5 +181,41 @@ impl Backends {
 
     pub fn backend_for(&self, c: &InstanceConfig) -> Result<&dyn VmBackend> {
         self.backend(c.guest_kind())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::models::tests::config;
+    use crate::paths::tests::temp_paths;
+
+    fn backend() -> (tempfile::TempDir, QemuBackend) {
+        let (t, p) = temp_paths();
+        let rt = QemuRuntime::new(p.clone(), "qemu-system-aarch64", "/fw.fd");
+        (t, QemuBackend::new(rt, InstanceStore::new(p, "qemu-img")))
+    }
+
+    #[test]
+    fn qemu_backend_basics() {
+        let (_t, b) = backend();
+        let c = config("t1");
+        assert_eq!(b.kind(), GuestKind::Nixos);
+        assert_eq!(b.status(&c), VmStatus::Stopped);
+        assert_eq!(b.stop(&c, Duration::from_secs(1)).unwrap(), StopResult::AlreadyStopped);
+        assert_eq!(b.agent_state(&c), None);
+        let args = b.ssh_arguments(&c, &["uptime".to_string()]);
+        assert_eq!(&args[..3], ["/usr/bin/ssh", "-p", "2230"]);
+        assert!(args.last().unwrap() == "uptime" && args[args.len() - 2].ends_with("@127.0.0.1"));
+    }
+
+    /// A VM built for another architecture does not start here (plan B114)
+    #[test]
+    fn start_checks_the_system_first() {
+        let (_t, b) = backend();
+        let mut c = config("t1");
+        c.system = "riscv64-linux".into();
+        let e = b.start(&c, StartOptions::new(DisplayMode::None)).unwrap_err();
+        assert_eq!(e.code(), Some(crate::error::codes::UNSUPPORTED_SYSTEM));
     }
 }

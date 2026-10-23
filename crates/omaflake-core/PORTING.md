@@ -121,12 +121,12 @@ packages F1–F5 fill in the bodies **in parallel** – the signatures are the c
 | ImageMigration.swift | `image_migration` | done | F1 stores |
 | DataFolder.swift | `data_folder` | done | F1 stores |
 | Transfer.swift | `transfer` | done | F1 stores |
-| QMPClient.swift | `qmp_client` | skeleton | F2 runtime |
-| QEMUCommand.swift | `qemu_command` | skeleton | F2 runtime |
-| QEMURuntime.swift | `qemu_runtime` | skeleton (`tail`, `FileLock`, `InstanceLock` done) | F2 runtime |
-| Backend.swift | `backend` | skeleton (trait, `Backends` accessors done) | F2 runtime |
-| AgentProtocol.swift | `agent_protocol` | skeleton (constants, types, `AgentState` flags done) | F2 runtime |
-| BuildProgress.swift | `build_progress` | skeleton | F2 runtime |
+| QMPClient.swift | `qmp_client` | done | F2 runtime |
+| QEMUCommand.swift | `qemu_command` | done | F2 runtime |
+| QEMURuntime.swift | `qemu_runtime` | done (+ `set_main_screen_resolution`) | F2 runtime |
+| Backend.swift | `backend` | done | F2 runtime |
+| AgentProtocol.swift | `agent_protocol` | done | F2 runtime |
+| BuildProgress.swift | `build_progress` | done | F2 runtime |
 | RecipeSources.swift | `recipe_sources` | skeleton (`RecipeSource` id/tag/flags, `RecipeRef`, `Settings::recipe_sources`, `RecipeLibrary::readable`, installed format done) | F3 recipes |
 | GuestSettings.swift | `guest_settings` | skeleton (types done) | F3 recipes |
 | GuestChoices.swift | `guest_choices` | skeleton (tables done) | F3 recipes |
@@ -241,7 +241,10 @@ SetupCommandTests, NixInstallerPinTests.
 
 - **Brand**: `Brand.dockIconFile` (AppKit) stays in Swift. `QemuRuntime::start` sets `OMAFLAKE_DOCK_ICON` to
   `Paths::dock_icon()` when that file exists (the app writes it).
-- **Screen size**: `QEMURuntime.mainScreenResolution` used CoreGraphics – OPEN (FFI, or the caller passes it).
+- **Screen size**: `QEMURuntime.mainScreenResolution` used CoreGraphics. The UI passes the main screen's pixels with
+  `qemu_runtime::set_main_screen_resolution` (from `initialize`); until then macOS asks `system_profiler
+  SPDisplaysDataType -json` once (pixels and points – Swift's result). Pixels alone are computed with factor 1 (a few
+  pixels off Swift's size). OPEN: system_profiler's JSON keys are not an API.
 - **Foundation locale data**: `GuestChoices` (`Locale.availableIdentifiers`, `TimeZone.knownTimeZoneIdentifiers`,
   localized names) and `GuestSettings.mac()` (current time zone, locale, HIToolbox keyboard) – OPEN, see the module docs.
 - **URLSession downloads**: the IPSW downloader resumes with HTTP `Range` from `<build>.ipsw.partial` instead of
