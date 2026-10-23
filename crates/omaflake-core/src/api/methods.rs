@@ -865,7 +865,10 @@ impl Server {
 
     /// What the catalogs fetched last offer – None while they were not fetched in this session (the views never fetch)
     pub(crate) fn available_cached(&self) -> Option<Available> {
-        lock(&self.inner.catalogs).fetched.then(|| self.available_from_catalogs())
+        // The guard must be gone before `available_from_catalogs` locks the catalogs again (a temporary in the same
+        // expression would live on and deadlock every page once the catalogs were fetched)
+        let fetched = lock(&self.inner.catalogs).fetched;
+        fetched.then(|| self.available_from_catalogs())
     }
 
     fn available_from_catalogs(&self) -> Available {

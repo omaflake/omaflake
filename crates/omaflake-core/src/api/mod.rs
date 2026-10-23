@@ -178,6 +178,18 @@ mod tests {
     }
 
     #[test]
+    fn fetched_catalogs_do_not_deadlock_the_pages() {
+        let (_dir, server, _) = started();
+        server::lock(&server.inner.catalogs).fetched = true;
+        let (tx, rx) = std::sync::mpsc::channel();
+        let s = server.clone();
+        std::thread::spawn(move || {
+            let _ = tx.send(s.available_cached().is_some());
+        });
+        assert_eq!(rx.recv_timeout(Duration::from_secs(20)), Ok(true), "available_cached locked the catalogs twice");
+    }
+
+    #[test]
     fn call_once_shape() {
         // call_once uses the user's data folder – only the error path without touching it is checked here
         let e = Server::for_tests(temp_paths().1, Arc::new(|_: &str, _: Value| {}))

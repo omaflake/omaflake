@@ -26,6 +26,12 @@ are collected under *Unreleased*. Releases: [GitHub](https://github.com/omaflake
 - **The core says what each page shows** (`views.get`, `views.subscribe`, docs/api.md §10): rows, actions with why
   they are not possible now, the questions they ask, filters, form defaults and validation, and the activity list –
   in English with message keys, so every interface (the macOS app, the coming Linux app and `omaf ui`) shows the same.
+- **omaflake on Linux: a native app** (`omaflake`, iced; docs/linux.md): the same pages, rows, actions and questions as
+  the macOS app, drawn from what the core describes, in omaflake's look. It connects to the core service (started on
+  demand), opens files and folders with the desktop's apps, SSH in your terminal emulator, asks for files through the
+  desktop portal and posts notifications. A tray icon (StatusNotifierItem: KDE, Cinnamon, XFCE, waybar) lists the VMs
+  with start/stop, running builds and Quit; with it, closing the window keeps omaflake running – switch it off in
+  Settings. Nix: `nix run github:omaflake/omaflake#omaflake-gui` (with `omaf`, desktop entry and icon).
 
 ### Changed
 
@@ -43,6 +49,8 @@ are collected under *Unreleased*. Releases: [GitHub](https://github.com/omaflake
 
 ### Fixed
 
+- **The core no longer hangs once the recipe sources were looked into**: every page and list asked of the service
+  after "Look for new recipes" waited forever (a lock taken twice).
 - **macOS images build again with long recipe IDs**: the build VM's runner socket lived in `images/.build-<name>/`,
   which a twelve-word recipe ID made longer than a Unix socket path may be ("Socket path too long"); it is in
   `run/build-<hash>/` now.
