@@ -26,6 +26,11 @@ rustPlatform.buildRustPackage {
       ../brand/svg
       ../brand/tokens.toml
       ./omaflake.desktop
+      # The image flake: omaf's default when no flake is set, as Contents/Resources/nix in the Mac app (plan B131)
+      (lib.fileset.difference ../nix (lib.fileset.unions [
+        (lib.fileset.maybeMissing ../nix/local)
+        (lib.fileset.maybeMissing ../nix/agent/target)
+      ]))
     ];
   };
   cargoLock.lockFile = ../Cargo.lock;
@@ -42,6 +47,7 @@ rustPlatform.buildRustPackage {
       install -Dm644 brand/png/icon/omaflake-icon-$size.png $out/share/icons/hicolor/''${size}x''${size}/apps/omaflake.png
     done
     install -Dm644 brand/svg/omaflake-icon.svg $out/share/icons/hicolor/scalable/apps/omaflake.svg
+    mkdir -p $out/share/omaflake && cp -r nix $out/share/omaflake/nix
     wrapProgram $out/bin/omaflake --prefix LD_LIBRARY_PATH : ${lib.makeLibraryPath runtimeLibs} \
       --suffix PATH : ${lib.makeBinPath [ wl-clipboard xclip ]}
     # omaf runs the bridge too (omaf start from a terminal): the same clipboard tools (plan B129)

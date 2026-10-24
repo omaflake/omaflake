@@ -203,7 +203,9 @@ pub fn start(a: &cli::Start) -> Outcome {
     println!("{}", running_line(&c, pid));
     if c.guest_kind() == GuestKind::Nixos {
         // Linux hosts without a usable /dev/kvm (plan B124)
-        if let Some(line) = backends.qemu().ok().and_then(|q| q.runtime.accelerator(&c.name)).and_then(accel_line) {
+        if let Some(line) =
+            backends.qemu().ok().and_then(|q| q.runtime.accelerator(&c.name)).and_then(|a| accel_line(a, kvm_usable()))
+        {
             println!("{line}");
         }
     }
@@ -214,11 +216,19 @@ pub fn start(a: &cli::Start) -> Outcome {
     Ok(())
 }
 
-/// What `omaf start` says about QEMU's accelerator: only TCG is worth a line (plan B124)
-pub fn accel_line(accel: Accel) -> Option<&'static str> {
-    (accel == Accel::Tcg).then_some(
-        "Accelerator: TCG – emulated, many times slower (no usable /dev/kvm – see omaf doctor); SSH may take minutes",
-    )
+/// What `omaf start` says about QEMU's accelerator: only TCG is worth a line (plan B124) – forced (`kvm_usable`: KVM
+/// was there, OMAFLAKE_ACCEL=tcg) or for want of /dev/kvm
+pub fn accel_line(accel: Accel, kvm_usable: bool) -> Option<&'static str> {
+    (accel == Accel::Tcg).then_some(if kvm_usable {
+        "Accelerator: TCG – emulated, many times slower (OMAFLAKE_ACCEL=tcg); SSH may take minutes"
+    } else {
+        "Accelerator: TCG – emulated, many times slower (no usable /dev/kvm – see omaf doctor); SSH may take minutes"
+    })
+}
+
+/// Whether this host's /dev/kvm can be used (a TCG start then was forced)
+fn kvm_usable() -> bool {
+    omaflake_core::qemu_host::KvmState::detect() == omaflake_core::qemu_host::KvmState::Usable
 }
 
 /// "<name> is running (PID <pid>[, SSH …])."
@@ -781,9 +791,10 @@ mod tests {
         let mut c = config("dev", GuestKind::Nixos);
         assert_eq!(created_line(&c), "Instance dev created (image omaflake.nixos.dev@date-eagle-fig, SSH port 2222).");
         assert_eq!(running_line(&c, 42), "dev is running (PID 42, SSH 127.0.0.1:2222).");
-        assert!(accel_line(Accel::Tcg).unwrap().starts_with("Accelerator: TCG"));
-        assert_eq!(accel_line(Accel::Kvm), None);
-        assert_eq!(accel_line(Accel::Hvf), None);
+        assert!(accel_line(Accel::Tcg, false).unwrap().contains("no usable /dev/kvm"));
+        assert!(accel_line(Accel::Tcg, true).unwrap().contains("(OMAFLAKE_ACCEL=tcg)"));
+        assert_eq!(accel_line(Accel::Kvm, true), None);
+        assert_eq!(accel_line(Accel::Hvf, false), None);
         c.ephemeral = true;
         c.kind = GuestKind::Macos;
         assert_eq!(

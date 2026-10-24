@@ -245,7 +245,7 @@ impl Agent {
                         Ok(now_active) if now_active != cam.active => {
                             cam.active = now_active;
                             if !now_active {
-                                cam.black();
+                                cam.black();   // kept fresh from now on (`keep_fresh`, B130)
                             }
                             log(if now_active { "an application opened the camera" } else { "camera no longer in use" });
                             if now_active {
@@ -323,6 +323,9 @@ impl Agent {
         } else if self.welcomed && now >= self.next_status {
             self.send(MSG_STATUS, &status::status());
             self.next_status = now + self.interval;
+        }
+        if let Some(cam) = self.camera.as_mut() {
+            cam.keep_fresh(now);
         }
     }
 }

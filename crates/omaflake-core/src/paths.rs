@@ -424,13 +424,15 @@ impl Settings {
 
     /// The image flake that comes with omaflake.app (Contents/Resources/nix, scripts/bundle-app.sh): the default when
     /// no path is set – for the app itself, and for the CLI next to an installed app. Swift's `Bundle.main.resourceURL`
-    /// is the `Resources` folder next to the running executable's `MacOS` folder.
+    /// is the `Resources` folder next to the running executable's `MacOS` folder. The Linux package has it in
+    /// `<prefix>/share/omaflake/nix` next to `<prefix>/bin` (linux/package.nix, plan B131).
     pub fn bundled_flake() -> Option<PathBuf> {
         let mut candidates: Vec<PathBuf> = Vec::new();
         if let Ok(exe) = std::env::current_exe() {
             let exe = fs::canonicalize(&exe).unwrap_or(exe);
             if let Some(contents) = exe.parent().and_then(Path::parent) {
                 candidates.push(contents.join("Resources/nix"));
+                candidates.push(contents.join("share/omaflake/nix"));
             }
         }
         candidates.push(PathBuf::from("/Applications/omaflake.app/Contents/Resources/nix"));

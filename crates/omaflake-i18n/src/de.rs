@@ -777,6 +777,7 @@ pub static DE: &[(&str, &str)] = &[
     ("default version – new VMs use it", "Standard-Version – neue VMs nutzen sie"),
     ("done%@ – press Enter to return", "fertig%@ – Enter drücken, um zurückzukehren"),
     ("emulated, many times slower – no usable /dev/kvm (see the Doctor)", "emuliert, um ein Vielfaches langsamer – kein nutzbares /dev/kvm (siehe Doktor)"),
+    ("emulated, many times slower – started without KVM (OMAFLAKE_ACCEL=tcg)", "emuliert, um ein Vielfaches langsamer – ohne KVM gestartet (OMAFLAKE_ACCEL=tcg)"),
     ("filter the list", "Liste filtern"),
     ("git (optional)", "git (optional)"),
     ("image built", "Vorlage gebaut"),

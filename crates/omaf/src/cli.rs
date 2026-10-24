@@ -359,35 +359,43 @@ pub struct New {
     pub ephemeral: bool,
     #[arg(long, overrides_with = "ephemeral", help = "Not ephemeral, whatever the recipe says")]
     pub no_ephemeral: bool,
-    #[arg(long, overrides_with = "no_share", help = "Share the Mac folder ~/.omaflake/share/<name> with the guest")]
+    #[arg(
+        long,
+        overrides_with = "no_share",
+        help = "Share the folder ~/.omaflake/share/<name> on this computer with the guest"
+    )]
     pub share: bool,
     #[arg(long, overrides_with = "share", help = "No shared folder, whatever the recipe says")]
     pub no_share: bool,
-    #[arg(long, value_name = "share-dir", help = "Share this existing Mac folder instead (implies --share)")]
+    #[arg(
+        long,
+        value_name = "share-dir",
+        help = "Share this existing folder on this computer instead (implies --share)"
+    )]
     pub share_dir: Option<String>,
-    #[arg(long, overrides_with = "no_audio", help = "Sound from the VM to the Mac (default on)")]
+    #[arg(long, overrides_with = "no_audio", help = "Sound from the VM to this computer (default on)")]
     pub audio: bool,
     #[arg(long, overrides_with = "audio", help = "No sound from the VM")]
     pub no_audio: bool,
     #[arg(
         long,
         overrides_with = "no_microphone",
-        help = "The Mac's microphone in the VM (default off; macOS asks for permission)"
+        help = "This computer's microphone in the VM (default off; macOS asks for permission)"
     )]
     pub microphone: bool,
-    #[arg(long, overrides_with = "microphone", help = "Without the Mac's microphone")]
+    #[arg(long, overrides_with = "microphone", help = "Without this computer's microphone")]
     pub no_microphone: bool,
-    #[arg(long, overrides_with = "no_clipboard", help = "Clipboard shared with the Mac (default on)")]
+    #[arg(long, overrides_with = "no_clipboard", help = "Clipboard shared with this computer (default on)")]
     pub clipboard: bool,
     #[arg(long, overrides_with = "clipboard", help = "Clipboard not shared")]
     pub no_clipboard: bool,
     #[arg(
         long,
         overrides_with = "no_camera",
-        help = "The Mac's camera in the VM, NixOS (default off; on only while an app uses it)"
+        help = "This computer's camera in the VM, NixOS (default off; on only while an app uses it)"
     )]
     pub camera: bool,
-    #[arg(long, overrides_with = "camera", help = "Without the Mac's camera")]
+    #[arg(long, overrides_with = "camera", help = "Without this computer's camera")]
     pub no_camera: bool,
     #[arg(long, value_name = "cpus", help = "CPU cores")]
     pub cpus: Option<u32>,
@@ -400,7 +408,7 @@ pub struct New {
     #[arg(
         long,
         value_name = "user",
-        help = "Guest user for SSH (default: user from the recipe, otherwise the Mac user)"
+        help = "Guest user for SSH (default: user from the recipe, otherwise your user here)"
     )]
     pub user: Option<String>,
 }
@@ -409,29 +417,29 @@ pub struct New {
 pub struct Set {
     #[arg(value_name = "name")]
     pub name: String,
-    #[arg(long, overrides_with = "no_audio", help = "Sound from the VM to the Mac")]
+    #[arg(long, overrides_with = "no_audio", help = "Sound from the VM to this computer")]
     pub audio: bool,
     #[arg(long, overrides_with = "audio", help = "No sound from the VM")]
     pub no_audio: bool,
     #[arg(
         long,
         overrides_with = "no_microphone",
-        help = "The Mac's microphone in the VM (macOS asks for permission the first time)"
+        help = "This computer's microphone in the VM (macOS asks for permission the first time)"
     )]
     pub microphone: bool,
-    #[arg(long, overrides_with = "microphone", help = "Without the Mac's microphone")]
+    #[arg(long, overrides_with = "microphone", help = "Without this computer's microphone")]
     pub no_microphone: bool,
-    #[arg(long, overrides_with = "no_clipboard", help = "Clipboard shared with the Mac")]
+    #[arg(long, overrides_with = "no_clipboard", help = "Clipboard shared with this computer")]
     pub clipboard: bool,
     #[arg(long, overrides_with = "clipboard", help = "Clipboard not shared")]
     pub no_clipboard: bool,
     #[arg(
         long,
         overrides_with = "no_camera",
-        help = "The Mac's camera in the VM (NixOS; macOS asks for permission the first time)"
+        help = "This computer's camera in the VM (NixOS; macOS asks for permission the first time)"
     )]
     pub camera: bool,
-    #[arg(long, overrides_with = "camera", help = "Without the Mac's camera")]
+    #[arg(long, overrides_with = "camera", help = "Without this computer's camera")]
     pub no_camera: bool,
 }
 
@@ -564,23 +572,27 @@ pub struct Config {
     #[arg(
         long,
         value_name = "guest-user",
-        help = "Guest user of NixOS VMs (default: your Mac user; macOS VMs use the base's user)"
+        help = "Guest user of NixOS VMs (default: your user here; macOS VMs use the base's user)"
     )]
     pub guest_user: Option<String>,
     #[arg(long, value_name = "guest-full-name", help = "Full name of the guest user")]
     pub guest_full_name: Option<String>,
-    #[arg(long, value_name = "guest-locale", help = "Locale in the guests, e.g. de_DE.UTF-8 (default: the Mac's)")]
+    #[arg(
+        long,
+        value_name = "guest-locale",
+        help = "Locale in the guests, e.g. de_DE.UTF-8 (default: this computer's)"
+    )]
     pub guest_locale: Option<String>,
     #[arg(
         long,
         value_name = "guest-keyboard",
-        help = "Keyboard layout in the guests, e.g. de or us (default: the Mac's)"
+        help = "Keyboard layout in the guests, e.g. de or us (default: this computer's)"
     )]
     pub guest_keyboard: Option<String>,
     #[arg(
         long,
         value_name = "guest-time-zone",
-        help = "Time zone in the guests, e.g. Europe/Berlin (default: the Mac's)"
+        help = "Time zone in the guests, e.g. Europe/Berlin (default: this computer's)"
     )]
     pub guest_time_zone: Option<String>,
     #[arg(

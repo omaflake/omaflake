@@ -15,7 +15,9 @@ let
 
   # The VM's window changes size → QEMU offers that size as the output's preferred mode (virtio-gpu, a DRM change
   # event), but Hyprland keeps the mode of an output that stays connected ("Skipping connector …", aquamarine with
-  # Hyprland 0.56; plan B128). This follows the preferred mode of every connected output.
+  # Hyprland 0.56; plan B128). This follows the preferred mode of every connected output and keeps its scale: with
+  # scale "auto" Hyprland chose 2 from 1920×1080 on (QEMU's GTK UI gives the EDID no physical size), so a big window
+  # turned into a small picture with huge text – the scale chosen at the start stays (Retina on a Mac, 1 elsewhere).
   followDisplay = pkgs.writeShellApplication {
     name = "omaflake-follow-display";
     runtimeInputs = [ pkgs.coreutils pkgs.jq pkgs.systemd osConfig.programs.hyprland.package ];
@@ -27,9 +29,10 @@ let
           output=''${name#card*-}
           want=$(head -n 1 "$c/modes" 2>/dev/null || true)
           [ -n "$want" ] || continue
-          have=$(hyprctl -j monitors | jq -r --arg o "$output" '.[] | select(.name == $o) | "\(.width)x\(.height)"')
-          if [ -n "$have" ] && [ "$have" != "$want" ]; then
-            hyprctl eval "hl.monitor({ output = \"$output\", mode = \"$want\", position = \"auto\", scale = \"auto\" })" >/dev/null
+          read -r have scale < <(hyprctl -j monitors |
+            jq -r --arg o "$output" '.[] | select(.name == $o) | "\(.width)x\(.height) \(.scale)"') || true
+          if [ -n "''${have:-}" ] && [ "$have" != "$want" ]; then
+            hyprctl eval "hl.monitor({ output = \"$output\", mode = \"$want\", position = \"auto\", scale = $scale })" >/dev/null
           fi
         done
       }
@@ -102,7 +105,9 @@ in
 
         animations.enabled = true;
         dwindle.preserve_split = true;
-        misc = { disable_hyprland_logo = true; disable_splash_rendering = true; };
+        # The background colour drawn by Hyprland itself: it always fills the output, also after the window of the VM
+        # changed size (swaybg kept its first size there, plan B128)
+        misc = { disable_hyprland_logo = true; disable_splash_rendering = true; background_color = "rgb(${c.base})"; };
       };
     };
 
@@ -115,7 +120,7 @@ in
         hl.exec_cmd("waybar")
         hl.exec_cmd("mako")
         hl.exec_cmd("${followDisplay}/bin/omaflake-follow-display")
-        hl.exec_cmd("swaybg -c '#${c.base}'") -- or: swaybg -i ~/wallpaper.png -m fill
+        -- a wallpaper: hl.exec_cmd("swaybg -i ~/wallpaper.png -m fill") (misc.background_color is the plain colour)
       end)
 
       hl.bind(mod .. " + Return",    hl.dsp.exec_cmd(terminal))

@@ -20,10 +20,20 @@ are collected under *Unreleased*. Releases: [GitHub](https://github.com/omaflake
   QEMU's own Nix packages the first time (a minute, once) and starts the window with it; the VM's QEMU log says so.
 - **A NixOS VM's window resizes the guest again:** after dragging the window the guest kept its first resolution (black
   bars) – Hyprland keeps an output's mode while it stays connected. The images now follow the new size themselves
-  (rebuild an image to get it).
+  (rebuild an image to get it). They keep their scale while resizing – a big window no longer jumps to huge text –
+  and the background colour fills the whole window.
+- **The camera in a NixOS VM shows a picture again in mpv, ffmpeg and browsers:** they got one black frame and then
+  waited – their first frame was minutes old. The VM's agent now keeps that frame fresh (rebuild an image to get it).
 - **Clipboard from a GNOME host into the VM:** GNOME offers no way to watch its clipboard, so nothing copied there
   reached the VM. omaflake now uses GNOME's Xwayland for it (xclip). The Nix package brings wl-clipboard and xclip for
   `omaf` too.
+- With `OMAFLAKE_ACCEL=tcg` the start line and the VM's details no longer claim that /dev/kvm is missing.
+
+### Changed
+
+- **The Linux package brings the image flake:** `omaf` on Linux builds images right after
+  `nix profile install github:omaflake/omaflake#omaflake-gui`, without `omaf config --flake …` (as the Mac app does).
+- The CLI's help speaks of "this computer" instead of "the Mac" (sound, microphone, clipboard, camera, guest values).
 
 ## [0.3.1] – 2026-10-24
 

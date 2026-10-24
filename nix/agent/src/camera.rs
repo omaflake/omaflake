@@ -7,6 +7,7 @@ use std::fs::{File, OpenOptions};
 use std::io::{self, Write};
 use std::os::fd::{AsRawFd, RawFd};
 use std::os::unix::fs::OpenOptionsExt;
+use std::time::{Duration, Instant};
 
 pub const DEVICE: &str = "/dev/video42";
 pub const WIDTH: u32 = 1280;
@@ -47,10 +48,17 @@ fn ioctl<const N: usize>(fd: RawFd, request: libc::c_ulong, arg: &mut Raw<N>) ->
     Ok(())
 }
 
+/// While no application reads, the black frame is written again this often (B130): a reader's first buffer is the
+/// one written last before it started streaming, stamped when it was written – a frame from minutes ago made mpv and
+/// ffmpeg wait those minutes for the next one
+pub const IDLE_REFRESH: Duration = Duration::from_secs(1);
+
 pub struct Camera {
     device: File,
     /// A Linux application has the camera open
     pub active: bool,
+    /// When the last frame went to the device
+    written: Instant,
 }
 
 impl Camera {
@@ -68,7 +76,7 @@ impl Camera {
         if (f.get(8), f.get(12)) != (WIDTH, HEIGHT) {
             return Err(io::Error::other("v4l2loopback refused 1280x720 NV12"));
         }
-        let mut camera = Camera { device, active: false };
+        let mut camera = Camera { device, active: false, written: Instant::now() };
         // A first frame makes the exclusive-caps device announce itself as a capture device (browsers find it)
         camera.black();
         let mut s = Raw::<32>::new();
@@ -93,6 +101,7 @@ impl Camera {
         if frame.len() != FRAME_BYTES {
             return Err(io::Error::other("frame of the wrong size"));
         }
+        self.written = Instant::now();
         self.device.write_all(frame)
     }
 
@@ -100,6 +109,14 @@ impl Camera {
     pub fn black(&mut self) {
         let mut frame = vec![16u8; (WIDTH * HEIGHT) as usize];
         frame.resize(FRAME_BYTES, 128);
+        self.written = Instant::now();
         let _ = self.device.write_all(&frame);
+    }
+
+    /// No reader: the black frame again once `IDLE_REFRESH` has passed, so a new reader starts with a fresh one
+    pub fn keep_fresh(&mut self, now: Instant) {
+        if !self.active && now.duration_since(self.written) >= IDLE_REFRESH {
+            self.black();
+        }
     }
 }

@@ -521,6 +521,27 @@ preferred mode with `hyprctl eval "hl.monitor({…})"` (`hyprctl keyword` refuse
 PC: 1052×619 after a drag. On a Mac nothing changes where the mode already matches; the Mac's resize not re-checked
 with Hyprland 0.56 (OPEN).
 
+**B128, continued (2026-10-24):** with `scale = "auto"` in the helper, Hyprland chose scale 2 from 1920×1080 on
+(measured: 1920×1080, 2560×1080 and 3840×2160 all gave 2 – QEMU's GTK UI leaves the EDID without a physical size), so
+a big window showed a small picture with huge text; the helper now keeps the output's current scale. swaybg kept its
+first size after a mode change (half of the window black): the plain background is Hyprland's own
+`misc.background_color` now, swaybg only for a wallpaper. Checked by the maintainer: dragging and full screen.
+
+**B130 (2026-10-24): the guest camera's first frame was minutes old.** Frames reached `/dev/video42` (151 in 10 s read
+with `dd`, the test pattern's bars), but mpv and ffmpeg (mmap streaming) got one black frame and stopped or waited:
+v4l2loopback hands a new reader the buffer written last before its STREAMON, stamped when written – the black frame
+the agent wrote when the previous reader closed (`v4l2-ctl --stream-mmap --verbose`: delta 27758 ms). Writing a fresh
+one on open loses the race (the reader streams within the same millisecond). `nix/agent`: `Camera::keep_fresh`
+rewrites the black frame every second while no application reads. Checked on the mini PC: first delta ≈1.5 s,
+ffmpeg 71 frames in 5 s. On a Mac the same agent runs (not re-checked there, OPEN).
+
+**B131 (2026-10-24): the image flake in the Linux package.** linux/package.nix installs `nix/` (without `local/` and
+`agent/target/`) to `<prefix>/share/omaflake/nix`; `Settings::bundled_flake` looks there next to `Resources/nix`.
+Checked: a fresh data folder's Doctor names it, `omaf build neovim-minimal` builds an x86_64 image with it.
+
+**Found on the way:** environment variables of the CLI (`VM_FLAKE`, …) do not reach the core service – a build that
+runs there uses config.json's flake (OPEN).
+
 **B129 (2026-10-24): clipboard on a GNOME host.** Mutter has no data-control protocol: `wl-paste --watch` ends at once.
 `Wayland::start` now treats an end within 500 ms as refused, and `detect` falls back to xclip through Xwayland, which
 Mutter keeps in sync (`X11::through_xwayland`, Mutter's `.mutter-Xwaylandauth.*` cookie when XAUTHORITY is unset; its
