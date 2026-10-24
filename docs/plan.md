@@ -503,6 +503,12 @@ for `omaf ui` and the Linux app and German error messages everywhere (B125), the
 for `omaf new -r` when its recipe line names another computer's folder; click tests of B119/B121 (macOS app, Linux app on a real desktop). Then M12 once the Developer ID
 is there.
 
+**Release 0.4.0 (2026-10-24):** the Linux host checked on real x86_64 hardware and fixed where it failed – OpenGL for
+QEMU from Nix outside NixOS (B127), the guest following the window (B128), the clipboard on GNOME (B129), the guest
+camera (B130), the image flake in the Linux package (B131), the official NixOS recipes for x86_64-linux too. Unsigned.
+Open after it: environment variables not reaching the core service, a locked GNOME keyring within 60 s, the Mac's
+resizing with Hyprland 0.56 not re-checked, M12.
+
 **Release 0.3.1 (2026-10-24):** the Linux host (B124, B126) and the smaller items below, unsigned, for the maintainer to
 try on different hardware (Macs, the x86_64 mini PC with KVM). CI now builds the Linux package for x86_64-linux and
 runs the Rust tests on Linux (job `linux`); aarch64-linux is still built only in the lab VM.
@@ -541,6 +547,12 @@ Checked: a fresh data folder's Doctor names it, `omaf build neovim-minimal` buil
 
 **Found on the way:** environment variables of the CLI (`VM_FLAKE`, …) do not reach the core service – a build that
 runs there uses config.json's flake (OPEN).
+
+**Checked at the mini PC's desktop (2026-10-24):** the Linux app with its pages and the tray icon (GNOME's AppIndicator
+extension); the token of a private source in the GNOME keyring – Secret Service item "omaflake recipe source
+omaflake/recipes" in "login", removed with the source; with the keyring still locked (automatic login) the unlock
+dialog appeared, but omaflake fell back to `tokens.json` after 60 s (password typed too late or the unlock not seen –
+OPEN); mpv shows the camera's test pattern (B130).
 
 **B129 (2026-10-24): clipboard on a GNOME host.** Mutter has no data-control protocol: `wl-paste --watch` ends at once.
 `Wayland::start` now treats an end within 500 ms as refused, and `detect` falls back to xclip through Xwayland, which

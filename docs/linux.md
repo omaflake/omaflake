@@ -122,8 +122,12 @@ Found there and fixed since: the Linux package brings the image flake (`<prefix>
 needed `omaf config --flake 'github:omaflake/omaflake/v0.3.1?dir=nix'`); a forced TCG start says
 "(OMAFLAKE_ACCEL=tcg)" instead of blaming /dev/kvm; the CLI's help speaks of "this computer", not "the Mac".
 Still OPEN: environment variables such as `VM_FLAKE` do not reach the core service – a build the service runs (once
-the app or `omaf ui` started it) uses config.json's flake; a private source's token in the GNOME keyring (the unlock
-dialog appeared, omaflake fell back to `tokens.json` after its 60 s limit).
+the app or `omaf ui` started it) uses config.json's flake; whether a keyring that is still locked (automatic login)
+gets unlocked within omaflake's 60 s – the dialog appeared, but the first try fell back to `tokens.json`.
+
+Checked at the desktop as well: the Linux app (window, pages, tray icon); a private source's token in the unlocked
+GNOME keyring (an item "omaflake recipe source …" in the collection "login", gone again with `omaf sources remove`);
+the camera in mpv (the test pattern, moving).
 
 The steps, on any x86_64 PC with KVM:
 

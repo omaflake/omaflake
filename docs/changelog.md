@@ -13,6 +13,13 @@ are collected under *Unreleased*. Releases: [GitHub](https://github.com/omaflake
 
 ## [Unreleased]
 
+## [0.4.0] – 2026-10-24
+
+omaflake on a Linux PC, checked on real hardware: an x86_64 mini PC with Ubuntu 26.04 and GNOME 50 builds the official
+NixOS recipes and runs them with KVM – windows with 3D that follow their size, clipboard both ways, sound, microphone
+and camera. The Linux package now brings everything `omaf` needs. Still an unsigned alpha. Your VMs, images, recipes and
+settings stay as they are; rebuild an image to get the fixes inside the VM (resizing, camera).
+
 ### Fixed
 
 - **3D windows on Linux distributions other than NixOS** (Ubuntu, Fedora, …): QEMU from Nix aborted with "Couldn't find
@@ -183,7 +190,8 @@ the menu bar app and the `omaf` CLI; images built from recipes, recipe sources (
 portable VM, image and recipe packages, sound, microphone, clipboard, camera (NixOS) and shared folders, the Doctor,
 and an update check.
 
-[Unreleased]: https://github.com/omaflake/omaflake/compare/v0.3.1...HEAD
+[Unreleased]: https://github.com/omaflake/omaflake/compare/v0.4.0...HEAD
+[0.4.0]: https://github.com/omaflake/omaflake/compare/v0.3.1...v0.4.0
 [0.3.1]: https://github.com/omaflake/omaflake/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/omaflake/omaflake/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/omaflake/omaflake/compare/v0.1.0...v0.2.0
