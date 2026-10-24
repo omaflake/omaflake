@@ -3392,12 +3392,17 @@ dependencies = [
  "notify-rust",
  "omaflake-brand",
  "omaflake-core",
+ "omaflake-i18n",
  "rfd",
  "serde",
  "serde_json",
  "tempfile",
  "wgpu",
 ]
+
+[[package]]
+name = "omaflake-i18n"
+version = "0.3.0"
 
 [[package]]
 name = "omaflake-tui"
@@ -3408,6 +3413,7 @@ dependencies = [
  "libc",
  "omaflake-brand",
  "omaflake-core",
+ "omaflake-i18n",
  "ratatui",
  "serde_json",
  "tempfile",

@@ -86,7 +86,9 @@ impl Handle {
         std::thread::spawn(move || {
             let _ = tx.send(me.call_blocking(&method, params));
         });
-        async move { rx.await.unwrap_or_else(|_| Err(CallError { message: "The call ended without an answer".into() })) }
+        async move {
+            rx.await.unwrap_or_else(|_| Err(CallError { message: crate::text::tr("The call ended without an answer") }))
+        }
     }
 }
 
@@ -134,7 +136,7 @@ fn run(mut out: Sender<Event>) {
                         Err(_) => break,
                     }
                 }
-                if !send(&mut out, Event::Disconnected("The connection to the service closed".into())) {
+                if !send(&mut out, Event::Disconnected(crate::text::tr("The connection to the service closed"))) {
                     return;
                 }
                 std::thread::sleep(Duration::from_millis(500));
@@ -152,7 +154,7 @@ fn run(mut out: Sender<Event>) {
 fn initialize(core: &dyn Core) -> Result<Value, String> {
     core.call(
         "initialize",
-        json!({"client": "omaflake-linux", "clientVersion": omaflake_core::VERSION, "apiVersion": 1, "language": "en"}),
+        json!({"client": "omaflake-linux", "clientVersion": omaflake_core::VERSION, "apiVersion": 1, "language": crate::text::lang().code()}),
     )
     .map_err(|e| e.message)
 }

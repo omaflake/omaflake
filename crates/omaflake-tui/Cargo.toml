@@ -10,6 +10,7 @@ repository.workspace = true
 
 [dependencies]
 omaflake-core.workspace = true
+omaflake-i18n.workspace = true
 omaflake-brand = { path = "../omaflake-brand" }
 serde_json.workspace = true
 chrono.workspace = true

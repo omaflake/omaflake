@@ -1,0 +1,12 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+[package]
+name = "omaflake-i18n"
+description = "Translations of omaflake's Rust interfaces (omaf ui, the Linux app), generated from the macOS app's Localizable.strings"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+repository.workspace = true
+
+# No dependencies: tables and a formatter (plan B121)
+[dependencies]

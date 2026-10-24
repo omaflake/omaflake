@@ -56,7 +56,16 @@ that. If the service ends (an update, idle exit), the app connects again.
   `$TERMINAL`, else the first of foot, kitty, wezterm, alacritty, gnome-terminal, konsole, xterm. Notifications (VM
   ready, image built or failed, …) go to the desktop's notification service while the window is not in front and
   Settings → Notifications is on.
-- Everything is English for now (the core's texts carry message keys for translations – OPEN).
+- **Language:** English or German, from `OMAFLAKE_LANGUAGE` (`en`, `de`), else the locale (`LC_ALL`, `LC_MESSAGES`,
+  `LANG`); English for any other. The texts of the pages are translated by their message keys with the macOS app's
+  table (crate `omaflake-i18n`, generated from `App/Resources/de.lproj/Localizable.strings` by
+  `scripts/translations.py`), the app's own words too; dates and sizes follow the language. Still English: the core's
+  error messages, build logs and the Doctor's details.
+- **Private recipe sources:** the token goes to the desktop's keyring through the Secret Service (GNOME Keyring,
+  KWallet, KeePassXC – service `app.omaflake.recipe-source`, account the source's ID). Without one (a server, an SSH
+  session without a desktop) it is kept unencrypted in `$XDG_CONFIG_HOME/omaflake/tokens.json` (default
+  `~/.config`; the file 0600, its folder 0700), and adding the source says so. The CLI (`omaf sources add … --private`)
+  does the same.
 
 ## Tray
 

@@ -29,6 +29,9 @@ jobs:
       # BrandTokens.swift and crates/omaflake-brand/src/tokens.rs are generated from brand/tokens.toml (plan B119)
       - name: Design tokens up to date
         run: python3 brand/tokens.py --check
+      # crates/omaflake-i18n/src/de.rs is generated from the macOS app's German Localizable.strings
+      - name: Translation tables up to date
+        run: python3 scripts/translations.py --check
       - name: Guest agents and scripts parse
         run: |
           for f in nix/modules/*.py; do python3 -I -c "import ast,sys; ast.parse(open(sys.argv[1]).read())" "$f"; done

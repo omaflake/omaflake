@@ -8,7 +8,7 @@ use omaflake_core::api::types::{JobDto, JobKind};
 use omaflake_core::api::views::common::{Action, LampState};
 use omaflake_core::api::views::vms::VmsPage;
 
-use crate::text::s;
+use crate::text::{s, tr, trf};
 
 /// What the tray shows
 #[derive(Debug, Clone, PartialEq, Default)]
@@ -66,8 +66,8 @@ pub fn model(vms: Option<&VmsPage>, jobs: &[JobDto]) -> TrayModel {
                 });
             }
         }
-        Some(_) => entries.push(Entry::Note("No VMs yet".into())),
-        None => entries.push(Entry::Note("Connecting …".into())),
+        Some(_) => entries.push(Entry::Note(tr("No VMs yet"))),
+        None => entries.push(Entry::Note(tr("Connecting …"))),
     }
     let builds: Vec<&JobDto> = jobs.iter().filter(|j| j.kind == JobKind::Build && j.state.is_active()).collect();
     if !builds.is_empty() {
@@ -86,14 +86,14 @@ pub fn model(vms: Option<&VmsPage>, jobs: &[JobDto]) -> TrayModel {
     entries.push(Entry::Open);
     entries.push(Entry::Quit);
     let mut parts = vec![match running {
-        0 => "No VM running".to_string(),
-        1 => "1 VM running".to_string(),
-        n => format!("{n} VMs running"),
+        0 => tr("No VM running"),
+        1 => tr("1 VM running"),
+        n => trf("%lld VMs running", &[n.into()]),
     }];
     match builds.len() {
         0 => {}
-        1 => parts.push("1 build".into()),
-        n => parts.push(format!("{n} builds")),
+        1 => parts.push(tr("1 build")),
+        n => parts.push(trf("%lld builds", &[n.into()])),
     }
     TrayModel { tooltip: parts.join(" · "), entries, busy: !builds.is_empty() }
 }
@@ -184,7 +184,7 @@ mod linux {
                     }
                     Entry::Separator => MenuItem::Separator,
                     Entry::Open => StandardItem {
-                        label: "Open omaflake".into(),
+                        label: crate::text::tr("Open omaflake"),
                         activate: Box::new(|t: &mut Tray| {
                             let _ = t.tx.send(Command::Open);
                         }),
@@ -192,7 +192,7 @@ mod linux {
                     }
                     .into(),
                     Entry::Quit => StandardItem {
-                        label: "Quit".into(),
+                        label: crate::text::tr("Quit"),
                         icon_name: "application-exit".into(),
                         activate: Box::new(|t: &mut Tray| {
                             let _ = t.tx.send(Command::Quit);

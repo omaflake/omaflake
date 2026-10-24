@@ -46,6 +46,8 @@ impl Harness {
     fn new(answer: impl Fn(&str, &Value) -> Value + Send + Sync + 'static) -> Harness {
         let fake = Arc::new(Fake { calls: Mutex::default(), answer: Box::new(answer) });
         let (tx, rx) = mpsc::channel();
+        // The expected texts are English, whatever the locale of the test run
+        omaflake_tui::text::set_language(omaflake_tui::text::Language::English);
         let mut app = App::new(fake.clone(), tx, Theme::new(ColorMode::None), IconSet::Plain, "test");
         app.start();
         let mut h = Harness { app, rx, fake };

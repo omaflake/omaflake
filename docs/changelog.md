@@ -19,12 +19,13 @@ are collected under *Unreleased*. Releases: [GitHub](https://github.com/omaflake
   Service: GNOME Keyring, KWallet, KeePassXC). Without one – a server, an SSH session – it goes to
   `~/.config/omaflake/tokens.json` (readable only by you, unencrypted), and adding the source says so. File schema
   `tokens` v1.
+- **`omaf ui` and the Linux app speak German:** with a German locale (or `OMAFLAKE_LANGUAGE=de`) every page, action
+  and question is shown in German – the same translations as the macOS app –, dates and sizes too.
 
 ### Changed
 
 - **The Linux app avoids a software GPU:** when Vulkan offers only Mesa's software rasterizer (lavapipe – e.g. in a VM
   with virgl), the app draws with OpenGL instead; `WGPU_BACKEND` is no longer needed for that.
-
 - **A recipe name means the newest version:** after you change a recipe in a local folder, `omaf build lab` (and
   `omaf new`, `omaf export recipe`) takes the recipe as it is in the folder instead of asking between it and the copy
   kept from the last build. `omaf new` takes the newest version that has an image. Words or the omaflake ID still pick

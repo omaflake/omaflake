@@ -1,14 +1,46 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Texts of the views (docs/api.md §10.2) and the JSON helpers the TUI reads its models with. The TUI shows the
-//! English `text`; translating by `key` is OPEN for the TUI (it would keep a table with the app's keys). A text whose
-//! args name an asked param (`{"param": …}`) is filled in again with the value the user gave.
+//! Texts of the views (docs/api.md §10.2) and the JSON helpers the TUI reads its models with. A text with a key is
+//! translated into the language of the environment (`omaflake-i18n`: `OMAFLAKE_LANGUAGE`, `LC_ALL`, `LC_MESSAGES`,
+//! `LANG`; English without a table) and filled in; the TUI's own words go through `tr`/`trf`. A text whose args name
+//! an asked param (`{"param": …}`) is filled in with the value the user gave.
+
+use std::sync::OnceLock;
 
 use chrono::{DateTime, Utc};
+pub use omaflake_i18n::Arg as I18nArg;
 use serde_json::Value;
 
-/// The English text of a Text (`{key, text, args}`), a plain string or a number; "" for anything else
+pub use omaflake_i18n::Language;
+
+static LANG: OnceLock<Language> = OnceLock::new();
+
+/// The language of the TUI: as set, else the environment's (its own unit tests: always English)
+pub fn lang() -> Language {
+    if cfg!(test) {
+        return Language::English;
+    }
+    *LANG.get_or_init(Language::from_env)
+}
+
+/// Sets the language before the first text is shown (tests); later calls change nothing
+pub fn set_language(language: Language) {
+    let _ = LANG.set(language);
+}
+
+/// One of the TUI's own texts, translated
+pub fn tr(key: &str) -> String {
+    lang().tr(key)
+}
+
+/// One of the TUI's own texts with args (`%@`, `%lld`), translated
+pub fn trf(key: &str, args: &[I18nArg]) -> String {
+    lang().format(key, args)
+}
+
+/// A Text (`{key, text, args}`) as shown – translated –, a plain string or a number; "" for anything else
 pub fn t(v: &Value) -> String {
     match v {
+        Value::Object(o) if o.get("key").is_some_and(Value::is_string) => fill(v, &Value::Null),
         Value::Object(o) => o.get("text").and_then(Value::as_str).unwrap_or_default().to_string(),
         Value::String(s) => s.clone(),
         Value::Number(n) => n.to_string(),
@@ -54,18 +86,15 @@ pub fn set_path(v: &mut Value, path: &str, value: Value) {
     }
 }
 
-/// A text with its `{"param": …}` args filled from `params` (what the user just chose); else its `text`
+/// A text translated and filled in, `{"param": …}` from `params` (what the user just chose); its English `text` when
+/// the placeholders do not fit
 pub fn fill(text: &Value, params: &Value) -> String {
-    let args = arr(text, "args");
+    let english = || text.get("text").and_then(Value::as_str).unwrap_or_default().to_string();
     let Some(key) = text.get("key").and_then(Value::as_str) else { return t(text) };
-    if !args.iter().any(has_param) {
-        return t(text);
-    }
-    render(key, args, params)
-}
-
-fn has_param(arg: &Value) -> bool {
-    arg.get("param").is_some() || arr(arg, "args").iter().any(has_param)
+    let args = arr(text, "args");
+    let values: Vec<String> = args.iter().map(|a| arg_text(a, params)).collect();
+    let ints: Vec<bool> = args.iter().map(Value::is_number).collect();
+    lang().fill(key, &values, &ints).unwrap_or_else(english)
 }
 
 fn arg_text(arg: &Value, params: &Value) -> String {
@@ -87,33 +116,17 @@ fn arg_text(arg: &Value, params: &Value) -> String {
     }
 }
 
-/// `key` with its placeholders (`%@`, `%lld`; `%%` a percent sign) filled in order
+/// `key` translated, with its placeholders (`%@`, `%lld`, `%1$@`; `%%` a percent sign) filled in order
 pub fn render(key: &str, args: &[Value], params: &Value) -> String {
-    let mut out = String::new();
-    let mut rest = key;
-    let mut next = args.iter();
-    while let Some(i) = rest.find('%') {
-        out.push_str(&rest[..i]);
-        let after = &rest[i + 1..];
-        if let Some(r) = after.strip_prefix('%') {
-            out.push('%');
-            rest = r;
-        } else if let Some(r) = after.strip_prefix('@').or_else(|| after.strip_prefix("lld")) {
-            out.push_str(&next.next().map(|a| arg_text(a, params)).unwrap_or_default());
-            rest = r;
-        } else {
-            out.push('%');
-            rest = after;
-        }
-    }
-    out.push_str(rest);
-    out
+    let values: Vec<String> = args.iter().map(|a| arg_text(a, params)).collect();
+    let ints: Vec<bool> = args.iter().map(Value::is_number).collect();
+    lang().fill(key, &values, &ints).unwrap_or_else(|| key.to_string())
 }
 
-/// "2026-10-21 10:00 UTC" (as the core's English texts)
+/// "2026-10-21 10:00 UTC" (German "21.10.2026 10:00 UTC", as the core's texts in UTC)
 pub fn date_text(iso: &str) -> String {
     match parse_date(iso) {
-        Some(d) => d.format("%Y-%m-%d %H:%M UTC").to_string(),
+        Some(d) => format!("{} UTC", d.format(lang().date_time_pattern())),
         None => iso.to_string(),
     }
 }
@@ -122,18 +135,9 @@ pub fn parse_date(iso: &str) -> Option<DateTime<Utc>> {
     DateTime::parse_from_rfc3339(iso).ok().map(|d| d.with_timezone(&Utc))
 }
 
-/// "12.3 GB" (decimal units, as the core)
+/// "12.3 GB" (decimal units, as the core; "12,3 GB" in German)
 pub fn bytes_text(bytes: i64) -> String {
-    let b = bytes as f64;
-    if b >= 1e9 {
-        format!("{:.1} GB", b / 1e9)
-    } else if b >= 1e6 {
-        format!("{:.1} MB", b / 1e6)
-    } else if b >= 1e3 {
-        format!("{:.1} KB", b / 1e3)
-    } else {
-        format!("{bytes} bytes")
-    }
+    lang().bytes(bytes)
 }
 
 /// "1:05:09", "4:02" – a running time
@@ -169,7 +173,7 @@ mod tests {
                           "args": [{"param": "target"}]});
         assert_eq!(fill(&text, &json!({"target": "/Volumes/X"})), "Move the data folder to /Volumes/X?");
         assert_eq!(fill(&text, &json!({})), "Move the data folder to <target>?");
-        let plain = json!({"key": "%@ of %@", "text": "1.0 GB of 2.0 GB", "args": [{"bytes": 1}, {"bytes": 2}]});
+        let plain = json!({"key": "%@ of %@", "text": "1.0 GB of 2.0 GB", "args": [{"bytes": 1_000_000_000_i64}, {"bytes": 2_000_000_000_i64}]});
         assert_eq!(fill(&plain, &json!({})), "1.0 GB of 2.0 GB");
         assert_eq!(render("%lld%% · %@", &[json!(5), json!({"bytes": 2_000_000_000})], &json!({})), "5% · 2.0 GB");
         assert_eq!(duration_text(3909), "1:05:09");

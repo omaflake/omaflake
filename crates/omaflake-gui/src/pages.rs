@@ -23,7 +23,7 @@ use serde_json::{json, Value};
 use crate::app::{App, Message, Model};
 use crate::icons::icon;
 use crate::style::{self, spacing, text_size};
-use crate::text::{date_time, duration, s};
+use crate::text::{date_time, duration, s, tr, trf};
 use crate::widgets::{
     self, action_button, action_icon, badge, caption, chip, detail_box, divider, expandable, hint, info_line, kind,
     lamp, primary_button, secondary, section_title, wrap, El,
@@ -34,7 +34,7 @@ pub fn waiting<'a>(status: Option<&str>) -> El<'a> {
     container(
         row![
             widgets::lamp_dot(omaflake_core::api::views::common::LampState::Working, false),
-            secondary(status.unwrap_or("Loading …").to_string()).size(text_size::CALLOUT),
+            secondary(status.map(str::to_string).unwrap_or_else(|| tr("Loading …"))).size(text_size::CALLOUT),
         ]
         .spacing(spacing::L)
         .align_y(Alignment::Center),
@@ -90,7 +90,7 @@ fn section<'a>(app: &'a App, page: &str, head: &'a ListHead, rows: Vec<El<'a>>) 
         let color = if f.active || open { style::CYAN } else { style::TEXT };
         top = top.push(widgets::icon_button(
             "filter",
-            "Filter".into(),
+            tr("Filter"),
             Some(Message::FilterMenu(Some(page.to_string()))),
             color,
             false,
@@ -165,7 +165,7 @@ fn filter_menu<'a>(page: &str, f: &'a Filter) -> El<'a> {
         c = c.push(
             row![
                 space::horizontal(),
-                button(caption("Reset Filter"))
+                button(caption(tr("Reset Filter")))
                     .padding([spacing::XS, spacing::L])
                     .style(style::action_button(style::TEXT, false))
                     .on_press(Message::Run(
@@ -635,7 +635,7 @@ fn build<'a>(app: &'a App, b: &'a BuildPage) -> El<'a> {
                 .spacing(spacing::M);
         if quiet >= p.quiet_warning as i64 {
             pc = pc.push(widgets::tip(
-                caption(format!("No output for {}", duration(quiet))).color(style::WARNING),
+                caption(trf("No output for %@", &[duration(quiet).into()])).color(style::WARNING),
                 s(&p.quiet_help),
             ));
         }
@@ -708,7 +708,7 @@ fn log_console<'a>(app: &'a App, job: &str) -> El<'a> {
 
 fn doctor<'a>(app: &'a App, d: &'a DoctorPage) -> El<'a> {
     let mut versions = column![info_line(&omaflake_core::api::views::common::InfoLine {
-        label: Text::verbatim("App"),
+        label: Text::new("App"),
         value: Text::verbatim(env!("CARGO_PKG_VERSION")),
         note: None,
         tone: None,
@@ -751,7 +751,7 @@ fn doctor<'a>(app: &'a App, d: &'a DoctorPage) -> El<'a> {
     ]
     .spacing(spacing::XXL);
     if let Some(t) = d.checked {
-        c = c.push(secondary(format!("Checked {}", date_time(t))));
+        c = c.push(secondary(trf("Checked %@", &[date_time(t).into()])));
     }
     for sec in &d.sections {
         let items = Column::with_children(sec.items.iter().map(|i| doctor_item(app, &sec.id, i)));
@@ -838,7 +838,7 @@ fn mac_base<'a>(app: &'a App, page: &str, m: &'a MacBasePage) -> El<'a> {
     }
     c = c.push(container(f).padding(spacing::CARD_PADDING).width(Length::Fill).style(style::card));
     if m.installing {
-        c = c.push(row![widgets::working(app.pulse), secondary("Creating the base …")].align_y(Alignment::Center));
+        c = c.push(row![widgets::working(app.pulse), secondary(tr("Creating the base …"))].align_y(Alignment::Center));
     }
     c = c.push(page_actions(app, page, &m.actions));
     if let Some(l) = &m.log {
@@ -910,12 +910,12 @@ fn settings<'a>(app: &'a App, page: &str, st: &'a SettingsPage) -> El<'a> {
     if cfg!(target_os = "linux") {
         c = c.push(
             column![
-                section_title(&Text::verbatim("This app")),
+                section_title(&Text::new("This app")),
                 container(
                     row![
                         column![
-                            text("Tray icon").size(text_size::BODY),
-                            secondary("VMs, builds and Quit in the panel; closing the window keeps omaflake there"),
+                            text(tr("Tray icon")).size(text_size::BODY),
+                            secondary(tr("VMs, builds and Quit in the panel; closing the window keeps omaflake there")),
                         ]
                         .spacing(spacing::XXS)
                         .width(Length::Fill),
@@ -1075,7 +1075,7 @@ pub fn field_view<'a>(app: &'a App, page: &str, field: &'a Field, store: bool) -
             .spacing(spacing::L)
             .align_y(Alignment::Center);
             if !value.is_null() && enabled {
-                let reset = field.help.as_ref().map(s).unwrap_or_else(|| "Default".into());
+                let reset = field.help.as_ref().map(s).unwrap_or_else(|| tr("Default"));
                 r = r.push(
                     button(caption(reset))
                         .padding([spacing::XS, spacing::L])
@@ -1110,7 +1110,7 @@ pub fn field_view<'a>(app: &'a App, page: &str, field: &'a Field, store: bool) -
 }
 
 fn choose_button<'a>(page: &str, field: &'a Field) -> El<'a> {
-    let label = field.ask.as_ref().map(|a| s(&a.label)).unwrap_or_else(|| "Choose …".into());
+    let label = field.ask.as_ref().map(|a| s(&a.label)).unwrap_or_else(|| tr("Choose …"));
     button(
         row![icon("folder", text_size::CAPTION, style::TEXT), caption(label)]
             .spacing(spacing::S)

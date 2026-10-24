@@ -4,7 +4,8 @@
 
 [workspace]
 resolver = "2"
-members = ["crates/omaflake-core", "crates/omaf", "crates/omaflake-brand", "crates/omaflake-tui", "crates/omaflake-gui"]
+members = ["crates/omaflake-core", "crates/omaf", "crates/omaflake-brand", "crates/omaflake-tui", "crates/omaflake-gui",
+    "crates/omaflake-i18n"]
 exclude = ["nix/agent"]
 
 [workspace.package]
@@ -16,6 +17,7 @@ repository = "https://github.com/omaflake/omaflake"
 
 [workspace.dependencies]
 omaflake-core = { path = "crates/omaflake-core" }
+omaflake-i18n = { path = "crates/omaflake-i18n" }
 serde = { version = "1.0.228", features = ["derive"] }
 serde_json = "1.0.149"
 toml = "1.1.8"

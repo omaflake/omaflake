@@ -26,7 +26,7 @@ use serde_json::{json, Map, Value};
 
 use crate::backend::{self, CallError, Handle};
 use crate::prefs::Prefs;
-use crate::text::{lookup, s};
+use crate::text::{lookup, s, tr, trf};
 use crate::{system, tray};
 
 /// A page's model as the core sent it
@@ -66,12 +66,14 @@ pub fn pulses(v: &Value) -> bool {
 /// A page's model from its JSON
 pub fn decode(page: &str, v: Value) -> Model {
     if let Some(e) = v.get("error") {
-        return Model::Error(e["message"].as_str().unwrap_or("This page cannot be shown").to_string());
+        return Model::Error(
+            e["message"].as_str().map(str::to_string).unwrap_or_else(|| tr("This page cannot be shown")),
+        );
     }
     fn de<T: serde::de::DeserializeOwned>(v: Value, f: fn(Box<T>) -> Model) -> Model {
         match serde_json::from_value::<T>(v) {
             Ok(t) => f(Box::new(t)),
-            Err(e) => Model::Error(format!("This app cannot read the page: {e}")),
+            Err(e) => Model::Error(trf("This app cannot read the page: %@", &[e.to_string().into()])),
         }
     }
     match page {
@@ -87,7 +89,7 @@ pub fn decode(page: &str, v: Value) -> Model {
         "activity" => de(v, Model::Activity),
         "vm" => de(v, Model::Vm),
         "image" => de(v, Model::Image),
-        other => Model::Error(format!("Unknown page {other}")),
+        other => Model::Error(trf("Unknown page %@", &[other.into()])),
     }
 }
 
@@ -129,7 +131,7 @@ pub fn guide_target(params: &Value) -> String {
 /// Why a check (`packages.inspect`) refused a chosen value: its `reason` is a Text
 pub fn refusal(value: &str, answer: &Value) -> String {
     let why =
-        serde_json::from_value::<Text>(answer["reason"].clone()).map(|t| s(&t)).unwrap_or_else(|_| "not usable".into());
+        serde_json::from_value::<Text>(answer["reason"].clone()).map(|t| s(&t)).unwrap_or_else(|_| tr("not usable"));
     format!("{value}: {why}")
 }
 
@@ -305,7 +307,7 @@ impl App {
             size: Size::new(560.0, 680.0),
             glow: None,
             core: None,
-            status: Some("Connecting to omaflake's core …".into()),
+            status: Some(tr("Connecting to omaflake's core …")),
             init: Value::Null,
             models: HashMap::new(),
             tab: "vms".into(),
@@ -452,7 +454,7 @@ impl App {
         let Some(core) = &self.core else {
             return Task::done(Message::Answer(
                 purpose,
-                Err(CallError { message: "Not connected to omaflake's core".into() }),
+                Err(CallError { message: tr("Not connected to omaflake's core") }),
             ));
         };
         let fut = core.call(method, params);
@@ -800,9 +802,10 @@ impl App {
             backend::Event::Connected(handle, init) => {
                 self.status = match &handle.via {
                     backend::Via::Service(_) => None,
-                    backend::Via::InProcess(why) => {
-                        Some(format!("Running the core in this app – no service ({why}); jobs end with the app"))
-                    }
+                    backend::Via::InProcess(why) => Some(trf(
+                        "Running the core in this app – no service (%@); jobs end with the app",
+                        &[why.clone().into()],
+                    )),
                 };
                 self.core = Some(handle);
                 self.init = init;
@@ -815,7 +818,7 @@ impl App {
             }
             backend::Event::Disconnected(why) => {
                 if self.core.take().is_some() || self.status.is_none() {
-                    self.status = Some(format!("Connecting to omaflake's core … ({why})"));
+                    self.status = Some(trf("Connecting to omaflake's core … (%@)", &[why.clone().into()]));
                 }
                 self.subscribed.clear();
                 Task::none()
@@ -1185,7 +1188,7 @@ impl App {
             "terminal" => done(system::run_in_terminal(&str_of("line").unwrap_or_default()), self),
             "quit" => self.quit(),
             other => {
-                self.say(format!("This app does not know ui.{other}"), true);
+                self.say(trf("This app does not know ui.%@", &[other.into()]), true);
                 Task::none()
             }
         }
@@ -1229,12 +1232,12 @@ impl App {
                         self.next_pending()
                     }
                     None => {
-                        self.say(page.reason.map(|r| s(&r)).unwrap_or_else(|| "This cannot be imported".into()), true);
+                        self.say(page.reason.map(|r| s(&r)).unwrap_or_else(|| tr("This cannot be imported")), true);
                         Task::none()
                     }
                 },
                 Err(e) => {
-                    self.say(format!("This app cannot read the import page: {e}"), true);
+                    self.say(trf("This app cannot read the import page: %@", &[e.to_string().into()]), true);
                     Task::none()
                 }
             },
@@ -1262,7 +1265,7 @@ async fn pick(ask: Ask) -> Option<Vec<PathBuf>> {
         d = d.set_directory(dir);
     }
     if ask.accept.as_deref() == Some("ipsw") {
-        d = d.add_filter("macOS restore image", &["ipsw"]);
+        d = d.add_filter(tr("macOS restore image"), &["ipsw"]);
     }
     let picked = match ask.kind {
         // omaflake packages (.omaflake-vm, -image, -recipe) are folders, and so is a recipe folder

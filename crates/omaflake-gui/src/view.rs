@@ -15,7 +15,7 @@ use crate::app::{page_ref, App, Message, Modal, Model};
 use crate::icons::icon;
 use crate::pages;
 use crate::style::{self, icon_size, spacing, text_size};
-use crate::text::{s, show};
+use crate::text::{s, show, tr};
 use crate::widgets::{self, action_icon, count_badge, El};
 
 /// The glow from the corners, like the hero mark's RGB split (`BrandStyle.background`): iced draws no radial
@@ -167,7 +167,7 @@ impl App {
                 };
                 label = label.push(widgets::tip(badge, s(&b.help)));
             } else if t.id == "activity" && self.tab != "activity" && self.unseen_activity() {
-                label = label.push(widgets::tip(dot(style::CYAN), "New messages".into()));
+                label = label.push(widgets::tip(dot(style::CYAN), tr("New messages")));
             }
             r = r.push(
                 button(container(label).center_x(Length::Fill).height(26).align_y(Alignment::Center))
@@ -192,7 +192,7 @@ impl App {
     fn page_frame<'a>(&'a self, page: &PageRef) -> El<'a> {
         // The model's title; none while it has not come
         let title = self.model(page).and_then(Model::title).map(s).unwrap_or_default();
-        let back = widgets::icon_button("chevron-left", "Back".into(), Some(Message::Back), style::TEXT, false);
+        let back = widgets::icon_button("chevron-left", tr("Back"), Some(Message::Back), style::TEXT, false);
         let header = row![back, text(title).size(text_size::HEADLINE).font(style::bold())]
             .spacing(spacing::M)
             .align_y(Alignment::Center);
@@ -289,7 +289,7 @@ impl App {
                 );
                 if ask.repeat {
                     c = c.push(
-                        text_input("Repeat", repeat)
+                        text_input(&tr("Repeat"), repeat)
                             .secure(secret)
                             .on_input(Message::ModalRepeat)
                             .on_submit(Message::ModalOk)
@@ -301,7 +301,7 @@ impl App {
                 if let Some(e) = error {
                     c = c.push(widgets::caption(e.clone()).color(style::DANGER));
                 }
-                let button_text = ask.button.as_ref().map(s).unwrap_or_else(|| "Continue".into());
+                let button_text = ask.button.as_ref().map(s).unwrap_or_else(|| tr("Continue"));
                 c.push(buttons(button_text, style::ACCENT)).into()
             }
         };
@@ -315,7 +315,7 @@ impl App {
 
 /// Cancel and the answer
 fn buttons<'a>(answer: String, color: Color) -> El<'a> {
-    let cancel = button(text("Cancel").size(text_size::CALLOUT))
+    let cancel = button(text(tr("Cancel")).size(text_size::CALLOUT))
         .padding([spacing::S, spacing::XXL])
         .style(style::action_button(style::TEXT, false))
         .on_press(Message::ModalCancel);

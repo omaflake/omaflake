@@ -18,7 +18,7 @@ use crate::core::{Core, CoreError};
 use crate::icons::IconSet;
 use crate::model::{self, Ctx, Page};
 use crate::paths;
-use crate::text::{arr, b, fill, s, set_path, t};
+use crate::text::{arr, b, fill, s, set_path, t, tr, trf};
 use crate::theme::{Theme, Tone};
 
 /// The tabs before `home` arrives
@@ -398,7 +398,7 @@ impl App {
             (Pending::Check(flow, value), Ok(result)) => {
                 if result.get("valid").and_then(Value::as_bool) == Some(false) {
                     // `reason` is a text (§10.2)
-                    let reason = result.get("reason").map(t).unwrap_or_else(|| "Not accepted".into());
+                    let reason = result.get("reason").map(t).unwrap_or_else(|| tr("Not accepted"));
                     if let Some(Modal::Prompt(p)) = &mut self.modal {
                         p.checking = false;
                         p.error = Some(reason);
@@ -442,7 +442,7 @@ impl App {
     /// A key or click asks for `action`
     pub fn run_action(&mut self, action: &Value) {
         if !b(action, "enabled") {
-            let why = action.get("reason").map(t).unwrap_or_else(|| "Not possible now".into());
+            let why = action.get("reason").map(t).unwrap_or_else(|| tr("Not possible now"));
             self.set_status(why, Tone::Warning);
             return;
         }
@@ -516,7 +516,7 @@ impl App {
                         Some(url) => {
                             self.effects.push_back(Effect::Open(url.into()));
                         }
-                        None => self.set_status(format!("{}: no page to open", t(&g["title"])), Tone::Warning),
+                        None => self.set_status(trf("%@: no page to open", &[t(&g["title"]).into()]), Tone::Warning),
                     }
                 } else {
                     self.stack.push(PageRef::new(page, p["params"].clone()));
@@ -545,15 +545,15 @@ impl App {
             }
             "reveal" => match p.get("path").and_then(Value::as_str) {
                 Some(path) => self.effects.push_back(Effect::Reveal(path.into())),
-                None => self.set_status("Nothing to show yet", Tone::Normal),
+                None => self.set_status(tr("Nothing to show yet"), Tone::Normal),
             },
             "open" => match p.get("path").or_else(|| p.get("url")).and_then(Value::as_str) {
                 Some(target) => self.effects.push_back(Effect::Open(target.into())),
-                None => self.set_status("Nothing to open", Tone::Normal),
+                None => self.set_status(tr("Nothing to open"), Tone::Normal),
             },
             "terminal" => self.effects.push_back(Effect::Terminal(Command::Shell(s(p, "line").into()))),
             "quit" => self.quit = true,
-            other => self.set_status(format!("ui.{other} is not known to this omaf ui"), Tone::Warning),
+            other => self.set_status(trf("ui.%@ is not known to this omaf ui", &[other.into()]), Tone::Warning),
         }
     }
 
@@ -562,7 +562,7 @@ impl App {
         match s(&flow.action, "then") {
             "reveal" => match result.get("path").and_then(Value::as_str) {
                 Some(path) => self.effects.push_back(Effect::Reveal(path.into())),
-                None => self.set_status("No path in the answer", Tone::Warning),
+                None => self.set_status(tr("No path in the answer"), Tone::Warning),
             },
             "terminal" => {
                 let argv: Vec<String> = arr(result, "argv").iter().map(t).collect();
@@ -589,7 +589,7 @@ impl App {
     /// A form field changed: stored at once (`set`), or into the page's params (`values`) and asked again
     fn change_field(&mut self, f: &Value, value: Value) {
         if !b(f, "enabled") {
-            let why = f.get("reason").map(t).unwrap_or_else(|| "Not possible now".into());
+            let why = f.get("reason").map(t).unwrap_or_else(|| tr("Not possible now"));
             self.set_status(why, Tone::Warning);
             return;
         }
@@ -601,7 +601,7 @@ impl App {
             // A form field of the page shown now
             self.set_value(None, key, value);
         } else {
-            self.set_status("This value is not kept", Tone::Warning);
+            self.set_status(tr("This value is not kept"), Tone::Warning);
         }
     }
 
@@ -622,7 +622,7 @@ impl App {
             None => self.stack.last_mut(),
         };
         let (Some(page), false) = (slot, key.is_empty()) else {
-            self.set_status("No form here", Tone::Warning);
+            self.set_status(tr("No form here"), Tone::Warning);
             return;
         };
         let values = page.params.as_object_mut().expect("params are an object").entry("values").or_insert(json!({}));
@@ -798,7 +798,7 @@ impl App {
                         index: 0,
                     });
                 }
-                None => self.set_status("This page has no filter", Tone::Normal),
+                None => self.set_status(tr("This page has no filter"), Tone::Normal),
             },
             KeyCode::Down | KeyCode::Char('j') => self.move_selection(&page, 1),
             KeyCode::Up | KeyCode::Char('k') => self.move_selection(&page, -1),
@@ -842,13 +842,13 @@ impl App {
             },
             KeyCode::Char('a') => match item {
                 Some(i) if !i.actions.is_empty() => self.modal = Some(Modal::Menu { actions: i.actions, index: 0 }),
-                _ => self.set_status("No actions here", Tone::Normal),
+                _ => self.set_status(tr("No actions here"), Tone::Normal),
             },
             KeyCode::Char(c @ '1'..='9') => {
                 let n = c as usize - '1' as usize;
                 match item.and_then(|i| i.actions.get(n).cloned()) {
                     Some(a) => self.run_action(&a),
-                    None => self.set_status(format!("No action {c} here"), Tone::Normal),
+                    None => self.set_status(trf("No action %@ here", &[c.to_string().into()]), Tone::Normal),
                 }
             }
             KeyCode::Char(c) => {
@@ -975,12 +975,12 @@ impl App {
                     flow.confirmed = true;
                     self.go_on(flow);
                 }
-                KeyCode::Esc => self.set_status("Cancelled", Tone::Normal),
+                KeyCode::Esc => self.set_status(tr("Cancelled"), Tone::Normal),
                 KeyCode::Char('y') if input.is_none() => {
                     flow.confirmed = true;
                     self.go_on(flow);
                 }
-                KeyCode::Char('n') if input.is_none() => self.set_status("Cancelled", Tone::Normal),
+                KeyCode::Char('n') if input.is_none() => self.set_status(tr("Cancelled"), Tone::Normal),
                 KeyCode::Char(c) if input.is_some() => {
                     let mut text = input.unwrap_or_default();
                     text.push(c);
@@ -1000,7 +1000,7 @@ impl App {
     fn prompt_key(&mut self, mut p: Prompt, key: KeyEvent) {
         let is_path = matches!(p.kind.as_str(), "folder" | "file" | "package");
         match key.code {
-            KeyCode::Esc => return self.set_status("Cancelled", Tone::Normal),
+            KeyCode::Esc => return self.set_status(tr("Cancelled"), Tone::Normal),
             KeyCode::Tab if is_path => {
                 let (done, cands) = paths::complete(&p.input, p.kind == "folder");
                 p.input = done;
@@ -1037,7 +1037,7 @@ impl App {
                     "number" => match value.trim().parse::<i64>() {
                         Ok(n) => json!(n),
                         Err(_) => {
-                            p.error = Some("A whole number".into());
+                            p.error = Some(tr("A whole number"));
                             self.modal = Some(Modal::Prompt(p));
                             return;
                         }
@@ -1059,7 +1059,7 @@ impl App {
                             return;
                         }
                         Some(first) if first != value => {
-                            p.error = Some("The two entries differ – type it again".into());
+                            p.error = Some(tr("The two entries differ – type it again"));
                             p.input.clear();
                             self.modal = Some(Modal::Prompt(p));
                             return;

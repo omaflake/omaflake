@@ -1,45 +1,47 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Texts of the views (docs/api.md §10.2) as this app shows them: English (no translation table yet – OPEN), filled
-//! in from the key with times in local time, sizes in decimal units, and `{"param": …}` with the value asked for.
+//! Texts of the views (docs/api.md §10.2) as this app shows them: translated by their key into the language of the
+//! environment (`omaflake-i18n`: `OMAFLAKE_LANGUAGE`, `LC_ALL`, `LC_MESSAGES`, `LANG`; English without a table), filled in
+//! with times in local time, sizes in decimal units, and `{"param": …}` with the value asked for. The app's own few
+//! words go through `tr`/`trf` with the same tables.
+
+use std::sync::OnceLock;
 
 use chrono::{DateTime, Local, Utc};
 use omaflake_core::api::views::{Arg, Text};
+pub use omaflake_i18n::Arg as I18nArg;
+use omaflake_i18n::Language;
 use serde_json::Value;
+
+/// The language of this app (tests: always English)
+pub fn lang() -> Language {
+    static LANG: OnceLock<Language> = OnceLock::new();
+    if cfg!(test) {
+        return Language::English;
+    }
+    *LANG.get_or_init(Language::from_env)
+}
+
+/// One of the app's own texts, translated
+pub fn tr(key: &str) -> String {
+    lang().tr(key)
+}
+
+/// One of the app's own texts with args (`%@`, `%lld`), translated
+pub fn trf(key: &str, args: &[I18nArg]) -> String {
+    lang().format(key, args)
+}
 
 /// A text as shown; `asked` holds the values asked for an action (a confirmation naming the folder just chosen)
 pub fn show(t: &Text, asked: Option<&Value>) -> String {
-    match &t.key {
-        Some(key) if !t.args.is_empty() => render(key, &t.args, asked),
-        Some(key) => key.clone(),
-        None => t.text.clone(),
-    }
+    let Some(key) = &t.key else { return t.text.clone() };
+    let values: Vec<String> = t.args.iter().map(|a| arg(a, asked)).collect();
+    let ints: Vec<bool> = t.args.iter().map(|a| matches!(a, Arg::Int(_))).collect();
+    lang().fill(key, &values, &ints).unwrap_or_else(|| t.text.clone())
 }
 
 /// `show` without asked values
 pub fn s(t: &Text) -> String {
     show(t, None)
-}
-
-fn render(key: &str, args: &[Arg], asked: Option<&Value>) -> String {
-    let mut out = String::new();
-    let mut rest = key;
-    let mut next = args.iter();
-    while let Some(i) = rest.find('%') {
-        out.push_str(&rest[..i]);
-        let after = &rest[i + 1..];
-        if let Some(r) = after.strip_prefix('%') {
-            out.push('%');
-            rest = r;
-        } else if let Some(r) = after.strip_prefix('@').or_else(|| after.strip_prefix("lld")) {
-            out.push_str(&next.next().map(|a| arg(a, asked)).unwrap_or_default());
-            rest = r;
-        } else {
-            out.push('%');
-            rest = after;
-        }
-    }
-    out.push_str(rest);
-    out
 }
 
 fn arg(a: &Arg, asked: Option<&Value>) -> String {
@@ -61,9 +63,9 @@ pub fn lookup<'a>(v: &'a Value, path: &str) -> Option<&'a Value> {
     path.split('.').try_fold(v, |at, p| at.get(p))
 }
 
-/// "2026-10-21 10:00" in local time
+/// "2026-10-21 10:00" (German "21.10.2026 10:00") in local time
 pub fn date_time(d: DateTime<Utc>) -> String {
-    d.with_timezone(&Local).format("%Y-%m-%d %H:%M").to_string()
+    d.with_timezone(&Local).format(lang().date_time_pattern()).to_string()
 }
 
 /// "10:00" in local time (the activity list)
@@ -71,18 +73,9 @@ pub fn time(d: DateTime<Utc>) -> String {
     d.with_timezone(&Local).format("%H:%M").to_string()
 }
 
-/// "12.3 GB" (decimal units, as the core and the macOS app)
+/// "12.3 GB" (decimal units, as the core and the macOS app; "12,3 GB" in German)
 pub fn bytes_text(bytes: i64) -> String {
-    let b = bytes as f64;
-    if b >= 1e9 {
-        format!("{:.1} GB", b / 1e9)
-    } else if b >= 1e6 {
-        format!("{:.1} MB", b / 1e6)
-    } else if b >= 1e3 {
-        format!("{:.1} KB", b / 1e3)
-    } else {
-        format!("{bytes} bytes")
-    }
+    lang().bytes(bytes)
 }
 
 /// "1:05:09" / "4:09" – a running time
@@ -115,7 +108,9 @@ mod tests {
         );
         assert_eq!(s(&t), "12.3 GB · no VM");
         assert_eq!(s(&text(json!({"text": "/data"}))), "/data");
-        assert_eq!(s(&text(json!({"key": "100%% sure", "text": "x", "args": [1]}))), "100% sure");
+        assert_eq!(s(&text(json!({"key": "100%% sure", "text": "x"}))), "100% sure");
+        // placeholders that do not fit the args: the English text
+        assert_eq!(s(&text(json!({"key": "%lld VMs", "text": "two VMs", "args": ["two"]}))), "two VMs");
     }
 
     #[test]

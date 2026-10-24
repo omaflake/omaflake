@@ -14,6 +14,7 @@ path = "src/main.rs"
 
 [dependencies]
 omaflake-core.workspace = true
+omaflake-i18n.workspace = true
 omaflake-brand = { path = "../omaflake-brand" }
 serde.workspace = true
 serde_json.workspace = true

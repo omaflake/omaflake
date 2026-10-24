@@ -11,7 +11,7 @@ use serde_json::Value;
 
 use crate::app::{App, Modal, Target, RESERVED};
 use crate::model::{self, button, Page};
-use crate::text::{arr, b, s, t};
+use crate::text::{arr, b, s, t, tr, trf};
 use crate::theme::Tone;
 
 pub fn draw(f: &mut Frame, app: &mut App) {
@@ -68,7 +68,7 @@ fn draw_header(f: &mut Frame, app: &App, area: Rect) {
     let mut spans = vec![Span::styled(format!(" {name} "), th.accent().add_modifier(Modifier::BOLD))];
     match &app.home {
         Some(home) => spans.extend(model::tabs(&ctx, home, &app.tab)),
-        None => spans.push(Span::styled(" connecting …", th.secondary())),
+        None => spans.push(Span::styled(format!(" {}", tr("connecting …")), th.secondary())),
     }
     let home = app.home_actions();
     let letters = App::letters(&home, true, RESERVED);
@@ -137,7 +137,7 @@ fn draw_title(f: &mut Frame, app: &App, page: &Page, area: Rect) {
 fn draw_items(f: &mut Frame, app: &mut App, page: &Page, area: Rect) {
     let th = app.theme;
     if page.items.is_empty() {
-        let text = if app.model(&app.current()).is_none() { "Loading …" } else { "" };
+        let text = if app.model(&app.current()).is_none() { tr("Loading …") } else { String::new() };
         f.render_widget(Paragraph::new(Span::styled(format!("  {text}"), th.secondary())), area);
         return;
     }
@@ -184,13 +184,13 @@ fn draw_footer(f: &mut Frame, app: &App, page: &Page, area: Rect) {
     match item {
         Some(i) if i.field.is_some() => {
             let f = i.field.as_ref().expect("checked");
-            let hint = match s(f, "kind") {
+            let hint = tr(match s(f, "kind") {
                 "toggle" => "Enter/Space switch",
                 "number" => "←/→ change  Enter type",
                 "choice" => "←/→ change  Enter choose",
                 "path" => "Enter choose a path (Tab completes)",
                 _ => "Enter edit",
-            };
+            });
             spans.push(Span::styled(hint, th.secondary()));
         }
         Some(i) => {
@@ -207,12 +207,12 @@ fn draw_footer(f: &mut Frame, app: &App, page: &Page, area: Rect) {
                 spans.push(Span::raw("  "));
             }
             if i.expandable {
-                spans.push(Span::styled(if i.open { "Space close" } else { "Space details" }, th.secondary()));
+                spans.push(Span::styled(tr(if i.open { "Space close" } else { "Space details" }), th.secondary()));
             }
         }
         None => {}
     }
-    spans.push(Span::styled("   ? help", th.secondary()));
+    spans.push(Span::styled(format!("   {}", tr("? help")), th.secondary()));
     f.render_widget(Paragraph::new(Line::from(spans)), area);
 }
 
@@ -221,7 +221,10 @@ fn draw_status(f: &mut Frame, app: &App, area: Rect) {
     let line = match &app.status {
         Some((text, tone, _)) => Line::from(vec![Span::raw(" "), Span::styled(text.clone(), th.tone(*tone))]),
         None => Line::from(Span::styled(
-            format!(" omaf ui {} · {} · Tab pages · q quit", omaflake_core::VERSION, app.via),
+            format!(
+                " {}",
+                trf("omaf ui %@ · %@ · Tab pages · q quit", &[omaflake_core::VERSION.into(), app.via.clone().into()])
+            ),
             th.secondary(),
         )),
     };
@@ -240,7 +243,7 @@ fn draw_modal(f: &mut Frame, app: &App, page: &Page, area: Rect) {
     let ctx = app.ctx();
     let Some(modal) = &app.modal else { return };
     let (title, lines): (String, Vec<Line<'static>>) = match modal {
-        Modal::Help => ("Keys".into(), help_lines(app, page)),
+        Modal::Help => (tr("Keys"), help_lines(app, page)),
         Modal::Menu { actions, index } => {
             let lines = actions
                 .iter()
@@ -260,7 +263,7 @@ fn draw_modal(f: &mut Frame, app: &App, page: &Page, area: Rect) {
                     out
                 })
                 .collect();
-            ("Actions".into(), lines)
+            (tr("Actions"), lines)
         }
         Modal::Choice { field, index } => {
             let lines = arr(field, "choices")
@@ -301,7 +304,7 @@ fn draw_modal(f: &mut Frame, app: &App, page: &Page, area: Rect) {
             }
             lines.push(Line::raw(""));
             lines.push(Line::from(Span::styled(" ←/→ change · Enter apply · r reset · Esc cancel", th.secondary())));
-            ("Filter".into(), lines)
+            (tr("Filter"), lines)
         }
         Modal::Confirm { flow, input } => {
             let (title, text, button, destructive) = App::confirm_texts(flow);
@@ -315,7 +318,7 @@ fn draw_modal(f: &mut Frame, app: &App, page: &Page, area: Rect) {
             if input.is_none() {
                 keys.push(Span::styled(" (y)", th.secondary()));
             }
-            keys.push(Span::styled("    Esc Cancel", th.secondary()));
+            keys.push(Span::styled(format!("    {}", tr("Esc Cancel")), th.secondary()));
             lines.push(Line::from(keys));
             (title, lines)
         }
@@ -336,18 +339,22 @@ fn draw_modal(f: &mut Frame, app: &App, page: &Page, area: Rect) {
                 lines.push(Line::from(Span::styled(shown.join("  "), th.secondary())));
             }
             if p.checking {
-                lines.push(Line::from(Span::styled("Checking …", th.accent())));
+                lines.push(Line::from(Span::styled(tr("Checking …"), th.accent())));
             }
             if let Some(e) = &p.error {
                 lines.push(Line::from(Span::styled(e.clone(), th.tone(Tone::Danger))));
             }
             lines.push(Line::raw(""));
-            let tab = if matches!(p.kind.as_str(), "folder" | "file" | "package") { "Tab complete · " } else { "" };
-            let what = match &p.target {
+            let tab = if matches!(p.kind.as_str(), "folder" | "file" | "package") {
+                format!("{} · ", tr("Tab complete"))
+            } else {
+                String::new()
+            };
+            let what = tr(match &p.target {
                 Target::Ask(_) => "Enter OK",
                 Target::Field(_) => "Enter set",
-            };
-            lines.push(Line::from(Span::styled(format!("{tab}{what} · Esc cancel"), th.secondary())));
+            });
+            lines.push(Line::from(Span::styled(format!("{tab}{what} · {}", tr("Esc cancel")), th.secondary())));
             (p.label.clone(), lines)
         }
     };
@@ -371,15 +378,15 @@ fn help_lines(app: &App, page: &Page) -> Vec<Line<'static>> {
         Line::from(vec![Span::styled(format!(" {keys:<16}"), th.key()), Span::styled(what.to_string(), th.text())])
     };
     let mut lines = vec![
-        k("j/k ↑/↓", "move"),
-        k("Tab/Shift-Tab", "next / previous tab"),
-        k("Enter", "the row's default action (bold) · edit a field"),
-        k("Space →/←", "open / close details · change a field"),
-        k("1-9", "the row's actions"),
-        k("a", "all actions of the row, with why one is off"),
-        k("/", "filter the list"),
-        k("Esc", "back"),
-        k("q · Ctrl-C", "quit (VMs keep running)"),
+        k("j/k ↑/↓", &tr("move")),
+        k("Tab/Shift-Tab", &tr("next / previous tab")),
+        k("Enter", &tr("the row's default action (bold) · edit a field")),
+        k("Space →/←", &tr("open / close details · change a field")),
+        k("1-9", &tr("the row's actions")),
+        k("a", &tr("all actions of the row, with why one is off")),
+        k("/", &tr("filter the list")),
+        k("Esc", &tr("back")),
+        k("q · Ctrl-C", &tr("quit (VMs keep running)")),
     ];
     let home = app.home_actions();
     for (a, l) in home.iter().zip(App::letters(&home, true, RESERVED)) {
@@ -395,7 +402,7 @@ fn help_lines(app: &App, page: &Page) -> Vec<Line<'static>> {
     if let Some(item) = app.selected_index(page).and_then(|i| page.items.get(i)) {
         if !item.actions.is_empty() {
             lines.push(Line::raw(""));
-            lines.push(Line::from(Span::styled(" This row", th.title())));
+            lines.push(Line::from(Span::styled(format!(" {}", tr("This row")), th.title())));
             for (n, a) in item.actions.iter().enumerate() {
                 let key = if n < 9 { format!("{}", n + 1) } else { "a".into() };
                 let mut spans = vec![Span::styled(format!(" {key:<16}"), th.key())];

@@ -57,7 +57,8 @@ pub fn run(options: Options, connect: &Connector) -> Result<(), String> {
     let mut events = conn.events;
     app.start();
 
-    let mut term = enter(options.mouse).map_err(|e| format!("Cannot use the terminal: {e}"))?;
+    let mut term =
+        enter(options.mouse).map_err(|e| text::trf("Cannot use the terminal: %@", &[e.to_string().into()]))?;
     // Restore the terminal on a panic, so the shell stays usable
     let hook = std::panic::take_hook();
     std::panic::set_hook(Box::new(move |info| {
@@ -73,7 +74,7 @@ pub fn run(options: Options, connect: &Connector) -> Result<(), String> {
             app.handle(msg);
         }
         if !app.core.is_open() {
-            app.set_status("The service ended – connecting again …", theme::Tone::Warning);
+            app.set_status(text::tr("The service ended – connecting again …"), theme::Tone::Warning);
             match connect() {
                 Ok(c) => {
                     events = c.events;
@@ -225,7 +226,7 @@ fn carry_out(term: &mut Term, app: &mut App, effect: Effect, mouse: bool) -> Res
                 Ok(s) => format!(" ({s})"),
                 Err(e) => format!(" ({e})"),
             };
-            print!("\n[omaf ui] done{note} – press Enter to return ");
+            print!("\n[omaf ui] {} ", text::trf("done%@ – press Enter to return", &[note.into()]));
             let _ = io::stdout().flush();
             let mut line = String::new();
             let _ = io::stdin().read_line(&mut line);

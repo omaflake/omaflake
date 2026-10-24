@@ -60,8 +60,9 @@ pub fn run_in_terminal(line: &str) -> Result<(), String> {
         return spawn(&["osascript".into(), "-e".into(), script]);
     }
     let env = std::env::var("TERMINAL").ok();
-    let argv = terminal_command(line, env.as_deref(), &|t| crate::backend::which(t).is_some())
-        .ok_or_else(|| format!("No terminal found – set $TERMINAL (tried {})", TERMINALS.join(", ")))?;
+    let argv = terminal_command(line, env.as_deref(), &|t| crate::backend::which(t).is_some()).ok_or_else(|| {
+        crate::text::trf("No terminal found – set $TERMINAL (tried %@)", &[TERMINALS.join(", ").into()])
+    })?;
     spawn(&argv)
 }
 

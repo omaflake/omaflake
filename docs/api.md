@@ -482,8 +482,10 @@ Everything a user reads is a **text**: `{key, text, args}`.
 
 - `key` is the **English source string of the macOS app** (`String(localized:)`, `LocalizedStringKey`) with `%@` for
   a text, a time or a size and `%lld` for a whole number – so the app's `de.lproj/Localizable.strings` translates
-  them as they are (`"Reset “%@”?" = "„%@“ zurücksetzen?"`). Other UIs keep tables with the same keys. A key a UI has no
-  translation for is its own English format (fill in the args).
+  them as they are (`"Reset “%@”?" = "„%@“ zurücksetzen?"`). The Rust interfaces (`omaf ui`, the Linux app) use the same table, generated into the crate
+  `omaflake-i18n` by `scripts/translations.py` (`--check` in CI; a test fails when it is stale). A key a UI has no
+  translation for is its own English format (fill in the args); a translation whose placeholders do not fit the args
+  gives way to the English key, then to `text`.
 - `text` is the English result. A UI without translations shows `text`.
 - No `key`: data shown as it is – a name, a path, a version, an English message of the core (§3).
 - `args`, in order: a number (`%lld`), a string (data, not translated), `{"date": "<ISO 8601>"}` and `{"bytes": n}`

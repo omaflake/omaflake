@@ -68,6 +68,12 @@ impl Core for Client {
 
 /// A client of the service: its events are passed on to the channel by a thread of their own
 pub fn from_client(client: Client, via: &str) -> Connection {
+    // The session in the TUI's language (initialize again: recipe descriptions, the pages' language)
+    let _ = client.call(
+        "initialize",
+        json!({"client": "omaf ui", "clientVersion": omaflake_core::VERSION, "apiVersion": 1,
+               "language": crate::text::lang().code()}),
+    );
     let client = Arc::new(client);
     let (tx, rx) = mpsc::channel();
     let reader = client.clone();
@@ -106,6 +112,10 @@ pub fn in_process(paths: omaflake_core::Paths, client: &str) -> Result<Connectio
             let _ = tx.lock().unwrap_or_else(|e| e.into_inner()).send((method.to_string(), params));
         }),
     );
-    server.call("initialize", json!({"client": client, "clientVersion": omaflake_core::VERSION, "apiVersion": 1}))?;
+    server.call(
+        "initialize",
+        json!({"client": client, "clientVersion": omaflake_core::VERSION, "apiVersion": 1,
+               "language": crate::text::lang().code()}),
+    )?;
     Ok(Connection { core: Arc::new(Local(server)), events: rx, via: "in-process".into() })
 }
