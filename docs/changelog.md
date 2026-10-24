@@ -13,6 +13,12 @@ are collected under *Unreleased*. Releases: [GitHub](https://github.com/omaflake
 
 ## [Unreleased]
 
+## [0.3.1] – 2026-10-24
+
+omaflake runs on Linux as a host: NixOS VMs with KVM on x86_64 and aarch64 machines, with the same clipboard, camera,
+sound and agent as on a Mac. The Linux app and `omaf ui` speak German, and so do error messages everywhere. Still an
+unsigned alpha – for trying on different hardware. Your VMs, images, recipes and settings stay as they are.
+
 ### Added
 
 - **Private recipe sources on Linux:** the token of a private GitHub source is kept in the desktop's keyring (Secret
@@ -155,6 +161,8 @@ the menu bar app and the `omaf` CLI; images built from recipes, recipe sources (
 portable VM, image and recipe packages, sound, microphone, clipboard, camera (NixOS) and shared folders, the Doctor,
 and an update check.
 
-[Unreleased]: https://github.com/omaflake/omaflake/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/omaflake/omaflake/compare/v0.3.1...HEAD
+[0.3.1]: https://github.com/omaflake/omaflake/compare/v0.3.0...v0.3.1
+[0.3.0]: https://github.com/omaflake/omaflake/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/omaflake/omaflake/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/omaflake/omaflake/releases/tag/v0.1.0

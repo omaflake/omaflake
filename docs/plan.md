@@ -500,6 +500,10 @@ for `omaf ui` and the Linux app and German error messages everywhere (B125), the
 for `omaf new -r` when its recipe line names another computer's folder; click tests of B119/B121 (macOS app, Linux app on a real desktop). Then M12 once the Developer ID
 is there.
 
+**Release 0.3.1 (2026-10-24):** the Linux host (B124, B126) and the smaller items below, unsigned, for the maintainer to
+try on different hardware (Macs, the x86_64 mini PC with KVM). CI now builds the Linux package for x86_64-linux and
+runs the Rust tests on Linux (job `linux`); aarch64-linux is still built only in the lab VM.
+
 **Smaller items (2026-10-24, branch `c-small`):**
 
 - ✅ Tokens of private sources on Linux: `source_tokens.rs` – `SourceTokens` over a `SecretStore` trait (Keychain on
