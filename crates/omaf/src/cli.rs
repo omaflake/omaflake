@@ -131,7 +131,7 @@ pub enum Command {
     /// Plan B119/B121
     #[command(about = "Running VMs and builds in one line; --waybar: JSON for a waybar custom module.")]
     Status(Status),
-    /// Plan B125: what `omaf-runner bridge` is on a Mac, for a Linux host – started by the core next to QEMU
+    /// Plan B126: what `omaf-runner bridge` is on a Mac, for a Linux host – started by the core next to QEMU
     #[command(
         about = "Agent, clipboard and camera bridge between this Linux host and a VM (started by omaf).",
         hide = true

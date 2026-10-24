@@ -17,7 +17,7 @@
 //! Linux hosts (plan B124): `qemu-system-<host arch>`, KVM or TCG (`qemu_host::host_accel`, recorded in the run
 //! folder's `accel` while the VM runs), GTK windows, PipeWire/PulseAudio, the firmware from `qemu_host::Firmware` –
 //! x86_64's variable store is a copy of the firmware's template (a blank one does not boot OVMF). No Dock icon; the
-//! bridge for the agent's report, clipboard and camera is `omaf bridge` instead of omaf-runner's (plan B125).
+//! bridge for the agent's report, clipboard and camera is `omaf bridge` instead of omaf-runner's (plan B126).
 
 use std::fs::File;
 use std::os::fd::AsRawFd;
@@ -87,12 +87,16 @@ impl QemuRuntime {
         };
         let Some(firmware) = found else {
             let bundled = prefix.join(format!("share/qemu/edk2-{}-code.fd", arch.as_str()));
-            let mut message = format!("UEFI firmware not found: {}", bundled.display());
             if cfg!(target_os = "linux") {
                 let dirs: Vec<String> = descriptor_dirs(prefix).iter().map(|d| d.display().to_string()).collect();
-                message.push_str(&format!(" (nor a firmware descriptor in {})", dirs.join(", ")));
+                return Err(vm_err!(
+                    codes::PREREQUISITE,
+                    "UEFI firmware not found: {} (nor a firmware descriptor in {})",
+                    bundled.display(),
+                    dirs.join(", ")
+                ));
             }
-            return Err(Error::with_code(codes::PREREQUISITE, message));
+            return Err(vm_err!(codes::PREREQUISITE, "UEFI firmware not found: {}", bundled.display()));
         };
         let qemu_img_next = bin.join("qemu-img");
         let qemu_img = if is_executable_file(&qemu_img_next) {
@@ -165,29 +169,26 @@ impl QemuRuntime {
     pub fn start(&self, config: &InstanceConfig, display: DisplayMode, gl: GlBackend) -> Result<Pid> {
         let ip = self.paths.instance(&config.name);
         if self.pid(&config.name).is_some() {
-            return Err(Error::with_code(codes::VM_RUNNING, format!("\"{}\" is already running", config.name)));
+            return Err(vm_err!(codes::VM_RUNNING, "\"{}\" is already running", config.name));
         }
         if InstanceStore::new(self.paths.clone(), "qemu-img").backing_image(config).is_none() {
-            return Err(Error::with_code(
+            return Err(vm_err!(
                 codes::NOT_FOUND,
-                format!(
-                    "Base image missing: {} – rebuild it (omaf build {}) or import it, then omaf reset",
-                    config.image, config.recipe
-                ),
+                "Base image missing: {} – rebuild it (omaf build {}) or import it, then omaf reset",
+                config.image,
+                config.recipe
             ));
         }
         std::fs::create_dir_all(&ip.run).with_path(&ip.run)?;
         if config.network != NetworkMode::None && !Ports::is_free(config.ssh_port) {
-            return Err(Error::with_code(codes::IN_USE, format!("SSH port {} is in use", config.ssh_port)));
+            return Err(vm_err!(codes::IN_USE, "SSH port {} is in use", config.ssh_port));
         }
         let caps = self.capabilities();
         if display == DisplayMode::Gpu && !caps.gl {
-            return Err(Error::with_code(
+            return Err(vm_err!(
                 codes::PREREQUISITE,
-                format!(
-                    "{} does not support virtio-gpu-gl – use a custom build (qemu/build.sh, omaf config --qemu …) or --no-gl",
-                    self.qemu
-                ),
+                "{} does not support virtio-gpu-gl – use a custom build (qemu/build.sh, omaf config --qemu …) or --no-gl",
+                self.qemu
             ));
         }
         let mut share = None;
@@ -237,7 +238,7 @@ impl QemuRuntime {
     }
 
     /// The host side of the agent, clipboard and camera, detached like QEMU: it ends when the VM closes a port. macOS:
-    /// `omaf-runner bridge`; Linux: `omaf bridge` with the same options (plan B125). Without it the VM simply runs
+    /// `omaf-runner bridge`; Linux: `omaf bridge` with the same options (plan B126). Without it the VM simply runs
     /// without them (readiness then by SSH). OMAFLAKE_CAMERA_TEST_PATTERN=1 sends a test
     /// pattern instead of the camera (tests without camera permission).
     pub(crate) fn start_bridge(&self, ip: &InstancePaths, clipboard: bool, camera: bool) {
@@ -249,7 +250,7 @@ impl QemuRuntime {
         let _ = spawn_detached(&program, &args, &ip.bridge_log(), &[]);
     }
 
-    /// The `omaf` that serves as the bridge on a Linux host (`omaf bridge`, plan B125): this omaflake's own (the
+    /// The `omaf` that serves as the bridge on a Linux host (`omaf bridge`, plan B126): this omaflake's own (the
     /// running `omaf`, or the one next to the Linux app), else the first on PATH
     fn locate_omaf() -> Option<String> {
         crate::cli_link::CliLink::running_omaf()
@@ -448,7 +449,7 @@ pub fn tail(path: &Path, lines: usize) -> String {
 /// An exclusive, non-blocking flock on `file` (created 0644, O_CLOEXEC: processes started meanwhile – QEMU, the
 /// runner, nix, a shell – must not inherit the descriptor; a flock lasts while any process still has the file open,
 /// plan B104). The descriptor is owned only once the lock is held, so a refused lock closes nothing twice.
-fn lock_file(file: &Path, busy: &str) -> Result<File> {
+fn lock_file(file: &Path, busy: Error) -> Result<File> {
     let f = std::fs::OpenOptions::new()
         .read(true)
         .write(true)
@@ -457,15 +458,15 @@ fn lock_file(file: &Path, busy: &str) -> Result<File> {
         .mode(0o644)
         .custom_flags(libc::O_CLOEXEC)
         .open(file)
-        .map_err(|_| Error::new(format!("Cannot create lock file: {}", file.display())))?;
+        .map_err(|_| vm_err!("Cannot create lock file: {}", file.display()))?;
     // SAFETY: flock on a descriptor owned by `f`, which stays open while the lock is held
     if unsafe { libc::flock(f.as_raw_fd(), libc::LOCK_EX | libc::LOCK_NB) } != 0 {
         let e = std::io::Error::last_os_error();
         // Busy only when someone holds the lock; anything else is an error of its own (not "busy")
         if e.raw_os_error() == Some(libc::EWOULDBLOCK) {
-            return Err(Error::with_code(codes::IN_USE, busy));
+            return Err(busy);
         }
-        return Err(Error::new(format!("Cannot lock {}: {}", file.display(), os_text(&e))));
+        return Err(vm_err!("Cannot lock {}: {}", file.display(), os_text(&e)));
     }
     Ok(f)
 }
@@ -482,7 +483,7 @@ impl InstanceLock {
         if let Some(dir) = lock.parent() {
             let _ = std::fs::create_dir_all(dir);
         }
-        Ok(InstanceLock { _file: lock_file(&lock, "Instance is currently busy (locked)")? })
+        Ok(InstanceLock { _file: lock_file(&lock, vm_err!(codes::IN_USE, "Instance is currently busy (locked)"))? })
     }
 }
 
@@ -497,8 +498,8 @@ pub struct FileLock {
 }
 
 impl FileLock {
-    /// `busy`: the error message when someone else holds the lock (code `in-use`)
-    pub fn new(path: &Path, busy: &str, remove_when_done: bool) -> Result<Self> {
+    /// `busy`: the error when someone else holds the lock (made with code `in-use`)
+    pub fn new(path: &Path, busy: Error, remove_when_done: bool) -> Result<Self> {
         if let Some(dir) = path.parent() {
             std::fs::create_dir_all(dir).map_err(|e| Error::from(e).context(format!("{}: ", dir.display())))?;
         }
@@ -593,8 +594,8 @@ mod tests {
         let (_t, p) = temp_paths();
         let file = p.images().join(".build-x.lock");
         {
-            let first = FileLock::new(&file, "busy", false).unwrap();
-            let refused = FileLock::new(&file, "busy", false).unwrap_err();
+            let first = FileLock::new(&file, vm_err!(codes::IN_USE, "busy"), false).unwrap();
+            let refused = FileLock::new(&file, vm_err!(codes::IN_USE, "busy"), false).unwrap_err();
             assert_eq!((refused.message(), refused.code()), ("busy", Some(codes::IN_USE)));
             drop(first);
         }
@@ -602,7 +603,7 @@ mod tests {
         // hold a copy of the descriptor until its exec closes it, plan B106)
         let deadline = Instant::now() + Duration::from_secs(1);
         let again = loop {
-            match FileLock::new(&file, "busy", false) {
+            match FileLock::new(&file, vm_err!(codes::IN_USE, "busy"), false) {
                 Ok(l) => break l,
                 Err(_) if Instant::now() < deadline => std::thread::sleep(Duration::from_millis(5)),
                 Err(e) => panic!("{e}"),
@@ -616,8 +617,8 @@ mod tests {
     fn refused_lock_keeps_the_holders_file() {
         let (_t, p) = temp_paths();
         let file = p.images().join(".build-y.lock");
-        let holder = FileLock::new(&file, "busy", true).unwrap();
-        assert!(FileLock::new(&file, "busy", true).is_err());
+        let holder = FileLock::new(&file, vm_err!(codes::IN_USE, "busy"), true).unwrap();
+        assert!(FileLock::new(&file, vm_err!(codes::IN_USE, "busy"), true).is_err());
         assert!(file.exists());
         drop(holder);
         assert!(!file.exists());

@@ -170,7 +170,7 @@ impl MacImageBuilder {
         // One build per image at a time (app and CLI): the lock lives next to the folder and ends with this build
         let _lock = FileLock::new(
             &paths.images().join(format!(".build-{name}.lock")),
-            &format!("A build of {name} is already running (app or CLI) – wait for it or cancel it"),
+            vm_err!(codes::IN_USE, "A build of {name} is already running (app or CLI) – wait for it or cancel it"),
             true,
         )?;
         if work.exists() {

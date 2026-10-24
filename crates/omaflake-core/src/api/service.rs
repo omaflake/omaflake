@@ -143,7 +143,7 @@ impl Listening {
         }
         let lock = FileLock::new(
             &lock_path(path),
-            &format!("omaf serve already runs on {} – one service per data folder", path.display()),
+            vm_err!(codes::IN_USE, "omaf serve already runs on {} – one service per data folder", path.display()),
             false,
         )?;
         // Holding the lock: a socket file there is a leftover of a service that ended without removing it

@@ -562,7 +562,8 @@ the Mac over one channel.
 - **Transport:** a virtio port, as today – omaflake's QEMU has no vsock device (`-device help` lists only
   `virtconsole`/`virtserialport`), Virtualization.framework has both (`VZVirtioSocketDevice`). One port with a framed,
   versioned protocol (hello with agent and protocol version, then messages per feature); the Mac side lives in
-  `omaf-runner` (macOS) and in omaflake next to QEMU (NixOS).
+  `omaf-runner` (macOS) and in omaflake next to QEMU (NixOS). On a Linux host the same host side is `omaf bridge`
+  (Rust, the core's `AgentLink`; host clipboard and V4L2 camera – plan B126).
 - **What it carries:** the existing clipboard and camera streams; readiness without SSH (the agent's hello = "VM ready",
   also with network off); live status (load, memory, disk, addresses, logged-in user); host name and guest settings at
   first start (fits the generic images of §11.3); a clean shutdown request; later forwarding of ports ("tunnels")

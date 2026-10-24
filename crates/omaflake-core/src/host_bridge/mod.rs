@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! The host side of a NixOS guest's omaflake agent on a Linux host (plan B125) – what `omaf-runner bridge`
+//! The host side of a NixOS guest's omaflake agent on a Linux host (plan B126) – what `omaf-runner bridge`
 //! (Bridge.swift, Camera.swift) is on a Mac: `omaf bridge`, one process per VM, started detached by
 //! `QemuRuntime::start` and ending with the VM (QEMU closes the agent port). It answers the agent's hello
 //! (`AgentLink`: the instance's `agent.json`, so readiness and `omaf agent` work as on a Mac) and, when the VM's

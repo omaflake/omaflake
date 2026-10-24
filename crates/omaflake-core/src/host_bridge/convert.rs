@@ -33,6 +33,15 @@ impl PixelFormat {
         })
     }
 
+    /// "NV12", "YUYV", "MJPEG" – for the camera's status
+    pub fn name(self) -> &'static str {
+        match self {
+            PixelFormat::Nv12 => "NV12",
+            PixelFormat::Yuyv => "YUYV",
+            PixelFormat::Mjpeg => "MJPEG",
+        }
+    }
+
     pub fn from_fourcc(v: u32) -> Option<PixelFormat> {
         Self::PREFERRED.into_iter().find(|f| f.fourcc() == v)
     }

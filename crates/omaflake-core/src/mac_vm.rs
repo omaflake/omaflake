@@ -178,7 +178,7 @@ fn clone_file(src: &Path, dst: &Path) -> Result<()> {
 
 #[cfg(not(target_os = "macos"))]
 fn clone_file(_src: &Path, _dst: &Path) -> Result<()> {
-    Err(Error::unsupported("clonefile"))
+    Err(crate::error::Error::unsupported("clonefile"))
 }
 
 /// Random bytes from /dev/urandom (Swift `UInt8.random`); the clock as a last resort

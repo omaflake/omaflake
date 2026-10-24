@@ -25,6 +25,10 @@ are collected under *Unreleased*. Releases: [GitHub](https://github.com/omaflake
   is running, an image or recipe that is missing, a source, a package, a build, the Doctor; common system errors such
   as "No such file or directory"), and so are the Linux host's Doctor checks and the accelerator line. The API puts the
   message as a text next to its kind (`data.text`, a failed job's `errorText`). The CLI `omaf` stays English.
+- **Clipboard, camera, sound and the agent for VMs on a Linux host** (docs/linux.md): the VM's switches work as on a
+  Mac – text and images copied both ways (Wayland with wl-clipboard, X11 with xclip), the host's V4L2 camera while an
+  app in the VM uses it, sound and the microphone through PipeWire or PulseAudio, and the agent's report ("VM ready"
+  without SSH, `omaf agent`, the VM's details).
 - **NixOS VMs on a Linux host** (issue #2, docs/linux.md): omaflake runs NixOS guests of the host's own architecture
   (x86_64 or aarch64) with QEMU and **KVM**; without a usable `/dev/kvm` it falls back to TCG – emulated, many times
   slower – and says so (`omaf start`, the VM's details, the Doctor). Images build natively with Nix, no Linux builder.

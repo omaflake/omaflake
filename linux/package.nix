@@ -1,9 +1,10 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 # omaflake's Linux app (crates/omaflake-gui, binary `omaflake`) with the CLI `omaf` it starts the core service with
 # (plan B119, docs/linux.md). iced draws with wgpu (Vulkan, else OpenGL) and winit opens its window on Wayland or X11
-# – all of them load their libraries at run time, so the wrapper puts them on LD_LIBRARY_PATH.
+# – all of them load their libraries at run time, so the wrapper puts them on LD_LIBRARY_PATH. The VMs' clipboard
+# (`omaf bridge`, plan B126) uses wl-clipboard or xclip: the wrapper appends them to PATH (one the user has comes first).
 { lib, rustPlatform, makeWrapper, wayland, libxkbcommon, vulkan-loader, libGL, libx11, libxcursor, libxi
-, libxrandr, libxcb, fontconfig }:
+, libxrandr, libxcb, fontconfig, wl-clipboard, xclip }:
 
 let
   runtimeLibs = [ wayland libxkbcommon vulkan-loader libGL libx11 libxcursor libxi libxrandr libxcb fontconfig ];
@@ -40,7 +41,8 @@ rustPlatform.buildRustPackage {
       install -Dm644 brand/png/icon/omaflake-icon-$size.png $out/share/icons/hicolor/''${size}x''${size}/apps/omaflake.png
     done
     install -Dm644 brand/svg/omaflake-icon.svg $out/share/icons/hicolor/scalable/apps/omaflake.svg
-    wrapProgram $out/bin/omaflake --prefix LD_LIBRARY_PATH : ${lib.makeLibraryPath runtimeLibs}
+    wrapProgram $out/bin/omaflake --prefix LD_LIBRARY_PATH : ${lib.makeLibraryPath runtimeLibs} \
+      --suffix PATH : ${lib.makeBinPath [ wl-clipboard xclip ]}
   '';
 
   meta = {

@@ -840,6 +840,16 @@
 "Program not found: %@" = "Programm nicht gefunden: %@";
 "QEMU does not answer over QMP (%@)" = "QEMU antwortet nicht über QMP (%@)";
 "QEMU exited during startup:\n%@" = "QEMU wurde beim Start beendet:\n%@";
+"%@ does not support virtio-gpu-gl – use a custom build (qemu/build.sh, omaf config --qemu …) or --no-gl" = "%@ kann kein virtio-gpu-gl – nutze einen eigenen Build (qemu/build.sh, omaf config --qemu …) oder --no-gl";
+"Base image missing: %@ – rebuild it (omaf build %@) or import it, then omaf reset" = "Vorlage fehlt: %1$@ – erstelle sie neu (omaf build %2$@) oder importiere sie, dann omaf reset";
+"A build of %@ is already running (app or CLI) – wait for it or cancel it" = "Ein Build von %@ läuft schon (App oder CLI) – warte darauf oder brich ihn ab";
+"Cannot create lock file: %@" = "Sperrdatei kann nicht angelegt werden: %@";
+"Cannot lock %@: %@" = "%1$@ kann nicht gesperrt werden: %2$@";
+"Instance is currently busy (locked)" = "Die VM ist gerade beschäftigt (gesperrt)";
+"SSH port %@ is in use" = "SSH-Port %@ ist belegt";
+"UEFI firmware not found: %@" = "UEFI-Firmware nicht gefunden: %@";
+"UEFI firmware not found: %@ (nor a firmware descriptor in %@)" = "UEFI-Firmware nicht gefunden: %1$@ (auch keine Firmware-Beschreibung in %2$@)";
+"omaf serve already runs on %@ – one service per data folder" = "omaf serve läuft schon auf %@ – ein Dienst pro Datenordner";
 "QMP %@: %@" = "QMP %1$@: %2$@";
 "QMP: connection closed or timed out" = "QMP: Verbindung geschlossen oder Zeit abgelaufen";
 "QMP: not a JSON object" = "QMP: kein JSON-Objekt";

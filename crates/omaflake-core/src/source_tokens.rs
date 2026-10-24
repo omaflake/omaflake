@@ -315,7 +315,7 @@ mod secret_service_store {
     use secret_service::{EncryptionType, Error as SsError};
 
     use super::{SecretStore, SourceTokens, StoreError, TokenPlace};
-    use crate::error::Error;
+    use crate::vm_err;
 
     /// The Secret Service of the session bus. Every call runs on its own thread with a time limit: the blocking API
     /// must not run inside an async runtime (the Linux app's), and a keyring that never answers is treated as none.

@@ -80,7 +80,7 @@ pub fn run(command: Command) -> Outcome {
     }
 }
 
-/// `omaf bridge` (hidden; plan B125): runs until the VM closes its agent port
+/// `omaf bridge` (hidden; plan B126): runs until the VM closes its agent port
 fn bridge(a: &Bridge) -> Outcome {
     let options = omaflake_core::host_bridge::BridgeOptions {
         agent: a.agent.clone(),

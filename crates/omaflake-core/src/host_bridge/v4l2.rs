@@ -6,7 +6,7 @@
 //! gives the user at the seat an ACL (`uaccess`), else membership in the group `video`.
 //!
 //! Struct sizes and offsets as in linux/videodev2.h on LP64, checked with a C program against the headers of the
-//! nixpkgs kernel on aarch64-linux (plan B125): v4l2_capability 104, v4l2_format 208 (pix at 8), v4l2_requestbuffers
+//! nixpkgs kernel on aarch64-linux (plan B126): v4l2_capability 104, v4l2_format 208 (pix at 8), v4l2_requestbuffers
 //! 20, v4l2_buffer 88 (memory at 60, m.offset at 64, length at 72).
 
 use std::ffi::CString;
@@ -183,7 +183,7 @@ impl Stream {
         let mut kind = BUF_TYPE_VIDEO_CAPTURE as libc::c_int;
         ioctl(self.fd, VIDIOC_STREAMON, &mut kind)?;
         let (w, h) = (self.width, self.height);
-        Ok(format!("{} {w}×{h} {:?}", query(self.fd).map(|c| c.card).unwrap_or_default(), self.format))
+        Ok(format!("{} {w}×{h} {}", query(self.fd).map(|c| c.card).unwrap_or_default(), self.format.name()))
     }
 
     fn frame(&mut self, timeout: Duration) -> Result<Option<Vec<u8>>, String> {

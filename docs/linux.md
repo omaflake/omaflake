@@ -59,10 +59,33 @@ virt,highmem=on,gic-version=host` (`max` with TCG), `edk2-aarch64-code.fd`. Wind
 `virtio-vga-gl` on x86_64, `virtio-gpu-gl-pci` on aarch64; without 3D `virtio-vga`/`virtio-gpu-pci`). Sound: PipeWire
 when its socket is in `$XDG_RUNTIME_DIR`, else PulseAudio, else no sound card. The full list: spec §6.3.
 
-Not on Linux yet (OPEN): the agent bridge (`omaf-runner bridge` is macOS-only – no agent report in the VM's details,
-readiness by SSH), the shared clipboard and the camera (QEMU's GTK clipboard with `qemu-vdagent` would be a way), the
-share folder writable from both sides (the Mac's QEMU has a guest-owner patch; Linux uses `mapped-xattr`: files from
-the host are read-only in the guest).
+Not on Linux yet (OPEN): the share folder writable from both sides (the Mac's QEMU has a guest-owner patch; Linux uses
+`mapped-xattr`: files from the host are read-only in the guest).
+
+### Integrations: agent, clipboard, camera, sound (plan B126)
+
+A NixOS VM on a Linux host gets what it gets on a Mac – the switches in the VM's details (and `omaf new/set`) work the
+same:
+
+| | How | Needs on the host |
+|---|---|---|
+| **Agent** (readiness, status) | `omaf bridge`, started next to QEMU, answers the guest agent's hello and keeps its report: "VM ready" without SSH, `omaf agent <vm>`, the VM's details | nothing |
+| **Clipboard** (text and PNG, both ways) | Wayland: `wl-paste --watch` / `wl-copy`; X11: `xclip` (the selection's timestamp polled every 0.5 s) | a desktop session (`WAYLAND_DISPLAY` or `DISPLAY`); **wl-clipboard** (Wayland – the compositor must offer the data-control protocol: Hyprland, Sway, KDE Plasma; GNOME OPEN) or **xclip** (X11) |
+| **Camera** (on only while an app in the guest uses it) | V4L2: the first `/dev/video*` that captures (or `OMAFLAKE_CAMERA_DEVICE`), NV12, YUYV or MJPEG, sent as 1280×720 NV12 | a camera you may open – the user at the seat gets an ACL from systemd, else the group `video` |
+| **Sound / microphone** | `-audiodev pipewire` (else `pa`) with Intel HDA: `hda-output`, with the microphone `hda-micro` | PipeWire (or PulseAudio) in the session – its socket in `$XDG_RUNTIME_DIR` |
+
+The bridge is `omaf bridge` (hidden; what `omaf-runner bridge` is on a Mac), one process per VM that ends with the VM;
+its log is `run/<vm>/bridge.log` in the data folder ("clipboard: Wayland (wl-clipboard)", or why there is none; the
+camera's on and off). It runs as you, without extra rights. It takes the session from the process that starts the VM
+– the CLI in a terminal of the desktop, or the core service, which the app or `omaf ui` start from the desktop. A
+service started by systemd at login sees `WAYLAND_DISPLAY` only when the compositor imports it
+(`systemctl --user import-environment WAYLAND_DISPLAY`, which most do – OPEN per desktop); without it the bridge says
+"no desktop session" and the VM runs without the clipboard. `OMAFLAKE_CLIPBOARD=wayland|x11|none` forces the choice.
+The Nix package `omaflake-gui` brings wl-clipboard and xclip on the app's PATH (after your own).
+
+Only images whose agent carries the clipboard and the camera (built from plan B106 on) get them on Linux; the old
+per-feature ports of earlier images are not served there. `OMAFLAKE_CAMERA_TEST_PATTERN=1` sends moving bars instead
+of the camera, as on a Mac.
 
 ### Checking on a real machine
 
@@ -96,7 +119,9 @@ omaf stop t1; omaf rm t1
 ```
 
 Look for: the boot to SSH time with KVM, the window (3D, resizing, keyboard), sound, the share folder (`/mnt/share`),
-and `omaf ui` / the app's Doctor and VM details.
+and `omaf ui` / the app's Doctor and VM details. The integrations: `omaf agent t1` (the report), copying text and an
+image both ways, sound and the microphone (`omaf new t1 … --microphone`), the camera (`--camera`, then
+`mpv av://v4l2:/dev/video42` in the guest), and `run/t1/bridge.log`.
 
 ## The app (plan B119)
 
