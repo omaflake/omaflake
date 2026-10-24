@@ -76,8 +76,8 @@ pub use mac_base_installer::MacBaseInstaller;
 pub use mac_image_builder::MacImageBuilder;
 pub use mac_vm::{DhcpLeases, MacAddress, MacVmBundle, MacVmConfig, RunnerClient};
 pub use models::{
-    DisplayMode, GlBackend, GuestKind, InstanceConfig, NetworkMode, QemuCapabilities, RecipeDefaults, RecipeId,
-    StopResult, VmStatus,
+    DisplayMode, GlBackend, GuestKind, InstanceConfig, LinePlace, NetworkMode, QemuCapabilities, RecipeDefaults,
+    RecipeId, StopResult, VmStatus,
 };
 pub use omaflake_id::{Lengths, OmaflakeId, OmaflakeIdKind};
 pub use packages::{Manifest as PackageManifest, Package, PackageKind};

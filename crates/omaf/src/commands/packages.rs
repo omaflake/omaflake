@@ -29,7 +29,7 @@ pub fn export_recipe(recipe: &str, folder: &str) -> Outcome {
     let settings = Settings::load(&env.paths);
     let library = RecipeLibrary::new(env.paths.clone());
     let ids: Vec<String> = library.available(&settings).into_iter().map(|r| r.id).collect();
-    let id = RecipeId::resolve(recipe, &ids, None)?;
+    let id = RecipeId::resolve_newest(recipe, &ids, &library.places(&settings), &|_| true, None)?;
     let dest = library.export_recipe(&id, &folder_path(folder), &settings)?;
     println!("Exported to {}", dest.display());
     Ok(())

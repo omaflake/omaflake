@@ -1152,6 +1152,20 @@ impl RecipeLibrary {
         out
     }
 
+    /// Every version's line and place in it (0 = newest) – what a name without words resolves to
+    /// (`RecipeId::resolve_newest`, plan B111)
+    pub fn places(&self, settings: &Settings) -> HashMap<String, crate::models::LinePlace> {
+        let mut out: HashMap<String, crate::models::LinePlace> = HashMap::new();
+        for (line, list) in self.versions(settings) {
+            for (rank, v) in list.into_iter().enumerate() {
+                // the same content in a folder and as a kept copy: its best place
+                let place = out.entry(v.id).or_insert(crate::models::LinePlace { line: line.clone(), rank });
+                place.rank = place.rank.min(rank);
+            }
+        }
+        out
+    }
+
     /// Without `keepRecipeVersions`: the versions of each line that are not its newest and no image was built from are
     /// removed (downloaded, imported and kept copies – a local folder's recipe stays). Returns the removed IDs.
     pub fn prune_versions(&self) -> Vec<String> {

@@ -75,7 +75,10 @@ pub fn new(a: &cli::New) -> Outcome {
     let backends = env.backends()?;
     let defaults = env.images().recipe_defaults(&env.settings().flake_path()?)?;
     let chooser = |ids: &[String]| choose_recipe(&env, ids);
-    let recipe = RecipeId::resolve_in(input, &defaults, Some(&chooser))?;
+    // A name: the newest version of its line that has an image, else its newest (plan B111)
+    let images = env.images();
+    let has_image = |id: &str| images.current(id).is_some();
+    let recipe = RecipeId::resolve_newest_in(input, &defaults, &env.recipe_places(), &has_image, Some(&chooser))?;
     let mut settings = defaults[&recipe].clone();
     let backend = backends.backend(settings.kind)?;
     let Some(image) = env.images().current(&recipe) else {

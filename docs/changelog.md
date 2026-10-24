@@ -13,6 +13,13 @@ are collected under *Unreleased*. Releases: [GitHub](https://github.com/omaflake
 
 ## [Unreleased]
 
+### Changed
+
+- **A recipe name means the newest version:** after you change a recipe in a local folder, `omaf build lab` (and
+  `omaf new`, `omaf export recipe`) takes the recipe as it is in the folder instead of asking between it and the copy
+  kept from the last build. `omaf new` takes the newest version that has an image. Words or the omaflake ID still pick
+  an older version; omaf asks only when recipes of that name come from different sources or authors.
+
 ## [0.3.0] – 2026-10-24
 
 omaflake's logic moved into one core written in Rust; the macOS app, the new Linux app, the terminal interface and the

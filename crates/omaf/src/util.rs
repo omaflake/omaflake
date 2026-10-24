@@ -10,7 +10,8 @@ use chrono::{DateTime, Local, Utc};
 use omaflake_core::platform::{expand_tilde, standardize};
 use omaflake_core::recipe_sources::RecipeRef;
 use omaflake_core::{
-    Backends, Error, ImageStore, OmaflakeId, OmaflakeIdKind, Paths, RecipeDefaults, RecipeId, Result, Settings,
+    Backends, Error, ImageStore, LinePlace, OmaflakeId, OmaflakeIdKind, Paths, RecipeDefaults, RecipeId, RecipeLibrary,
+    Result, Settings,
 };
 
 /// How a command fails, and the exit code (swift-argument-parser's behaviour)
@@ -70,6 +71,11 @@ impl Env {
 
     pub fn images(&self) -> ImageStore {
         ImageStore::new(self.paths.clone())
+    }
+
+    /// Each recipe version's line and place in it – a name without words means the newest (plan B111)
+    pub fn recipe_places(&self) -> HashMap<String, LinePlace> {
+        RecipeLibrary::new(self.paths.clone()).places(&self.settings())
     }
 }
 
@@ -136,11 +142,16 @@ pub fn read_password(prompt: &str, stdin: bool, confirm: bool) -> Result<String>
     Ok(password)
 }
 
-/// Shortest way to name a recipe on the command line: <name>, <kind>/<name> or <author>/<kind>/<name>.
-pub fn shortest_argument(id: &str, defaults: &HashMap<String, RecipeDefaults>) -> String {
+/// Shortest way to name a recipe on the command line: <name>, <kind>/<name> or <author>/<kind>/<name> – a name means
+/// the newest version of its line (`places`, plan B111) –, else with as many words as needed.
+pub fn shortest_argument(
+    id: &str,
+    defaults: &HashMap<String, RecipeDefaults>,
+    places: &HashMap<String, LinePlace>,
+) -> String {
     let Some(p) = RecipeId::parts(id) else { return id.to_string() };
     for arg in [p.name.clone(), format!("{}/{}", p.kind.as_str(), p.name), RecipeId::qualified(id)] {
-        if RecipeId::candidates_in(&arg, defaults) == [id] {
+        if RecipeId::newest_per_line(&RecipeId::candidates_in(&arg, defaults), places, &|_| true) == [id] {
             return arg;
         }
     }

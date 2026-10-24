@@ -83,6 +83,7 @@ pub fn list(a: &cli::RecipesList) -> Outcome {
     };
     let library = RecipeLibrary::new(env.paths.clone());
     let distinctions = library.distinctions(&settings);
+    let places = library.places(&settings);
     let lengths = Lengths::current(&env.paths);
     let origins = if a.long { origins(&env) } else { HashMap::new() };
     println!("{}", recipes_header());
@@ -90,7 +91,7 @@ pub fn list(a: &cli::RecipesList) -> Outcome {
     sorted.sort_by(|(a, x), (b, y)| (x.kind.as_str(), a).cmp(&(y.kind.as_str(), b)));
     for (id, d) in sorted {
         let name = RecipeId::display_name(id, Some(d));
-        let arg = shortest_argument(id, &defaults);
+        let arg = shortest_argument(id, &defaults, &places);
         let image = if !d.runs_here() {
             "– (not for this computer)".to_string()
         } else {
@@ -200,7 +201,8 @@ pub fn build(a: &cli::Build) -> Outcome {
     let images = env.images();
     let defaults = images.recipe_defaults(&flake)?;
     let chooser = |ids: &[String]| choose_recipe(&env, ids);
-    let recipe = RecipeId::resolve_in(&a.recipe, &defaults, Some(&chooser))?;
+    let places = env.recipe_places();
+    let recipe = RecipeId::resolve_newest_in(&a.recipe, &defaults, &places, &|_| true, Some(&chooser))?;
     let d = &defaults[&recipe];
     if !d.runs_here() {
         return Err(Error::new(format!(

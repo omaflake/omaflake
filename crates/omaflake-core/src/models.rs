@@ -535,6 +535,14 @@ pub enum RecipeId {}
 /// Picks one of several matching recipes (e.g. asks in a terminal); None = none chosen
 pub type Chooser<'a> = &'a dyn Fn(&[String]) -> Option<String>;
 
+/// Where a recipe version stands in its line (plan B111): the line (`RecipeId::line_key`) and its place, 0 = the
+/// newest (a local folder's recipe as it is now, else the last that came) – `RecipeLibrary::places`
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct LinePlace {
+    pub line: String,
+    pub rank: usize,
+}
+
 /// (author, kind, name) of a recipe ID
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RecipeParts {
@@ -686,7 +694,72 @@ impl RecipeId {
 
     /// The single recipe for `input`; `choose` decides between several (e.g. asks in a terminal), None = error.
     pub fn resolve(input: &str, ids: &[String], choose: Option<Chooser>) -> Result<String> {
+        Self::pick(input, Self::candidates(input, ids), choose)
+    }
+
+    /// `input` names a version itself: a whole ID, an omaflake ID or words ("lab@mint-river") – not just a name
+    pub fn names_version(input: &str, ids: &[String]) -> bool {
+        ids.iter().any(|i| i == input) || OmaflakeId::parse(input).is_some() || Self::words(input).is_some()
+    }
+
+    /// `found` with the versions of each line narrowed to one (plan B111): the newest that `usable` accepts, else the
+    /// line's newest. IDs without a place keep their own entry.
+    pub fn newest_per_line(
+        found: &[String],
+        places: &HashMap<String, LinePlace>,
+        usable: &dyn Fn(&str) -> bool,
+    ) -> Vec<String> {
+        let mut best: HashMap<&str, (bool, usize, &String)> = HashMap::new();
+        let mut out: Vec<String> = Vec::new();
+        for id in found {
+            let Some(place) = places.get(id) else {
+                out.push(id.clone());
+                continue;
+            };
+            // usable first, then the newest
+            let rank = (!usable(id), place.rank, id);
+            let entry = best.entry(place.line.as_str()).or_insert(rank);
+            if rank < *entry {
+                *entry = rank;
+            }
+        }
+        out.extend(best.into_values().map(|(_, _, id)| id.clone()));
+        out.sort();
+        out.dedup();
+        out
+    }
+
+    /// The single recipe for `input`, where a name without words means the **newest version of its line** – a local
+    /// folder's recipe as it is now, not a copy kept from an earlier build (plan B110, B111) – the newest one that
+    /// `usable` accepts (e.g. has an image) when there is one. `choose` decides only between several lines (other
+    /// sources, authors or kinds). A whole ID, an omaflake ID or words pick the version they name.
+    pub fn resolve_newest(
+        input: &str,
+        ids: &[String],
+        places: &HashMap<String, LinePlace>,
+        usable: &dyn Fn(&str) -> bool,
+        choose: Option<Chooser>,
+    ) -> Result<String> {
         let found = Self::candidates(input, ids);
+        if found.len() < 2 || Self::names_version(input, ids) {
+            return Self::pick(input, found, choose);
+        }
+        Self::pick(input, Self::newest_per_line(&found, places, usable), choose)
+    }
+
+    /// `resolve_newest` among the recipe defaults
+    pub fn resolve_newest_in(
+        input: &str,
+        defaults: &HashMap<String, RecipeDefaults>,
+        places: &HashMap<String, LinePlace>,
+        usable: &dyn Fn(&str) -> bool,
+        choose: Option<Chooser>,
+    ) -> Result<String> {
+        let ids: Vec<String> = defaults.keys().cloned().collect();
+        Self::resolve_newest(input, &ids, places, usable, choose)
+    }
+
+    fn pick(input: &str, found: Vec<String>, choose: Option<Chooser>) -> Result<String> {
         if found.len() == 1 {
             return Ok(found[0].clone());
         }
@@ -846,6 +919,44 @@ pub(crate) mod tests {
         let last = |c: &[String]| c.last().cloned();
         assert_eq!(RecipeId::resolve_in("dev", &defaults, Some(&last)).unwrap(), "omaflake.nixos.dev");
         assert_eq!(RecipeId::candidates_in("dev", &defaults), vec!["alice.nixos.dev", "omaflake.nixos.dev"]);
+    }
+
+    /// A name without words means the newest version of its line; words, IDs and omaflake IDs pick older ones; only
+    /// several lines are asked about (plan B111)
+    #[test]
+    fn a_name_means_the_newest_of_its_line() {
+        let (live, kept, other) =
+            ("omaflake.nixos.lab@zoo-zoo", "omaflake.nixos.lab@abandon-ability", "me.nixos.lab@cat");
+        let ids: Vec<String> = [live, kept].iter().map(|s| s.to_string()).collect();
+        let place = |line: &str, rank| LinePlace { line: line.into(), rank };
+        let mut places: HashMap<String, LinePlace> =
+            [(live.to_string(), place("lab~folder", 0)), (kept.to_string(), place("lab~folder", 1))].into();
+        let any = |_: &str| true;
+        let never: Chooser = &|_| panic!("asked although one line matches");
+        for input in ["lab", "nixos/lab", "omaflake/nixos/lab", "omaflake.nixos.lab"] {
+            assert_eq!(RecipeId::resolve_newest(input, &ids, &places, &any, Some(never)).unwrap(), live, "{input}");
+        }
+        // words and whole IDs still pick the older version
+        assert_eq!(RecipeId::resolve_newest("lab@aban", &ids, &places, &any, Some(never)).unwrap(), kept);
+        assert_eq!(RecipeId::resolve_newest(kept, &ids, &places, &any, Some(never)).unwrap(), kept);
+        // the newest usable one (e.g. with an image) before the newest
+        let has_image = |id: &str| id == kept;
+        assert_eq!(RecipeId::resolve_newest("lab", &ids, &places, &has_image, None).unwrap(), kept);
+        // two lines: asked, between their newest versions only
+        let mut all = ids.clone();
+        all.push(other.into());
+        places.insert(other.into(), place("lab~github", 0));
+        let asked = std::cell::RefCell::new(Vec::new());
+        let first = |c: &[String]| {
+            asked.borrow_mut().extend(c.iter().cloned());
+            c.first().cloned()
+        };
+        assert_eq!(RecipeId::resolve_newest("lab", &all, &places, &any, Some(&first)).unwrap(), other);
+        assert_eq!(*asked.borrow(), vec![other.to_string(), live.to_string()]);
+        let err = RecipeId::resolve_newest("lab", &all, &places, &any, None).unwrap_err().to_string();
+        assert!(err.contains("several times") && !err.contains("abandon"), "{err}");
+        // without places (e.g. no versions known) it asks as before
+        assert!(RecipeId::resolve_newest("lab", &ids, &HashMap::new(), &any, None).is_err());
     }
 
     #[test]
