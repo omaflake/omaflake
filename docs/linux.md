@@ -104,10 +104,18 @@ SSH (no window):
 | `omaf agent t1` | the report arrives (agent 0.3.1) – ready without SSH |
 | stop, then start straight away | stop 3 s, start again 15 s to SSH – no "SSH port in use" |
 | `OMAFLAKE_ACCEL=tcg` | SSH after 46 s |
+| `omaf start t1 --window` (GNOME 50, Wayland) | QEMU from Nix aborts: "Couldn't find current GLX or EGL context" – Nix programs find no GL driver outside NixOS (no `/run/opengl-driver`). With Mesa from QEMU's nixpkgs in the environment (`__EGL_VENDOR_LIBRARY_FILENAMES=<mesa>/share/glvnd/egl_vendor.d/50_mesa.json`, `LIBGL_DRIVERS_PATH=<mesa>/lib/dri`, `GBM_BACKENDS_PATH=<mesa>/lib/gbm`, `__GLX_VENDOR_LIBRARY_NAME=mesa`, `LD_LIBRARY_PATH=<mesa>/lib`): 3D window, Hyprland on virgl, German keyboard |
+| resizing the window | the guest stays at 640×480; `zoom-to-fit=on` scales it (black bars) – no dynamic resolution on Linux yet |
+| clipboard | guest → host works; host → guest does not: GNOME 50 has no data-control protocol, `wl-paste --watch` refuses ("requires … data-control"); a single `wl-paste` works there |
+| sound, microphone (no hardware: a null sink with a 440 Hz tone as the mic, the HDMI sink's monitor recorded) | the guest records the 440 Hz tone; its 1000 Hz tone reaches the host sink |
+| camera (`OMAFLAKE_CAMERA_TEST_PATTERN=1`) | the bridge streams when the guest opens `/dev/video42`; ffmpeg closes it after 75 ms with one black frame – inconclusive, mpv by eye OPEN |
 
-Found there: the Linux package brings no image flake (`omaf config --flake 'github:omaflake/omaflake/<tag>?dir=nix'`
-until it does, OPEN); with `OMAFLAKE_ACCEL=tcg` the start line says "no usable /dev/kvm" although KVM is there (OPEN).
-Still to run: a window (3D, sound, clipboard, camera) at the desktop, the app, a private source's token in the keyring.
+Found there (all OPEN): the Linux package brings no image flake (`omaf config --flake
+'github:omaflake/omaflake/<tag>?dir=nix'` until it does); QEMU from Nix needs Mesa from Nix in its environment on
+distributions other than NixOS (above – omaflake could set it when `/run/opengl-driver` is missing); no dynamic
+resolution in the GTK window; host → guest clipboard on GNOME (poll `wl-paste` when `--watch` is refused); with
+`OMAFLAKE_ACCEL=tcg` the start line says "no usable /dev/kvm" although KVM is there; `omaf set --help` speaks of "the
+Mac" on Linux. Still to run: the camera by eye, the app, a private source's token in the keyring.
 
 The steps, on any x86_64 PC with KVM:
 
