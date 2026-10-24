@@ -13,79 +13,62 @@ are collected under *Unreleased*. Releases: [GitHub](https://github.com/omaflake
 
 ## [Unreleased]
 
+## [0.3.0] – 2026-10-24
+
+omaflake's logic moved into one core written in Rust; the macOS app, the new Linux app, the terminal interface and the
+`omaf` command all use it. Your VMs, images, recipes and settings stay as they are – every file is read as before.
+
 ### Added
 
-- **omaflake in the lab VM.** The development recipe `nixos/lab` brings the Linux app, `omaf` and `omaf ui`, with
-  omaflake's status and the tray in waybar – to try the Linux interfaces on a Mac (VMs cannot start inside it). Built
-  from a checkout, the lab gets omaflake's code as it is on disk. Recipes can use omaflake as `pkgs.omaflake`.
-- **The `omaf` command from the Doctor.** A new, optional check says whether `omaf` is on your PATH and is this
-  omaflake's (another or older one is named with its path and version). *Install …* links `/usr/local/bin/omaf` to the
-  app's `omaf` (macOS asks for an administrator), *Uninstall …* removes the link; on Linux the link goes to
-  `~/.local/bin`. In the terminal: `omaf doctor --install-cli` / `--uninstall-cli`.
-
+- **omaflake on Linux: a native app** (`omaflake`, docs/linux.md): the same pages, rows, actions and questions as the
+  macOS app, in omaflake's look. It opens files and folders with the desktop's apps, SSH in your terminal emulator,
+  asks for files through the desktop portal and posts notifications. A tray icon (StatusNotifierItem: KDE, Cinnamon,
+  XFCE, waybar) lists the VMs with start/stop and running builds; with it, closing the window keeps omaflake running.
+  Nix: `nix run github:omaflake/omaflake#omaflake-gui`. Running VMs on a Linux host is not there yet (issue #2).
+- **`omaf ui` – omaflake in the terminal** (macOS and Linux): VMs, images with running builds, recipes, activity, the
+  build page with its live log, the Doctor, the macOS base, New VM and Settings – keyboard-driven, in the brand's colours
+  (truecolor, 256 colours or none with `NO_COLOR`; Nerd Font symbols with `--nerd-font`). English only for now.
+- **`omaf status [--waybar] [--follow]`**: running VMs and builds in one line, or as JSON for a waybar `custom` module
+  that updates itself (snippet in the CLI docs).
 - **omaflake in a window.** Settings → *Show omaflake in*: Menu Bar (as before), Window (a regular window with a Dock
-  icon and the app menu) or Both. The pages are the same; the change applies at once.
-- **One core service for every interface.** `omaf serve --socket` runs omaflake's core once per user on a Unix
-  socket; the app, `omaf build` and `omaf call --socket` all use it, so a build started in the terminal shows up in
-  the app's jobs (and waits in the same queue), and every client gets the same events. The app starts the service on
-  demand and leaves it running when it quits (it ends five minutes after its last client, unless installed as a user
-  agent with `omaf service install`; `omaf service start|stop|status|uninstall`). Without the service everything works
-  as before. A newer omaf restarts an older running service once it is idle.
-- **The core says what each page shows** (`views.get`, `views.subscribe`, docs/api.md §10): rows, actions with why
-  they are not possible now, the questions they ask, filters, form defaults and validation, and the activity list –
-  in English with message keys, so every interface (the macOS app, the coming Linux app and `omaf ui`) shows the same.
-- **`omaf ui` – omaflake in the terminal** (macOS and Linux): the app's pages – VMs, images with running builds,
-  recipes, activity, the build page with its live log, Doctor, macOS base, New VM, settings – keyboard-driven, in the
-  brand's colours (truecolor, 256 colours or none with `NO_COLOR`; Nerd Font symbols with `--nerd-font`), through the
-  core service, so it shows what the app and the CLI do. English only for now.
-- **`omaf status [--waybar] [--follow]`**: running VMs and builds in one line, or as JSON for a waybar `custom`
-  module that updates itself (snippet in the CLI docs).
-- **The macOS app draws the core's pages.** Every tab and page – VMs, images, recipes, activity, the Doctor, Settings,
-  New VM, Build Image, the macOS base – shows what the core says, so the app, the Linux app and `omaf ui` agree on
-  every row, button, question and message. Looks and works as before; a macOS build asks the guest user's password,
-  the macOS base its password (twice) and a private source its token in a question when you start it. Adding a
-  recipe source is in the activity list.
-- **omaflake on Linux: a native app** (`omaflake`, iced; docs/linux.md): the same pages, rows, actions and questions as
-  the macOS app, drawn from what the core describes, in omaflake's look. It connects to the core service (started on
-  demand), opens files and folders with the desktop's apps, SSH in your terminal emulator, asks for files through the
-  desktop portal and posts notifications. A tray icon (StatusNotifierItem: KDE, Cinnamon, XFCE, waybar) lists the VMs
-  with start/stop, running builds and Quit; with it, closing the window keeps omaflake running – switch it off in
-  Settings. Nix: `nix run github:omaflake/omaflake#omaflake-gui` (with `omaf`, desktop entry and icon).
+  icon and the app menu) or Both. The change applies at once.
+- **One core service for every interface.** omaflake's core runs once per user (`omaf serve --socket`): the app,
+  `omaf ui`, `omaf build` and the Linux app share it, so a build started in the terminal shows up in the app and waits in
+  the same queue. It starts on demand and ends five minutes after its last client, or runs as a user agent
+  (`omaf service install|uninstall|start|stop|status`).
+- **The `omaf` command from the Doctor.** A new, optional check says whether `omaf` is on your PATH and is this
+  omaflake's. *Install …* links `/usr/local/bin/omaf` to the app's `omaf` (macOS asks for an administrator); on Linux
+  the link goes to `~/.local/bin`. In the terminal: `omaf doctor --install-cli` / `--uninstall-cli`.
+- **omaflake in the lab VM** (developer mode): the development recipe `nixos/lab` brings the Linux app, `omaf` and
+  `omaf ui`, with omaflake's status and the tray in waybar – to try the Linux interfaces on a Mac (VMs cannot start
+  inside it). Recipes can use omaflake as `pkgs.omaflake`.
+- **The core API** (docs/api.md, on omaflake.dev): JSON-RPC over `omaf serve` – lists, actions, jobs, events and a
+  description of every page – for scripts and other interfaces (`omaf call <method> [<params>]`).
 
 ### Changed
 
-- **Linux wording.** On Linux the Linux app and `omaf ui` no longer speak of the Mac, Finder or the Keychain: "Show
-  Data Folder", "Show in File Manager", "Share a folder with the VM", "Like this computer", "this computer" in the
-  Doctor and Settings, the keyring for tokens. The recipes tab says when it looks into the sources and when lab recipes
-  are hidden, with a heading over the recipes your sources offer.
-- **The menu bar app is a client of omaflake's new Rust core**: it starts `omaf serve` (bundled next to the app) and
-  gets VMs, images, recipes, builds and the Doctor's checks from it (docs/api.md); it no longer reads the data folder
-  every 2 s itself. Everything you see and do in the app stays the same.
-- **App and core agree on every message between them**, pinned by shared contract tests (docs/api.md §9): private
-  recipe sources show again whether their token is in the Keychain, the catalog shows a recipe's files, an image tells
-  whether its recipe changed since, and activity messages for ended jobs and VMs come once, in the app's language.
-  QEMU's Dock icon is written by the core when it starts a VM window; the app writes nothing into the data folder.
 - **Editor lines for NixOS recipes.** The desktop no longer brings an editor; a recipe picks the neovim line
   (Neovim and Zellij, as before) or the new emacs line (`omaflake.editor = "emacs"`). The official recipes are named
   after their line: `nixos/minimal` is now `nixos/neovim-minimal`, `nixos/research` is `nixos/neovim-research`, and
-  `nixos/emacs-minimal` is new. Images and VMs made from the old names stay as they are; new images come from the renamed recipes.
+  `nixos/emacs-minimal` is new. Images and VMs made from the old names stay as they are. The renamed recipes need
+  omaflake 0.3.0.
+- **The app and `omaf` run on the new core.** The app shows what the core says for every row, button, question and
+  message; it no longer reads the data folder every 2 s itself. A macOS build asks the guest user's password, the macOS
+  base its password (twice) and a private source its token in a question when you start them.
+- **The Build Image page says how a build ended**: image ready (with "New VM …"), failed with its error, or cancelled;
+  its Build button sits on the recipe's line. Finished builds in the Images list have a check mark.
+- **Linux wording.** On Linux, omaflake speaks of "this computer", the file manager and the keyring instead of the
+  Mac, Finder and the Keychain.
+- Core messages (errors) are in English for now; the app's own texts stay translated.
 
 ### Fixed
 
-- **Linux app: no redraws while idle.** It redrew its window every 0.6 s, which kept a core busy in VMs and with
-  software rendering; now only while something works or a message is shown.
-- **waybar snippet:** waybar 0.15 shows nothing with `"format": "{icon} {}"` – use `"{icon} {text}"`.
-- **macOS images build again with long recipe IDs**: the build VM's runner socket lived in `images/.build-<name>/`,
-  which a twelve-word recipe ID made longer than a Unix socket path may be ("Socket path too long"); it is in
-  `run/build-<hash>/` now.
-- **Recipe versions imported or installed within the same millisecond** no longer tie: the newest one could be taken
-  for an older one and removed.
-- **The Build Image page says how a build ended**: image ready (with "New VM …"), failed with its error, or cancelled –
-  before, a finished build only showed its Build button again. Finished builds in the Images list have a check mark.
-
+- **macOS images build again with long recipe IDs**: the build VM's socket path was longer than a Unix socket allows
+  ("Socket path too long").
+- **Recipe versions that came within the same millisecond** no longer tie – the newest could be taken for an older one
+  and removed.
 - **omaflake's QEMU builds again** (`nix build github:omaflake/omaflake#qemu`): the libepoxy EGL 1.5 patch is now part
-  of omaflake instead of a download from its Homebrew tap, whose release tag was moved – the hash check stopped every
-  fresh build. The patch itself is unchanged.
+  of omaflake instead of a download from its Homebrew tap, whose release tag was moved. The patch itself is unchanged.
 
 ## [0.2.0] – 2026-10-22
 

@@ -483,7 +483,17 @@ Lume (trycua) only after a license review (OPEN).
 
 ---
 
-## 8. Next steps (as of 2026-10-18)
+## 8. Next steps (as of 2026-10-24)
+
+**State 0.3.0 (2026-10-24):** the core is Rust (B117) and serves every interface through one service per user (B120)
+and a presentation model (B121): the SwiftUI app (menu bar, window or both), the Linux app (iced) and `omaf ui`
+(B119); the Doctor installs the `omaf` command (B122); the lab VM brings omaflake for trying the Linux interfaces
+(B123). Next, in this order: **(1)** Linux host (issue #2) – a QEMU backend with KVM, `x86_64-linux` images, a Doctor
+for Linux hosts, tested on real Linux hardware by the Linux contributor; **(2)** smaller items – tokens of private
+sources on Linux (Secret Service, else a 0600 file), the Linux app avoiding a software Vulkan adapter, translations
+for `omaf ui` and the Linux app, "SSH port in use" right after a stop, the choice between two versions of a recipe
+after a local edit; click tests of B119/B121 (macOS app, Linux app on a real desktop). Then M12 once the Developer ID
+is there.
 
 **State:** M0–M4, M7, M8 and M10 done; M11 implemented, acceptance by click open; M9 done for `mac-minimal`; macOS bases, images and instances entirely via
 `omaf` (BM27, BM28); M6 dynamic resolution, sound/microphone, clipboard and camera for NixOS done (B35–B37); the app

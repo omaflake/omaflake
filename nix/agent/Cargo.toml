@@ -1,6 +1,6 @@
 [package]
 name = "omaflake-agent"
-version = "0.2.0"
+version = "0.3.0"
 edition = "2021"
 description = "omaflake guest agent: talks to omaflake on the Mac over the virtio port org.omaflake.agent"
 license = "AGPL-3.0-or-later"
