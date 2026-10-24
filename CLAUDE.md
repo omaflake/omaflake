@@ -2,8 +2,9 @@
 
 ## Context
 
-omaflake: clean NixOS and macOS VMs on Apple silicon (menu bar app, CLI `omaf`, runner
-`omaf-runner`). Free software under **AGPL-3.0-or-later** (SPDX header in every own source file; the recipes in
+omaflake: clean NixOS and macOS VMs on Mac and Linux (macOS hosts on Apple silicon: menu bar app and runner
+`omaf-runner`, NixOS and macOS guests; Linux hosts with Nix or NixOS, x86_64 or aarch64: native app, NixOS guests;
+CLI `omaf` and `omaf ui` on both). Free software under **AGPL-3.0-or-later** (SPDX header in every own source file; the recipes in
 `omaflake/recipes` stay MIT), GitHub organization `omaflake`, repository `omaflake`. A project of
 falkOSS – Falcon Lake Open Source Software gUG (haftungsbeschränkt) i. G.
 Design and milestones: **docs/spec.md**; findings and checklists: **docs/plan.md** – read before
@@ -78,8 +79,8 @@ nix/local.example/         template for personal settings → nix/local/ (git-ig
 
 ## Next step
 
-State and order: **docs/plan.md §8** (2026-10-24, release 0.3.1 – unsigned, for testing on hardware): the Linux host is in (B124, run under TCG); next
-checking it on real x86_64 hardware with KVM, then the smaller items listed there; M12 (signing, notarization, helper, macOS camera extension, self-update) once the Developer ID is there. Development base `mac-base-26A434`; develop with the `lab` recipes
+State and order: **docs/plan.md §8** (2026-10-24, release 0.3.1 – unsigned, for testing on hardware): the Linux host is in (B124: aarch64 under TCG, x86_64 with KVM on
+Ubuntu 26.04 – NixOS VMs start); next the gaps found there (docs/linux.md) and the smaller items listed there; M12 (signing, notarization, helper, macOS camera extension, self-update) once the Developer ID is there. Development base `mac-base-26A434`; develop with the `lab` recipes
 (developer mode in the app).
 Workflow for macOS settings without a nix-darwin option: set them by hand in a clone, diff
 `defaults export` / container plists against a snapshot, then declare them (plan BM22).

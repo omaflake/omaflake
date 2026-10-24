@@ -2,7 +2,7 @@
 # omaflake.dev – the developer documentation, built by GitHub Pages from this folder (Jekyll, Just the Docs).
 # The JSON Schemas in schema/ are served as they are; the users' pages live on omaflake.app (omaflake/website).
 title: omaflake
-description: Developer documentation – clean NixOS and macOS VMs on Apple silicon
+description: Developer documentation – clean NixOS and macOS VMs on Mac and Linux
 url: https://omaflake.dev
 lang: en
 

@@ -1,38 +1,50 @@
 <p align="center">
-  <img src="brand/social/omaflake-social-1280x640.png" alt="omaflake – opinionated, disposable NixOS and macOS VMs on Apple silicon" width="100%">
+  <img src="brand/social/omaflake-social-1280x640.png" alt="omaflake – opinionated, disposable NixOS and macOS VMs on Mac and Linux" width="100%">
 </p>
 
 # omaflake
 
-Clean NixOS and macOS virtual machines on Apple silicon – one click away.
+Clean NixOS and macOS virtual machines on Mac and Linux – one click away.
+
+**[Download](https://omaflake.app) · [Documentation](https://omaflake.dev) · [Changelog](docs/changelog.md) ·
+[Recipes](https://github.com/omaflake/recipes)**
 
 omaflake builds VM images from **recipes** you declare in Nix, and runs disposable **instances**
-of them from a menu bar app or the `omaf` CLI. Images never change: *reset* throws an
-instance's state away and starts over from the image.
+of them from an app (the menu bar on a Mac, a native window with a tray icon on Linux), `omaf ui` or the `omaf` CLI.
+Images never change: *reset* throws an instance's state away and starts over from the image.
 
 | Guest | Content | Runtime |
 |---|---|---|
-| **NixOS** (aarch64) | NixOS modules, built as UEFI qcow2 images | QEMU with Hypervisor.framework; own build with virglrenderer for 3D (`qemu/`) |
-| **macOS** | nix-darwin modules on top of a base installed from Apple's IPSW | `omaf-runner`, one process per VM on Virtualization.framework |
+| **NixOS** (the host's architecture: aarch64, x86_64) | NixOS modules, built as UEFI qcow2 images | Mac: QEMU with Hypervisor.framework, own build with virglrenderer for 3D (`qemu/`); Linux: QEMU with KVM |
+| **macOS** (Mac only) | nix-darwin modules on top of a base installed from Apple's IPSW | `omaf-runner`, one process per VM on Virtualization.framework |
+
+| Host | Guests | Interfaces |
+|---|---|---|
+| **macOS** 27 on Apple silicon | NixOS and macOS | menu bar app (or window), `omaf ui`, `omaf` |
+| **Linux** with Nix (or NixOS), x86_64 or aarch64 | NixOS | native app with tray icon, `omaf ui`, `omaf` – [docs/linux.md](docs/linux.md) |
 
 > **Status:** early development – unsigned alpha releases ([changelog](docs/changelog.md)); signing, notarization and
-> the first signed release are next (M12). Developer documentation: [omaflake.dev](https://omaflake.dev); see
+> the first signed release are next (M12). Documentation: [omaflake.dev](https://omaflake.dev); see
 > [docs/spec.md](docs/spec.md) for the design and [docs/plan.md](docs/plan.md) for findings and milestones.
 
 ## What it does
 
+- **Mac and Linux:** on a Mac both guest kinds, on a Linux host NixOS guests – the same core, CLI and recipes.
 - **Both guest kinds** from one menu bar window and the `omaf` CLI: NixOS (QEMU, 3D with virglrenderer) and macOS
   (Virtualization.framework, base installed from Apple's IPSW with no manual steps).
 - **Templates (images)** built from recipes, with versions you can keep, pick as default or delete; builds queue,
   one per guest kind at a time, with step progress and a live log.
-- **Integrations:** sound and microphone (both), shared clipboard with text and images (both), the Mac's camera in
+- **Integrations:** sound and microphone (both), shared clipboard with text and images (both), the host's camera in
   NixOS guests (on only while an app uses it), shared folders, dynamic resolution, ephemeral VMs.
-- **Doctor:** checks what the Mac brings, sets up Nix and nix-darwin with the Linux builder by click (macOS'
+- **Doctor:** checks what the computer brings; on a Mac it sets up Nix and nix-darwin with the Linux builder by click (macOS'
   administrator dialog), applies and cleans up the builder, checks for updates.
 - **Developer mode:** the `lab` recipes with the "omaflake Test" app (camera, sound, microphone, clipboard) and debug
   tools; lab recipes stay hidden otherwise.
 
 ## Requirements
+
+On a Linux host: Linux on x86_64 or aarch64 with KVM, Nix with flakes (or NixOS), QEMU with UEFI firmware and an SSH
+key – details and install in [docs/linux.md](docs/linux.md). On a Mac:
 
 - Mac with Apple silicon and macOS 27
 - [Nix](https://nixos.org) with flakes and [nix-darwin](https://github.com/nix-darwin/nix-darwin) with
@@ -111,6 +123,7 @@ Details: [docs/cli.md](docs/cli.md), [docs/macos-base.md](docs/macos-base.md).
 | [docs/plan.md](docs/plan.md) | verified findings (B…, BM…), milestone checklists |
 | [docs/cli.md](docs/cli.md) | `omaf` and `omaf-runner` commands |
 | [docs/app.md](docs/app.md) | menu bar app |
+| [docs/linux.md](docs/linux.md) | omaflake on a Linux host: requirements, KVM, the Linux app |
 | [docs/macos-base.md](docs/macos-base.md) | what a macOS base contains and how it is built |
 | [docs/linux-builder.md](docs/linux-builder.md) | building NixOS images on a Mac |
 | [nix/README.md](nix/README.md) | the image flake, its inputs and your local settings |

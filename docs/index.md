@@ -8,8 +8,9 @@ permalink: /
 
 # omaflake for developers
 
-omaflake builds clean, disposable NixOS and macOS virtual machines on Apple silicon from **recipes** declared in Nix,
-and runs them from a menu bar app or the `omaf` CLI. Images never change: *reset* throws a VM's state away and starts
+omaflake builds clean, disposable NixOS and macOS virtual machines from **recipes** declared in Nix, on a Mac with
+Apple silicon (NixOS and macOS guests) and on Linux with Nix (NixOS guests), and runs them from an app (menu bar on a
+Mac, a native window on Linux), `omaf ui` or the `omaf` CLI. Images never change: *reset* throws a VM's state away and starts
 over from its image.
 
 This site is for people who write recipes, build on omaflake's files or work on omaflake itself. Downloading and using

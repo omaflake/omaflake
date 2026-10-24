@@ -22,7 +22,8 @@ TILT = 14               # rotation of the hero flake in degrees
 
 
 def svg(view_box, body, size=None):
-    w = h = size or ""
+    vb_w, vb_h = (float(n) for n in view_box.split()[2:])
+    w, h = size, round(size * vb_h / vb_w) if size else None
     dims = f' width="{w}" height="{h}"' if size else ""
     return f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="{view_box}"{dims}>\n{body}\n</svg>\n'
 
@@ -162,7 +163,7 @@ def social():
                f'<text x="546" y="312" {word} fill="{CYAN}" opacity="0.85">omaflake</text>'
                f'<text x="536" y="316" {word} fill="{WHITE}">omaflake</text>'
                f'<text x="540" y="392" {tag}>Opinionated, disposable NixOS and</text>'
-               f'<text x="540" y="430" {tag}>macOS VMs on Apple silicon.</text>', 1280)
+               f'<text x="540" y="430" {tag}>macOS VMs on Mac and Linux.</text>', 1280)
 
 
 # --- export ----------------------------------------------------------------------------------

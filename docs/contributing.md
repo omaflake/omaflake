@@ -6,13 +6,15 @@ permalink: /contributing/
 
 # Contributing
 
-omaflake is one Swift package with the menu bar app, the `omaf` CLI and `omaf-runner`, plus the image flake in `nix/`
-and the QEMU build in `qemu/`. Recipes are not here: they live in [omaflake/recipes](https://github.com/omaflake/recipes).
+omaflake is a Rust workspace (`crates/`: the core, the `omaf` CLI, the Linux app) and a Swift package (the macOS menu
+bar app and `omaf-runner`), plus the image flake in `nix/` and the QEMU build in `qemu/`. It runs on macOS (Apple
+silicon) and on Linux hosts ([Linux](linux.md)). Recipes are not here: they live in [omaflake/recipes](https://github.com/omaflake/recipes).
 
 ## Build and test
 
 ```sh
-swift build                        # everything
+cargo test                         # the Rust workspace (also on Linux)
+swift build                        # the macOS app and runner (Mac only)
 swift test                         # unit tests
 scripts/sign-runner.sh             # after changes to omaf-runner (Virtualization.framework entitlement)
 scripts/bundle-app.sh              # build/omaflake.app

@@ -13,13 +13,14 @@ Status: draft v0.4 · 2026-10-16 · early development, not yet released
 
 ## 1. Goal
 
-On a Mac with Apple Silicon (reference machine: MacBook Pro M1 Max, 64 GB), create, start, reset and throw away
-a **clean VM** of a user-defined **recipe** at any time – via CLI and via a menu bar app, with one click.
-One app manages both guest kinds:
+On a Mac with Apple Silicon (reference machine: MacBook Pro M1 Max, 64 GB) and on a Linux host with Nix or NixOS
+(x86_64 or aarch64, plan B124; checked on x86_64 with KVM, Ubuntu 26.04), create, start, reset and throw away
+a **clean VM** of a user-defined **recipe** at any time – via CLI and via an app, with one click.
+One app manages both guest kinds (macOS guests on a Mac only):
 
 | Guest kind | Example recipes | Content | Runtime |
 |---|---|---|---|
-| **NixOS** (+ Hyprland) | minimal, research, lab (dev later) | NixOS modules | own QEMU build (HVF, virgl) |
+| **NixOS** (+ Hyprland) | minimal, research, lab (dev later) | NixOS modules | own QEMU build (HVF, virgl) on a Mac; QEMU with KVM on Linux |
 | **macOS** | minimal, research, lab (office, dev later) | nix-darwin modules on top of a manually prepared base | own runner `omaf-runner` (Virtualization.framework) |
 
 The recipe names above are examples; users define their own recipes in their own flake (§11.1).
