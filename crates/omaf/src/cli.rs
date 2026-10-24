@@ -93,7 +93,7 @@ pub enum Command {
     Log(Log),
     #[command(about = "Show/set settings in ~/.omaflake/config.json.")]
     Config(Config),
-    #[command(about = "Check what your Mac brings and whether NixOS and macOS images can be built (preflight).")]
+    #[command(about = "Check what this computer brings and whether NixOS and macOS images can be built (preflight).")]
     Doctor(Doctor),
     #[command(about = "Linux builder: apply omaflake's builder host, clean up its disk (runs sudo).")]
     #[command(subcommand_required = true, arg_required_else_help = true)]
@@ -527,7 +527,11 @@ pub struct Config {
     pub home: Option<String>,
     #[arg(long, value_name = "flake", help = "The image flake: a folder (e.g. <checkout>/nix) or a flake URL")]
     pub flake: Option<String>,
-    #[arg(long, value_name = "qemu", help = "Path to qemu-system-aarch64 (e.g. a custom build from qemu/build.sh)")]
+    #[arg(
+        long,
+        value_name = "qemu",
+        help = "Path to qemu-system-aarch64 on a Mac (e.g. a custom build from qemu/build.sh), qemu-system-x86_64 or -aarch64 on Linux"
+    )]
     pub qemu: Option<String>,
     #[arg(
         long,

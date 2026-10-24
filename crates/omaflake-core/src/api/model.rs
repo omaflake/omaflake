@@ -142,6 +142,8 @@ pub(crate) struct VmRow {
     pub status: VmStatus,
     pub address: Option<String>,
     pub agent: Option<AgentState>,
+    /// NixOS while running: the accelerator QEMU was started with (plan B124)
+    pub accelerator: Option<crate::qemu_command::Accel>,
     pub location: Option<String>,
 }
 
@@ -179,9 +181,13 @@ impl Snapshot {
                 let running = status == VmStatus::Running;
                 let address = if c.kind == GuestKind::Macos && running { vz.and_then(|v| v.address(&c)) } else { None };
                 let agent = if running { backend.and_then(|b| b.agent_state(&c)) } else { None };
+                let accelerator = match (running, c.kind, backends.qemu()) {
+                    (true, GuestKind::Nixos, Ok(q)) => q.runtime.accelerator(&c.name),
+                    _ => None,
+                };
                 let location =
                     store.is_external(&c.name).then(|| paths.instance(&c.name).dir.to_string_lossy().into_owned());
-                VmRow { config: c, status, address, agent, location }
+                VmRow { config: c, status, address, agent, accelerator, location }
             })
             .collect::<Vec<_>>();
         let recipe_ids: Vec<String> = recipes.versions.values().flatten().map(|v| v.id.clone()).collect();
@@ -347,11 +353,17 @@ pub(crate) fn doctor_issues<'a>(all: impl Iterator<Item = &'a Prerequisite>) -> 
     .count()
 }
 
-/// What a check is about, in English (OmaflakeApp.swift `RequirementText.title`)
+/// What a check is about, in English (OmaflakeApp.swift `RequirementText.title`); on a Linux host its own host line
 pub(crate) fn requirement_title(item: PrerequisiteItem) -> &'static str {
+    requirement_title_on(item, super::views::HostOs::this())
+}
+
+pub(crate) fn requirement_title_on(item: PrerequisiteItem, host: super::views::HostOs) -> &'static str {
     use PrerequisiteItem::*;
     match item {
+        Host if host == super::views::HostOs::Linux => "Linux with x86_64 or aarch64",
         Host => "Mac with Apple silicon, macOS 27",
+        Kvm => "KVM (hardware virtualization)",
         Nix => "Nix",
         Flakes => "Nix flakes",
         NixDarwin => "nix-darwin",
@@ -622,6 +634,7 @@ impl View<'_> {
             label: c.name.clone(),
             address: row.address.clone(),
             agent: row.agent.as_ref().and_then(|a| serde_json::to_value(a).ok()),
+            accelerator: row.accelerator.map(|a| a.as_str().to_string()),
             location: row.location.clone(),
             upgradable: latest.as_ref().is_some_and(|l| *l != c.image),
             latest_image: latest,
@@ -887,6 +900,7 @@ mod tests {
                 config: c.clone(),
                 status: VmStatus::Running,
                 address: None,
+                accelerator: None,
                 agent: None,
                 location: None,
             }],
@@ -1103,7 +1117,14 @@ mod tests {
     fn vm_network_none_is_kept() {
         let mut c = config("n");
         c.network = NetworkMode::None;
-        let row = VmRow { config: c, status: VmStatus::Stopped, address: None, agent: None, location: None };
+        let row = VmRow {
+            config: c,
+            status: VmStatus::Stopped,
+            address: None,
+            agent: None,
+            accelerator: None,
+            location: None,
+        };
         let snap = Snapshot { rows: vec![row], ..Default::default() };
         let (recipes, busy, expected) = (RecipeCache::default(), HashSet::new(), HashMap::new());
         let paths = Paths::new("/d", None);

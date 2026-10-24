@@ -13,6 +13,11 @@
 //!
 //! The start's error kinds: already running → `vm-running`, base image missing → `not-found`, SSH port in use →
 //! `in-use`, no virtio-gpu-gl or no UEFI firmware → `prerequisite`.
+//!
+//! Linux hosts (plan B124): `qemu-system-<host arch>`, KVM or TCG (`qemu_host::host_accel`, recorded in the run
+//! folder's `accel` while the VM runs), GTK windows, PipeWire/PulseAudio, the firmware from `qemu_host::Firmware` –
+//! x86_64's variable store is a copy of the firmware's template (a blank one does not boot OVMF). No Dock icon, no
+//! omaf-runner bridge (macOS only: the agent's report, clipboard and camera – readiness falls back to SSH there).
 
 use std::fs::File;
 use std::os::fd::AsRawFd;
@@ -27,10 +32,13 @@ use crate::agent_protocol::AgentState;
 use crate::backend::Readiness;
 use crate::error::{codes, os_text, Error, IoContext, Result};
 use crate::instance_store::InstanceStore;
-use crate::models::{DisplayMode, GlBackend, InstanceConfig, NetworkMode, QemuCapabilities, StopResult, VmStatus};
+use crate::models::{
+    DisplayMode, GlBackend, GuestKind, InstanceConfig, NetworkMode, QemuCapabilities, StopResult, VmStatus,
+};
 use crate::paths::{InstancePaths, Paths, Settings};
-use crate::platform::{is_executable_file, resolve_symlinks};
-use crate::qemu_command::QemuCommand;
+use crate::platform::{is_executable_file, resolve_symlinks, Platform};
+use crate::qemu_command::{Accel, Arch, QemuCommand, Target};
+use crate::qemu_host::{descriptor_dirs, host_accel, linux_audio, Firmware};
 use crate::qmp_client::QmpClient;
 use crate::shell::{RunOptions, Shell};
 use crate::sockets::{self, Ports};
@@ -46,36 +54,55 @@ pub struct QemuRuntime {
     pub paths: Paths,
     pub qemu: String,
     pub firmware: String,
+    /// The template of the UEFI variable store, where the firmware needs a formatted one (x86_64; plan B124)
+    pub firmware_vars: Option<String>,
 }
 
 impl QemuRuntime {
     pub fn new(paths: Paths, qemu: &str, firmware: &str) -> Self {
-        QemuRuntime { paths, qemu: qemu.into(), firmware: firmware.into() }
+        QemuRuntime { paths, qemu: qemu.into(), firmware: firmware.into(), firmware_vars: None }
     }
 
-    /// QEMU from VM_QEMU, config.json or PATH ("qemu-system-aarch64"); firmware (`../share/qemu/edk2-aarch64-code.fd`)
-    /// and qemu-img live next to the binary (qemu-img else from PATH). Returns (runtime, qemu-img).
-    /// OPEN (x86_64 Linux hosts): the binary and firmware names are aarch64's.
+    /// The architecture of this host's NixOS guests (aarch64 where omaflake runs no NixOS guests)
+    pub fn host_arch() -> Arch {
+        Platform::host_system(GuestKind::Nixos).and_then(Arch::of_system).unwrap_or(Arch::Aarch64)
+    }
+
+    /// QEMU from VM_QEMU, config.json or PATH (`qemu-system-<host arch>`: aarch64 on a Mac); qemu-img lives next to the
+    /// binary (else from PATH), the UEFI firmware too (`../share/qemu/edk2-<arch>-code.fd`) – on Linux else from the
+    /// firmware descriptors (`qemu_host::Firmware`). Returns (runtime, qemu-img).
     pub fn locate(paths: &Paths) -> Result<(QemuRuntime, String)> {
         let settings = Settings::load(paths);
         let env = std::env::var("VM_QEMU").ok();
-        let qemu = Shell::which(env.as_deref().or(settings.qemu.as_deref()).unwrap_or("qemu-system-aarch64"))?;
+        let arch = Self::host_arch();
+        let default = arch.qemu_binary();
+        let qemu = Shell::which(env.as_deref().or(settings.qemu.as_deref()).unwrap_or(&default))?;
         let resolved = resolve_symlinks(Path::new(&qemu));
         let bin = resolved.parent().unwrap_or(Path::new("/"));
-        let firmware = bin.parent().unwrap_or(Path::new("/")).join("share/qemu/edk2-aarch64-code.fd");
-        if !firmware.exists() {
-            return Err(Error::with_code(
-                codes::PREREQUISITE,
-                format!("UEFI firmware not found: {}", firmware.display()),
-            ));
-        }
+        let prefix = bin.parent().unwrap_or(Path::new("/"));
+        let found = if cfg!(target_os = "linux") {
+            Firmware::locate(prefix, arch, &descriptor_dirs(prefix))
+        } else {
+            Firmware::bundled(prefix, arch)
+        };
+        let Some(firmware) = found else {
+            let bundled = prefix.join(format!("share/qemu/edk2-{}-code.fd", arch.as_str()));
+            let mut message = format!("UEFI firmware not found: {}", bundled.display());
+            if cfg!(target_os = "linux") {
+                let dirs: Vec<String> = descriptor_dirs(prefix).iter().map(|d| d.display().to_string()).collect();
+                message.push_str(&format!(" (nor a firmware descriptor in {})", dirs.join(", ")));
+            }
+            return Err(Error::with_code(codes::PREREQUISITE, message));
+        };
         let qemu_img_next = bin.join("qemu-img");
         let qemu_img = if is_executable_file(&qemu_img_next) {
             qemu_img_next.to_string_lossy().into_owned()
         } else {
             Shell::which("qemu-img")?
         };
-        Ok((QemuRuntime::new(paths.clone(), &qemu, &firmware.to_string_lossy()), qemu_img))
+        let mut runtime = QemuRuntime::new(paths.clone(), &qemu, &firmware.code.to_string_lossy());
+        runtime.firmware_vars = firmware.vars.map(|v| v.to_string_lossy().into_owned());
+        Ok((runtime, qemu_img))
     }
 
     // MARK: Status
@@ -86,6 +113,26 @@ impl QemuRuntime {
         let ip = self.paths.instance(name);
         // Rule out PID reuse: the process must be QEMU
         live_pid(&ip.pid_file(), "qemu-system")
+    }
+
+    /// The accelerator the instance's running QEMU was started with; None while it is stopped
+    pub fn accelerator(&self, name: &str) -> Option<Accel> {
+        self.pid(name)?;
+        Accel::parse(&std::fs::read_to_string(self.paths.instance(name).accel_file()).ok()?)
+    }
+
+    /// What this host gives QEMU for guests of `system` (plan B124): the Mac's fixed target, or on Linux the
+    /// accelerator, GTK and the session's sound server
+    pub fn target(&self, system: &str) -> Target {
+        if cfg!(target_os = "macos") {
+            return Target::MAC;
+        }
+        let arch = Arch::of_system(system).unwrap_or_else(Self::host_arch);
+        let drivers = Shell::run(&self.qemu, &["-audiodev", "help"], &RunOptions::default())
+            .map(|r| r.stdout)
+            .unwrap_or_default();
+        let runtime = std::env::var_os("XDG_RUNTIME_DIR").map(PathBuf::from);
+        Target::linux(arch, host_accel(), linux_audio(&drivers, runtime.as_deref()))
     }
 
     pub fn status(&self, name: &str) -> VmStatus {
@@ -148,7 +195,12 @@ impl QemuRuntime {
             // The default folder is opened up for 9p (plan B18); a folder the user chose keeps its permissions
             share = Some(self.paths.prepare_share(config, Some(0o777))?.to_string_lossy().into_owned());
         }
+        let target = self.target(&config.system);
+        if let Some(template) = &self.firmware_vars {
+            prepare_efivars(&ip.efivars(), Path::new(template))?;
+        }
         let mut cmd = QemuCommand::new(&self.firmware, ip.clone(), share, display);
+        cmd.target = target;
         cmd.gl = gl;
         cmd.capabilities = caps;
         if display != DisplayMode::None {
@@ -159,11 +211,12 @@ impl QemuRuntime {
         let icon = self.paths.dock_icon();
         let icon_text = icon.to_string_lossy().into_owned();
         let mut extra_env: Vec<(&str, &str)> = vec![];
-        if display != DisplayMode::None && write_dock_icon(&icon) {
+        if display != DisplayMode::None && target.ui == crate::qemu_command::Ui::Cocoa && write_dock_icon(&icon) {
             extra_env.push(("OMAFLAKE_DOCK_ICON", &icon_text));
         }
         // What an earlier run's agent reported must not count for this one
         let _ = std::fs::remove_file(ip.agent_state());
+        let _ = std::fs::write(ip.accel_file(), target.accel.as_str());
         let child = spawn_detached(&self.qemu, &args, &ip.qemu_log(), &extra_env)?;
 
         // Ready as soon as QMP answers; if QEMU dies first, show the log
@@ -359,6 +412,21 @@ pub(crate) fn main_display(json: &[u8]) -> Option<Screen> {
     })
 }
 
+/// The UEFI variable store for a firmware that needs a formatted one (x86_64's OVMF, plan B124): a copy of the
+/// firmware's template, writable, unless the instance has one of that size already (its stored boot entries stay). A
+/// new instance's or a reset's blank 64 MiB store is replaced.
+pub(crate) fn prepare_efivars(efivars: &Path, template: &Path) -> Result<()> {
+    use std::os::unix::fs::PermissionsExt;
+    let wanted = std::fs::metadata(template).with_path(template)?.len();
+    if std::fs::metadata(efivars).is_ok_and(|m| m.len() == wanted) {
+        return Ok(());
+    }
+    std::fs::copy(template, efivars).with_path(efivars)?;
+    // Copied from the Nix store it is read-only; QEMU writes the variables
+    std::fs::set_permissions(efivars, std::fs::Permissions::from_mode(0o644)).with_path(efivars)?;
+    Ok(())
+}
+
 /// Last lines of a text file ("" when it cannot be read).
 /// The app icon QEMU's window shows in the Dock (brand/png/icon/omaflake-icon-512.png, made by brand/generate.py)
 pub(crate) const DOCK_ICON: &[u8] = include_bytes!("../../../brand/png/icon/omaflake-icon-512.png");
@@ -509,12 +577,13 @@ mod tests {
     use std::io::Write;
     use std::os::unix::fs::PermissionsExt;
 
-    /// A fake QEMU installation: bin/qemu-system-aarch64 (a script answering `-device help`), bin/qemu-img and
-    /// share/qemu/edk2-aarch64-code.fd
+    /// A fake QEMU installation for this host's architecture: bin/qemu-system-<arch> (a script answering `-device help`),
+    /// bin/qemu-img and share/qemu/edk2-<arch>-code.fd (x86_64: and edk2-i386-vars.fd)
     fn fake_qemu(root: &Path, guest_owner: bool, firmware: bool) -> PathBuf {
+        let arch = QemuRuntime::host_arch();
         let bin = root.join("qemu/bin");
         std::fs::create_dir_all(&bin).unwrap();
-        let qemu = bin.join("qemu-system-aarch64");
+        let qemu = bin.join(arch.qemu_binary());
         let marker = if guest_owner { "# guest_owner_uid" } else { "" };
         std::fs::write(&qemu, format!("#!/bin/sh\necho 'name \"virtio-gpu-gl-pci\", bus PCI'\n{marker}\n")).unwrap();
         std::fs::set_permissions(&qemu, std::fs::Permissions::from_mode(0o755)).unwrap();
@@ -524,7 +593,8 @@ mod tests {
         if firmware {
             let share = root.join("qemu/share/qemu");
             std::fs::create_dir_all(&share).unwrap();
-            std::fs::write(share.join("edk2-aarch64-code.fd"), "").unwrap();
+            std::fs::write(share.join(format!("edk2-{}-code.fd", arch.as_str())), "").unwrap();
+            std::fs::write(share.join("edk2-i386-vars.fd"), "vars").unwrap();
         }
         qemu
     }
@@ -541,7 +611,12 @@ mod tests {
         assert_eq!(rt.qemu, qemu.to_string_lossy());
         let bin = resolve_symlinks(&qemu).parent().unwrap().to_path_buf();
         assert_eq!(img, bin.join("qemu-img").to_string_lossy());
-        assert_eq!(rt.firmware, bin.parent().unwrap().join("share/qemu/edk2-aarch64-code.fd").to_string_lossy());
+        let share = bin.parent().unwrap().join("share/qemu");
+        let arch = QemuRuntime::host_arch();
+        assert_eq!(rt.firmware, share.join(format!("edk2-{}-code.fd", arch.as_str())).to_string_lossy());
+        // x86_64's OVMF comes with the template of its variable store; aarch64's edk2 takes a blank one
+        let vars = (arch == Arch::X86_64).then(|| share.join("edk2-i386-vars.fd").to_string_lossy().into_owned());
+        assert_eq!(rt.firmware_vars, vars);
 
         let (_t, p) = temp_paths();
         let qemu = fake_qemu(&p.root, false, false);
@@ -549,6 +624,37 @@ mod tests {
         let e = QemuRuntime::locate(&p).unwrap_err();
         assert!(e.message().starts_with("UEFI firmware not found: "), "{e}");
         assert_eq!(e.code(), Some(codes::PREREQUISITE));
+    }
+
+    /// x86_64's variable store is the firmware's template; a new instance's blank one is replaced, a used one kept
+    #[test]
+    fn efivars_from_the_template() {
+        let d = tempfile::tempdir().unwrap();
+        let template = d.path().join("edk2-i386-vars.fd");
+        std::fs::write(&template, b"OVMF vars").unwrap();
+        std::fs::set_permissions(&template, std::fs::Permissions::from_mode(0o444)).unwrap();
+        let efivars = d.path().join("efivars.fd");
+        std::fs::File::create(&efivars).unwrap().set_len(64 << 20).unwrap();
+        prepare_efivars(&efivars, &template).unwrap();
+        assert_eq!(std::fs::read(&efivars).unwrap(), b"OVMF vars");
+        assert_eq!(std::fs::metadata(&efivars).unwrap().permissions().mode() & 0o777, 0o644);
+        // what the firmware stored stays
+        std::fs::write(&efivars, b"OVMF VARS").unwrap();
+        prepare_efivars(&efivars, &template).unwrap();
+        assert_eq!(std::fs::read(&efivars).unwrap(), b"OVMF VARS");
+    }
+
+    #[test]
+    fn mac_target_is_fixed() {
+        let (_t, p) = temp_paths();
+        let rt = QemuRuntime::new(p, "qemu-system-aarch64", "/fw.fd");
+        if cfg!(target_os = "macos") {
+            assert_eq!(rt.target("aarch64-linux"), Target::MAC);
+        } else {
+            let t = rt.target("x86_64-linux");
+            assert_eq!((t.arch, t.ui), (Arch::X86_64, crate::qemu_command::Ui::Gtk));
+            assert_eq!(t.audio, None, "no QEMU, so no sound driver");
+        }
     }
 
     #[test]

@@ -316,6 +316,16 @@ fn detail(ctx: &Ctx, v: &Vm) -> VmDetail {
         "Resources",
         Text::verbatim(format!("{} CPU · {} GB RAM · {} GB", v.cpus, v.memory_gb, v.disk_gb)),
     ));
+    // Linux hosts (plan B124): KVM, or TCG – emulated, many times slower – when /dev/kvm cannot be used; a Mac's HVF is
+    // not shown
+    match v.accelerator.as_deref() {
+        Some("kvm") => info.push(InfoLine::new("Accelerator", Text::verbatim("KVM"))),
+        Some("tcg") => info.push(
+            InfoLine::new("Accelerator", Text::verbatim("TCG"))
+                .note(Text::new("emulated, many times slower – no usable /dev/kvm (see the Doctor)"), Tone::Warning),
+        ),
+        _ => {}
+    }
     info.push(InfoLine::new("Network", Text::verbatim(v.network.as_str())));
     let ssh = match ctx.ssh.get(name) {
         Some(line) => Text::verbatim(line.clone()),

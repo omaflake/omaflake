@@ -159,6 +159,7 @@ sizes in bytes, paths absolute.
   "label": "research",                  // as the UI shows it
   "address": "192.168.64.5",            // macOS guests while running: NAT address
   "agent": { … },                       // what the omaflake agent last reported (spec §11.9; agent.json), while running
+  "accelerator": "kvm",                 // NixOS while running: hvf | kvm | tcg (Linux without /dev/kvm: emulated, slow)
   "location": "/Volumes/…",             // the package's place when it runs from elsewhere (plan B108)
   "latestImage": "…",                   // the newest image of its recipe's line
   "upgradable": true
@@ -200,8 +201,9 @@ short as it can be).
 - **CatalogRecipe** – an entry of a source's `catalog.json` (spec §11.3: `id`, `author`, `kind`, `name`,
   `description` in the session's language, `tags`, `license`, `lab`, `systems`, `requires`, `homepage`, `version`,
   `files: [{path, size, sha256}]`) plus `source` and `runsHere`.
-- **Prerequisite** – `item` (`host`, `nix`, `flakes`, `nixDarwin`, `linuxBuilder`, `qemu`, `flake`, `sshKey`, `git`,
-  `cli`, `builderRunning`, `flakeEval`, `nixSpace`, `ipsw`, `macBase`, `macSpace`), `status` (`ok` | `limited` | `missing`),
+- **Prerequisite** – `item` (`host`, `kvm`, `nix`, `flakes`, `nixDarwin`, `linuxBuilder`, `qemu`, `flake`, `sshKey`, `git`,
+  `cli`, `builderRunning`, `flakeEval`, `nixSpace`, `ipsw`, `macBase`, `macSpace`; a Linux host checks `host`, `kvm`,
+  `nix`, `flakes`, `qemu`, `flake`, `sshKey`, `git`, `cli`, then `flakeEval`, `nixSpace` – no macOS preflight, plan B124), `status` (`ok` | `limited` | `missing`),
   `title` (English; UIs translate by `item`), `required`, `detail`, `hint`, `install` (a command), `settablePath`,
   `freeBytes`, `neededBytes`, `baseUser`, `expectedUser`. `git` and `cli` (the `omaf` command on the user's PATH) are
   optional (`required` false, not counted in `issues`).

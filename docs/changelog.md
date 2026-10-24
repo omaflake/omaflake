@@ -13,6 +13,16 @@ are collected under *Unreleased*. Releases: [GitHub](https://github.com/omaflake
 
 ## [Unreleased]
 
+### Added
+
+- **NixOS VMs on a Linux host** (issue #2, docs/linux.md): omaflake runs NixOS guests of the host's own architecture
+  (x86_64 or aarch64) with QEMU and **KVM**; without a usable `/dev/kvm` it falls back to TCG – emulated, many times
+  slower – and says so (`omaf start`, the VM's details, the Doctor). Images build natively with Nix, no Linux builder.
+  Windows open with GTK (3D with virtio-gpu-gl where QEMU has it), sound goes to PipeWire or PulseAudio. The Doctor on
+  Linux checks the host, KVM (with the fix: the group `kvm`, or virtualization in the firmware), Nix and flakes, QEMU
+  with its version, 3D and UEFI firmware, the recipes, the SSH key and git – no nix-darwin, Linux builder or macOS
+  items. x86_64 images boot with their console on the serial port too.
+
 ### Fixed
 
 - `omaf start` right after `omaf stop` no longer says "SSH port … is in use": the check now binds the port the way QEMU

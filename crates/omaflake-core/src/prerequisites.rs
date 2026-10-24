@@ -6,8 +6,9 @@
 //! command's check (`cli`) and its Install/Uninstall live in cli_link.rs.
 //!
 //! Not 1:1: `host()` read `ProcessInfo.operatingSystemVersion`; Rust reads `kern.osproductversion` (sysctl, the same
-//! value `sw_vers -productVersion` prints) on macOS. Any other host is `missing`: Linux hosts are not supported yet
-//! (OPEN, issue #2). The IPSW check asks `IpswDownloader::resume_file_for` (`.partial`, see ipsw_downloader.rs) instead
+//! value `sw_vers -productVersion` prints) on macOS. Linux hosts (plan B124, issue #2) get their own list: the host
+//! (kernel, architecture), KVM, Nix, flakes, QEMU with its firmware, the flake, the SSH key, git – no nix-darwin, Linux
+//! builder or macOS items (images build natively, macOS guests need a Mac). The IPSW check asks `IpswDownloader::resume_file_for` (`.partial`, see ipsw_downloader.rs) instead
 //! of URLSession's `.resume`. The macOS base check picks the first differing recipe `macUser` in sorted order (Swift: a
 //! `Set`, so any).
 
@@ -25,7 +26,8 @@ use crate::mac_base_installer::MacBaseInstaller;
 use crate::mac_image_builder::MacImageBuilder;
 use crate::models::{GuestKind, RecipeId};
 use crate::paths::{Paths, Settings};
-use crate::platform::{expand_tilde, home_dir, is_executable_file, machine};
+use crate::platform::{expand_tilde, home_dir, is_executable_file, kernel_release, machine};
+use crate::qemu_host::KvmState;
 use crate::qemu_runtime::QemuRuntime;
 use crate::shell::{RunOptions, Shell};
 use crate::sockets::{Ports, DEFAULT_TIMEOUT};
@@ -36,6 +38,8 @@ use crate::sockets::{Ports, DEFAULT_TIMEOUT};
 pub enum PrerequisiteItem {
     // what the Mac brings
     Host,
+    /// Linux hosts: /dev/kvm usable (else VMs run with TCG, plan B124)
+    Kvm,
     Nix,
     Flakes,
     NixDarwin,
@@ -61,6 +65,7 @@ impl PrerequisiteItem {
     pub fn as_str(self) -> &'static str {
         match self {
             PrerequisiteItem::Host => "host",
+            PrerequisiteItem::Kvm => "kvm",
             PrerequisiteItem::Nix => "nix",
             PrerequisiteItem::Flakes => "flakes",
             PrerequisiteItem::NixDarwin => "nixDarwin",
@@ -235,6 +240,13 @@ impl Prerequisites {
     pub const INSTALL_QEMU: &'static str = "nix profile install github:omaflake/omaflake#qemu";
     pub const INSTALL_SSH_KEY: &'static str = "ssh-keygen -t ed25519";
     pub const INSTALL_GIT: &'static str = "xcode-select --install";
+    /// Linux hosts (plan B124): nixpkgs' QEMU (with virglrenderer, GTK and QEMU's edk2 firmware), git, Nix's
+    /// official multi-user installer (nixos.org/download)
+    pub const INSTALL_QEMU_LINUX: &'static str = "nix profile install nixpkgs#qemu";
+    pub const INSTALL_GIT_LINUX: &'static str = "nix profile install nixpkgs#git";
+    pub const INSTALL_NIX_LINUX: &'static str = "curl -L https://nixos.org/nix/install | sh -s -- --daemon";
+    /// Other distributions than NixOS: the user into the group kvm (log in again afterwards)
+    pub const INSTALL_KVM_GROUP: &'static str = "sudo usermod -aG kvm \"$USER\"";
 
     /// Space the Nix store should have for building NixOS images
     pub const NIX_SPACE_NEEDED: i64 = 20_000_000_000;
@@ -246,8 +258,11 @@ impl Prerequisites {
     }
 
     /// The official installer of the NixOS community (also what the app runs through the administrator dialog):
-    /// `sudo sh -c '<BuilderMaintenance::install_nix_command()>'`
+    /// `sudo sh -c '<BuilderMaintenance::install_nix_command()>'`; on Linux Nix's own installer
     pub fn install_nix() -> String {
+        if cfg!(target_os = "linux") {
+            return Self::INSTALL_NIX_LINUX.into();
+        }
         format!("sudo sh -c '{}'", BuilderMaintenance::install_nix_command())
     }
 
@@ -269,6 +284,18 @@ impl Prerequisites {
         let settings = Settings::load(&self.paths);
         let nix = Self::locate_nix(&settings);
         let config = nix.as_deref().map(Self::nix_config).unwrap_or_default();
+        if cfg!(target_os = "linux") {
+            return vec![
+                self.host(),
+                Self::kvm_item(KvmState::detect(), Path::new("/etc/NIXOS").exists()),
+                self.nix_item(nix.as_deref()),
+                self.flakes(nix.as_deref(), &config),
+                self.qemu(),
+                self.flake(&settings, nix.as_deref()),
+                self.ssh_key(),
+                self.git(),
+            ];
+        }
         vec![
             self.host(),
             self.nix_item(nix.as_deref()),
@@ -285,7 +312,54 @@ impl Prerequisites {
     // MARK: Checks
 
     pub(crate) fn host(&self) -> Prerequisite {
+        if cfg!(target_os = "linux") {
+            return Self::linux_host_item(&kernel_release(), &machine());
+        }
         Self::host_item(Self::os_version().as_deref(), &machine())
+    }
+
+    /// A Linux host (plan B124): x86_64 and aarch64 run NixOS guests of their own architecture
+    pub(crate) fn linux_host_item(release: &str, machine: &str) -> Prerequisite {
+        let ok = matches!(machine, "x86_64" | "aarch64");
+        Prerequisite::new(
+            PrerequisiteItem::Host,
+            status(ok, PrerequisiteStatus::Missing),
+            &format!("Linux {release}, {machine}"),
+            if ok { "" } else { "omaflake runs on Linux with x86_64 or aarch64" },
+            None,
+        )
+    }
+
+    /// /dev/kvm (plan B124): usable – VMs run with KVM; else they run with TCG, many times slower (`limited`). The hint
+    /// names the fix: the group kvm (NixOS: declared in the configuration), or virtualization in the firmware.
+    pub(crate) fn kvm_item(state: KvmState, nixos: bool) -> Prerequisite {
+        match state {
+            KvmState::Usable => Prerequisite::new(
+                PrerequisiteItem::Kvm,
+                PrerequisiteStatus::Ok,
+                "/dev/kvm – VMs run with KVM",
+                "",
+                None,
+            ),
+            KvmState::NoAccess => Prerequisite::new(
+                PrerequisiteItem::Kvm,
+                PrerequisiteStatus::Limited,
+                "/dev/kvm: no access – VMs run with TCG (slow)",
+                if nixos {
+                    "Add yourself to the group kvm: users.users.<you>.extraGroups = [ \"kvm\" ]; in your NixOS configuration, nixos-rebuild switch, then log in again. Until then VMs run with TCG, many times slower."
+                } else {
+                    "Add yourself to the group kvm, then log in again. Until then VMs run with TCG, many times slower."
+                },
+                (!nixos).then(|| Self::INSTALL_KVM_GROUP.to_string()),
+            ),
+            KvmState::Missing => Prerequisite::new(
+                PrerequisiteItem::Kvm,
+                PrerequisiteStatus::Limited,
+                "no /dev/kvm – VMs run with TCG (slow)",
+                "Turn on virtualization (Intel VT-x or AMD-V) in the firmware settings and load the kvm module (kvm_intel, kvm_amd); in a VM, nested virtualization. Until then VMs run with TCG, many times slower.",
+                None,
+            ),
+        }
     }
 
     /// The host check from the OS version (`kern.osproductversion`, None when not macOS) and the machine (`uname -m`)
@@ -390,6 +464,8 @@ impl Prerequisites {
             &detail,
             if ok {
                 ""
+            } else if cfg!(target_os = "linux") {
+                "Add \"nix-command flakes\" to experimental-features (NixOS: nix.settings.experimental-features; else /etc/nix/nix.conf)"
             } else {
                 "Add \"nix-command flakes\" to experimental-features (nix-darwin: nix.settings.experimental-features)"
             },
@@ -431,6 +507,9 @@ impl Prerequisites {
     }
 
     pub(crate) fn qemu(&self) -> Prerequisite {
+        if cfg!(target_os = "linux") {
+            return self.linux_qemu();
+        }
         let Ok((rt, _)) = QemuRuntime::locate(&self.paths) else {
             return Prerequisite::new(
                 PrerequisiteItem::Qemu,
@@ -451,6 +530,44 @@ impl Prerequisites {
                 "Works headless and in 2D – without 3D and without automatic window resolution; omaflake's QEMU adds both"
             },
             (!gl).then(|| Self::INSTALL_QEMU.to_string()),
+        )
+    }
+
+    /// Linux (plan B124): `qemu-system-<arch>` with its version, 3D (virtio-gpu-gl) and the UEFI firmware it found
+    fn linux_qemu(&self) -> Prerequisite {
+        let binary = QemuRuntime::host_arch().qemu_binary();
+        let rt = match QemuRuntime::locate(&self.paths) {
+            Ok((rt, _)) => rt,
+            Err(e) => {
+                let firmware = e.code() == Some(crate::error::codes::PREREQUISITE);
+                return Prerequisite::new(
+                    PrerequisiteItem::Qemu,
+                    PrerequisiteStatus::Missing,
+                    &if firmware { e.message().to_string() } else { format!("{binary} not found") },
+                    if firmware {
+                        "No UEFI firmware for this QEMU: install nixpkgs' QEMU (it brings edk2), or your distribution's OVMF (x86_64) / AAVMF (aarch64) package"
+                    } else {
+                        "Needed for NixOS guests: install QEMU, or enter the path to qemu-system-*"
+                    },
+                    Some(Self::INSTALL_QEMU_LINUX.into()),
+                );
+            }
+        };
+        let version = Shell::run(&rt.qemu, &["--version"], &RunOptions::default())
+            .ok()
+            .and_then(|r| r.stdout.lines().next().map(|l| l.replace("QEMU emulator version ", "QEMU ")))
+            .unwrap_or_else(|| "QEMU ?".into());
+        let gl = rt.capabilities().gl;
+        Prerequisite::new(
+            PrerequisiteItem::Qemu,
+            status(gl, PrerequisiteStatus::Limited),
+            &format!("{} ({version}, {}) – UEFI {}", rt.qemu, if gl { "3D" } else { "no 3D" }, rt.firmware),
+            if gl {
+                ""
+            } else {
+                "Works headless and in 2D – without 3D; a QEMU with virglrenderer (nixpkgs#qemu) adds it"
+            },
+            (!gl).then(|| Self::INSTALL_QEMU_LINUX.to_string()),
         )
     }
 
@@ -503,7 +620,9 @@ impl Prerequisites {
             } else {
                 "Optional: image names then show \"nogit\" instead of the flake's revision"
             },
-            git.is_none().then(|| Self::INSTALL_GIT.to_string()),
+            git.is_none().then(|| {
+                if cfg!(target_os = "linux") { Self::INSTALL_GIT_LINUX } else { Self::INSTALL_GIT }.to_string()
+            }),
         )
     }
 
@@ -511,6 +630,13 @@ impl Prerequisites {
 
     pub fn nixos_preflight(&self) -> Vec<Prerequisite> {
         let settings = Settings::load(&self.paths);
+        if cfg!(target_os = "linux") {
+            // Images build here, natively – no Linux builder (plan B124)
+            return vec![
+                self.flake_eval(&settings),
+                self.space(PrerequisiteItem::NixSpace, Path::new("/nix/store"), Self::NIX_SPACE_NEEDED),
+            ];
+        }
         vec![
             self.builder_running(),
             self.flake_eval(&settings),
@@ -520,6 +646,10 @@ impl Prerequisites {
 
     /// `latest`: what Apple offers this Mac (`MacOsRelease::latest`), None when unknown (offline).
     pub fn macos_preflight(&self, latest: Option<&MacOsRelease>) -> Vec<Prerequisite> {
+        if !cfg!(target_os = "macos") {
+            // macOS guests need a Mac (plan B124)
+            return Vec::new();
+        }
         let ipsw_item = self.ipsw(latest);
         let missing_ipsw = if ipsw_item.status != PrerequisiteStatus::Ok {
             latest.and_then(|l| l.bytes).unwrap_or(27_000_000_000)
@@ -906,6 +1036,48 @@ mod tests {
         let linux = Prerequisites::host_item(None, "aarch64");
         assert_eq!(linux.status, PrerequisiteStatus::Missing);
         assert!(linux.detail.contains("not supported yet"));
+    }
+
+    #[test]
+    fn linux_host_and_kvm_items() {
+        let x86 = Prerequisites::linux_host_item("6.12.1", "x86_64");
+        assert_eq!((x86.status, x86.detail.as_str()), (PrerequisiteStatus::Ok, "Linux 6.12.1, x86_64"));
+        assert_eq!(Prerequisites::linux_host_item("6.12.1", "aarch64").status, PrerequisiteStatus::Ok);
+        assert_eq!(Prerequisites::linux_host_item("6.12.1", "riscv64").status, PrerequisiteStatus::Missing);
+
+        let ok = Prerequisites::kvm_item(KvmState::Usable, true);
+        assert_eq!((ok.item.as_str(), ok.status, ok.install.as_deref()), ("kvm", PrerequisiteStatus::Ok, None));
+        // TCG still runs VMs: limited, not missing – nothing is blocked
+        let nixos = Prerequisites::kvm_item(KvmState::NoAccess, true);
+        assert_eq!(nixos.status, PrerequisiteStatus::Limited);
+        assert!(nixos.hint.contains("extraGroups") && nixos.install.is_none());
+        let debian = Prerequisites::kvm_item(KvmState::NoAccess, false);
+        assert_eq!(debian.install.as_deref(), Some(Prerequisites::INSTALL_KVM_GROUP));
+        let missing = Prerequisites::kvm_item(KvmState::Missing, false);
+        assert_eq!(
+            (missing.status, missing.detail.as_str()),
+            (PrerequisiteStatus::Limited, "no /dev/kvm – VMs run with TCG (slow)")
+        );
+        assert!(missing.required());
+    }
+
+    /// What each host checks (plan B124): no nix-darwin, Linux builder or macOS items on Linux; KVM only there
+    #[test]
+    fn items_per_host() {
+        let (_d, p) = temp_paths();
+        let pre = Prerequisites::new(p);
+        let items: Vec<PrerequisiteItem> = pre.check_without_cli().iter().map(|p| p.item).collect();
+        let nixos: Vec<PrerequisiteItem> = pre.nixos_preflight().iter().map(|p| p.item).collect();
+        use PrerequisiteItem::*;
+        if cfg!(target_os = "linux") {
+            assert_eq!(items, [Host, Kvm, Nix, Flakes, Qemu, Flake, SshKey, Git]);
+            assert_eq!(nixos, [FlakeEval, NixSpace]);
+            assert!(pre.macos_preflight(None).is_empty());
+        } else {
+            assert_eq!(items, [Host, Nix, Flakes, NixDarwin, LinuxBuilder, Qemu, Flake, SshKey, Git]);
+            assert_eq!(nixos, [BuilderRunning, FlakeEval, NixSpace]);
+            assert_eq!(pre.macos_preflight(None).len(), 3);
+        }
     }
 
     #[test]

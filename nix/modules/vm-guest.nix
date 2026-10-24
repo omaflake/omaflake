@@ -1,5 +1,6 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
-# Hardware abstraction for QEMU guests (UEFI, virtio; aarch64 with HVF on a Mac, the system set by the image flake)
+# Hardware abstraction for QEMU guests (UEFI, virtio; the system set by the image flake: aarch64 with HVF on a Mac, the
+# host's architecture with KVM or TCG on a Linux host – plan B124)
 # Replaces a machine-specific hardware-configuration.nix for images.
 { config, lib, pkgs, ... }:
 
@@ -20,6 +21,9 @@ in
     boot.loader.efi.canTouchEfiVariables = lib.mkDefault false;
     boot.initrd.availableKernelModules = [ "virtio_pci" "virtio_blk" "virtio_scsi" "xhci_pci" "usbhid" ];
     boot.growPartition = true;
+    # Kernel and boot messages on the serial port too (omaflake writes it to serial.log; systemd starts a login there
+    # for the last console): aarch64's firmware names its PL011 to the kernel (ACPI SPCR), x86_64's COM1 must be named
+    boot.kernelParams = lib.mkIf pkgs.stdenv.hostPlatform.isx86_64 [ "console=tty0" "console=ttyS0,115200" ];
 
     # File systems by label – labels must match the image build (see spec, M1)
     fileSystems."/" = lib.mkDefault {

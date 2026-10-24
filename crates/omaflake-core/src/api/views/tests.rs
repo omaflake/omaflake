@@ -211,6 +211,26 @@ fn one_vm_is_its_row() {
     assert_eq!(page["row"]["vm"]["kind"], "macos");
 }
 
+/// A running VM on a Linux host names its accelerator; TCG with a warning (plan B124); a Mac's HVF is not shown
+#[test]
+fn vm_details_name_the_accelerator() {
+    let mut c = ctx();
+    let line = |c: &Ctx| -> Option<Value> {
+        let page = get(c, "vm", json!({"name": "research"}));
+        page["row"]["detail"]["info"].as_array().unwrap().iter().find(|l| l["label"]["key"] == "Accelerator").cloned()
+    };
+    assert_eq!(line(&c), None);
+    let vm = c.vms.iter_mut().find(|v| v.name == "research").unwrap();
+    vm.accelerator = Some("tcg".into());
+    let tcg = line(&c).unwrap();
+    assert_eq!(tcg["value"]["text"], "TCG");
+    assert_eq!(tcg["tone"], "warning");
+    c.vms.iter_mut().find(|v| v.name == "research").unwrap().accelerator = Some("kvm".into());
+    assert_eq!(line(&c).unwrap()["value"]["text"], "KVM");
+    c.vms.iter_mut().find(|v| v.name == "research").unwrap().accelerator = Some("hvf".into());
+    assert_eq!(line(&c), None);
+}
+
 // MARK: Images
 
 #[test]
@@ -493,6 +513,48 @@ fn doctor_linux_builder_tasks() {
     // This Mac's nix-darwin system is not omaflake's: applying replaces it
     assert_eq!(apply["params"], json!({"force": true}));
     assert_eq!(apply["confirm"]["button"]["key"], "Replace and Apply");
+}
+
+/// A Linux host's Doctor (plan B124): no macOS section, its own host and QEMU texts, KVM with the fix, Nix installed
+/// from a terminal (no administrator dialog)
+#[test]
+fn doctor_on_a_linux_host() {
+    use crate::prerequisites::{PrerequisiteItem as I, PrerequisiteStatus as S, Prerequisites};
+    let mut c = ctx();
+    c.host = HostOs::Linux;
+    let dto = |p: &crate::prerequisites::Prerequisite| {
+        let mut d = crate::api::model::prerequisite_dto(p);
+        d.title = crate::api::model::requirement_title_on(p.item, HostOs::Linux).into();
+        d
+    };
+    let report = c.doctor.as_mut().unwrap();
+    report.prerequisites = vec![
+        dto(&Prerequisites::linux_host_item("6.12.1", "x86_64")),
+        dto(&Prerequisites::kvm_item(crate::qemu_host::KvmState::NoAccess, false)),
+        fx::prerequisite(I::Nix, S::Missing),
+        fx::prerequisite(I::Qemu, S::Limited),
+    ];
+    report.prerequisites[2].install = Some(Prerequisites::INSTALL_NIX_LINUX.into());
+    let page = get(&c, "doctor", json!({}));
+    let sections: Vec<&str> = page["sections"].as_array().unwrap().iter().map(|s| s["id"].as_str().unwrap()).collect();
+    assert_eq!(sections, ["requirements", "nixos"]);
+    let item = |id: &str| page["sections"][0]["items"].as_array().unwrap().iter().find(|i| i["item"] == id).unwrap();
+    assert_eq!(item("host")["title"]["key"], "Linux with x86_64 or aarch64");
+    assert_eq!(item("host")["status"], "ok");
+    let kvm = item("kvm");
+    assert_eq!(
+        (kvm["status"].as_str(), kvm["title"]["key"].as_str()),
+        (Some("limited"), Some("KVM (hardware virtualization)"))
+    );
+    assert!(kvm["hint"]["key"].as_str().unwrap().starts_with("Add yourself to the group kvm, then log in again."));
+    let fix = action(&kvm["actions"], "install");
+    assert_eq!(fix["method"], "ui.terminal");
+    assert_eq!(fix["params"]["line"], Prerequisites::INSTALL_KVM_GROUP);
+    // Nix: the installer in a terminal, not the Mac's administrator dialog
+    assert_eq!(action(&item("nix")["actions"], "install")["method"], "ui.terminal");
+    assert!(item("qemu")["hint"]["key"].as_str().unwrap().contains("nixpkgs#qemu"));
+    let set_path = action(&item("qemu")["actions"], "setPath");
+    assert_eq!(set_path["ask"][0]["prompt"]["key"], "The qemu-system-* binary");
 }
 
 #[test]

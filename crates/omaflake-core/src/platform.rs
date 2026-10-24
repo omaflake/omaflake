@@ -252,6 +252,18 @@ pub fn machine() -> String {
     }
 }
 
+/// `uname -r` (the kernel release, e.g. "6.12.1" on Linux)
+pub fn kernel_release() -> String {
+    // SAFETY: zeroed utsname is a valid out-parameter for uname
+    unsafe {
+        let mut u: libc::utsname = std::mem::zeroed();
+        if libc::uname(&mut u) != 0 {
+            return String::new();
+        }
+        CStr::from_ptr(u.release.as_ptr()).to_string_lossy().into_owned()
+    }
+}
+
 /// A system tool: on macOS its fixed path (`/usr/bin/ssh` – not whatever comes first in PATH, as in Swift); elsewhere
 /// its name, found in PATH – NixOS has no /usr/bin/ssh, /bin/chmod or /usr/bin/sudo (`/run/wrappers/bin`, profiles)
 pub fn host_tool(macos_path: &str) -> String {

@@ -286,6 +286,10 @@ impl InstancePaths {
     pub fn agent_state(&self) -> PathBuf {
         self.run.join("agent.json")
     }
+    /// The accelerator the running QEMU was started with ("hvf", "kvm", "tcg"; plan B124)
+    pub fn accel_file(&self) -> PathBuf {
+        self.run.join("accel")
+    }
 }
 
 /// config.json, schema `settings` (plan B114); 0 → 1 changes nothing

@@ -133,6 +133,9 @@ pub struct Vm {
     /// What the omaflake agent last reported (spec §11.9; the agent.json shape), while running
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub agent: Option<Value>,
+    /// NixOS guests while running: QEMU's accelerator ("hvf", "kvm", or "tcg" – emulated, many times slower; plan B124)
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub accelerator: Option<String>,
     /// The package's place when it runs from outside the data folder (plan B108)
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub location: Option<String>,
@@ -1001,6 +1004,7 @@ mod tests {
             label: "research".into(),
             address: None,
             agent: None,
+            accelerator: None,
             location: None,
             latest_image: Some("omaflake.nixos.dev@c".into()),
             upgradable: true,

@@ -91,8 +91,13 @@ pub struct Download {
     pub text: Text,
 }
 
-/// The hint for a check; the base/recipe user mismatch names both users (`RequirementText.hint`)
+/// The hint for a check; the base/recipe user mismatch names both users (`RequirementText.hint`); this host's texts
 pub fn hint(p: &PrerequisiteDto) -> Text {
+    hint_on(p, super::HostOs::this())
+}
+
+/// The hint for a check on `host` – a Linux host has its own texts for the host, KVM, flakes and QEMU (plan B124)
+pub fn hint_on(p: &PrerequisiteDto, host: super::HostOs) -> Text {
     if let (I::MacBase, Some(base), Some(expected)) = (p.item, &p.base_user, &p.expected_user) {
         return tf!(
             "The base's user %@ differs from macUser %@ in your image flake's settings – set macUser to %@ in nix/local/settings.nix, or create the base again with %@.",
@@ -103,7 +108,16 @@ pub fn hint(p: &PrerequisiteDto) -> Text {
         );
     }
     let limited = p.status == S::Limited;
+    let linux = host == super::HostOs::Linux;
     Text::new(match p.item {
+        I::Host if linux => "omaflake runs on Linux with x86_64 or aarch64.",
+        I::Kvm if p.detail.starts_with("no /dev/kvm") => "Turn on virtualization (Intel VT-x or AMD-V) in the firmware settings and load the kvm module; in a VM, nested virtualization. Until then VMs run with TCG, many times slower.",
+        I::Kvm if p.install.is_some() => "Add yourself to the group kvm, then log in again. Until then VMs run with TCG, many times slower.",
+        I::Kvm => "Add yourself to the group kvm in your NixOS configuration (users.users.<you>.extraGroups = [ \"kvm\" ];), rebuild, then log in again. Until then VMs run with TCG, many times slower.",
+        I::Flakes if linux => "Add “nix-command flakes” to experimental-features (NixOS: nix.settings.experimental-features; else /etc/nix/nix.conf).",
+        I::Qemu if linux && limited => "Works headless and in 2D – without 3D; a QEMU with virglrenderer (nixpkgs#qemu) adds it.",
+        I::Qemu if linux && p.detail.starts_with("UEFI firmware not found") => "No UEFI firmware for this QEMU: install nixpkgs' QEMU (it brings edk2), or your distribution's OVMF (x86_64) or AAVMF (aarch64) package.",
+        I::Qemu if linux => "Needed for NixOS guests: install QEMU, or enter the path to qemu-system-*.",
         I::Host if limited => "macOS 27 is needed for automatic macOS bases.",
         I::Host => "omaflake needs a Mac with Apple silicon.",
         I::Nix => "Install Nix, or enter the path to the nix binary.",
@@ -168,7 +182,7 @@ fn builder_task(ctx: &Ctx) -> Option<&JobDto> {
 }
 
 /// The `omaf` command's hint: a file in the way, or the link's folder missing from the PATH; else as `hint`
-fn cli_hint(p: &PrerequisiteDto, cli: Option<&CliLinkDto>) -> Text {
+fn cli_hint(p: &PrerequisiteDto, cli: Option<&CliLinkDto>, ctx_host: super::HostOs) -> Text {
     match cli {
         Some(c) if c.blocked && p.status != S::Ok => {
             tf!("%@ is there and is not omaflake's – remove or rename it, then install.", &c.link)
@@ -177,7 +191,7 @@ fn cli_hint(p: &PrerequisiteDto, cli: Option<&CliLinkDto>) -> Text {
             let dir = c.link.rsplit_once('/').map(|(d, _)| d.to_string()).unwrap_or_default();
             tf!("Add %@ to your PATH in your shell's profile (export PATH=\"%@:$PATH\").", &dir, &dir)
         }
-        _ => hint(p),
+        _ => hint_on(p, ctx_host),
     }
 }
 
@@ -238,7 +252,7 @@ fn item(ctx: &Ctx, p: &PrerequisiteDto) -> DoctorItem {
     let mut actions = Vec::new();
     if p.item == I::Cli {
         actions.extend(cli_actions(ctx, p, cli));
-    } else if p.item == I::Nix && p.status == S::Missing {
+    } else if p.item == I::Nix && p.status == S::Missing && ctx.host == super::HostOs::Macos {
         let mut a = no_task(
             Action::call("installNix", Text::new("Install …"), Some("install"), "builder.installNix", json!({})).confirm(
                 Confirm::new(
@@ -302,7 +316,7 @@ fn item(ctx: &Ctx, p: &PrerequisiteDto) -> DoctorItem {
         let (kind, prompt) = match p.item {
             I::Flake => (AskKind::Folder, "Folder with the flake.nix of your recipes"),
             I::Nix => (AskKind::File, "The nix binary"),
-            _ => (AskKind::File, "The qemu-system-aarch64 binary"),
+            _ => (AskKind::File, ctx.on_host("The qemu-system-aarch64 binary", "The qemu-system-* binary")),
         };
         let item = serde_json::to_value(p.item).unwrap_or_default();
         actions.push(
@@ -349,7 +363,13 @@ fn item(ctx: &Ctx, p: &PrerequisiteDto) -> DoctorItem {
         status: p.status,
         title: Text::new(&p.title),
         detail: show_detail.then(|| detail(p)),
-        hint: (p.status != S::Ok).then(|| if p.item == I::Cli { cli_hint(p, cli) } else { hint(p) }),
+        hint: (p.status != S::Ok).then(|| {
+            if p.item == I::Cli {
+                cli_hint(p, cli, ctx.host)
+            } else {
+                hint_on(p, ctx.host)
+            }
+        }),
         expandable: has_subline,
         expanded: has_subline && (p.status != S::Ok || busy),
         busy,
@@ -380,11 +400,17 @@ pub(crate) fn page(ctx: &Ctx) -> DoctorPage {
         actions: vec![Action::call("check", Text::new("Check Again"), Some("refresh"), "doctor.check", json!({}))
             .busy(ctx.checking)
             .enabled_if(!ctx.checking, None)],
-        sections: vec![
-            section("requirements", "Requirements", report.map(|d| &d.prerequisites)),
-            section("nixos", "NixOS – before building images", report.map(|d| &d.nixos_preflight)),
-            section("macos", "macOS – before building images", report.map(|d| &d.macos_preflight)),
-        ],
+        sections: {
+            let mut sections = vec![
+                section("requirements", "Requirements", report.map(|d| &d.prerequisites)),
+                section("nixos", "NixOS – before building images", report.map(|d| &d.nixos_preflight)),
+            ];
+            // macOS guests need a Mac: a Linux host has no macOS section (plan B124)
+            if ctx.host == super::HostOs::Macos {
+                sections.push(section("macos", "macOS – before building images", report.map(|d| &d.macos_preflight)));
+            }
+            sections
+        },
         issues: report.map(|d| d.issues).unwrap_or(0),
     }
 }
