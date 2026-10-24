@@ -103,7 +103,7 @@ impl Client {
             return Err(gone());
         }
         let answer = rx.recv_timeout(ANSWER).map_err(|e| match e {
-            RecvTimeoutError::Timeout => RpcError::server(None, format!("The service did not answer {method} in time")),
+            RecvTimeoutError::Timeout => RpcError::from(crate::vm_err!("The service did not answer {method} in time")),
             RecvTimeoutError::Disconnected => gone(),
         })?;
         if let Some(error) = answer.get("error") {
@@ -154,10 +154,10 @@ impl Client {
                     let _ = self.next_event(Duration::from_millis(500));
                 }
                 None => {
-                    return Err(RpcError::server(
-                        Some(codes::NOT_FOUND),
-                        format!("Job {id} left the list (dismissed elsewhere) – its log file has its end"),
-                    ))
+                    return Err(RpcError::from(crate::vm_err!(
+                        codes::NOT_FOUND,
+                        "Job {id} left the list (dismissed elsewhere) – its log file has its end"
+                    )))
                 }
             }
             if !self.is_open() {
@@ -175,7 +175,7 @@ impl Drop for Client {
 }
 
 fn gone() -> RpcError {
-    RpcError::server(None, "The connection to the service closed")
+    RpcError::from(crate::vm_err!("The connection to the service closed"))
 }
 
 /// An `error` object back into an `RpcError` (its kind, if this omaflake knows it, and the other data)

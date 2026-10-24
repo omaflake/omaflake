@@ -91,15 +91,15 @@ impl FileFormat {
     /// `version` if this omaflake reads it, otherwise the error that says why not
     pub fn check(version: usize, minimum: usize, current: usize, file: &str) -> Result<usize> {
         if version > current {
-            return Err(Error::with_code(
+            return Err(vm_err!(
                 codes::NEWER_FILE,
-                format!("{file} has version {version} – this omaflake reads up to {current}; update omaflake"),
+                "{file} has version {version} – this omaflake reads up to {current}; update omaflake"
             ));
         }
         if version < minimum {
-            return Err(Error::with_code(
+            return Err(vm_err!(
                 codes::UNREADABLE_FILE,
-                format!("{file} has version {version} – too old for this omaflake, which reads {minimum} to {current}"),
+                "{file} has version {version} – too old for this omaflake, which reads {minimum} to {current}"
             ));
         }
         Ok(version)

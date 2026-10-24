@@ -116,12 +116,11 @@ impl VzBackend {
             .into_iter()
             .find(|dir| MacVmBundle::new(dir).config().exists())
             .ok_or_else(|| {
-                Error::with_code(
+                vm_err!(
                     codes::NOT_FOUND,
-                    format!(
-                        "Image missing: {} – rebuild it (omaf build {}) or import it, then omaf upgrade/reset",
-                        c.image, c.recipe
-                    ),
+                    "Image missing: {} – rebuild it (omaf build {}) or import it, then omaf upgrade/reset",
+                    c.image,
+                    c.recipe
                 )
             })?;
         Shell::check(
@@ -139,9 +138,9 @@ impl VzBackend {
     /// "Network mode \"isolated\" is not available for macOS guests (plan BM27) – use shared or none"
     pub(crate) fn check_network(mode: NetworkMode) -> Result<()> {
         if mode == NetworkMode::Isolated {
-            return Err(Error::with_code(
+            return Err(vm_err!(
                 codes::UNSUPPORTED_SYSTEM,
-                "Network mode \"isolated\" is not available for macOS guests (plan BM27) – use shared or none",
+                "Network mode \"isolated\" is not available for macOS guests (plan BM27) – use shared or none"
             ));
         }
         Ok(())
@@ -230,12 +229,10 @@ impl VzBackend {
                 &RunOptions::default(),
             )?;
             if !r.stdout.contains("com.apple.security.virtualization") {
-                return Err(Error::with_code(
+                return Err(vm_err!(
                     codes::PREREQUISITE,
-                    format!(
-                        "{} lacks the entitlement com.apple.security.virtualization – sign it with scripts/sign-runner.sh",
-                        self.runner
-                    ),
+                    "{} lacks the entitlement com.apple.security.virtualization – sign it with scripts/sign-runner.sh",
+                    self.runner
                 ));
             }
             Ok(())
@@ -298,7 +295,7 @@ impl VmBackend for VzBackend {
     fn create(&self, name: &str, recipe: &str, image: &Image, settings: &RecipeDefaults) -> Result<InstanceConfig> {
         self.store.validate(name)?;
         if self.store.exists(name) {
-            return Err(Error::with_code(codes::EXISTS, format!("Instance \"{name}\" already exists")));
+            return Err(vm_err!(codes::EXISTS, "Instance \"{name}\" already exists"));
         }
         if image.kind() != GuestKind::Macos {
             return Err(vm_err!("{} is not a macOS image", image.name));
@@ -338,7 +335,7 @@ impl VmBackend for VzBackend {
     fn start(&self, c: &InstanceConfig, options: StartOptions) -> Result<Pid> {
         let ip = self.paths.instance(&c.name);
         if self.pid(c).is_some() {
-            return Err(Error::with_code(codes::VM_RUNNING, format!("\"{}\" is already running", c.name)));
+            return Err(vm_err!(codes::VM_RUNNING, "\"{}\" is already running", c.name));
         }
         InstanceStore::check_config_runs_here(c)?;
         Self::check_network(c.network)?;
@@ -350,13 +347,11 @@ impl VmBackend for VzBackend {
             .map(|o| o.name)
             .collect();
         if running.len() >= Self::MAX_RUNNING {
-            return Err(Error::with_code(
+            return Err(vm_err!(
                 codes::MAC_LIMIT,
-                format!(
-                    "macOS allows at most {} macOS VMs at the same time – running: {} (plan BM16)",
-                    Self::MAX_RUNNING,
-                    running.join(", ")
-                ),
+                "macOS allows at most {} macOS VMs at the same time – running: {} (plan BM16)",
+                Self::MAX_RUNNING,
+                running.join(", ")
             ));
         }
         self.check_entitlement()?;

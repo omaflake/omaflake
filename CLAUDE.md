@@ -57,7 +57,8 @@ Cargo.toml, crates/        Rust core: omaflake-core (all logic), omaf (CLI and `
                            omaflake-brand (design tokens, generated from brand/tokens.toml)
                            omaflake-tui (`omaf ui`: ratatui client of the page models, docs/api.md §10)
                            omaflake-gui (the Linux app, iced); omaflake-i18n (translations of omaf ui and the Linux app,
-                           generated from App/Resources/de.lproj by scripts/translations.py)
+                           generated from App/Resources/de.lproj by scripts/translations.py); omaflake-macros
+                           (vm_err!: an error's format string is its translation key, plan B125)
 Package.swift              OmaflakeKit (library), omaf-runner, OmaflakeApp
 Sources/OmaflakeKit/       Core/ + API/: client of `omaf serve` and the API's types; Runner/: agent protocol, macOS VM
                            bundle, sockets (for omaf-runner); Brand/: icons

@@ -145,7 +145,7 @@ impl RecipeSource {
             };
             let url = standardize(Path::new(&path));
             if !url.is_dir() {
-                return Err(Error::with_code(codes::NOT_FOUND, format!("No such folder: {}", url.display())));
+                return Err(vm_err!(codes::NOT_FOUND, "No such folder: {}", url.display()));
             }
             return Ok(RecipeSource::new(RecipeSourceKind::Folder, &url.to_string_lossy(), None, None, None));
         }
@@ -575,7 +575,7 @@ impl SourceClient {
             request = request.header("Accept", a);
         }
         request = request.header("User-Agent", "omaflake");
-        let network = |e: ureq::Error| Error::with_code(codes::NETWORK, format!("{}: {e}", self.source.display_name()));
+        let network = |e: ureq::Error| vm_err!(codes::NETWORK, "{}: {e}", self.source.display_name());
         let mut response = request.call().map_err(network)?;
         let status = response.status().as_u16();
         let body = response.body_mut().with_config().limit(Self::MAX_RESPONSE).read_to_vec().map_err(network)?;
@@ -590,38 +590,30 @@ impl SourceClient {
         if self.source.kind == RecipeSourceKind::Folder {
             return fs::read(&url).map_err(|e| {
                 let code = if e.kind() == std::io::ErrorKind::NotFound { codes::NOT_FOUND } else { codes::NETWORK };
-                Error::with_code(code, format!("{url}: {}", crate::error::os_text(&e)))
+                vm_err!(code, "{url}: {}", crate::error::os_text(&e))
             });
         }
         if self.source.is_private_repository() && self.token.is_none() {
-            return Err(Error::with_code(
-                codes::AUTH,
-                format!("{name} is private – add a token in Settings → Recipe Sources"),
-            ));
+            return Err(vm_err!(codes::AUTH, "{name} is private – add a token in Settings → Recipe Sources"));
         }
         let (status, data) = self.get(&url, None)?;
         // Swift `case 403, 404 where private`: the `where` belongs to 404 only – a 403 is always "no access"
         match status {
             200 => Ok(data),
-            401 => Err(Error::with_code(codes::AUTH, format!("{name}: the token is not valid (or has expired)"))),
+            401 => Err(vm_err!(codes::AUTH, "{name}: the token is not valid (or has expired)")),
             403 => Err(self.no_access(relative)),
             404 if self.source.is_private_repository() => Err(self.no_access(relative)),
-            404 => Err(Error::with_code(
-                codes::NOT_FOUND,
-                format!("{name}: {relative} not found (is it a recipe source, and public?)"),
-            )),
-            _ => Err(Error::with_code(codes::NETWORK, format!("{name}: {relative} – HTTP {status}"))),
+            404 => Err(vm_err!(codes::NOT_FOUND, "{name}: {relative} not found (is it a recipe source, and public?)")),
+            _ => Err(vm_err!(codes::NETWORK, "{name}: {relative} – HTTP {status}")),
         }
     }
 
     fn no_access(&self, relative: &str) -> Error {
-        Error::with_code(
+        vm_err!(
             codes::AUTH,
-            format!(
-                "{}: no access to {relative} – the token needs read access to the repository's contents (Contents: \
+            "{}: no access to {relative} – the token needs read access to the repository's contents (Contents: \
                  Read-only), and the branch must exist",
-                self.source.display_name()
-            ),
+            self.source.display_name()
         )
     }
 
@@ -636,32 +628,27 @@ impl SourceClient {
             RecipeSourceKind::Folder => {
                 let n = RecipeLibrary::recipe_folders(Path::new(&self.source.location)).len();
                 if n == 0 {
-                    return Err(Error::with_code(
+                    return Err(vm_err!(
                         codes::NOT_FOUND,
-                        "No recipes in this folder – it needs recipes/<author>/<kind>/<name>/recipe.toml",
+                        "No recipes in this folder – it needs recipes/<author>/<kind>/<name>/recipe.toml"
                     ));
                 }
                 Ok(format!("{n} recipes"))
             }
             RecipeSourceKind::Github if self.source.is_private_repository() => {
                 if self.token.as_deref().is_none_or(str::is_empty) {
-                    return Err(Error::with_code(
-                        codes::AUTH,
-                        "Enter a fine-grained token with read access to the repository",
-                    ));
+                    return Err(vm_err!(codes::AUTH, "Enter a fine-grained token with read access to the repository"));
                 }
                 let url = format!("https://api.github.com/repos/{}", self.source.location);
                 let (status, data) = self.get(&url, Some("application/vnd.github+json"))?;
                 match status {
                     200 => {}
-                    401 => return Err(Error::with_code(codes::AUTH, "The token is not valid (or has expired)")),
+                    401 => return Err(vm_err!(codes::AUTH, "The token is not valid (or has expired)")),
                     _ => {
-                        return Err(Error::with_code(
+                        return Err(vm_err!(
                             codes::AUTH,
-                            format!(
-                                "The token has no access to {} – give it this repository with Contents: Read-only",
-                                self.source.location
-                            ),
+                            "The token has no access to {} – give it this repository with Contents: Read-only",
+                            self.source.location
                         ))
                     }
                 }
@@ -920,16 +907,13 @@ impl RecipeLibrary {
             order: &mut Vec<&'a CatalogRecipe>,
         ) -> Result<()> {
             let Some(rid) = RecipeRef::id(RecipeId::base(r)) else {
-                return Err(Error::with_code(codes::NOT_FOUND, format!("Not a recipe: {r}")));
+                return Err(vm_err!(codes::NOT_FOUND, "Not a recipe: {r}"));
             };
             if !visiting.insert(rid.clone()) {
                 return Ok(());
             }
             let Some(found) = catalog.recipes.iter().find(|c| c.id == rid) else {
-                return Err(Error::with_code(
-                    codes::NOT_FOUND,
-                    format!("{r} is not in {}", client.source.display_name()),
-                ));
+                return Err(vm_err!(codes::NOT_FOUND, "{r} is not in {}", client.source.display_name()));
             };
             for req in found.requires.iter().flatten() {
                 collect(req, catalog, client, visiting, order)?;
@@ -1207,9 +1191,10 @@ impl RecipeLibrary {
         };
         let used = ImageStore::new(self.paths.clone()).list().iter().any(|i| i.recipe() == id);
         if used {
-            return Err(Error::with_code(
+            return Err(vm_err!(
                 codes::IN_USE,
-                format!("Images are built from {} – it is kept while they are there", OmaflakeId::recipe(id, 2)),
+                "Images are built from {} – it is kept while they are there",
+                OmaflakeId::recipe(id, 2)
             ));
         }
         // Required by another recipe of the same source, and no other recipe of that base left for it
@@ -1232,9 +1217,11 @@ impl RecipeLibrary {
         users.sort();
         if !users.is_empty() {
             let names: Vec<String> = users.iter().map(|u| RecipeId::qualified(u)).collect();
-            return Err(Error::with_code(
+            return Err(vm_err!(
                 codes::IN_USE,
-                format!("{} is required by {} – remove those first", RecipeId::qualified(id), names.join(", ")),
+                "{} is required by {} – remove those first",
+                RecipeId::qualified(id),
+                names.join(", ")
             ));
         }
         if let Some(folder) = self.folder(id) {
@@ -1365,10 +1352,7 @@ impl RecipeLibrary {
     pub fn export_recipe(&self, id: &str, folder: &Path, settings: &Settings) -> Result<PathBuf> {
         let available = self.available(settings);
         let Some(top) = available.iter().find(|a| a.id == id) else {
-            return Err(Error::with_code(
-                codes::NOT_FOUND,
-                format!("{} is not available here", RecipeId::qualified(id)),
-            ));
+            return Err(vm_err!(codes::NOT_FOUND, "{} is not available here", RecipeId::qualified(id)));
         };
         // The recipe and what it requires, as its build would see them (same source first)
         fn collect(
@@ -1383,10 +1367,7 @@ impl RecipeLibrary {
             order.push((entry.id.clone(), entry.folder.clone()));
             for req in RecipeLibrary::requires_of(&entry.folder) {
                 let Some(r) = lib.requirement(&req, &entry.source, available) else {
-                    return Err(Error::with_code(
-                        codes::NOT_FOUND,
-                        format!("{} is not available here", RecipeId::qualified(&req)),
-                    ));
+                    return Err(vm_err!(codes::NOT_FOUND, "{} is not available here", RecipeId::qualified(&req)));
                 };
                 collect(lib, r, available, order)?;
             }
@@ -1397,7 +1378,7 @@ impl RecipeLibrary {
         let base = RecipeId::base(id);
         let dest = folder.join(format!("{base}.{}", Package::RECIPE));
         if dest.exists() {
-            return Err(Error::with_code(codes::EXISTS, format!("{} exists already", dest.display())));
+            return Err(vm_err!(codes::EXISTS, "{} exists already", dest.display()));
         }
         let partial = folder.join(format!(".{base}.{}.partial", Package::RECIPE));
         Disposal::delete(&[&partial])?;
@@ -1441,9 +1422,10 @@ impl RecipeLibrary {
             }
         }
         if found.is_empty() {
-            return Err(Error::with_code(
+            return Err(vm_err!(
                 codes::NOT_FOUND,
-                format!("No recipes in {} (expected <author>/<kind>/<name>/recipe.toml)", url.display()),
+                "No recipes in {} (expected <author>/<kind>/<name>/recipe.toml)",
+                url.display()
             ));
         }
         Ok(found)
@@ -1463,13 +1445,11 @@ impl RecipeLibrary {
                 return Err(vm_err!("{} has no default.nix", RecipeId::qualified(base)));
             }
             if let Some(missing) = Self::requires_of(folder).into_iter().find(|r| !known.contains(r)) {
-                return Err(Error::with_code(
+                return Err(vm_err!(
                     codes::NOT_FOUND,
-                    format!(
-                        "{} requires {}, which is not here – nothing was imported",
-                        RecipeId::qualified(base),
-                        RecipeId::qualified(&missing)
-                    ),
+                    "{} requires {}, which is not here – nothing was imported",
+                    RecipeId::qualified(base),
+                    RecipeId::qualified(&missing)
                 ));
             }
         }

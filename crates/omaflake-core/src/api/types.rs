@@ -794,6 +794,9 @@ pub struct JobDto {
     pub result: Option<Value>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub error: Option<String>,
+    /// `error` as a text (docs/api.md §3, §10.2) when it has a key – a UI shows it in its language
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub error_text: Option<super::views::text::Text>,
 }
 
 // MARK: Job results (`result` of an ended job, per kind)
@@ -964,6 +967,7 @@ mod tests {
             cancellable: true,
             result: None,
             error: None,
+            error_text: None,
         };
         assert_eq!(
             s(&job),

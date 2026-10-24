@@ -2,6 +2,7 @@
 //! The methods of docs/api.md §7: params, the core calls (as the app's AppModel made them) and the answers.
 //! Secrets (`password`, `token`) are never logged and kept only as long as the work needs them (api.md §8).
 
+use crate::vm_err;
 use std::collections::{BTreeMap, HashSet};
 use std::path::{Path, PathBuf};
 use std::sync::atomic::Ordering;
@@ -42,10 +43,6 @@ use crate::vz_backend::VzBackend;
 
 fn err(e: Error) -> RpcError {
     e.into()
-}
-
-fn not_found(what: impl Into<String>) -> RpcError {
-    RpcError::server(Some(codes::NOT_FOUND), what)
 }
 
 #[derive(Deserialize)]
@@ -367,11 +364,14 @@ impl Server {
 
     fn data_folder_move(&self, p: TargetParams) -> Reply {
         if self.inner.jobs.any_active(&[JobKind::DataMove]).is_some() {
-            return Err(RpcError::server(Some(codes::IN_USE), "The data folder is being moved already"));
+            return Err(RpcError::from(crate::vm_err!(codes::IN_USE, "The data folder is being moved already")));
         }
         let state = self.state().map_err(err)?;
         if state.snap.rows.iter().any(|r| r.status == VmStatus::Running) {
-            return Err(RpcError::server(Some(codes::VM_RUNNING), "Stop all VMs before moving the data folder."));
+            return Err(RpcError::from(crate::vm_err!(
+                codes::VM_RUNNING,
+                "Stop all VMs before moving the data folder."
+            )));
         }
         let target = PathBuf::from(platform::expand_tilde(&p.target));
         let s = self.clone();
@@ -401,7 +401,10 @@ impl Server {
 
     pub(crate) fn vm(&self, name: &str) -> Result<Vm, RpcError> {
         let state = self.state().map_err(err)?;
-        let row = state.snap.row(name).ok_or_else(|| not_found(format!("Instance \"{name}\" does not exist")))?;
+        let row = state
+            .snap
+            .row(name)
+            .ok_or_else(|| RpcError::from(crate::vm_err!(codes::NOT_FOUND, "Instance \"{name}\" does not exist")))?;
         Ok(state.view().vm(row))
     }
 
@@ -437,12 +440,7 @@ impl Server {
             let backend = backends.backend(kind)?;
             let image = ImageStore::new(paths.clone()).image(&p.image)?;
             if image.kind() != kind {
-                return Err(Error::new(format!(
-                    "{} is a {} image, the settings are for {}",
-                    image.name,
-                    image.kind(),
-                    kind
-                )));
+                return Err(vm_err!("{} is a {} image, the settings are for {}", image.name, image.kind(), kind));
             }
             let mut c = backend.create(&p.name, image.recipe(), &image, &settings)?;
             if settings.share {
@@ -466,20 +464,28 @@ impl Server {
 
     fn vms_start(&self, p: StartParams) -> Reply {
         let state = self.state().map_err(err)?;
-        let row =
-            state.snap.row(&p.name).ok_or_else(|| not_found(format!("Instance \"{}\" does not exist", p.name)))?;
+        let row = state.snap.row(&p.name).ok_or_else(|| {
+            RpcError::from(crate::vm_err!(codes::NOT_FOUND, "Instance \"{}\" does not exist", p.name))
+        })?;
         let kind = row.config.kind;
         if kind == GuestKind::Macos && row.status != VmStatus::Running {
-            if let Some(reason) = model::mac_limit_reason(&state.snap.running_macs()) {
-                return Err(RpcError::server(Some(codes::MAC_LIMIT), reason));
+            let running = state.snap.running_macs();
+            if model::mac_limit_reason(&running).is_some() {
+                return Err(RpcError::from(crate::vm_err!(
+                    codes::MAC_LIMIT,
+                    "macOS allows at most {} macOS VMs at the same time – running: {}",
+                    crate::vz_backend::VzBackend::MAX_RUNNING,
+                    running.join(", ")
+                )));
             }
         }
         if let Some(d) = lock(&self.inner.doctor).as_ref() {
             if let Some(b) = model::start_blockers(kind, &d.prerequisites).first() {
-                return Err(RpcError::server(
-                    Some(codes::PREREQUISITE),
-                    format!("{} is missing – see the Doctor", model::requirement_title(b.item)),
-                ));
+                return Err(RpcError::from(crate::vm_err!(
+                    codes::PREREQUISITE,
+                    "{} is missing – see the Doctor",
+                    model::requirement_title(b.item)
+                )));
             }
         }
         let display = match p.display.as_deref() {
@@ -523,7 +529,7 @@ impl Server {
             let c = backends.store.load(name)?;
             let backend = backends.backend_for(&c)?;
             if backend.status(&c) != VmStatus::Stopped {
-                return Err(Error::with_code(codes::VM_RUNNING, "running – stop it first"));
+                return Err(vm_err!(codes::VM_RUNNING, "running – stop it first"));
             }
             if remove {
                 backend.remove(&c)
@@ -540,18 +546,21 @@ impl Server {
             Some(i) => i,
             None => {
                 let state = self.state().map_err(err)?;
-                let row = state
-                    .snap
-                    .row(&p.name)
-                    .ok_or_else(|| not_found(format!("Instance \"{}\" does not exist", p.name)))?;
+                let row = state.snap.row(&p.name).ok_or_else(|| {
+                    RpcError::from(crate::vm_err!(
+                        crate::error::codes::NOT_FOUND,
+                        "Instance \"{}\" does not exist",
+                        p.name
+                    ))
+                })?;
                 let latest = state.snap.current.get(&row.config.recipe).cloned();
                 match latest {
                     Some(l) if l != row.config.image => l,
                     _ => {
-                        return Err(RpcError::server(
-                            None,
-                            format!("{} uses the newest image of its recipe already", p.name),
-                        ))
+                        return Err(RpcError::from(crate::vm_err!(
+                            "{} uses the newest image of its recipe already",
+                            p.name
+                        )))
                     }
                 }
             }
@@ -560,7 +569,7 @@ impl Server {
             let c = backends.store.load(&p.name)?;
             let backend = backends.backend_for(&c)?;
             if backend.status(&c) != VmStatus::Stopped {
-                return Err(Error::with_code(codes::VM_RUNNING, "running – stop it first"));
+                return Err(vm_err!(codes::VM_RUNNING, "running – stop it first"));
             }
             let image = ImageStore::new(paths.clone()).image(&target)?;
             backend.upgrade(&c, &image)
@@ -631,13 +640,13 @@ impl Server {
         let c = backends.store.load(&p.name).map_err(err)?;
         let backend = backends.backend_for(&c).map_err(err)?;
         if backend.status(&c) != VmStatus::Running {
-            return Err(RpcError::server(Some(codes::VM_STOPPED), format!("{} is not running", p.name)));
+            return Err(RpcError::from(crate::vm_err!(codes::VM_STOPPED, "{} is not running", p.name)));
         }
         let timeout = Duration::from_secs_f64(p.timeout.unwrap_or(300.0).max(0.0));
         match backend.wait_for_ready(&c, timeout) {
             Some(Readiness::Ssh) => Answer::of(WaitAnswer { via: Via::Ssh }),
             Some(Readiness::Agent(_)) => Answer::of(WaitAnswer { via: Via::Agent }),
-            None => Err(RpcError::server(None, format!("{} did not answer within {} s", p.name, timeout.as_secs()))),
+            None => Err(RpcError::from(crate::vm_err!("{} did not answer within {} s", p.name, timeout.as_secs()))),
         }
     }
 
@@ -662,13 +671,8 @@ impl Server {
     fn vms_use_external(&self, p: ExternalParams) -> Reply {
         let path = PathBuf::from(platform::expand_tilde(&p.path));
         if !p.confirm_network && Transfer::is_on_network_volume(&path) {
-            return Err(RpcError::server(
-                None,
-                format!(
-                    "{} is on a network volume. It runs from there, but slower – and it breaks when the connection does. Importing it (a copy into the data folder) avoids that.",
-                    file_name(&path)
-                ),
-            )
+            return Err(RpcError::from(crate::vm_err!("{} is on a network volume. It runs from there, but slower – and it breaks when the connection does. Importing it (a copy into the data folder) avoids that.",
+                    file_name(&path)))
             .with_data("networkVolume", json!(true)));
         }
         let name =
@@ -686,7 +690,7 @@ impl Server {
             .values()
             .flatten()
             .find(|i| i.name == name)
-            .ok_or_else(|| not_found(format!("Image \"{name}\" does not exist")))?;
+            .ok_or_else(|| RpcError::from(crate::vm_err!(codes::NOT_FOUND, "Image \"{name}\" does not exist")))?;
         Answer::of(state.view().image(image, true))
     }
 
@@ -707,10 +711,13 @@ impl Server {
             return Ok(Answer::Job(job));
         }
         let recipes = self.recipes().map_err(err)?;
-        let d = recipes
-            .defaults
-            .get(&p.recipe)
-            .ok_or_else(|| not_found(format!("Recipe \"{}\" is not in your recipes", p.recipe)))?;
+        let d = recipes.defaults.get(&p.recipe).ok_or_else(|| {
+            RpcError::from(crate::vm_err!(
+                crate::error::codes::NOT_FOUND,
+                "Recipe \"{}\" is not in your recipes",
+                p.recipe
+            ))
+        })?;
         if !d.runs_here() {
             return Err(err(Platform::not_here(&RecipeId::qualified(&p.recipe), &d.systems.join(", "))));
         }
@@ -742,9 +749,10 @@ impl Server {
         spec.check = Some(Box::new(move |_| {
             let d = s.check_doctor();
             match model::build_blockers(kind, d.all()).first() {
-                Some(b) => Err(Error::with_code(
+                Some(b) => Err(vm_err!(
                     codes::PREREQUISITE,
-                    format!("Doctor: {} – fix it there first", model::requirement_title(b.item)),
+                    "Doctor: {} – fix it there first",
+                    model::requirement_title(b.item)
                 )),
                 None => Ok(()),
             }
@@ -781,7 +789,7 @@ impl Server {
                     .and_then(|d| d.user.clone())
                     .unwrap_or_else(platform::user_name);
                 let Some(password) = password else {
-                    return Err(Error::new(format!("Password of {user} needed (sudo, once)")));
+                    return Err(vm_err!("Password of {user} needed (sudo, once)"));
                 };
                 let vz = crate::backend::Backends::new(paths.clone())?.vz()?.clone();
                 let request = BuildRequest {
@@ -900,11 +908,16 @@ impl Server {
         if let Some(job) = self.inner.jobs.active(JobKind::RecipeInstall, Some(&p.id)) {
             return Ok(Answer::Job(job));
         }
-        let source = Settings::load(&self.paths())
-            .recipe_sources()
-            .into_iter()
-            .find(|s| s.id() == p.source)
-            .ok_or_else(|| not_found(format!("Source \"{}\" is not one of yours", p.source)))?;
+        let source =
+            Settings::load(&self.paths()).recipe_sources().into_iter().find(|s| s.id() == p.source).ok_or_else(
+                || {
+                    RpcError::from(crate::vm_err!(
+                        crate::error::codes::NOT_FOUND,
+                        "Source \"{}\" is not one of yours",
+                        p.source
+                    ))
+                },
+            )?;
         Ok(Answer::Job(self.inner.jobs.submit(self.install_spec(p.id, source))))
     }
 
@@ -1000,7 +1013,7 @@ impl Server {
         }
         let mut list = self.source_list();
         if list.iter().any(|x| x.id() == s.id()) {
-            return Err(RpcError::server(Some(codes::EXISTS), format!("{} is already a source", s.display_name())));
+            return Err(RpcError::from(crate::vm_err!(codes::EXISTS, "{} is already a source", s.display_name())));
         }
         let token = if s.is_private_repository() {
             Some(
@@ -1032,7 +1045,7 @@ impl Server {
         let i = list
             .iter()
             .position(|s| s.id() == id)
-            .ok_or_else(|| not_found(format!("Source \"{id}\" is not one of yours")))?;
+            .ok_or_else(|| RpcError::from(crate::vm_err!(codes::NOT_FOUND, "Source \"{id}\" is not one of yours")))?;
         Ok((list, i))
     }
 
@@ -1105,15 +1118,15 @@ impl Server {
             match expect {
                 PackageKindDto::Vm => {
                     if Package::kind_of(&path) != Some(PackageKind::Vm) {
-                        return Err(Error::new("Not a VM package (.omaflake-vm)"));
+                        return Err(vm_err!("Not a VM package (.omaflake-vm)"));
                     }
                     let c = Transfer::read_config(&path)?;
                     let disk = path.join(Transfer::EMBEDDED_IMAGE_NAME).join("disk.qcow2");
                     if p.external && c.kind == GuestKind::Nixos && !disk.exists() {
-                        return Err(Error::new(format!(
+                        return Err(vm_err!(
                             "{} does not carry its image – export it again to run it from there",
                             c.name
-                        )));
+                        ));
                     }
                     Ok(())
                 }
@@ -1245,7 +1258,7 @@ impl Server {
                 let cached = lock(&s.inner.doctor).as_ref().and_then(|d| d.latest.clone());
                 let release: MacOsRelease = match cached.or_else(|| installer.latest_release()) {
                     Some(r) => r,
-                    None => return Err(Error::with_code(codes::NETWORK, "No macOS release found")),
+                    None => return Err(vm_err!(codes::NETWORK, "No macOS release found")),
                 };
                 ctx.log(&format!("macOS {} ({})", release.version, release.build));
                 let progress = ctx.progress_sink(&format!("Downloading macOS {}", release.version));
@@ -1274,7 +1287,7 @@ impl Server {
     /// `omaf macos install` as a job: download/install, clone, first boot (blocks until it is shut down)
     fn macos_install_base(&self, p: InstallBaseParams) -> Reply {
         if let Some(job) = self.inner.jobs.any_active(&[JobKind::MacosInstall, JobKind::IpswDownload]) {
-            return Err(RpcError::server(Some(codes::IN_USE), format!("{} runs already", job.title)));
+            return Err(RpcError::from(crate::vm_err!(codes::IN_USE, "{} runs already", job.title)));
         }
         let s = self.clone();
         let InstallBaseParams { user, full_name, password, ipsw } = p;
@@ -1328,14 +1341,11 @@ impl Server {
         const KINDS: [JobKind; 4] =
             [JobKind::BuilderInstallNix, JobKind::BuilderSetup, JobKind::BuilderApply, JobKind::BuilderCleanUp];
         if let Some(job) = self.inner.jobs.any_active(&KINDS) {
-            return Err(RpcError::server(Some(codes::IN_USE), format!("{} runs already", job.title)));
+            return Err(RpcError::from(crate::vm_err!(codes::IN_USE, "{} runs already", job.title)));
         }
         let maintenance = BuilderMaintenance::new(self.paths());
         if kind == JobKind::BuilderApply && !force && !maintenance.system_is_omaflakes() {
-            return Err(RpcError::server(
-                Some(codes::PREREQUISITE),
-                "This Mac's nix-darwin system does not come from omaflake's image flake yet. Applying replaces your current nix-darwin configuration with omaflake's Linux builder host (nix/hosts/linux-builder.nix and your local/darwin.nix). Only continue if you set up nix-darwin for omaflake.",
-            )
+            return Err(RpcError::from(crate::vm_err!(codes::PREREQUISITE, "This Mac's nix-darwin system does not come from omaflake's image flake yet. Applying replaces your current nix-darwin configuration with omaflake's Linux builder host (nix/hosts/linux-builder.nix and your local/darwin.nix). Only continue if you set up nix-darwin for omaflake."))
             .with_data("replacesConfiguration", json!(true)));
         }
         let title = match kind {
@@ -1417,7 +1427,7 @@ impl Server {
     /// administrator dialog (a dismissed dialog cancels the job), on Linux in ~/.local/bin without root
     fn cli_job(&self, install: bool) -> Reply {
         if let Some(job) = self.inner.jobs.any_active(&[JobKind::CliInstall]) {
-            return Err(RpcError::server(Some(codes::IN_USE), format!("{} runs already", job.title)));
+            return Err(RpcError::from(crate::vm_err!(codes::IN_USE, "{} runs already", job.title)));
         }
         let title = if install { "Install the omaf command" } else { "Uninstall the omaf command" };
         let mut spec = JobSpec::new(
@@ -1497,7 +1507,7 @@ pub(crate) fn check_update(server: &Server) -> Result<UpdateAnswer, RpcError> {
         return Ok(UpdateAnswer { state: UpdateState::NoFeed, release: None });
     };
     let newer = UpdateCheck::newer(crate::VERSION, &feed)
-        .map_err(|e| RpcError::server(Some(e.code().unwrap_or(codes::NETWORK)), e.message()))?;
+        .map_err(|e| RpcError::from(Error::from_text(Some(e.code().unwrap_or(codes::NETWORK)), e.text().clone())))?;
     Ok(match newer {
         Some(r) => UpdateAnswer {
             state: UpdateState::Available,
@@ -1576,7 +1586,7 @@ fn file_name(path: &Path) -> String {
 
 /// A job's result as JSON
 fn result<T: serde::Serialize>(value: T) -> crate::Result<Value> {
-    serde_json::to_value(value).map_err(|e| Error::new(format!("Cannot encode the result: {e}")))
+    serde_json::to_value(value).map_err(|e| vm_err!("Cannot encode the result: {e}"))
 }
 
 /// A name as a part of a file name: anything but letters, digits, `.`, `-` and `_` becomes `_`

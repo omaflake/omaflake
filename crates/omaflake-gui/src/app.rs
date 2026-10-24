@@ -66,9 +66,13 @@ pub fn pulses(v: &Value) -> bool {
 /// A page's model from its JSON
 pub fn decode(page: &str, v: Value) -> Model {
     if let Some(e) = v.get("error") {
-        return Model::Error(
-            e["message"].as_str().map(str::to_string).unwrap_or_else(|| tr("This page cannot be shown")),
-        );
+        // In the app's language when the message has a key (api.md §3)
+        let text =
+            e.get("text").and_then(|t| serde_json::from_value::<omaflake_core::api::views::text::Text>(t.clone()).ok());
+        return Model::Error(match text {
+            Some(t) => crate::text::s(&t),
+            None => e["message"].as_str().map(str::to_string).unwrap_or_else(|| tr("This page cannot be shown")),
+        });
     }
     fn de<T: serde::de::DeserializeOwned>(v: Value, f: fn(Box<T>) -> Model) -> Model {
         match serde_json::from_value::<T>(v) {

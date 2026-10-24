@@ -61,8 +61,7 @@ impl BuilderMaintenance {
     pub fn build_system(&self, host: &str, on_line: &(dyn Fn(&str) + Send + Sync)) -> Result<String> {
         let settings = Settings::load(&self.paths);
         let flake = settings.flake_path()?;
-        let nix = Prerequisites::locate_nix(&settings)
-            .ok_or_else(|| Error::with_code(codes::PREREQUISITE, "nix not found"))?;
+        let nix = Prerequisites::locate_nix(&settings).ok_or_else(|| vm_err!(codes::PREREQUISITE, "nix not found"))?;
         let target = format!("path:{flake}#darwinConfigurations.{host}.system");
         let args = [
             "build",

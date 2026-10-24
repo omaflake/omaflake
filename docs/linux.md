@@ -152,8 +152,9 @@ that. If the service ends (an update, idle exit), the app connects again.
 - **Language:** English or German, from `OMAFLAKE_LANGUAGE` (`en`, `de`), else the locale (`LC_ALL`, `LC_MESSAGES`,
   `LANG`); English for any other. The texts of the pages are translated by their message keys with the macOS app's
   table (crate `omaflake-i18n`, generated from `App/Resources/de.lproj/Localizable.strings` by
-  `scripts/translations.py`), the app's own words too; dates and sizes follow the language. Still English: the core's
-  error messages, build logs and the Doctor's details.
+  `scripts/translations.py`), the app's own words too, and the core's error messages (by their key, `data.text` of
+  docs/api.md §3, plan B125); dates and sizes follow the language. Still English: build logs, the Doctor's details and
+  values inside a message (an OS's or a tool's output).
 - **Private recipe sources:** the token goes to the desktop's keyring through the Secret Service (GNOME Keyring,
   KWallet, KeePassXC – service `app.omaflake.recipe-source`, account the source's ID). Without one (a server, an SSH
   session without a desktop) it is kept unencrypted in `$XDG_CONFIG_HOME/omaflake/tokens.json` (default

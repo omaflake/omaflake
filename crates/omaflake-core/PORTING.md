@@ -34,7 +34,9 @@ packages F1–F5 fill in the bodies **in parallel** – the signatures are the c
   `code: Option<&'static str>` – the error kind of docs/api.md §3 (`crate::error::codes`, kebab-case: `not-found`,
   `exists`, `vm-running`, `vm-stopped`, `in-use`, `mac-limit`, `unsupported-system`, `unreadable-file`, `newer-file`,
   `cancelled`, `prerequisite`, `network`, `auth`, `internal`). `pub type Result<T> = std::result::Result<T, Error>`.
-  Build them with `vm_err!("… {}", x)` (no code), `Error::new`, `Error::with_code(codes::X, …)`,
+  Build them with `vm_err!("… {}", x)` or `vm_err!(codes::X, "… {name}")` – the format string becomes the message's
+  key (`{…}` → `%@`) and needs German in `App/Resources/de.lproj/Localizable.strings` (test `api::translated`, plan
+  B125); `Error::new`/`Error::with_code(codes::X, …)` only for a message without a key (built at run time),
   `Error::cancelled()`, `Error::unsupported(what)`. `From` exists for `io::Error` (message = strerror text),
   `serde_json`, `toml`, `ureq`; `IoContext::with_path(&p)` adds the path; `error::os_text(&e)` is Swift's
   `strerror(errno)`. Give your errors the api.md kind where one fits (e.g. "Instance … does not exist" → `not-found`).

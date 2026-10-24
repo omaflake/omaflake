@@ -2,6 +2,7 @@
 //! Port of Platform.swift, plus the host facts Foundation gave the Swift code for free (`NSUserName()`,
 //! `NSFullUserName()`, the home folder, `~` expansion).
 
+use crate::vm_err;
 use std::ffi::CStr;
 use std::path::{Path, PathBuf};
 
@@ -70,9 +71,10 @@ impl Platform {
 
     /// The error for a guest that does not run here
     pub fn not_here(what: &str, system: &str) -> Error {
-        Error::with_code(
+        vm_err!(
             crate::error::codes::UNSUPPORTED_SYSTEM,
-            format!("{what} is built for {system} – this computer runs {}", Self::host_description()),
+            "{what} is built for {system} – this computer runs {}",
+            Self::host_description()
         )
     }
 

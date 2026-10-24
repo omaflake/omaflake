@@ -18,7 +18,7 @@ use std::path::{Path, PathBuf};
 
 use crate::backend::Backends;
 use crate::data_folder::DataFolder;
-use crate::error::{codes, Error, IoContext, Result};
+use crate::error::{codes, IoContext, Result};
 use crate::file_format::write_atomic;
 use crate::image_store::ImageStore;
 use crate::instance_store::InstanceStore;
@@ -96,15 +96,15 @@ impl Transfer {
     pub fn export_vm(&self, name: &str, folder: &Path, with_image: bool, log: &Log) -> Result<PathBuf> {
         let c = self.store().load(name)?;
         if DataFolder::is_running(&c, &self.paths) {
-            return Err(Error::with_code(
+            return Err(vm_err!(
                 codes::VM_RUNNING,
-                format!("{name} is running – shut it down first: an export is a snapshot of a stopped VM"),
+                "{name} is running – shut it down first: an export is a snapshot of a stopped VM"
             ));
         }
         let ip = self.paths.instance(name);
         let dest = folder.join(format!("{name}.{}", Package::VM));
         if dest.exists() {
-            return Err(Error::with_code(codes::EXISTS, format!("{} exists already", dest.display())));
+            return Err(vm_err!(codes::EXISTS, "{} exists already", dest.display()));
         }
         let partial = folder.join(format!(".{name}.{}.partial", Package::VM));
         Disposal::delete(&[&partial])?;
@@ -115,9 +115,10 @@ impl Transfer {
             if Self::carries_image(&c, with_image) && !embedded.exists() {
                 let image = self.paths.image_dir(&c.image);
                 if !image.exists() {
-                    return Err(Error::with_code(
+                    return Err(vm_err!(
                         codes::NOT_FOUND,
-                        format!("The image {} is missing – the VM cannot be exported without it", c.image),
+                        "The image {} is missing – the VM cannot be exported without it",
+                        c.image
                     ));
                 }
                 log(&format!("Copying its image {}", c.image));
@@ -155,7 +156,7 @@ impl Transfer {
         let image = self.images().image(name)?;
         let dest = folder.join(format!("{name}.{}", Package::IMAGE));
         if dest.exists() {
-            return Err(Error::with_code(codes::EXISTS, format!("{} exists already", dest.display())));
+            return Err(vm_err!(codes::EXISTS, "{} exists already", dest.display()));
         }
         let partial = folder.join(format!(".{name}.{}.partial", Package::IMAGE));
         Disposal::delete(&[&partial])?;
@@ -256,10 +257,7 @@ impl Transfer {
         let exists = dest.exists();
         if exists {
             if !replace {
-                return Err(Error::with_code(
-                    codes::EXISTS,
-                    format!("The image {name} is here already – replace it or cancel"),
-                ));
+                return Err(vm_err!(codes::EXISTS, "The image {name} is here already – replace it or cancel"));
             }
             let running: Vec<String> = self
                 .store()
@@ -269,10 +267,7 @@ impl Transfer {
                 .map(|c| c.name)
                 .collect();
             if !running.is_empty() {
-                return Err(Error::with_code(
-                    codes::VM_RUNNING,
-                    format!("{} run on {name} – shut them down first", running.join(", ")),
-                ));
+                return Err(vm_err!(codes::VM_RUNNING, "{} run on {name} – shut them down first", running.join(", ")));
             }
         }
         let images = self.paths.images();
@@ -335,7 +330,7 @@ impl Transfer {
         let external = self.external_vm(path);
         if let Some(external) = &external {
             if store.load(external).is_ok_and(|e| DataFolder::is_running(&e, &self.paths)) {
-                return Err(Error::with_code(codes::VM_RUNNING, format!("{external} is running – shut it down first")));
+                return Err(vm_err!(codes::VM_RUNNING, "{external} is running – shut it down first"));
             }
         }
         let new_name = name.map(str::to_string).unwrap_or_else(|| c.name.clone());
@@ -343,15 +338,15 @@ impl Transfer {
         let taking_back = external.as_deref() == Some(new_name.as_str());
         store.validate(&new_name)?;
         if !taking_back && store.exists(&new_name) {
-            return Err(Error::with_code(
+            return Err(vm_err!(
                 codes::EXISTS,
-                format!("A VM named \"{new_name}\" is here already – cancel, or import it under another name"),
+                "A VM named \"{new_name}\" is here already – cancel, or import it under another name"
             ));
         }
         if new_identity && c.guest_kind() == GuestKind::Macos && self.runner.is_none() {
-            return Err(Error::with_code(
+            return Err(vm_err!(
                 codes::PREREQUISITE,
-                "omaf-runner is missing – a macOS VM cannot get a new identity without it",
+                "omaf-runner is missing – a macOS VM cannot get a new identity without it"
             ));
         }
         let instances = self.paths.instances();
@@ -385,12 +380,10 @@ impl Transfer {
             if c.guest_kind() == GuestKind::Nixos {
                 let image = self.paths.image_dir(&c.image).join("disk.qcow2");
                 if !image.exists() {
-                    return Err(Error::with_code(
+                    return Err(vm_err!(
                         codes::NOT_FOUND,
-                        format!(
-                            "The VM's image {} is missing – import the image (or a package with it) first",
-                            c.image
-                        ),
+                        "The VM's image {} is missing – import the image (or a package with it) first",
+                        c.image
                     ));
                 }
                 self.rebase(&partial.join("disk.qcow2"), &image, &partial)?;
@@ -428,9 +421,9 @@ impl Transfer {
     /// A macOS VM folder gets a new machine identifier and MAC (omaf-runner clone on the same volume: instant)
     pub(crate) fn new_mac_identity(&self, vm: &Path) -> Result<()> {
         let Some(runner) = &self.runner else {
-            return Err(Error::with_code(
+            return Err(vm_err!(
                 codes::PREREQUISITE,
-                "omaf-runner is missing – a macOS VM cannot get a new identity without it",
+                "omaf-runner is missing – a macOS VM cannot get a new identity without it"
             ));
         };
         if !vm.exists() {
@@ -487,12 +480,12 @@ impl Transfer {
             return Err(vm_err!("The package is named {name}, the VM inside {} – rename it back first", c.name));
         }
         if self.external_vm(&url).is_some() {
-            return Err(Error::with_code(codes::EXISTS, format!("{name} runs from there already")));
+            return Err(vm_err!(codes::EXISTS, "{name} runs from there already"));
         }
         if store.exists(&name) {
-            return Err(Error::with_code(
+            return Err(vm_err!(
                 codes::EXISTS,
-                format!("A VM named \"{name}\" is here already – remove or rename that one first"),
+                "A VM named \"{name}\" is here already – remove or rename that one first"
             ));
         }
         let embedded = url.join(Self::EMBEDDED_IMAGE_NAME);

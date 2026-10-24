@@ -25,7 +25,7 @@ use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
 use crate::cancellation::Cancellation;
-use crate::error::{codes, Error, IoContext, Result};
+use crate::error::{codes, IoContext, Result};
 use crate::image_store::{Image, ImageInfo, ImageStore};
 use crate::ipsw_downloader::KeepAwake;
 use crate::json;
@@ -117,30 +117,26 @@ impl MacImageBuilder {
             .or_else(|| self.newest_base())
             .filter(|b| MacVmBundle::new(b).config().exists())
             .ok_or_else(|| {
-                Error::with_code(
+                vm_err!(
                     codes::PREREQUISITE,
-                    format!(
-                        "No base found (expected {}/mac-base-<os-build>) – create one with: omaf macos install",
-                        paths.bases().display()
-                    ),
+                    "No base found (expected {}/mac-base-<os-build>) – create one with: omaf macos install",
+                    paths.bases().display()
                 )
             })?;
         self.vz.check_entitlement()?;
         if let Some(base_user) = MacBaseInstaller::user_of(&base, &paths.logs()) {
             if base_user != r.user {
-                return Err(Error::with_code(
+                return Err(vm_err!(
                     codes::PREREQUISITE,
-                    format!(
-                        "{} has the guest user {base_user}, but the recipe expects {} (macUser in your recipes' local \
+                    "{} has the guest user {base_user}, but the recipe expects {} (macUser in your recipes' local \
                          settings) – make them match",
-                        file_name(&base),
-                        r.user
-                    ),
+                    file_name(&base),
+                    r.user
                 ));
             }
         }
         let flake_ref = ImageStore::flake_ref(&r.flake);
-        let cancelled = || Error::with_code(codes::CANCELLED, "Build cancelled");
+        let cancelled = || vm_err!(codes::CANCELLED, "Build cancelled");
 
         // 1. System closure on the Mac – fails early, before a VM is started
         log(&format!("Building darwinConfigurations.{} on the Mac", r.recipe));
@@ -459,12 +455,10 @@ impl MacImageBuilder {
             std::thread::sleep(Duration::from_secs(2));
         }
         if !logged_in {
-            return Err(Error::with_code(
+            return Err(vm_err!(
                 codes::AUTH,
-                format!(
-                    "SSH login as {} with your key failed (is your public key in the base? docs/macos-base.md)",
-                    r.user
-                ),
+                "SSH login as {} with your key failed (is your public key in the base? docs/macos-base.md)",
+                r.user
             ));
         }
 
@@ -476,7 +470,7 @@ impl MacImageBuilder {
             Some(password.as_bytes()),
         )?;
         if sudo.status != 0 {
-            return Err(Error::with_code(codes::AUTH, "sudo in the guest failed (wrong password?)"));
+            return Err(vm_err!(codes::AUTH, "sudo in the guest failed (wrong password?)"));
         }
 
         // 4. Nix (same version as on the Mac), the guest user trusted for nix copy

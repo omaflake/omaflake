@@ -3369,6 +3369,8 @@ dependencies = [
  "chrono",
  "hex",
  "libc",
+ "omaflake-i18n",
+ "omaflake-macros",
  "secret-service",
  "security-framework",
  "serde",
@@ -3402,6 +3404,10 @@ dependencies = [
 
 [[package]]
 name = "omaflake-i18n"
+version = "0.3.0"
+
+[[package]]
+name = "omaflake-macros"
 version = "0.3.0"
 
 [[package]]

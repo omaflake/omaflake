@@ -336,9 +336,10 @@ final class AppModel {
         Task { let _: JSONValue? = try? await client.call("doctor.check") }
     }
 
-    /// An error as the app shows it: the core's message
+    /// An error as the app shows it: the core's message, in the app's language when it has a key (api.md §3)
     func describe(_ error: Error) -> String {
-        (error as? APIError)?.message ?? error.localizedDescription
+        guard let e = error as? APIError else { return error.localizedDescription }
+        return e.text.map { t($0) } ?? e.message
     }
 
     // MARK: Actions (docs/api.md §10.3, §10.4)

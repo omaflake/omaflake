@@ -141,7 +141,11 @@ fn goldens() -> Vec<(&'static str, Value)> {
         // Errors: the whole response
         (
             "error.vm-running",
-            protocol::response_err(json!(7), &RpcError::server(Some(codes::VM_RUNNING), "running – stop it first")),
+            // A keyed message: `data.text` next to the kind (api.md §3)
+            protocol::response_err(
+                json!(7),
+                &RpcError::from(crate::vm_err!(codes::VM_RUNNING, "{} is running – shut it down first", "research")),
+            ),
         ),
         (
             "error.network-volume",
@@ -592,6 +596,7 @@ pub(crate) fn job(id: &str, kind: JobKind, state: JobState, result: Option<Value
         log_file: Some(format!("/data/logs/{id}.log")),
         cancellable: !ended,
         error: (state == JobState::Failed).then(|| "it went wrong".into()),
+        error_text: None,
         result,
     }
 }
@@ -705,11 +710,35 @@ fn view_goldens() -> Vec<(&'static str, Value)> {
     let page = |p: &str, params: Value| build(&c, &PageRef { page: p.into(), params }).unwrap();
     let mut failed = ctx();
     failed.jobs[0].state = JobState::Failed;
-    failed.jobs[0].error = Some("nix build failed".into());
+    let why = crate::vm_err!("Recipe \"{}\" is not in your recipes", "omaflake.nixos.dev");
+    failed.jobs[0].error = Some(why.message().into());
+    failed.jobs[0].error_text = Some(why.text().clone());
     let mut mac = ctx();
     mac.recipes.recipes[0].runs_here = true;
     let mut linux = ctx();
     linux.host = super::views::HostOs::Linux;
+    // A Linux host without usable KVM (VMs under TCG) and with a QEMU without 3D (plan B124)
+    let mut linux_tcg = linux.clone();
+    linux_tcg.vms[0].accelerator = Some("tcg".into());
+    {
+        use crate::prerequisites::{PrerequisiteItem as I, PrerequisiteStatus as S, Prerequisites};
+        let dto = |p: &crate::prerequisites::Prerequisite| {
+            let mut d = super::model::prerequisite_dto(p);
+            d.title = super::model::requirement_title_on(p.item, super::views::HostOs::Linux).into();
+            d
+        };
+        let report = linux_tcg.doctor.as_mut().unwrap();
+        let mut qemu = prerequisite(I::Qemu, S::Limited);
+        qemu.title = super::model::requirement_title_on(I::Qemu, super::views::HostOs::Linux).into();
+        report.prerequisites = vec![
+            dto(&Prerequisites::linux_host_item("6.12.1", "x86_64")),
+            dto(&Prerequisites::kvm_item(crate::qemu_host::KvmState::NoAccess, false)),
+            prerequisite(I::Nix, S::Ok),
+            qemu,
+        ];
+        report.macos_preflight.clear();
+        report.build_blockers.macos.clear();
+    }
     let mut no_download = ctx();
     no_download.jobs.retain(|j| j.id != "j4");
     let mut loading = ctx();
@@ -769,6 +798,8 @@ fn view_goldens() -> Vec<(&'static str, Value)> {
         ("activity", page("activity", json!({}))),
         ("home.linux", build(&linux, &PageRef { page: "home".into(), params: json!({}) }).unwrap()),
         ("settings.linux", build(&linux, &PageRef { page: "settings".into(), params: json!({}) }).unwrap()),
+        ("doctor.linux", build(&linux_tcg, &PageRef { page: "doctor".into(), params: json!({}) }).unwrap()),
+        ("vm.linux", build(&linux_tcg, &PageRef { page: "vm".into(), params: json!({"name": "research"}) }).unwrap()),
         ("recipes.loading", build(&loading, &PageRef { page: "recipes".into(), params: json!({}) }).unwrap()),
         ("import", serde_json::to_value(import::page(&import_params, inspection)).unwrap()),
         (

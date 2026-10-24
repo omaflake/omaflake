@@ -55,7 +55,7 @@ struct HomeList: View {
                 ForEach(p.entries) { ActivityRow(entry: $0, model: model) }
             }
         case .error(let e)?:
-            Text(verbatim: e.message).font(.callout).foregroundStyle(.secondary).frame(maxWidth: .infinity, alignment: .leading)
+            Text(verbatim: e.text.map { model.t($0) } ?? e.message).font(.callout).foregroundStyle(.secondary).frame(maxWidth: .infinity, alignment: .leading)
         default:
             ProgressView().controlSize(.small).frame(maxWidth: .infinity).padding(.top, 40)
         }

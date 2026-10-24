@@ -13,7 +13,7 @@ use serde::{Deserialize, Serialize};
 
 use std::time::Duration;
 
-use crate::error::{codes, Error, Result};
+use crate::error::{codes, Result};
 use crate::vm_err;
 
 /// The feed (Swift `UpdateFeed`)
@@ -51,20 +51,21 @@ impl UpdateCheck {
     pub fn newer(current: &str, feed: &str) -> Result<Option<UpdateFeed>> {
         let data = match feed.strip_prefix("file://") {
             // Swift's URLSession reads a file URL without an HTTP status
-            Some(path) => std::fs::read(path)
-                .map_err(|e| Error::with_code(codes::NOT_FOUND, format!("{path}: {}", crate::error::os_text(&e))))?,
+            Some(path) => {
+                std::fs::read(path).map_err(|e| vm_err!(codes::NOT_FOUND, "{path}: {}", crate::error::os_text(&e)))?
+            }
             None => {
                 let agent: ureq::Agent = ureq::Agent::config_builder()
                     .timeout_global(Some(Duration::from_secs(15)))
                     .http_status_as_error(false)
                     .build()
                     .into();
-                let network = |e: ureq::Error| Error::with_code(codes::NETWORK, format!("Update feed: {e}"));
+                let network = |e: ureq::Error| vm_err!(codes::NETWORK, "Update feed: {e}");
                 let mut response =
                     agent.get(feed).header("User-Agent", &format!("omaflake/{current}")).call().map_err(network)?;
                 let status = response.status().as_u16();
                 if status != 200 {
-                    return Err(Error::with_code(codes::NETWORK, format!("Update feed answered {status}")));
+                    return Err(vm_err!(codes::NETWORK, "Update feed answered {status}"));
                 }
                 response.body_mut().read_to_vec().map_err(network)?
             }

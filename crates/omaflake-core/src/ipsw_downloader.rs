@@ -11,6 +11,7 @@
 //! (counts purgeable space); here it is `statvfs` (f_bavail × f_frsize), the plain free space – smaller than what
 //! macOS can make available (OPEN: purgeable space is not counted).
 
+use crate::vm_err;
 use std::fs::OpenOptions;
 use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
@@ -197,7 +198,7 @@ impl IpswDownloader {
 
     fn check_cancelled(&self) -> Result<()> {
         if self.cancellation.is_cancelled() {
-            return Err(Error::with_code(codes::CANCELLED, "Download paused – it continues from here next time"));
+            return Err(vm_err!(codes::CANCELLED, "Download paused – it continues from here next time"));
         }
         Ok(())
     }
@@ -216,7 +217,7 @@ enum Attempt {
 }
 
 fn interrupted(reason: &str) -> Error {
-    Error::with_code(codes::NETWORK, format!("Download interrupted ({reason}) – it continues from here next time"))
+    vm_err!(codes::NETWORK, "Download interrupted ({reason}) – it continues from here next time")
 }
 
 /// `Content-Range: bytes <start>-<end>/<total>` (or `bytes */<total>` with a 416) → (start, total)

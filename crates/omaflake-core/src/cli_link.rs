@@ -9,6 +9,7 @@
 //! functions are not programs other tools can run). When that shell does not answer, the usual folders are searched.
 //! Nothing here runs in a test against the real system: tests build a `CliLink` with fake folders and a fake shell.
 
+use crate::vm_err;
 use std::fs;
 use std::io::Read;
 use std::path::{Path, PathBuf};
@@ -17,7 +18,7 @@ use std::sync::mpsc;
 use std::time::{Duration, Instant};
 
 use crate::builder_maintenance::shell_quote;
-use crate::error::{codes, Error, IoContext, Result};
+use crate::error::{codes, IoContext, Result};
 use crate::platform::{home_dir, is_executable_file, login_shell, user_name};
 use crate::prerequisites::{Prerequisite, PrerequisiteItem, PrerequisiteStatus};
 
@@ -279,12 +280,13 @@ impl CliLink {
     /// elsewhere the link is made directly. Refuses a file that is not omaflake's. Returns what it did, in English.
     pub fn install(&self, as_root: &dyn Fn(&str) -> Result<()>) -> Result<String> {
         let ours = self.ours.as_deref().ok_or_else(|| {
-            Error::with_code(codes::PREREQUISITE, "This omaflake runs without its omaf – there is nothing to link to")
+            vm_err!(codes::PREREQUISITE, "This omaflake runs without its omaf – there is nothing to link to")
         })?;
         if self.state().blocked() {
-            return Err(Error::with_code(
+            return Err(vm_err!(
                 codes::EXISTS,
-                format!("{} is there and is not omaflake's – remove or rename it first", self.link.to_string_lossy()),
+                "{} is there and is not omaflake's – remove or rename it first",
+                self.link.to_string_lossy()
             ));
         }
         if self.mac {
@@ -298,10 +300,7 @@ impl CliLink {
     /// Removes omaflake's link (only a link to an `omaf`)
     pub fn uninstall(&self, as_root: &dyn Fn(&str) -> Result<()>) -> Result<String> {
         if !self.state().installed() {
-            return Err(Error::with_code(
-                codes::NOT_FOUND,
-                format!("{} is not omaflake's link", self.link.to_string_lossy()),
-            ));
+            return Err(vm_err!(codes::NOT_FOUND, "{} is not omaflake's link", self.link.to_string_lossy()));
         }
         if self.mac {
             as_root(&self.uninstall_script())?;
@@ -665,7 +664,7 @@ mod tests {
         cli.install(&root).unwrap();
         assert_eq!(*seen.lock().unwrap(), [script]);
         assert_eq!(cli.state(), LinkState::Absent);
-        let cancelled = |_: &str| -> Result<()> { Err(Error::cancelled()) };
+        let cancelled = |_: &str| -> Result<()> { Err(crate::Error::cancelled()) };
         assert!(cli.install(&cancelled).unwrap_err().is_cancelled());
         // uninstall only with omaflake's link there
         assert!(cli.uninstall(&root).is_err());

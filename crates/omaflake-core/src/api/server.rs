@@ -519,7 +519,7 @@ impl Server {
         work: impl FnOnce(&Backends, &Paths) -> crate::Result<T>,
     ) -> Result<T, RpcError> {
         if !lock(&self.inner.busy).insert(name.to_string()) {
-            return Err(RpcError::server(Some(codes::IN_USE), format!("{name} is busy – an action on it runs")));
+            return Err(RpcError::from(crate::vm_err!(codes::IN_USE, "{name} is busy – an action on it runs")));
         }
         let _guard = BusyGuard { server: self, name: name.to_string() };
         self.poke();

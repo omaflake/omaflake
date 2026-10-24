@@ -134,7 +134,9 @@ extension APIContractTests {
             },
             "build.failed": {
                 guard case .build(let p) = try page("build.failed", as: "build") else { throw Unexpected() }
-                #expect(p.state == .failed && p.outcome?.tone == .danger && p.outcome?.detail?.text == "nix build failed")
+                #expect(p.state == .failed && p.outcome?.tone == .danger && p.outcome?.detail?.text == "Recipe \"omaflake.nixos.dev\" is not in your recipes")
+                // The job's error as a text: the app shows it in its language
+                #expect(p.outcome?.detail?.key == "Recipe \"%@\" is not in your recipes")
                 #expect(p.actions.first?.id == "build" && p.actions.primary?.id == "build")
             },
             "build.macos": {
@@ -180,6 +182,17 @@ extension APIContractTests {
                 #expect(p.dataFolder.actions.map(\.id) == ["default", "move"])
                 #expect(p.dataFolder.actions[1].confirm?.title.args == [.param("target")])
                 #expect(p.guest.fields.first { $0.id == "locale" }?.choices.first?.label.key == "Like this Mac – %@")
+            },
+            "doctor.linux": {
+                guard case .doctor(let p) = try page("doctor.linux", as: "doctor") else { throw Unexpected() }
+                #expect(p.sections.map(\.id) == ["requirements", "nixos"])
+                let kvm = try #require(p.sections[0].items.first { $0.item == .kvm })
+                #expect(kvm.status == .limited && kvm.title.key == "KVM (hardware virtualization)")
+            },
+            "vm.linux": {
+                guard case .vm(let p) = try page("vm.linux", as: "vm") else { throw Unexpected() }
+                let accelerator = try #require(p.row.detail.info.first { $0.label.key == "Accelerator" })
+                #expect(accelerator.value.text == "TCG" && accelerator.note?.key?.hasPrefix("emulated") == true)
             },
             "settings.linux": {
                 guard case .settings(let p) = try page("settings.linux", as: "settings") else { throw Unexpected() }

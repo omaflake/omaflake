@@ -2,9 +2,16 @@
   "error": {
     "code": -32000,
     "data": {
-      "kind": "vm-running"
+      "kind": "vm-running",
+      "text": {
+        "args": [
+          "research"
+        ],
+        "key": "%@ is running – shut it down first",
+        "text": "research is running – shut it down first"
+      }
     },
-    "message": "running – stop it first"
+    "message": "research is running – shut it down first"
   },
   "id": 7,
   "jsonrpc": "2.0"

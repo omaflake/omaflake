@@ -460,7 +460,9 @@ pub fn page(ctx: &Ctx, name: &str, model: &Value) -> Page {
     let mut p = Page::default();
     if let Some(e) = model.get("error") {
         p.title = name.to_string();
-        p.items.push(Item::line("", toned_line(ctx, t(&e["message"]), Tone::Danger, 2)));
+        // The message in the TUI's language when it has a key (api.md §3)
+        let message = e.get("text").filter(|x| x.is_object()).unwrap_or(&e["message"]);
+        p.items.push(Item::line("", toned_line(ctx, t(message), Tone::Danger, 2)));
         return p;
     }
     // Every page has its title (api.md §10.5); the TUI keeps no table of its own

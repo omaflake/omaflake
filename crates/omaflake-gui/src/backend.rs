@@ -25,7 +25,8 @@ pub struct CallError {
 
 impl From<RpcError> for CallError {
     fn from(e: RpcError) -> CallError {
-        CallError { message: e.message }
+        // In the app's language when the message has a key (api.md §3)
+        CallError { message: e.text().map(|t| crate::text::s(&t)).unwrap_or(e.message) }
     }
 }
 

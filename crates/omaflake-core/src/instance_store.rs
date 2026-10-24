@@ -8,7 +8,7 @@ use std::collections::HashSet;
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use crate::error::{codes, Error, IoContext, Result};
+use crate::error::{codes, IoContext, Result};
 use crate::file_format::{write_atomic, UnreadableFile};
 use crate::image_store::{Image, ImageStore};
 use crate::json;
@@ -80,7 +80,7 @@ impl InstanceStore {
     pub fn load(&self, name: &str) -> Result<InstanceConfig> {
         let file = self.paths.instance(name).config();
         let Ok(data) = fs::read(&file) else {
-            return Err(Error::with_code(codes::NOT_FOUND, format!("Instance \"{name}\" does not exist")));
+            return Err(vm_err!(codes::NOT_FOUND, "Instance \"{name}\" does not exist"));
         };
         let (config, migrated) = InstanceConfig::FILE_FORMAT.decode::<InstanceConfig>(&data)?;
         if migrated {
@@ -162,7 +162,7 @@ impl InstanceStore {
             return Err(vm_err!("Not a VM package: {}", package.display()));
         };
         if self.exists(&name) {
-            return Err(Error::with_code(codes::EXISTS, format!("A VM named \"{name}\" exists already")));
+            return Err(vm_err!(codes::EXISTS, "A VM named \"{name}\" exists already"));
         }
         let path = package.to_string_lossy().into_owned();
         let mut s = Settings::load_file(&self.paths.config_file);
@@ -178,7 +178,7 @@ impl InstanceStore {
         let mut s = Settings::load_file(&self.paths.config_file);
         let is_it = |path: &String| Package::name_of(Path::new(path), PackageKind::Vm).as_deref() == Some(name);
         if !s.external_vms.as_ref().is_some_and(|l| l.iter().any(is_it)) {
-            return Err(Error::with_code(codes::NOT_FOUND, format!("{name} is not an external VM")));
+            return Err(vm_err!(codes::NOT_FOUND, "{name} is not an external VM"));
         }
         s.external_vms = s.external_vms.map(|l| l.into_iter().filter(|p| !is_it(p)).collect());
         s.save_file(&self.paths.config_file)?;
@@ -208,7 +208,7 @@ impl InstanceStore {
     ) -> Result<InstanceConfig> {
         self.validate(name)?;
         if self.exists(name) {
-            return Err(Error::with_code(codes::EXISTS, format!("Instance \"{name}\" already exists")));
+            return Err(vm_err!(codes::EXISTS, "Instance \"{name}\" already exists"));
         }
         Self::check_runs_here(image)?;
         let ip = self.paths.instance(name);
@@ -236,12 +236,11 @@ impl InstanceStore {
     pub(crate) fn create_disks(&self, config: &InstanceConfig) -> Result<()> {
         let ip = self.paths.instance(&config.name);
         let Some(backing) = self.backing_image(config) else {
-            return Err(Error::with_code(
+            return Err(vm_err!(
                 codes::NOT_FOUND,
-                format!(
-                    "Base image missing: {} – rebuild it (omaf build {}) or import it",
-                    config.image, config.recipe
-                ),
+                "Base image missing: {} – rebuild it (omaf build {}) or import it",
+                config.image,
+                config.recipe
             ));
         };
         let disk = ip.disk().to_string_lossy().into_owned();
@@ -286,7 +285,7 @@ impl InstanceStore {
     /// metadata; with files in it, or when it is a folder the user chose, it is kept (plan B85).
     pub fn remove(&self, name: &str) -> Result<()> {
         if !self.exists(name) {
-            return Err(Error::with_code(codes::NOT_FOUND, format!("Instance \"{name}\" does not exist")));
+            return Err(vm_err!(codes::NOT_FOUND, "Instance \"{name}\" does not exist"));
         }
         // Swift: `(try? load(name))?.sharePath == nil` – also true when it cannot be read
         let own_share = self.load(name).map(|c| c.share_path.is_none()).unwrap_or(true);

@@ -21,6 +21,10 @@ are collected under *Unreleased*. Releases: [GitHub](https://github.com/omaflake
   `tokens` v1.
 - **`omaf ui` and the Linux app speak German:** with a German locale (or `OMAFLAKE_LANGUAGE=de`) every page, action
   and question is shown in German – the same translations as the macOS app –, dates and sizes too.
+- **German everywhere:** error messages are translated too – in the macOS app, the Linux app and `omaf ui` (a VM that
+  is running, an image or recipe that is missing, a source, a package, a build, the Doctor; common system errors such
+  as "No such file or directory"), and so are the Linux host's Doctor checks and the accelerator line. The API puts the
+  message as a text next to its kind (`data.text`, a failed job's `errorText`). The CLI `omaf` stays English.
 - **NixOS VMs on a Linux host** (issue #2, docs/linux.md): omaflake runs NixOS guests of the host's own architecture
   (x86_64 or aarch64) with QEMU and **KVM**; without a usable `/dev/kvm` it falls back to TCG – emulated, many times
   slower – and says so (`omaf start`, the VM's details, the Doctor). Images build natively with Nix, no Linux builder.
