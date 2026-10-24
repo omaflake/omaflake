@@ -495,6 +495,27 @@ for `omaf ui` and the Linux app, "SSH port in use" right after a stop, the choic
 after a local edit; click tests of B119/B121 (macOS app, Linux app on a real desktop). Then M12 once the Developer ID
 is there.
 
+**Smaller items (2026-10-24, branch `c-small`):**
+
+- ✅ Tokens of private sources on Linux: `source_tokens.rs` – `SourceTokens` over a `SecretStore` trait (Keychain on
+  macOS; Secret Service via the pure-Rust crate `secret-service` 5.2, MIT/Apache-2.0, on Linux; same service/account,
+  same label), fallback `$XDG_CONFIG_HOME/omaflake/tokens.json` (0600, folder 0700, schema `tokens` v1) when no Secret
+  Service answers (no session bus, no service, 5 s/60 s limit on a thread of its own); `sources.add`'s note and
+  `omaf sources add` say "stored unencrypted in … – no keyring". Tests with a fake store and temporary folders; the
+  Linux code compiles (`nix build .#packages.aarch64-linux.omaflake-gui`), **not tried against a real keyring (OPEN)**.
+- ✅ The Linux app avoids a software Vulkan adapter: `crates/omaflake-gui/src/gpu.rs` enumerates the Vulkan adapters
+  before the window opens; all CPUs (lavapipe) and no `WGPU_BACKEND` set → `WGPU_BACKEND=gl` for itself. Not run in a
+  VM yet (OPEN); once confirmed there, the lab recipe's `WGPU_BACKEND = "gl"` can go.
+- ✅ Translations for `omaf ui` and the Linux app: crate `omaflake-i18n` (tables generated from
+  `App/Resources/de.lproj/Localizable.strings` by `scripts/translations.py`, `--check` in CI, an up-to-date test),
+  filled in like `ViewTextRenderer` (positional args, fit check, English fallback); language from `OMAFLAKE_LANGUAGE`,
+  `LC_ALL`, `LC_MESSAGES`, `LANG`; both UIs translate every view text and their own words (German added) and send
+  `language` with `initialize`. Tried: `omaf ui` in German in a pty. Linux app in German not looked at (OPEN).
+- ✅ Two versions of a recipe after a local edit: a name without words means the newest version of its line
+  (`RecipeId::resolve_newest`, `RecipeLibrary::places`); `omaf build`/`export recipe` take it, `omaf new` the newest with
+  an image; asked only between lines; words, IDs and omaflake IDs pick older versions.
+- Open: "SSH port in use" right after a stop (in the Linux-host work), click tests of B119/B121.
+
 **State:** M0–M4, M7, M8 and M10 done; M11 implemented, acceptance by click open; M9 done for `mac-minimal`; macOS bases, images and instances entirely via
 `omaf` (BM27, BM28); M6 dynamic resolution, sound/microphone, clipboard and camera for NixOS done (B35–B37); the app
 is one menu window with navigation and the brand look (B42–B47), admin tasks for the Linux builder (B40), `lab` is
