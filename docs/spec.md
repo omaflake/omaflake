@@ -31,12 +31,12 @@ The app/CLI only takes care of **operations**.
 
 | In scope | Out of scope |
 |---|---|
-| Linux guests: NixOS only, aarch64 | other Linux distributions, Omarchy, Windows, Intel guests |
+| Linux guests: NixOS only, the host's architecture (aarch64 on a Mac; x86_64 or aarch64 on a Linux host, plan B124) | other Linux distributions, Omarchy, Windows, guests of another architecture than the host's |
 | macOS guests (Apple Silicon) via an own runner on Virtualization.framework | tart, UTM, Lume or similar as runtime; Cirrus Labs images as foundation |
-| QEMU with Apple Hypervisor (HVF) for NixOS | Virtualization.framework for Linux guests (no 3D) |
+| QEMU with Apple Hypervisor (HVF) for NixOS; on a Linux host QEMU with KVM (TCG as a slow fallback) | Virtualization.framework for Linux guests (no 3D) |
 | Recipes as Nix modules (NixOS or nix-darwin) | Ansible, Packer, MDM |
 | macOS installation from Apple's IPSW (restore image) | registry/OCI images (`pull`/`push`) |
-| Host: macOS on Apple Silicon only; app only as macOS app | Linux/Windows host, web UI |
+| Host: macOS on Apple silicon (NixOS and macOS guests); Linux on x86_64 or aarch64 (NixOS guests, plan B124); apps: SwiftUI on macOS, iced on Linux, `omaf ui` on both | Windows host, macOS guests on a Linux host, web UI |
 | Local use | multi-user, server operation; distribution only with §11 |
 
 ## 3. Terms
@@ -239,6 +239,25 @@ qemu-system-aarch64 \
 ```
 
 Minimal boot probe with these arguments: `scripts/bootprobe.sh`.
+
+On a **Linux host** (plan B124, `qemu_command::Target`) the same list with the host's machine, accelerator, window and
+sound – everything else (disk, network, share, agent ports, QMP, serial log, pid file) is word for word the same:
+
+| | x86_64 host | aarch64 host |
+|---|---|---|
+| binary | `qemu-system-x86_64` | `qemu-system-aarch64` |
+| `-machine` | `q35` (plus `-vga none`) | `virt,highmem=on,gic-version=host` (KVM) / `gic-version=max` (TCG) |
+| `-accel` / `-cpu` | `kvm` / `host` when `/dev/kvm` opens read-write, else `tcg` / `max` | same |
+| firmware | `edk2-x86_64-code.fd`; the VM's `efivars.fd` is a copy of `edk2-i386-vars.fd` | `edk2-aarch64-code.fd`, blank 64 MiB store |
+| window (2D / 3D) | `virtio-vga` / `virtio-vga-gl`, `-display gtk[,gl=on],zoom-to-fit=on` | `virtio-gpu-pci` / `virtio-gpu-gl-pci`, GTK |
+| sound | `-audiodev pipewire` (socket `$XDG_RUNTIME_DIR/pipewire-0`), else `pa`, else no sound device | same |
+| share | `security_model=mapped-xattr` (the guest-owner patch is the Mac build's) | same |
+
+Firmware: next to the binary (`<prefix>/share/qemu/`, as nixpkgs' `qemu` ships it), else QEMU's firmware descriptors
+(`/etc/qemu/firmware`, `/usr/share/qemu/firmware`; UEFI, split flash, no Secure Boot/SMM). The accelerator a VM was
+started with is kept in its run folder (`accel`) and shown with the VM. No omaf-runner bridge on Linux (agent report,
+clipboard, camera – OPEN), so readiness is SSH there. Verified with `-accel help`, `-machine help`, `-device help`,
+`-display help`, `-audiodev help` of nixpkgs' QEMU 11.1.2 (aarch64-linux).
 
 Network modes from `recipe.toml`:
 

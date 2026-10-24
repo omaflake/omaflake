@@ -75,8 +75,8 @@ nix/local.example/         template for personal settings → nix/local/ (git-ig
 
 ## Next step
 
-State and order: **docs/plan.md §8** (2026-10-24, release 0.3.0): next the Linux host (issue #2), then the smaller items
-listed there; M12 (signing, notarization, helper, macOS camera extension, self-update) once the Developer ID is there. Development base `mac-base-26A434`; develop with the `lab` recipes
+State and order: **docs/plan.md §8** (2026-10-24, release 0.3.0): the Linux host is in (B124, run under TCG); next
+checking it on real x86_64 hardware with KVM, then the smaller items listed there; M12 (signing, notarization, helper, macOS camera extension, self-update) once the Developer ID is there. Development base `mac-base-26A434`; develop with the `lab` recipes
 (developer mode in the app).
 Workflow for macOS settings without a nix-darwin option: set them by hand in a clone, diff
 `defaults export` / container plists against a snapshot, then declare them (plan BM22).
