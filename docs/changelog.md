@@ -13,6 +13,12 @@ are collected under *Unreleased*. Releases: [GitHub](https://github.com/omaflake
 
 ## [Unreleased]
 
+### Fixed
+
+- **3D windows on Linux distributions other than NixOS** (Ubuntu, Fedora, …): QEMU from Nix aborted with "Couldn't find
+  current GLX or EGL context", because Nix programs find no graphics driver there. omaflake now fetches Mesa from
+  QEMU's own Nix packages the first time (a minute, once) and starts the window with it; the VM's QEMU log says so.
+
 ## [0.3.1] – 2026-10-24
 
 omaflake runs on Linux as a host: NixOS VMs with KVM on x86_64 and aarch64 machines, with the same clipboard, camera,

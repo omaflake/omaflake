@@ -35,8 +35,10 @@ use crate::instance_store::InstanceStore;
 use crate::models::{
     DisplayMode, GlBackend, GuestKind, InstanceConfig, NetworkMode, QemuCapabilities, StopResult, VmStatus,
 };
+use crate::nix_gl;
 use crate::paths::{InstancePaths, Paths, Settings};
 use crate::platform::{is_executable_file, resolve_symlinks, Platform};
+use crate::prerequisites::Prerequisites;
 use crate::qemu_command::{Accel, Arch, QemuCommand, Target};
 use crate::qemu_host::{descriptor_dirs, host_accel, linux_audio, Firmware};
 use crate::qmp_client::QmpClient;
@@ -215,6 +217,13 @@ impl QemuRuntime {
         if display != DisplayMode::None && target.ui == crate::qemu_command::Ui::Cocoa && write_dock_icon(&icon) {
             extra_env.push(("OMAFLAKE_DOCK_ICON", &icon_text));
         }
+        // A 3D window of QEMU from Nix outside NixOS: Mesa from QEMU's nixpkgs (plan B127)
+        let gl_env = if display == DisplayMode::Gpu && target.ui == crate::qemu_command::Ui::Gtk {
+            self.nix_mesa_environment(&ip)
+        } else {
+            vec![]
+        };
+        extra_env.extend(gl_env.iter().map(|(k, v)| (k.as_str(), v.as_str())));
         // What an earlier run's agent reported must not count for this one
         let _ = std::fs::remove_file(ip.agent_state());
         let _ = std::fs::write(ip.accel_file(), target.accel.as_str());
@@ -235,6 +244,36 @@ impl QemuRuntime {
             std::thread::sleep(Duration::from_millis(200));
         }
         Err(vm_err!("QEMU does not answer over QMP ({})", ip.qmp_socket().display()))
+    }
+
+    /// QEMU from Nix on a Linux host without /run/opengl-driver (not NixOS): the environment that gives it Mesa from
+    /// its own nixpkgs (`nix_gl`, plan B127), built the first time; empty elsewhere or when none can be had – QEMU
+    /// then starts as before. What happened goes to qemu.log.
+    fn nix_mesa_environment(&self, ip: &InstancePaths) -> Vec<(String, String)> {
+        let qemu = resolve_symlinks(Path::new(&self.qemu));
+        if !cfg!(target_os = "linux") || !nix_gl::needs_mesa(&qemu, Path::new(nix_gl::OPENGL_DRIVER)) {
+            return vec![];
+        }
+        let note = |line: &str| {
+            use std::io::Write;
+            if let Ok(mut log) = std::fs::OpenOptions::new().create(true).append(true).open(ip.qemu_log()) {
+                let _ = writeln!(log, "omaflake: {line}");
+            }
+        };
+        let Some(nix) = Prerequisites::locate_nix(&Settings::load(&self.paths)) else {
+            note("no /run/opengl-driver and no nix to get Mesa with – the 3D window may fail");
+            return vec![];
+        };
+        match nix_gl::mesa_for(&self.paths, &nix, &qemu) {
+            Ok(mesa) => {
+                note(&format!("OpenGL from {} (no /run/opengl-driver on this host)", mesa.display()));
+                nix_gl::environment(&mesa, std::env::var("LD_LIBRARY_PATH").ok().as_deref())
+            }
+            Err(e) => {
+                note(&format!("no Mesa for QEMU's 3D window: {e}"));
+                vec![]
+            }
+        }
     }
 
     /// The host side of the agent, clipboard and camera, detached like QEMU: it ends when the VM closes a port. macOS:

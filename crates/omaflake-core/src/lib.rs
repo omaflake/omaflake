@@ -29,6 +29,7 @@ pub mod mac_base_installer;
 pub mod mac_image_builder;
 pub mod mac_vm;
 pub mod models;
+pub mod nix_gl;
 pub mod omaflake_id;
 pub mod packages;
 pub mod paths;

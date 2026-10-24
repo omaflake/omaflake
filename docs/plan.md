@@ -494,7 +494,7 @@ and a presentation model (B121): the SwiftUI app (menu bar, window or both), the
 (B123). Linux as a host is in (B124: QEMU with KVM/TCG, native image builds, a Doctor for Linux, the "SSH port in use"
 after a stop fixed; run end to end on aarch64 under TCG; **2026-10-24: run on x86_64 with KVM** – 0.3.1 on Ubuntu 26.04.1, a
 Ryzen 9 mini PC, headless: build 300 s, SSH after 15 s, the agent, stop/start; at the GNOME desktop: 3D window only with
-Mesa from Nix in QEMU's environment, no dynamic resolution, clipboard host → guest missing on GNOME, sound and microphone
+Mesa from Nix in QEMU's environment (fixed: B127, omaflake sets it itself), no dynamic resolution, clipboard host → guest missing on GNOME, sound and microphone
 ok; docs/linux.md). Next, in this order: **(1)** Linux host on real hardware –
 x86_64 with KVM on the maintainer's mini PC (docs/linux.md, "Checking on a real machine"), a window with GL and sound on
 a Linux desktop (the agent bridge, clipboard, camera and sound on Linux: B126, tried under TCG); **(2)** smaller items – tokens of private
@@ -506,6 +506,12 @@ is there.
 **Release 0.3.1 (2026-10-24):** the Linux host (B124, B126) and the smaller items below, unsigned, for the maintainer to
 try on different hardware (Macs, the x86_64 mini PC with KVM). CI now builds the Linux package for x86_64-linux and
 runs the Rust tests on Linux (job `linux`); aarch64-linux is still built only in the lab VM.
+
+**B127 (2026-10-24): OpenGL for QEMU from Nix outside NixOS.** `nix_gl.rs`: QEMU in the Nix store and no
+`/run/opengl-driver` → Mesa from QEMU's nixpkgs (the profile manifest's locked URL of the element holding QEMU, else
+`nixpkgs`), `nix build --out-link <data>/cache/gl/<QEMU store name>`, environment for glvnd/DRI/GBM on a `--window`
+start with 3D; a note in qemu.log. Checked on Ubuntu 26.04 (GNOME 50): the window comes up with 3D without anything set
+by hand. Open: the Linux app (wgpu) under Nix outside NixOS – not looked at.
 
 **Smaller items (2026-10-24, branch `c-small`):**
 
