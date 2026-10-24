@@ -80,7 +80,7 @@ same:
 | | How | Needs on the host |
 |---|---|---|
 | **Agent** (readiness, status) | `omaf bridge`, started next to QEMU, answers the guest agent's hello and keeps its report: "VM ready" without SSH, `omaf agent <vm>`, the VM's details | nothing |
-| **Clipboard** (text and PNG, both ways) | Wayland: `wl-paste --watch` / `wl-copy`; X11: `xclip` (the selection's timestamp polled every 0.5 s) | a desktop session (`WAYLAND_DISPLAY` or `DISPLAY`); **wl-clipboard** (Wayland – the compositor must offer the data-control protocol: Hyprland, Sway, KDE Plasma; GNOME OPEN) or **xclip** (X11) |
+| **Clipboard** (text and PNG, both ways) | Wayland: `wl-paste --watch` / `wl-copy`; X11: `xclip` (the selection's timestamp polled every 0.5 s) | a desktop session (`WAYLAND_DISPLAY` or `DISPLAY`); **wl-clipboard** (Wayland – with the data-control protocol: Hyprland, Sway, KDE Plasma) or **xclip** (X11, and GNOME through its Xwayland: Mutter has no data-control, plan B129) – the Nix package brings both |
 | **Camera** (on only while an app in the guest uses it) | V4L2: the first `/dev/video*` that captures (or `OMAFLAKE_CAMERA_DEVICE`), NV12, YUYV or MJPEG, sent as 1280×720 NV12 | a camera you may open – the user at the seat gets an ACL from systemd, else the group `video` |
 | **Sound / microphone** | `-audiodev pipewire` (else `pa`) with Intel HDA: `hda-output`, with the microphone `hda-micro` | PipeWire (or PulseAudio) in the session – its socket in `$XDG_RUNTIME_DIR` |
 
@@ -113,14 +113,13 @@ SSH (no window):
 | stop, then start straight away | stop 3 s, start again 15 s to SSH – no "SSH port in use" |
 | `OMAFLAKE_ACCEL=tcg` | SSH after 46 s |
 | `omaf start t1 --window` (GNOME 50, Wayland) | 0.3.1: QEMU from Nix aborts ("Couldn't find current GLX or EGL context") – Nix programs find no GL driver outside NixOS. Since B127 omaflake gives QEMU Mesa from QEMU's own nixpkgs (below): 3D window, Hyprland on virgl, German keyboard |
-| resizing the window | the guest stays at 640×480; `zoom-to-fit=on` scales it (black bars) – no dynamic resolution on Linux yet |
-| clipboard | guest → host works; host → guest does not: GNOME 50 has no data-control protocol, `wl-paste --watch` refuses ("requires … data-control"); a single `wl-paste` works there |
+| resizing the window | 0.3.1: the guest stays at 640×480 (black bars) – QEMU offers the window's size as the preferred mode, but Hyprland 0.56 keeps a connected output's mode. Since B128 the guest follows (`omaflake-follow-display`): 1052×619 after a drag |
+| clipboard | 0.3.1: host → guest missing – GNOME 50 has no data-control protocol, `wl-paste --watch` ends at once. Since B129 the bridge falls back to xclip through Xwayland (Mutter's cookie when XAUTHORITY is unset; no TIMESTAMP there, so the content is compared every 0.5 s): both ways by hand |
 | sound, microphone (no hardware: a null sink with a 440 Hz tone as the mic, the HDMI sink's monitor recorded) | the guest records the 440 Hz tone; its 1000 Hz tone reaches the host sink |
 | camera (`OMAFLAKE_CAMERA_TEST_PATTERN=1`) | the bridge streams as long as an app holds `/dev/video42` and the guest's agent receives the frames (18 s CPU over a 7 min mpv run), but `/dev/video42` shows only a black picture and mpv's clock stays at 0 – the frames do not reach v4l2loopback (OPEN) |
 
 Found there (all OPEN): the Linux package brings no image flake (`omaf config --flake
-'github:omaflake/omaflake/<tag>?dir=nix'` until it does); no dynamic resolution in the GTK window; host → guest
-clipboard on GNOME (poll `wl-paste` when `--watch` is refused); the camera's frames do not reach `/dev/video42` in the
+'github:omaflake/omaflake/<tag>?dir=nix'` until it does); the camera's frames do not reach `/dev/video42` in the
 guest; with `OMAFLAKE_ACCEL=tcg` the start line says "no usable /dev/kvm" although KVM is there; `omaf set --help`
 speaks of "the Mac" on Linux. Still to run: the app, a private source's token in the keyring.
 

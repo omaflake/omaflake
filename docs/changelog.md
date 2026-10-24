@@ -18,6 +18,12 @@ are collected under *Unreleased*. Releases: [GitHub](https://github.com/omaflake
 - **3D windows on Linux distributions other than NixOS** (Ubuntu, Fedora, …): QEMU from Nix aborted with "Couldn't find
   current GLX or EGL context", because Nix programs find no graphics driver there. omaflake now fetches Mesa from
   QEMU's own Nix packages the first time (a minute, once) and starts the window with it; the VM's QEMU log says so.
+- **A NixOS VM's window resizes the guest again:** after dragging the window the guest kept its first resolution (black
+  bars) – Hyprland keeps an output's mode while it stays connected. The images now follow the new size themselves
+  (rebuild an image to get it).
+- **Clipboard from a GNOME host into the VM:** GNOME offers no way to watch its clipboard, so nothing copied there
+  reached the VM. omaflake now uses GNOME's Xwayland for it (xclip). The Nix package brings wl-clipboard and xclip for
+  `omaf` too.
 
 ## [0.3.1] – 2026-10-24
 

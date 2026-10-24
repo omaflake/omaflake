@@ -7,8 +7,9 @@
 //! The clipboard itself is a `ClipboardBackend`, chosen once by `detect`:
 //! - **Wayland** (`$WAYLAND_DISPLAY`): `wl-paste --watch` reports each change, `wl-paste`/`wl-copy` read and write
 //!   (wl-clipboard, what the guest agent's session uses too). The watch needs the compositor's data-control protocol
-//!   (wlroots' `zwlr_data_control` or `ext_data_control`: Hyprland, Sway, KDE Plasma, …; GNOME's Mutter has neither –
-//!   OPEN whether a GNOME host gets a working watch).
+//!   (wlroots' `zwlr_data_control` or `ext_data_control`: Hyprland, Sway, KDE Plasma, …). GNOME's Mutter has neither
+//!   – `wl-paste --watch` ends at once there (GNOME 50) – but mirrors the clipboard to Xwayland: then xclip as below,
+//!   with Mutter's Xwayland cookie when XAUTHORITY is not set (plan B129).
 //! - **X11** (`$DISPLAY`, and Wayland sessions without wl-clipboard through Xwayland): `xclip`; X11 has no change
 //!   event without XFixes, so the selection's TIMESTAMP is polled every 0.5 s and the content read when it changed.
 //!
@@ -17,6 +18,7 @@
 use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher};
 use std::io::{BufRead, BufReader, Read, Write};
+use std::path::{Path, PathBuf};
 use std::process::{Child, ChildStdout, Command, Stdio};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
@@ -145,7 +147,12 @@ pub fn detect() -> Result<Arc<dyn ClipboardBackend>, String> {
         _ => {}
     }
     if wayland && has("wl-paste") && has("wl-copy") {
-        return Wayland::start().map(|b| Arc::new(b) as _);
+        match Wayland::start() {
+            Ok(b) => return Ok(Arc::new(b)),
+            // GNOME's Mutter has no data-control protocol, but mirrors the clipboard to Xwayland (plan B129)
+            Err(e) if x11 && has("xclip") => return Ok(Arc::new(X11::through_xwayland(&e))),
+            Err(e) => return Err(e),
+        }
     }
     if x11 && has("xclip") {
         return Ok(Arc::new(X11::new()));
@@ -242,6 +249,10 @@ pub struct Wayland {
 }
 
 impl Wayland {
+    /// How long a watch that the compositor refuses takes at most to end (wl-paste exits at once then)
+    pub const REFUSAL: Duration = Duration::from_millis(500);
+
+    /// Starts the watch; Err when wl-paste cannot run or ends within `REFUSAL` (no data-control protocol)
     pub fn start() -> Result<Wayland, String> {
         let mut child = tied_to_parent(Command::new("wl-paste").args(["--watch", "echo", "changed"]))
             .stdin(Stdio::null())
@@ -249,6 +260,13 @@ impl Wayland {
             .stderr(Stdio::null())
             .spawn()
             .map_err(|e| format!("wl-paste: {e}"))?;
+        let deadline = Instant::now() + Self::REFUSAL;
+        while Instant::now() < deadline {
+            if let Ok(Some(_)) = child.try_wait() {
+                return Err("wl-paste --watch ended: the compositor offers no data-control protocol".into());
+            }
+            std::thread::sleep(Duration::from_millis(20));
+        }
         let stdout = child.stdout.take().ok_or("wl-paste: no output")?;
         Ok(Wayland { watch: Mutex::new((child, BufReader::new(stdout))) })
     }
@@ -288,21 +306,53 @@ impl ClipboardBackend for Wayland {
 
 // MARK: X11
 
-/// xclip on the CLIPBOARD selection; changes by polling the selection's TIMESTAMP
+/// xclip on the CLIPBOARD selection; changes by polling the selection's TIMESTAMP (an owner without one – GNOME's
+/// Xwayland lists it but does not serve it – is read and compared instead)
 pub struct X11 {
     last_stamp: Mutex<Option<Vec<u8>>>,
+    /// Why X11 serves a Wayland session (for the log); None in an X11 session
+    note: Option<String>,
+    /// The Xwayland cookie GNOME's Mutter writes, when the session gave none in XAUTHORITY
+    xauthority: Option<PathBuf>,
 }
 
 impl X11 {
     pub const POLL: Duration = Duration::from_millis(500);
 
     pub fn new() -> X11 {
-        X11 { last_stamp: Mutex::new(None) }
+        X11 { last_stamp: Mutex::new(None), note: None, xauthority: None }
     }
 
-    fn xclip_out(target: &str) -> Option<Vec<u8>> {
-        output(Command::new("xclip").args(["-selection", "clipboard", "-o", "-t", target]), Duration::from_secs(5))
+    /// The clipboard of a Wayland session through its Xwayland, because `why` (no data-control protocol)
+    pub fn through_xwayland(why: &str) -> X11 {
+        let runtime = std::env::var_os("XDG_RUNTIME_DIR").map(PathBuf::from);
+        let xauthority = match std::env::var_os("XAUTHORITY") {
+            Some(v) if !v.is_empty() => None,
+            _ => runtime.as_deref().and_then(mutter_xauthority),
+        };
+        X11 { last_stamp: Mutex::new(None), note: Some(why.to_string()), xauthority }
     }
+
+    fn xclip(&self) -> Command {
+        let mut cmd = Command::new("xclip");
+        if let Some(auth) = &self.xauthority {
+            cmd.env("XAUTHORITY", auth);
+        }
+        cmd
+    }
+
+    fn xclip_out(&self, target: &str) -> Option<Vec<u8>> {
+        output(self.xclip().args(["-selection", "clipboard", "-o", "-t", target]), Duration::from_secs(5))
+    }
+}
+
+/// The cookie Mutter writes for its Xwayland: `<runtime>/.mutter-Xwaylandauth.<random>`
+pub fn mutter_xauthority(runtime: &Path) -> Option<PathBuf> {
+    std::fs::read_dir(runtime)
+        .ok()?
+        .flatten()
+        .map(|e| e.path())
+        .find(|p| p.file_name().is_some_and(|n| n.to_string_lossy().starts_with(".mutter-Xwaylandauth.")))
 }
 
 impl Default for X11 {
@@ -313,14 +363,17 @@ impl Default for X11 {
 
 impl ClipboardBackend for X11 {
     fn describe(&self) -> String {
-        "X11 (xclip)".into()
+        match &self.note {
+            Some(why) => format!("Xwayland (xclip) – {why}"),
+            None => "X11 (xclip)".into(),
+        }
     }
 
     fn wait_change(&self) -> bool {
         loop {
             std::thread::sleep(Self::POLL);
             // The owner's time of taking the selection (ICCCM); an owner without TIMESTAMP: read and compare instead
-            let Some(stamp) = Self::xclip_out("TIMESTAMP").filter(|s| !s.is_empty()) else { return true };
+            let Some(stamp) = self.xclip_out("TIMESTAMP").filter(|s| !s.is_empty()) else { return true };
             let mut last = self.last_stamp.lock().unwrap_or_else(|e| e.into_inner());
             if last.as_ref() != Some(&stamp) {
                 *last = Some(stamp);
@@ -330,13 +383,13 @@ impl ClipboardBackend for X11 {
     }
 
     fn read(&self) -> Option<(String, Vec<u8>)> {
-        let targets = Self::xclip_out("TARGETS")?;
+        let targets = self.xclip_out("TARGETS")?;
         let targets = String::from_utf8_lossy(&targets);
         if targets.lines().any(|t| t == PNG) {
-            return content(PNG, Self::xclip_out(PNG)?);
+            return content(PNG, self.xclip_out(PNG)?);
         }
         if targets.lines().any(is_text_type) {
-            return content(TEXT, Self::xclip_out("UTF8_STRING")?);
+            return content(TEXT, self.xclip_out("UTF8_STRING")?);
         }
         None
     }
@@ -344,7 +397,7 @@ impl ClipboardBackend for X11 {
     fn write(&self, mime: &str, data: &[u8]) -> bool {
         let target = if mime == PNG { PNG } else { "UTF8_STRING" };
         // xclip forks to own the selection and returns once it has read the input
-        feed(Command::new("xclip").args(["-selection", "clipboard", "-i", "-t", target]), data, Duration::from_secs(5))
+        feed(self.xclip().args(["-selection", "clipboard", "-i", "-t", target]), data, Duration::from_secs(5))
     }
 }
 
@@ -395,6 +448,23 @@ pub(crate) mod tests {
             self.notify.lock().unwrap().send(()).unwrap();
             true
         }
+    }
+
+    #[test]
+    fn mutter_cookie_in_the_runtime_folder() {
+        let dir = tempfile::tempdir().unwrap();
+        assert_eq!(mutter_xauthority(dir.path()), None);
+        std::fs::write(dir.path().join("pipewire-0"), b"").unwrap();
+        std::fs::write(dir.path().join(".mutter-Xwaylandauth.5GXIX3"), b"cookie").unwrap();
+        assert_eq!(mutter_xauthority(dir.path()), Some(dir.path().join(".mutter-Xwaylandauth.5GXIX3")));
+        assert_eq!(mutter_xauthority(&dir.path().join("missing")), None);
+    }
+
+    #[test]
+    fn xwayland_says_why_in_the_log() {
+        let b = X11::through_xwayland("no data-control");
+        assert_eq!(b.describe(), "Xwayland (xclip) – no data-control");
+        assert_eq!(X11::new().describe(), "X11 (xclip)");
     }
 
     #[test]

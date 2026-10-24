@@ -13,6 +13,35 @@ let
     red = "f38ba8"; peach = "fab387"; yellow = "f9e2af";
   };
 
+  # The VM's window changes size → QEMU offers that size as the output's preferred mode (virtio-gpu, a DRM change
+  # event), but Hyprland keeps the mode of an output that stays connected ("Skipping connector …", aquamarine with
+  # Hyprland 0.56; plan B128). This follows the preferred mode of every connected output.
+  followDisplay = pkgs.writeShellApplication {
+    name = "omaflake-follow-display";
+    runtimeInputs = [ pkgs.coreutils pkgs.jq pkgs.systemd osConfig.programs.hyprland.package ];
+    text = ''
+      apply() {
+        for c in /sys/class/drm/card*-*; do
+          [ "$(cat "$c/status" 2>/dev/null)" = connected ] || continue
+          name=''${c##*/}
+          output=''${name#card*-}
+          want=$(head -n 1 "$c/modes" 2>/dev/null || true)
+          [ -n "$want" ] || continue
+          have=$(hyprctl -j monitors | jq -r --arg o "$output" '.[] | select(.name == $o) | "\(.width)x\(.height)"')
+          if [ -n "$have" ] && [ "$have" != "$want" ]; then
+            hyprctl eval "hl.monitor({ output = \"$output\", mode = \"$want\", position = \"auto\", scale = \"auto\" })" >/dev/null
+          fi
+        done
+      }
+      apply
+      udevadm monitor --udev --subsystem-match=drm | while read -r line; do
+        case "$line" in
+          *change*) sleep 0.3; apply ;;
+        esac
+      done
+    '';
+  };
+
 in
 {
   imports = [ ./neovim.nix ./emacs.nix ];
@@ -85,6 +114,7 @@ in
       hl.on("hyprland.start", function()
         hl.exec_cmd("waybar")
         hl.exec_cmd("mako")
+        hl.exec_cmd("${followDisplay}/bin/omaflake-follow-display")
         hl.exec_cmd("swaybg -c '#${c.base}'") -- or: swaybg -i ~/wallpaper.png -m fill
       end)
 
