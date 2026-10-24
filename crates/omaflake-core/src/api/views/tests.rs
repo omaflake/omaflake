@@ -851,7 +851,10 @@ fn linux_hosts_get_their_own_words() {
     let settings = get(&c, "settings", json!({}));
     let locale = action(&settings["guest"]["fields"], "locale");
     assert_eq!(locale["choices"][0]["label"]["key"], "Like this computer – %@");
-    assert_eq!(settings["sources"]["rows"][1]["badges"][0]["help"]["key"], "Private – token in the keyring");
+    assert_eq!(
+        settings["sources"]["rows"][1]["badges"][0]["help"]["key"],
+        "Private – token stored (keyring or tokens.json)"
+    );
     let images = get(&c, "images", json!({}));
     assert_eq!(images["rows"][0]["actions"][0]["label"]["key"], "Show in File Manager");
     let recipes = get(&c, "recipes", json!({"filter": {"otherSystems": true}}));

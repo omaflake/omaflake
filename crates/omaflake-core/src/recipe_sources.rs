@@ -47,7 +47,7 @@ pub enum RecipeSourceKind {
     Folder,
 }
 
-/// Where recipes come from. Kept in config.json (`sources`); a token for a private repository lives in the Keychain.
+/// Where recipes come from. Kept in config.json (`sources`); a token for a private repository lives in the Keychain (Linux: the keyring, else a 0600 file – `SourceTokens`).
 /// JSON keys: kind, location, branch, private, enabled (None fields left out).
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct RecipeSource {
@@ -57,7 +57,7 @@ pub struct RecipeSource {
     /// github: the branch (None = main)
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub branch: Option<String>,
-    /// github: the repository is private – requests carry the token from the Keychain
+    /// github: the repository is private – requests carry the token from the Keychain/keyring (`SourceTokens`)
     #[serde(rename = "private", default, skip_serializing_if = "Option::is_none")]
     pub is_private: Option<bool>,
     /// None = on
@@ -332,74 +332,8 @@ fn is_blank(c: char) -> bool {
 
 // MARK: Tokens
 
-/// Fine-grained GitHub tokens for private sources, in the login Keychain – never in config.json or a file.
-/// macOS: `security-framework` (generic password, service `SERVICE`, account = `RecipeSource::id`). Elsewhere:
-/// no token, and storing one is `Error::unsupported` (OPEN: Secret Service on Linux).
-pub enum SourceTokens {}
-
-impl SourceTokens {
-    pub const SERVICE: &'static str = "app.omaflake.recipe-source";
-
-    pub fn token(source: &RecipeSource) -> Option<String> {
-        #[cfg(target_os = "macos")]
-        {
-            let data = security_framework::passwords::get_generic_password(Self::SERVICE, &source.id()).ok()?;
-            String::from_utf8(data).ok()
-        }
-        #[cfg(not(target_os = "macos"))]
-        {
-            let _ = source;
-            None
-        }
-    }
-
-    /// A token is stored for this source. Reads only the item's attributes, not the secret: no Keychain prompt, also
-    /// for an item another program (an older omaflake) wrote.
-    pub fn has(source: &RecipeSource) -> bool {
-        #[cfg(target_os = "macos")]
-        {
-            use security_framework::item::{ItemClass, ItemSearchOptions, Limit};
-            ItemSearchOptions::new()
-                .class(ItemClass::generic_password())
-                .service(Self::SERVICE)
-                .account(&source.id())
-                .load_attributes(true)
-                .limit(Limit::Max(1))
-                .search()
-                .is_ok_and(|found| !found.is_empty())
-        }
-        #[cfg(not(target_os = "macos"))]
-        {
-            let _ = source;
-            false
-        }
-    }
-
-    /// Stores the token (None or "" removes it); the Keychain item's label is "omaflake recipe source <display name>"
-    pub fn set(token: Option<&str>, source: &RecipeSource) -> Result<()> {
-        #[cfg(target_os = "macos")]
-        {
-            use security_framework::passwords::{
-                delete_generic_password, set_generic_password_options, PasswordOptions,
-            };
-            let account = source.id();
-            let _ = delete_generic_password(Self::SERVICE, &account);
-            let Some(token) = token.filter(|t| !t.is_empty()) else { return Ok(()) };
-            let mut options = PasswordOptions::new_generic_password(Self::SERVICE, &account);
-            options.set_label(&format!("omaflake recipe source {}", source.display_name()));
-            set_generic_password_options(token.as_bytes(), options)
-                .map_err(|e| vm_err!("Cannot store the token in the Keychain ({})", e.code()))
-        }
-        #[cfg(not(target_os = "macos"))]
-        {
-            let _ = source;
-            match token.filter(|t| !t.is_empty()) {
-                None => Ok(()),
-                Some(_) => Err(Error::unsupported("Storing a token (system keychain)")),
-            }
-        }
-    }
-}
+/// Tokens of private sources: the Keychain on macOS, the Secret Service or a 0600 file on Linux (source_tokens.rs)
+pub use crate::source_tokens::SourceTokens;
 
 // MARK: Catalog
 
@@ -592,7 +526,7 @@ impl SourceClient {
     /// The most a response may have (a catalog; recipe files are at most `RecipeLibrary::MAX_FILE`)
     const MAX_RESPONSE: u64 = 64 * 1024 * 1024;
 
-    /// `token` None = from the Keychain for a private repository
+    /// `token` None = the stored one (`SourceTokens`) for a private repository
     pub fn new(source: RecipeSource, token: Option<String>) -> Self {
         let token = token.or_else(|| if source.is_private_repository() { SourceTokens::token(&source) } else { None });
         SourceClient { source, token }
@@ -2248,6 +2182,7 @@ mod tests {
             RecipeLibrary::FILE_FORMAT,
             crate::mac_vm::MacVmConfig::FILE_FORMAT,
             Manifest::FILE_FORMAT,
+            crate::source_tokens::TokenFile::FILE_FORMAT,
         ];
         let mut urls: Vec<String> =
             formats.iter().flat_map(|f| (1..=f.current()).map(|v| FileFormat::schema_for(f.type_, v))).collect();
@@ -2272,6 +2207,7 @@ mod tests {
             crate::json::now(),
         );
         matches(&ImageInfo::FILE_FORMAT.encode(&info).unwrap());
+        matches(&crate::source_tokens::sample_file());
         let mut c = crate::models::tests::config("t1");
         c.identity = Some("a-b-c".into());
         c.share_path = Some("/s".into());

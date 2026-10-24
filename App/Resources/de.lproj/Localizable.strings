@@ -620,10 +620,10 @@
 "omaflake ships no recipes; it reads them from these sources. Recipes from other sources than omaflake/recipes are not reviewed by the omaflake team – their Nix code runs on this computer when you build them." = "omaflake bringt keine Rezepte mit, sondern liest sie aus diesen Quellen. Rezepte aus anderen Quellen als omaflake/recipes prüft das omaflake-Team nicht – ihr Nix-Code läuft auf diesem Computer, wenn du sie baust.";
 "Only while omaflake is not in front: VM ready, image built or failed, VM ended." = "Nur wenn omaflake nicht vorne ist: VM startklar, Vorlage fertig oder fehlgeschlagen, VM beendet.";
 "By default omaflake keeps everything in ~/.omaflake." = "Standardmäßig liegt alles in ~/.omaflake.";
-"Private – token in the keyring" = "Privat – Token im Schlüsselbund";
-"Private – no token in the keyring" = "Privat – kein Token im Schlüsselbund";
-"Recipes installed from it stay until you remove them; its token goes from the keyring." = "Daraus installierte Rezepte bleiben, bis du sie entfernst; ihr Token wird aus dem Schlüsselbund gelöscht.";
-"The token is checked against the repository and kept in your keyring – never in a file." = "Der Token wird am Repository geprüft und in deinem Schlüsselbund abgelegt – nie in einer Datei.";
+"Private – token stored (keyring or tokens.json)" = "Privat – Token abgelegt (Schlüsselbund oder tokens.json)";
+"Private – no token stored" = "Privat – kein Token abgelegt";
+"Recipes installed from it stay until you remove them; its token goes from the keyring or tokens.json." = "Daraus installierte Rezepte bleiben, bis du sie entfernst; ihr Token wird aus dem Schlüsselbund bzw. tokens.json gelöscht.";
+"The token is checked against the repository and kept in your keyring – without one (a server, an SSH session) unencrypted in a file only you can read." = "Der Token wird am Repository geprüft und in deinem Schlüsselbund abgelegt – ohne einen (Server, SSH-Sitzung) unverschlüsselt in einer Datei, die nur du lesen kannst.";
 
 /* The omaf command (plan B122) */
 "omaf command (optional)" = "omaf-Befehl (optional)";

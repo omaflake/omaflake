@@ -39,6 +39,7 @@ pub mod qmp_client;
 pub mod recipe_sources;
 pub mod shell;
 pub mod sockets;
+pub mod source_tokens;
 pub mod spawn;
 pub mod ssh_command;
 pub mod transfer;

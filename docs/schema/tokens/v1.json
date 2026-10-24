@@ -1,0 +1,23 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://omaflake.dev/schema/tokens/v1.json",
+  "title": "omaflake recipe source tokens",
+  "description": "$XDG_CONFIG_HOME/omaflake/tokens.json (Linux, mode 0600): tokens of private recipe sources by source ID, unencrypted – only where no Secret Service (keyring) is reachable.",
+  "type": "object",
+  "properties": {
+    "$schema": {
+      "const": "https://omaflake.dev/schema/tokens/v1.json"
+    },
+    "tokens": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "string"
+      }
+    }
+  },
+  "required": [
+    "$schema",
+    "tokens"
+  ],
+  "additionalProperties": false
+}

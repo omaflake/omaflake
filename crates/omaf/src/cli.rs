@@ -246,7 +246,7 @@ pub enum SourcesCommand {
                  catalog.json, or a folder."
     )]
     Add(SourcesAdd),
-    #[command(about = "Remove a source (its token goes from the Keychain; installed recipes stay).")]
+    #[command(about = "Remove a source (its token goes from the Keychain or keyring; installed recipes stay).")]
     Remove(SourceRef),
     #[command(about = "Switch a source on.")]
     Enable(SourceRef),

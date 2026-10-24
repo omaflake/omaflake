@@ -106,10 +106,11 @@ fn source_row(ctx: &Ctx, s: &SourceDto, first: bool) -> SourceRow {
     }
     if s.private {
         badges.push(if s.has_token {
-            let help = ctx.on_host("Private – token in the Keychain", "Private – token in the keyring");
+            let help =
+                ctx.on_host("Private – token in the Keychain", "Private – token stored (keyring or tokens.json)");
             Badge::new("private", "lock", Text::new(help), Tone::Normal)
         } else {
-            let help = ctx.on_host("Private – no token in the Keychain", "Private – no token in the keyring");
+            let help = ctx.on_host("Private – no token in the Keychain", "Private – no token stored");
             Badge::new("private", "lock-warning", Text::new(help), Tone::Warning)
         });
     }
@@ -149,7 +150,7 @@ fn source_row(ctx: &Ctx, s: &SourceDto, first: bool) -> SourceRow {
                     tf!("Remove the source “%@”?", &s.display_name),
                     Text::new(ctx.on_host(
                         "Recipes installed from it stay until you remove them; its token goes from the Keychain.",
-                        "Recipes installed from it stay until you remove them; its token goes from the keyring.",
+                        "Recipes installed from it stay until you remove them; its token goes from the keyring or tokens.json.",
                     )),
                 )
                 .button("Remove")
@@ -223,7 +224,7 @@ pub(crate) fn page(ctx: &Ctx, answer: &SettingsAnswer, p: &SettingsParams) -> Se
         );
         token.prompt = Some(Text::new(ctx.on_host(
             "The token is checked against the repository and kept in your Keychain – never in a file.",
-            "The token is checked against the repository and kept in your keyring – never in a file.",
+            "The token is checked against the repository and kept in your keyring – without one (a server, an SSH session) unencrypted in a file only you can read.",
         )));
         add = add.ask(token);
     }

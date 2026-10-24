@@ -1011,9 +1011,12 @@ impl Server {
         } else {
             None
         };
-        let note = SourceClient::new(s.clone(), token.clone()).verify().map_err(err)?;
+        let mut note = SourceClient::new(s.clone(), token.clone()).verify().map_err(err)?;
         if let Some(token) = &token {
-            SourceTokens::set(Some(token), &s).map_err(err)?;
+            // Without a keyring (Linux server, SSH session) the token is in a 0600 file – the note says so
+            if let Some(stored) = SourceTokens::set(Some(token), &s).map_err(err)?.and_then(|p| p.note()) {
+                note = format!("{note} – {stored}");
+            }
         }
         if p.first {
             list.insert(0, s.clone());

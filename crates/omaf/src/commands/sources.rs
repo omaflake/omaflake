@@ -43,7 +43,7 @@ pub fn list() -> Outcome {
             notes.push("off".into());
         }
         if s.is_private_repository() {
-            notes.push(if SourceTokens::token(s).is_none() { "private, no token" } else { "private" }.into());
+            notes.push(if !SourceTokens::has(s) { "private, no token" } else { "private" }.into());
         }
         if s.is_official() {
             notes.push("official".into());
@@ -85,7 +85,10 @@ pub fn add(a: &cli::SourcesAdd) -> Outcome {
     // Checked before it is kept: the repository (with the token), the catalog, or the folder's recipes
     println!("{}: {}", s.display_name(), SourceClient::new(s.clone(), token.clone()).verify()?);
     if let Some(token) = &token {
-        SourceTokens::set(Some(token), &s)?;
+        // Without a keyring (Linux server, SSH session): a 0600 file, and the user is told
+        if let Some(note) = SourceTokens::set(Some(token), &s)?.and_then(|p| p.note()) {
+            println!("{note}");
+        }
     }
     if a.first {
         list.insert(0, s);

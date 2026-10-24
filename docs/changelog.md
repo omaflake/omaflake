@@ -13,7 +13,17 @@ are collected under *Unreleased*. Releases: [GitHub](https://github.com/omaflake
 
 ## [Unreleased]
 
+### Added
+
+- **Private recipe sources on Linux:** the token of a private GitHub source is kept in the desktop's keyring (Secret
+  Service: GNOME Keyring, KWallet, KeePassXC). Without one – a server, an SSH session – it goes to
+  `~/.config/omaflake/tokens.json` (readable only by you, unencrypted), and adding the source says so. File schema
+  `tokens` v1.
+
 ### Changed
+
+- **The Linux app avoids a software GPU:** when Vulkan offers only Mesa's software rasterizer (lavapipe – e.g. in a VM
+  with virgl), the app draws with OpenGL instead; `WGPU_BACKEND` is no longer needed for that.
 
 - **A recipe name means the newest version:** after you change a recipe in a local folder, `omaf build lab` (and
   `omaf new`, `omaf export recipe`) takes the recipe as it is in the folder instead of asking between it and the copy

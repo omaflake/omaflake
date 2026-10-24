@@ -503,8 +503,8 @@
               },
               "destructive": true,
               "text": {
-                "key": "Recipes installed from it stay until you remove them; its token goes from the keyring.",
-                "text": "Recipes installed from it stay until you remove them; its token goes from the keyring."
+                "key": "Recipes installed from it stay until you remove them; its token goes from the keyring or tokens.json.",
+                "text": "Recipes installed from it stay until you remove them; its token goes from the keyring or tokens.json."
               },
               "title": {
                 "args": [
@@ -600,8 +600,8 @@
               },
               "destructive": true,
               "text": {
-                "key": "Recipes installed from it stay until you remove them; its token goes from the keyring.",
-                "text": "Recipes installed from it stay until you remove them; its token goes from the keyring."
+                "key": "Recipes installed from it stay until you remove them; its token goes from the keyring or tokens.json.",
+                "text": "Recipes installed from it stay until you remove them; its token goes from the keyring or tokens.json."
               },
               "title": {
                 "args": [
@@ -628,8 +628,8 @@
         "badges": [
           {
             "help": {
-              "key": "Private – token in the keyring",
-              "text": "Private – token in the keyring"
+              "key": "Private – token stored (keyring or tokens.json)",
+              "text": "Private – token stored (keyring or tokens.json)"
             },
             "icon": "lock",
             "id": "private",
