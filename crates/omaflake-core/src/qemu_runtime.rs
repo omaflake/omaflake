@@ -647,7 +647,7 @@ mod tests {
     #[test]
     fn mac_target_is_fixed() {
         let (_t, p) = temp_paths();
-        let rt = QemuRuntime::new(p, "qemu-system-aarch64", "/fw.fd");
+        let rt = QemuRuntime::new(p, "/nonexistent/qemu-system-aarch64", "/fw.fd");
         if cfg!(target_os = "macos") {
             assert_eq!(rt.target("aarch64-linux"), Target::MAC);
         } else {

@@ -507,7 +507,7 @@ pub(crate) fn prerequisite(item: PrerequisiteItem, status: PrerequisiteStatus) -
     PrerequisiteDto {
         item,
         status,
-        title: super::model::requirement_title(item).into(),
+        title: super::model::requirement_title_on(item, super::views::HostOs::Macos).into(),
         required: !matches!(item, PrerequisiteItem::Git | PrerequisiteItem::Cli),
         detail: "/opt/homebrew/bin/qemu-system-aarch64".into(),
         hint: "Install QEMU".into(),

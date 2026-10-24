@@ -525,7 +525,7 @@ pub(crate) fn mac_base_page(ctx: &Ctx, p: &MacBaseParams) -> MacBasePage {
     let ipsw = p.values.ipsw.clone().filter(|s| !s.is_empty());
     let base = base_item.and_then(|b| match b.status {
         S::Ok => Some(Hint::new("ok", Text::verbatim(&b.detail), Tone::Success)),
-        S::Limited => Some(Hint::new("warning", hint(b), Tone::Warning)),
+        S::Limited => Some(Hint::new("warning", hint_on(b, ctx.host), Tone::Warning)),
         S::Missing => None,
     });
     let mut ipsw_actions = Vec::new();

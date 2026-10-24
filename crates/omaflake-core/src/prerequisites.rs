@@ -1113,6 +1113,10 @@ mod tests {
     #[test]
     fn install_nix_wraps_the_pinned_installer() {
         let cmd = Prerequisites::install_nix();
+        if cfg!(target_os = "linux") {
+            assert_eq!(cmd, Prerequisites::INSTALL_NIX_LINUX);
+            return;
+        }
         assert!(cmd.starts_with("sudo sh -c 'set -e;"));
         assert!(cmd.ends_with("install --no-confirm'"));
     }

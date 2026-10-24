@@ -481,12 +481,12 @@ pub struct BlockerLine {
 
 impl Blockers {
     /// None when nothing blocks
-    pub fn of(blockers: &[PrerequisiteDto]) -> Option<Blockers> {
+    pub fn of(blockers: &[PrerequisiteDto], host: super::HostOs) -> Option<Blockers> {
         (!blockers.is_empty()).then(|| Blockers {
             title: Text::new("Not possible yet – the Doctor reports:"),
             items: blockers
                 .iter()
-                .map(|p| BlockerLine { title: Text::new(&p.title), hint: super::doctor::hint(p) })
+                .map(|p| BlockerLine { title: Text::new(&p.title), hint: super::doctor::hint_on(p, host) })
                 .collect(),
             action: Action::show("doctor", Text::new("Open Doctor …"), Some("doctor"), "doctor", json!({})),
         })
