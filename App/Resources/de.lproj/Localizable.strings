@@ -721,3 +721,5 @@
 "quit (VMs keep running)" = "beenden (VMs laufen weiter)";
 "connecting …" = "verbinde …";
 "omaf ui %@ · %@ · Tab pages · q quit" = "omaf ui %@ · %@ · Tab Seiten · q beenden";
+"Copying the image" = "Image wird kopiert";
+"Invalid name \"%@\": 1–32 characters a–z, 0–9, \"-\"" = "Ungültiger Name „%@“: 1–32 Zeichen a–z, 0–9, „-“";
