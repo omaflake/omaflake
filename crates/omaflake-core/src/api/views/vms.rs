@@ -10,7 +10,6 @@ use super::Ctx;
 use crate::agent_protocol::{AgentState, AgentStatus};
 use crate::api::types::Vm;
 use crate::models::{GuestKind, NetworkMode, VmStatus};
-use crate::qemu_host::KvmState;
 
 /// `vms`: the list of VMs
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -321,15 +320,12 @@ fn detail(ctx: &Ctx, v: &Vm) -> VmDetail {
     // not shown
     match v.accelerator.as_deref() {
         Some("kvm") => info.push(InfoLine::new("Accelerator", Text::verbatim("KVM"))),
-        // KVM usable while the VM runs with TCG: started so on purpose (OMAFLAKE_ACCEL=tcg)
-        Some("tcg") => info.push(InfoLine::new("Accelerator", Text::verbatim("TCG")).note(
-            if KvmState::detect() == KvmState::Usable {
-                Text::new("emulated, many times slower – started without KVM (OMAFLAKE_ACCEL=tcg)")
-            } else {
-                Text::new("emulated, many times slower – no usable /dev/kvm (see the Doctor)")
-            },
-            Tone::Warning,
-        )),
+        // No usable /dev/kvm, or forced with OMAFLAKE_ACCEL=tcg – the Doctor tells which (the page does not look at the
+        // host: the same model on every machine)
+        Some("tcg") => info.push(
+            InfoLine::new("Accelerator", Text::verbatim("TCG"))
+                .note(Text::new("emulated, many times slower – without KVM (see the Doctor)"), Tone::Warning),
+        ),
         _ => {}
     }
     info.push(InfoLine::new("Network", Text::verbatim(v.network.as_str())));

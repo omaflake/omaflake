@@ -303,8 +303,8 @@
             "text": "Accelerator"
           },
           "note": {
-            "key": "emulated, many times slower – no usable /dev/kvm (see the Doctor)",
-            "text": "emulated, many times slower – no usable /dev/kvm (see the Doctor)"
+            "key": "emulated, many times slower – without KVM (see the Doctor)",
+            "text": "emulated, many times slower – without KVM (see the Doctor)"
           },
           "tone": "warning",
           "value": {

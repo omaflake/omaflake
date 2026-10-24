@@ -736,8 +736,7 @@
 "The qemu-system-* binary" = "Das Programm qemu-system-*";
 "Turn on virtualization (Intel VT-x or AMD-V) in the firmware settings and load the kvm module; in a VM, nested virtualization. Until then VMs run with TCG, many times slower." = "Die Virtualisierung (Intel VT-x oder AMD-V) in den Firmware-Einstellungen einschalten und das Modul kvm laden; in einer VM die verschachtelte Virtualisierung. Bis dahin laufen VMs mit TCG, um ein Vielfaches langsamer.";
 "Works headless and in 2D – without 3D; a QEMU with virglrenderer (nixpkgs#qemu) adds it." = "Funktioniert ohne Fenster und in 2D – ohne 3D; ein QEMU mit virglrenderer (nixpkgs#qemu) bringt es mit.";
-"emulated, many times slower – no usable /dev/kvm (see the Doctor)" = "emuliert, um ein Vielfaches langsamer – kein nutzbares /dev/kvm (siehe Doktor)";
-"emulated, many times slower – started without KVM (OMAFLAKE_ACCEL=tcg)" = "emuliert, um ein Vielfaches langsamer – ohne KVM gestartet (OMAFLAKE_ACCEL=tcg)";
+"emulated, many times slower – without KVM (see the Doctor)" = "emuliert, um ein Vielfaches langsamer – ohne KVM (siehe Doktor)";
 "omaflake runs on Linux with x86_64 or aarch64." = "omaflake läuft unter Linux mit x86_64 oder aarch64.";
 
 /* Errors of the core (docs/api.md §3, plan B125): vm_err!'s format strings, `{}` as %@; and the OS's own texts */
