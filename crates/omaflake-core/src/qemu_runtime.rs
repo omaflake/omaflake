@@ -16,8 +16,8 @@
 //!
 //! Linux hosts (plan B124): `qemu-system-<host arch>`, KVM or TCG (`qemu_host::host_accel`, recorded in the run
 //! folder's `accel` while the VM runs), GTK windows, PipeWire/PulseAudio, the firmware from `qemu_host::Firmware` –
-//! x86_64's variable store is a copy of the firmware's template (a blank one does not boot OVMF). No Dock icon, no
-//! omaf-runner bridge (macOS only: the agent's report, clipboard and camera – readiness falls back to SSH there).
+//! x86_64's variable store is a copy of the firmware's template (a blank one does not boot OVMF). No Dock icon; the
+//! bridge for the agent's report, clipboard and camera is `omaf bridge` instead of omaf-runner's (plan B125).
 
 use std::fs::File;
 use std::os::fd::AsRawFd;
@@ -236,28 +236,25 @@ impl QemuRuntime {
         Err(vm_err!("QEMU does not answer over QMP ({})", ip.qmp_socket().display()))
     }
 
-    /// The Mac side of the agent, clipboard and camera (omaf-runner bridge), detached like QEMU: it ends when the VM
-    /// closes a port. Without omaf-runner the VM simply runs without them. OMAFLAKE_CAMERA_TEST_PATTERN=1 sends a test
+    /// The host side of the agent, clipboard and camera, detached like QEMU: it ends when the VM closes a port. macOS:
+    /// `omaf-runner bridge`; Linux: `omaf bridge` with the same options (plan B125). Without it the VM simply runs
+    /// without them (readiness then by SSH). OMAFLAKE_CAMERA_TEST_PATTERN=1 sends a test
     /// pattern instead of the camera (tests without camera permission).
     pub(crate) fn start_bridge(&self, ip: &InstancePaths, clipboard: bool, camera: bool) {
-        let Ok(runner) = VzBackend::locate_runner(&self.paths) else { return };
-        let mut args: Vec<String> = vec![
-            "bridge".into(),
-            "--agent".into(),
-            ip.agent_socket().to_string_lossy().into_owned(),
-            "--agent-state".into(),
-            ip.agent_state().to_string_lossy().into_owned(),
-        ];
-        if clipboard {
-            args.extend(["--clipboard".into(), ip.clip_socket().to_string_lossy().into_owned()]);
-        }
-        if camera {
-            args.extend(["--camera".into(), ip.camera_socket().to_string_lossy().into_owned()]);
-        }
-        if camera && std::env::var("OMAFLAKE_CAMERA_TEST_PATTERN").as_deref() == Ok("1") {
-            args.push("--camera-test-pattern".into());
-        }
-        let _ = spawn_detached(&runner, &args, &ip.bridge_log(), &[]);
+        let program =
+            if cfg!(target_os = "linux") { Self::locate_omaf() } else { VzBackend::locate_runner(&self.paths).ok() };
+        let Some(program) = program else { return };
+        let test_pattern = std::env::var("OMAFLAKE_CAMERA_TEST_PATTERN").as_deref() == Ok("1");
+        let args = bridge_arguments(ip, cfg!(target_os = "linux"), clipboard, camera, test_pattern);
+        let _ = spawn_detached(&program, &args, &ip.bridge_log(), &[]);
+    }
+
+    /// The `omaf` that serves as the bridge on a Linux host (`omaf bridge`, plan B125): this omaflake's own (the
+    /// running `omaf`, or the one next to the Linux app), else the first on PATH
+    fn locate_omaf() -> Option<String> {
+        crate::cli_link::CliLink::running_omaf()
+            .map(|p| p.to_string_lossy().into_owned())
+            .or_else(|| Shell::which("omaf").ok())
     }
 
     /// Initial resolution from the main screen (points × Retina factor, `QemuCommand::initial_resolution_for`), None
@@ -520,11 +517,64 @@ impl Drop for FileLock {
     }
 }
 
+/// The bridge's arguments. omaf-runner (macOS) gets the old ports' sockets with `--clipboard`/`--camera` (images
+/// before plan B106 use them); `omaf bridge` (Linux) speaks only the agent and takes them as switches
+fn bridge_arguments(ip: &InstancePaths, linux: bool, clipboard: bool, camera: bool, test_pattern: bool) -> Vec<String> {
+    let mut args: Vec<String> = vec![
+        "bridge".into(),
+        "--agent".into(),
+        ip.agent_socket().to_string_lossy().into_owned(),
+        "--agent-state".into(),
+        ip.agent_state().to_string_lossy().into_owned(),
+    ];
+    if clipboard {
+        args.push("--clipboard".into());
+        if !linux {
+            args.push(ip.clip_socket().to_string_lossy().into_owned());
+        }
+    }
+    if camera {
+        args.push("--camera".into());
+        if !linux {
+            args.push(ip.camera_socket().to_string_lossy().into_owned());
+        }
+        if test_pattern {
+            args.push("--camera-test-pattern".into());
+        }
+    }
+    args
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::paths::tests::temp_paths;
     use std::time::Instant;
+
+    #[test]
+    fn bridge_arguments_per_host() {
+        let (_dir, paths) = temp_paths();
+        let ip = paths.instance("t1");
+        let ip_agent = ip.agent_socket().to_string_lossy().into_owned();
+        let ip_state = ip.agent_state().to_string_lossy().into_owned();
+        let head = vec!["bridge".to_string(), "--agent".into(), ip_agent, "--agent-state".into(), ip_state];
+        assert_eq!(
+            bridge_arguments(&ip, true, false, false, true),
+            head,
+            "the agent always, the pattern only with the camera"
+        );
+        let mut mac = head.clone();
+        mac.extend(["--clipboard".into(), ip.clip_socket().to_string_lossy().into_owned()]);
+        mac.extend([
+            "--camera".into(),
+            ip.camera_socket().to_string_lossy().into_owned(),
+            "--camera-test-pattern".into(),
+        ]);
+        assert_eq!(bridge_arguments(&ip, false, true, true, true), mac, "omaf-runner: the old ports' sockets");
+        let mut linux = head.clone();
+        linux.extend(["--clipboard".into(), "--camera".into()]);
+        assert_eq!(bridge_arguments(&ip, true, true, true, false), linux, "omaf bridge: switches");
+    }
 
     #[test]
     fn the_dock_icon_is_written_once() {

@@ -131,6 +131,26 @@ pub enum Command {
     /// Plan B119/B121
     #[command(about = "Running VMs and builds in one line; --waybar: JSON for a waybar custom module.")]
     Status(Status),
+    /// Plan B125: what `omaf-runner bridge` is on a Mac, for a Linux host – started by the core next to QEMU
+    #[command(
+        about = "Agent, clipboard and camera bridge between this Linux host and a VM (started by omaf).",
+        hide = true
+    )]
+    Bridge(Bridge),
+}
+
+#[derive(Debug, Args)]
+pub struct Bridge {
+    #[arg(long, value_name = "agent", help = "Unix socket of the VM's agent port")]
+    pub agent: std::path::PathBuf,
+    #[arg(long, value_name = "agent-state", help = "File for what the agent reports")]
+    pub agent_state: std::path::PathBuf,
+    #[arg(long, help = "Carry the clipboard (the VM's switch)")]
+    pub clipboard: bool,
+    #[arg(long, help = "Carry the camera (the VM's switch)")]
+    pub camera: bool,
+    #[arg(long, help = "Send a test pattern instead of the camera")]
+    pub camera_test_pattern: bool,
 }
 
 #[derive(Debug, Args)]

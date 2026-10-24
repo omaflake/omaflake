@@ -76,6 +76,32 @@ pub fn run(command: Command) -> Outcome {
         Command::Call(a) => call(&a),
         Command::Ui(a) => ui::run(&a),
         Command::Status(a) => status::run(&a),
+        Command::Bridge(a) => bridge(&a),
+    }
+}
+
+/// `omaf bridge` (hidden; plan B125): runs until the VM closes its agent port
+fn bridge(a: &Bridge) -> Outcome {
+    let options = omaflake_core::host_bridge::BridgeOptions {
+        agent: a.agent.clone(),
+        agent_state: a.agent_state.clone(),
+        clipboard: a.clipboard,
+        camera: a.camera,
+        camera_test_pattern: a.camera_test_pattern,
+    };
+    match omaflake_core::host_bridge::run(&options) {
+        Ok(end) => {
+            eprintln!(
+                "bridge: {}",
+                if end == omaflake_core::agent_protocol::LinkEnd::Closed {
+                    "the VM closed the port"
+                } else {
+                    "stopped listening to the guest"
+                }
+            );
+            Ok(())
+        }
+        Err(e) => Err(Error::new(e).into()),
     }
 }
 

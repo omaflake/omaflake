@@ -20,6 +20,7 @@ pub mod data_folder;
 pub mod file_format;
 pub mod guest_choices;
 pub mod guest_settings;
+pub mod host_bridge;
 pub mod image_migration;
 pub mod image_store;
 pub mod instance_store;
