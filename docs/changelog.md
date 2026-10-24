@@ -25,6 +25,9 @@ are collected under *Unreleased*. Releases: [GitHub](https://github.com/omaflake
 
 ### Fixed
 
+- Images build again with a data folder that has no guest email set (`attribute 'email' missing` – omaflake leaves the
+  field out then; the image flake now treats it as unset).
+
 - `omaf start` right after `omaf stop` no longer says "SSH port … is in use": the check now binds the port the way QEMU
   does (with SO_REUSEADDR), so connections of the stopped VM still in TIME_WAIT do not count; a port another program
   listens on is still refused.
