@@ -14,14 +14,34 @@ use crate::vm_err;
 pub enum Ports {}
 
 impl Ports {
-    /// Is 127.0.0.1:<port> free (bindable)? A plain bind without SO_REUSEADDR (std's `TcpListener` would set it and
-    /// call a port in use by a wildcard listener free on macOS).
+    /// Is 127.0.0.1:<port> free for QEMU's SSH forwarding (`hostfwd=tcp:127.0.0.1:<port>-:22`)?
+    ///
+    /// Bound the way QEMU (libslirp's `tcp_listen`) binds it – with SO_REUSEADDR, so connections of a VM that just
+    /// stopped, still in TIME_WAIT on this port, do not count (plan B124: `omaf start` right after `omaf stop` was
+    /// refused with "SSH port … is in use" for up to a minute; a plain bind fails on TIME_WAIT, QEMU's does not). With
+    /// SO_REUSEADDR macOS would let the bind through next to a wildcard listener (0.0.0.0:<port>), which would take the
+    /// connections – so the port also must not accept a connection on 127.0.0.1.
     pub fn is_free(port: u16) -> bool {
+        Self::bindable(port, true) && !Self::is_open("127.0.0.1", port, Duration::from_millis(500))
+    }
+
+    /// Can 127.0.0.1:<port> be bound (with or without SO_REUSEADDR)?
+    pub(crate) fn bindable(port: u16, reuse_address: bool) -> bool {
         // SAFETY: libc socket calls on a descriptor owned and closed here; sockaddr_in is fully initialized
         unsafe {
             let fd = libc::socket(libc::AF_INET, libc::SOCK_STREAM, 0);
             if fd < 0 {
                 return false;
+            }
+            if reuse_address {
+                let on: libc::c_int = 1;
+                libc::setsockopt(
+                    fd,
+                    libc::SOL_SOCKET,
+                    libc::SO_REUSEADDR,
+                    (&on as *const libc::c_int).cast(),
+                    std::mem::size_of::<libc::c_int>() as libc::socklen_t,
+                );
             }
             let addr = loopback(port);
             let rc = libc::bind(
@@ -132,6 +152,29 @@ mod tests {
         assert_eq!(Ports::ssh_banner("127.0.0.1", port, DEFAULT_TIMEOUT).as_deref(), Some("SSH-2.0-OpenSSH_10.0"));
         t.join().unwrap();
         assert!(Ports::ssh_banner("not-an-ip", port, DEFAULT_TIMEOUT).is_none());
+    }
+
+    /// A port whose last connection the server closed (TIME_WAIT – what QEMU leaves behind when a VM with an SSH session
+    /// stops) is free for the next start; a listener on it, also a wildcard one, is not (plan B124)
+    #[test]
+    fn a_port_in_time_wait_is_free() {
+        use std::io::Read;
+        let l = TcpListener::bind("127.0.0.1:0").unwrap();
+        let port = l.local_addr().unwrap().port();
+        let mut client = TcpStream::connect(("127.0.0.1", port)).unwrap();
+        let (server, _) = l.accept().unwrap();
+        drop(server); // the server closes first: its side (127.0.0.1:<port>) goes into TIME_WAIT
+        let mut buf = [0u8; 1];
+        assert_eq!(client.read(&mut buf).unwrap(), 0);
+        drop(client);
+        drop(l);
+        std::thread::sleep(Duration::from_millis(100));
+        // What the old check did – a plain bind – fails as long as the TIME_WAIT lasts (the cause)
+        assert!(!Ports::bindable(port, false), "no TIME_WAIT on {port}?");
+        assert!(Ports::is_free(port));
+
+        let wildcard = TcpListener::bind(("0.0.0.0", 0)).unwrap();
+        assert!(!Ports::is_free(wildcard.local_addr().unwrap().port()));
     }
 
     #[test]

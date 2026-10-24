@@ -13,6 +13,12 @@ are collected under *Unreleased*. Releases: [GitHub](https://github.com/omaflake
 
 ## [Unreleased]
 
+### Fixed
+
+- `omaf start` right after `omaf stop` no longer says "SSH port … is in use": the check now binds the port the way QEMU
+  does (with SO_REUSEADDR), so connections of the stopped VM still in TIME_WAIT do not count; a port another program
+  listens on is still refused.
+
 ## [0.3.0] – 2026-10-24
 
 omaflake's logic moved into one core written in Rust; the macOS app, the new Linux app, the terminal interface and the
