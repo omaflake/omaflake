@@ -293,7 +293,7 @@ fn outcome(ctx: &Ctx, j: &JobDto) -> Option<Outcome> {
             icon: "failed".into(),
             tone: Tone::Danger,
             title: Text::new("Build failed"),
-            detail: j.error.as_ref().map(Text::verbatim),
+            detail: j.error_text.clone().or_else(|| j.error.as_ref().map(Text::verbatim)),
             action: None,
         },
         JobState::Cancelled => Outcome {

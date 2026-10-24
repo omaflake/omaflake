@@ -808,6 +808,8 @@ public struct PageRef: Codable, Sendable, Hashable {
 public struct ViewError: Decodable, Sendable, Equatable {
     public var message: String
     public var kind: String?
+    /// The message as a text when it has a key (api.md §3)
+    public var text: ViewText?
 }
 
 /// A page's model, by the page it is

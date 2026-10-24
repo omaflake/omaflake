@@ -194,7 +194,8 @@ while omaflake is not in front (menu window closed, app window hidden or in the 
 
 UI languages: English (development language and fallback) and German, `App/Resources/<lang>.lproj/Localizable.strings`
 (keys are the English texts; the core's page texts use the same keys, docs/api.md §10.2). Error messages from the core
-are English, like the CLI (OPEN: translated by `data.kind`).
+are texts too (`data.text`, a failed job's `errorText`, api.md §3, plan B125) and shown in the app's language;
+`APIError.text`, `AppModel.describe`. The CLI stays English (docs/cli.md).
 
 `omaf-runner` is embedded as its own helper app (`Contents/Helpers/omaf-runner.app`, shown as "omaflake VM"; inside
 `Contents/MacOS` a runner with a VM window made macOS take it for omaflake.app, plan B65), signed by `bundle-app.sh` with its entitlement

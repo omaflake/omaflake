@@ -93,18 +93,29 @@ impl std::fmt::Display for RpcError {
     }
 }
 
+impl RpcError {
+    /// The message as a text (`data.text`, docs/api.md §3): a UI shows it in its language; None for an error without
+    /// a key (its `message` is shown as it is)
+    pub fn text(&self) -> Option<super::views::text::Text> {
+        self.data.get("text").and_then(|t| serde_json::from_value(t.clone()).ok())
+    }
+}
+
 impl From<crate::Error> for RpcError {
+    /// `-32000` with the kind and – for a message with a key – `data.text`
     fn from(e: crate::Error) -> Self {
-        Self::server(e.code(), e.message())
+        let rpc = Self::server(e.code(), e.message());
+        match e.key() {
+            Some(_) => rpc.with_data("text", serde_json::to_value(e.text()).unwrap_or_default()),
+            None => rpc,
+        }
     }
 }
 
 impl From<RpcError> for crate::Error {
     fn from(e: RpcError) -> Self {
-        match e.kind {
-            Some(kind) => crate::Error::with_code(kind, e.message),
-            None => crate::Error::new(e.message),
-        }
+        let text = e.text().unwrap_or_else(|| super::views::text::Text::verbatim(&e.message));
+        crate::Error::from_text(e.kind, text)
     }
 }
 
@@ -225,6 +236,17 @@ mod tests {
         assert_eq!(extra.to_value()["data"], json!({"kind": "not-found", "networkVolume": true}));
         let back: crate::Error = extra.into();
         assert_eq!(back.code(), Some(codes::NOT_FOUND));
+        // A keyed message carries its text, and comes back with it
+        let keyed: RpcError = crate::vm_err!(codes::NOT_FOUND, "Instance \"{}\" does not exist", "a").into();
+        assert_eq!(
+            keyed.to_value()["data"],
+            json!({"kind": "not-found", "text": {"key": "Instance \"%@\" does not exist", "text": "Instance \"a\" does not exist", "args": ["a"]}})
+        );
+        let back: crate::Error = keyed.into();
+        assert_eq!(
+            (back.key(), back.message()),
+            (Some("Instance \"%@\" does not exist"), "Instance \"a\" does not exist")
+        );
         assert_eq!(response_err(json!(2), &RpcError::not_initialized())["error"]["code"], json!(-32002));
         assert_eq!(response_ok(json!(2), Value::Null), json!({"jsonrpc": "2.0", "id": 2, "result": null}));
         assert_eq!(notification("message", json!({})), json!({"jsonrpc": "2.0", "method": "message", "params": {}}));

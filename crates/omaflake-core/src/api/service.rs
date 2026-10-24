@@ -12,6 +12,7 @@
 //! - It ends when asked (`service.restart`, once no job runs), when the data folder moved (its socket moved along),
 //!   and with `idle_exit` when no client was connected and no job ran for that long.
 
+use crate::vm_err;
 use std::collections::HashMap;
 use std::io::BufReader;
 use std::os::fd::AsRawFd;
@@ -138,7 +139,7 @@ impl Listening {
     /// Takes the lock, replaces a socket file nobody serves and listens (0600)
     pub fn bind(path: &Path) -> crate::Result<Listening> {
         if !fits(path) {
-            return Err(Error::new(format!("Socket path too long (over {MAX_SOCKET_PATH} bytes): {}", path.display())));
+            return Err(vm_err!("Socket path too long (over {MAX_SOCKET_PATH} bytes): {}", path.display()));
         }
         let lock = FileLock::new(
             &lock_path(path),

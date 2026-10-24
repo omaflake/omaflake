@@ -338,10 +338,8 @@ mod secret_service_store {
 
     fn mapped(e: SsError) -> StoreError {
         match e {
-            SsError::Prompt => {
-                StoreError::Failed(Error::new("The keyring was not unlocked – the token was not stored"))
-            }
-            SsError::Crypto(_) | SsError::Zvariant(_) => StoreError::Failed(Error::new(format!("Keyring: {e}"))),
+            SsError::Prompt => StoreError::Failed(vm_err!("The keyring was not unlocked – the token was not stored")),
+            SsError::Crypto(_) | SsError::Zvariant(_) => StoreError::Failed(vm_err!("Keyring: {e}")),
             // No service, no session, no collection, locked without a way to ask: as if there were no keyring
             _ => StoreError::Unavailable,
         }

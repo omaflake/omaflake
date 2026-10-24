@@ -2,7 +2,8 @@
 import Foundation
 
 /// An error from the core (api.md §3): the JSON-RPC code, an English message for people and, for what the core refuses
-/// or fails at (`-32000`), a stable `kind` a UI can react to or translate.
+/// or fails at (`-32000`), a stable `kind` a UI can react to, and – for a message with a key – `text`, the message as a
+/// text the app shows in its language (`data.text`, plan B125).
 public struct APIError: LocalizedError, CustomStringConvertible, Sendable, Equatable {
     /// `data.kind` of api.md §3; a client treats an unknown one as a plain error
     public enum Kind: String, OpenEnum {
@@ -32,6 +33,12 @@ public struct APIError: LocalizedError, CustomStringConvertible, Sendable, Equat
         self.message = message
         self.kind = kind
         self.data = data
+    }
+
+    /// `data.text`: the message as a text (key, args); nil when it has no key
+    public var text: ViewText? {
+        guard let text = data?["text"], let json = try? JSONEncoder.api.encode(text) else { return nil }
+        return try? JSONDecoder.api.decode(ViewText.self, from: json)
     }
 
     public var description: String { message }

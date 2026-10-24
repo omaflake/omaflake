@@ -28,6 +28,8 @@ pub mod protocol;
 mod server;
 pub mod service;
 mod stdio;
+#[cfg(test)]
+mod translated;
 pub mod types;
 pub mod views;
 

@@ -235,10 +235,6 @@ fn page_params<T: DeserializeOwned>(p: &Value) -> Result<T, RpcError> {
     params(if p.is_null() { json!({}) } else { p.clone() })
 }
 
-fn not_found(what: String) -> RpcError {
-    RpcError::server(Some(crate::error::codes::NOT_FOUND), what)
-}
-
 /// A page built from `ctx` (every page but `import`, which inspects a file)
 pub(crate) fn build(ctx: &Ctx, page: &PageRef) -> Result<Value, RpcError> {
     let p = &page.params;
@@ -247,19 +243,23 @@ pub(crate) fn build(ctx: &Ctx, page: &PageRef) -> Result<Value, RpcError> {
         "vms" => to_value(vms::page(ctx, &page_params(p)?)),
         "vm" => {
             let p: vms::VmParams = page_params(p)?;
-            to_value(vms::vm_page(ctx, &p).ok_or_else(|| not_found(format!("Instance \"{}\" does not exist", p.name)))?)
+            to_value(vms::vm_page(ctx, &p).ok_or_else(|| {
+                RpcError::from(crate::vm_err!(crate::error::codes::NOT_FOUND, "Instance \"{}\" does not exist", p.name))
+            })?)
         }
         "images" => to_value(images::page(ctx, &page_params(p)?)),
         "image" => {
             let p: images::ImageParams = page_params(p)?;
-            to_value(
-                images::image_page(ctx, &p).ok_or_else(|| not_found(format!("Image \"{}\" does not exist", p.name)))?,
-            )
+            to_value(images::image_page(ctx, &p).ok_or_else(|| {
+                RpcError::from(crate::vm_err!(crate::error::codes::NOT_FOUND, "Image \"{}\" does not exist", p.name))
+            })?)
         }
         "recipes" => to_value(recipes::page(ctx, &page_params(p)?)),
         "newVm" => {
             let p: new_vm::NewVmParams = page_params(p)?;
-            to_value(new_vm::page(ctx, &p).ok_or_else(|| not_found(format!("Image \"{}\" does not exist", p.image)))?)
+            to_value(new_vm::page(ctx, &p).ok_or_else(|| {
+                RpcError::from(crate::vm_err!(crate::error::codes::NOT_FOUND, "Image \"{}\" does not exist", p.image))
+            })?)
         }
         "build" => to_value(build::page(ctx, &page_params(p)?)),
         "doctor" => to_value(doctor::page(ctx)),
@@ -428,7 +428,7 @@ impl Server {
                 let model = if page.page == "import" { self.view(&page) } else { build(ctx, &page) };
                 let model = match model {
                     Ok(m) => m,
-                    Err(e) => json!({"error": {"message": e.message, "kind": e.kind}}),
+                    Err(e) => json!({"error": {"message": e.message, "kind": e.kind, "text": e.text()}}),
                 };
                 let key = (sub.conn, page.key());
                 {

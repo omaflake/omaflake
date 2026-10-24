@@ -8,6 +8,7 @@
 //! the logic here is tested with fake work. The work runs on its own thread and gets a `JobCtx` for log lines,
 //! progress and its `Cancellation`.
 
+use crate::vm_err;
 use std::collections::VecDeque;
 use std::fs::File;
 use std::io::Write;
@@ -24,7 +25,7 @@ use super::events::{Events, Topic};
 use super::types::{JobChanged, JobDto, JobKind, JobLines, JobLog, JobProgress, JobState};
 use crate::build_progress::BuildProgressTracker;
 use crate::cancellation::Cancellation;
-use crate::error::{codes, Error, Result};
+use crate::error::{codes, Result};
 use crate::json;
 use crate::models::GuestKind;
 use crate::{Log, Progress};
@@ -104,7 +105,7 @@ struct JobData {
     progress: Option<JobProgress>,
     noise: Option<fn(&str) -> bool>,
     result: Option<Value>,
-    error: Option<String>,
+    error: Option<crate::Error>,
     cancel_hook: Option<Box<dyn Fn() + Send>>,
     /// Lines not sent as `job.log` yet
     unsent: Vec<String>,
@@ -215,7 +216,8 @@ impl Job {
             log_file: d.log_file.as_ref().map(|p| p.to_string_lossy().into_owned()),
             cancellable,
             result: d.result.clone(),
-            error: d.error.clone(),
+            error: d.error.as_ref().map(|e| e.message().to_string()),
+            error_text: d.error.as_ref().filter(|e| e.key().is_some()).map(|e| e.text().clone()),
         }
     }
 
@@ -275,7 +277,7 @@ impl Job {
         state: JobState,
         line: Option<&str>,
         result: Option<Value>,
-        error: Option<String>,
+        error: Option<crate::Error>,
         on_end: Option<OnEnd>,
     ) {
         if let Some(line) = line {
@@ -512,13 +514,7 @@ impl Jobs {
                     return;
                 }
                 if let Err(e) = checked {
-                    job.finish(
-                        JobState::Failed,
-                        Some(e.message()),
-                        None,
-                        Some(e.message().to_string()),
-                        pending.on_end,
-                    );
+                    job.finish(JobState::Failed, Some(e.message()), None, Some(e.clone()), pending.on_end);
                     self.schedule();
                     return;
                 }
@@ -535,7 +531,7 @@ impl Jobs {
             Err(e) => {
                 let cancelled = job.cancel.is_cancelled() || e.is_cancelled();
                 let line = format!("✗ {e}");
-                let error = (!cancelled).then(|| e.message().to_string());
+                let error = (!cancelled).then(|| e.clone());
                 job.finish(
                     if cancelled { JobState::Cancelled } else { JobState::Failed },
                     Some(&line),
@@ -574,7 +570,7 @@ impl Jobs {
     }
 
     pub fn find(&self, id: &str) -> Result<Arc<Job>> {
-        self.get(id).ok_or_else(|| Error::with_code(codes::NOT_FOUND, format!("Job \"{id}\" does not exist")))
+        self.get(id).ok_or_else(|| vm_err!(codes::NOT_FOUND, "Job \"{id}\" does not exist"))
     }
 
     pub fn list(&self) -> Vec<JobDto> {
@@ -636,7 +632,7 @@ impl Jobs {
     pub fn dismiss(&self, id: &str) -> Result<()> {
         let job = self.find(id)?;
         if job.is_active() {
-            return Err(Error::with_code(codes::IN_USE, format!("Job \"{id}\" is still running – cancel it first")));
+            return Err(vm_err!(codes::IN_USE, "Job \"{id}\" is still running – cancel it first"));
         }
         self.lock().retain(|j| j.id != id);
         Ok(())
@@ -662,7 +658,7 @@ impl Jobs {
 pub(crate) fn guarded<T>(f: impl FnOnce() -> Result<T>) -> Result<T> {
     match catch_unwind(AssertUnwindSafe(f)) {
         Ok(r) => r,
-        Err(panic) => Err(Error::with_code(codes::INTERNAL, format!("Internal error: {}", panic_text(&panic)))),
+        Err(panic) => Err(vm_err!(codes::INTERNAL, "Internal error: {}", panic_text(&panic))),
     }
 }
 
@@ -801,7 +797,7 @@ mod tests {
         let ended = Arc::new(Mutex::new(None));
         let e = ended.clone();
         let (mut a, _) = gated_build(GuestKind::Nixos, "a");
-        a.check = Some(Box::new(|_| Err(Error::new("Doctor: Nix – fix it there first"))));
+        a.check = Some(Box::new(|_| Err(crate::Error::new("Doctor: Nix – fix it there first"))));
         a.on_end = Some(Box::new(move |dto| *e.lock().unwrap() = Some(dto.state)));
         let (b, release_b) = gated_build(GuestKind::Nixos, "b");
         let a = jobs.submit(a);
@@ -819,7 +815,8 @@ mod tests {
     #[test]
     fn errors_and_panics_fail_a_job() {
         let (jobs, _) = jobs();
-        let failing = jobs.submit(JobSpec::new(JobKind::Export, "x", Box::new(|_| Err(Error::new("disk full")))));
+        let failing =
+            jobs.submit(JobSpec::new(JobKind::Export, "x", Box::new(|_| Err(crate::Error::new("disk full")))));
         let end = failing.wait();
         assert_eq!((end.state, end.error.as_deref()), (JobState::Failed, Some("disk full")));
         assert_eq!(failing.log(0).lines, vec!["✗ disk full".to_string()]);

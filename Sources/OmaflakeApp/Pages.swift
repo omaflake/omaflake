@@ -20,7 +20,7 @@ struct PageView: View {
             case .macBase(let p)?: MacBaseView(page: p, ref: ref, model: model)
             case .settings(let p)?: SettingsView(page: p, ref: ref, model: model)
             case .error(let e)?:
-                Label(e.message, systemImage: "exclamationmark.triangle.fill").foregroundStyle(BrandTokens.Colors.warning)
+                Label(e.text.map { model.t($0) } ?? e.message, systemImage: "exclamationmark.triangle.fill").foregroundStyle(BrandTokens.Colors.warning)
                     .padding(BrandStyle.margin)
             default:
                 ProgressView().controlSize(.small).padding(.top, 40)

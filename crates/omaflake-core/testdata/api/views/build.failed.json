@@ -67,7 +67,14 @@
   "description": "Entwicklungsumgebung",
   "job": {
     "cancellable": true,
-    "error": "nix build failed",
+    "error": "Recipe \"omaflake.nixos.dev\" is not in your recipes",
+    "errorText": {
+      "args": [
+        "omaflake.nixos.dev"
+      ],
+      "key": "Recipe \"%@\" is not in your recipes",
+      "text": "Recipe \"omaflake.nixos.dev\" is not in your recipes"
+    },
     "guestKind": "nixos",
     "hiddenLines": 37,
     "id": "j1",
@@ -131,7 +138,11 @@
   "name": "dev (velvet)",
   "outcome": {
     "detail": {
-      "text": "nix build failed"
+      "args": [
+        "omaflake.nixos.dev"
+      ],
+      "key": "Recipe \"%@\" is not in your recipes",
+      "text": "Recipe \"omaflake.nixos.dev\" is not in your recipes"
     },
     "icon": "failed",
     "state": "failed",

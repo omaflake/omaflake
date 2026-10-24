@@ -121,6 +121,9 @@ with `#custom-omaflake.running`, `.building`, `.failed`.
 
 ## Behavior (decisions)
 
+- **Language:** the CLI speaks English – its output, its help and the core's error messages (a command line is read,
+  searched and pasted into reports; one language keeps them comparable). The interfaces – the macOS app, the Linux
+  app and `omaf ui` – show the same texts and errors in English or German (docs/api.md §3, §10.2; plan B125).
 - **Ephemeral** = QEMU `-snapshot`: writes are discarded on power-off, nothing needs to be deleted.
   macOS guests get a fresh APFS clone at every start instead; the previous run's clone is deleted (plan BM27).
 - **macOS guests** (`kind = macos`, M10): the same commands; `omaf start` launches `omaf-runner` detached

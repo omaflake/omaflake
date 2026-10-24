@@ -19,7 +19,7 @@ use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
-use crate::error::{codes, Error, IoContext, Result};
+use crate::error::{codes, IoContext, Result};
 use crate::ipsw_downloader::{free_space, gigabytes, IpswDownloader, KeepAwake, MacOsRelease};
 use crate::mac_image_builder::BuildVm;
 use crate::mac_vm::{DhcpLeases, MacVmBundle, RunnerClient};
@@ -136,13 +136,11 @@ impl MacBaseInstaller {
         let needed = release.bytes.unwrap_or(27_000_000_000) + Prerequisites::MAC_SPACE_NEEDED;
         if let Some(free) = free_space(&self.paths.root) {
             if free < needed {
-                return Err(Error::with_code(
+                return Err(vm_err!(
                     codes::PREREQUISITE,
-                    format!(
-                        "Not enough space: {} free, about {} needed (IPSW, installation, image)",
-                        gigabytes(free),
-                        gigabytes(needed)
-                    ),
+                    "Not enough space: {} free, about {} needed (IPSW, installation, image)",
+                    gigabytes(free),
+                    gigabytes(needed)
                 ));
             }
         }
@@ -215,9 +213,9 @@ impl MacBaseInstaller {
             Some(ipsw) => self.install_fresh(r, ipsw, log)?,
             None => {
                 let Some(release) = self.latest_release() else {
-                    return Err(Error::with_code(
+                    return Err(vm_err!(
                         codes::NETWORK,
-                        "Apple's macOS catalog is not reachable – online? (or choose an IPSW file)",
+                        "Apple's macOS catalog is not reachable – online? (or choose an IPSW file)"
                     ));
                 };
                 let fresh = self.fresh(&release.build);
@@ -253,9 +251,9 @@ impl MacBaseInstaller {
         log(&format!("Base {} cloned from {}", base_dir.display(), file_name(&fresh_vm)));
         let Some(password) = &r.password else { return Ok(BaseOutcome::Created { dir: base_dir, ready: false }) };
         if r.authorized_keys.is_empty() {
-            return Err(Error::with_code(
+            return Err(vm_err!(
                 codes::PREREQUISITE,
-                "No SSH public key in ~/.ssh – create one first: ssh-keygen -t ed25519",
+                "No SSH public key in ~/.ssh – create one first: ssh-keygen -t ed25519"
             ));
         }
         self.finish(&base_dir, r, password, true, log)?;
@@ -410,9 +408,10 @@ impl MacBaseInstaller {
                 std::thread::sleep(Duration::from_secs(3));
             }
             if !installed {
-                return Err(Error::with_code(
+                return Err(vm_err!(
                     codes::AUTH,
-                    format!("Could not log in as {} with the password to install the SSH keys", r.user),
+                    "Could not log in as {} with the password to install the SSH keys",
+                    r.user
                 ));
             }
             let target = format!("{}@{ip}", r.user);
@@ -422,10 +421,7 @@ impl MacBaseInstaller {
                 &RunOptions::default(),
             )?;
             if key_login.status != 0 {
-                return Err(Error::with_code(
-                    codes::AUTH,
-                    format!("SSH key login as {} failed after installing the keys", r.user),
-                ));
+                return Err(vm_err!(codes::AUTH, "SSH key login as {} failed after installing the keys", r.user));
             }
 
             // Shut down (sudo with the password on stdin), then read-only

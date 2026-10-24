@@ -1,13 +1,14 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 //! Port of Models.swift. (Swift's `VMError` is `crate::Error`, see error.rs.)
 
+use crate::vm_err;
 use std::collections::{BTreeMap, HashMap, HashSet};
 
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
 
-use crate::error::{Error, Result};
+use crate::error::Result;
 use crate::file_format::{FileFormat, Step};
 use crate::omaflake_id::{OmaflakeId, OmaflakeIdKind};
 use crate::platform::Platform;
@@ -764,7 +765,7 @@ impl RecipeId {
             return Ok(found[0].clone());
         }
         if found.is_empty() {
-            return Err(Error::new(format!("Recipe \"{input}\" is not in your recipes")));
+            return Err(vm_err!("Recipe \"{input}\" is not in your recipes"));
         }
         if let Some(choose) = choose {
             if let Some(picked) = choose(&found) {
@@ -778,7 +779,7 @@ impl RecipeId {
         }
         let n = OmaflakeId::shortest(groups.values().cloned());
         let names: Vec<String> = found.iter().map(|id| OmaflakeId::recipe(id, n)).collect();
-        Err(Error::new(format!("Recipe \"{input}\" exists several times – choose one: {}", names.join(", "))))
+        Err(vm_err!("Recipe \"{input}\" exists several times – choose one: {}", names.join(", ")))
     }
 }
 

@@ -61,6 +61,8 @@ public struct Job: Decodable, Sendable, Equatable, Identifiable {
     public var result: JSONValue?
     /// When failed
     public var error: String?
+    /// `error` as a text when it has a key (api.md §3) – shown in the app's language
+    public var errorText: ViewText?
 
     /// Waiting or running
     public var isActive: Bool { [.queued, .checking, .running].contains(state) }

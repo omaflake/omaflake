@@ -12,7 +12,7 @@ use serde_json::{Map, Value};
 
 use std::os::unix::fs::PermissionsExt;
 
-use crate::error::{codes, Error, IoContext, Result};
+use crate::error::{codes, IoContext, Result};
 use crate::file_format::{write_atomic, FileFormat, Step};
 use crate::platform::is_writable;
 use crate::sockets::connect_unix;
@@ -135,7 +135,7 @@ impl MacVmBundle {
     /// identifier needs Virtualization.framework – `omaf-runner clone` replaces it. Swift `clone(to:)`.
     pub fn clone_to(&self, target: &Path) -> Result<MacVmBundle> {
         if target.exists() {
-            return Err(Error::with_code(codes::EXISTS, format!("Target exists already: {}", target.display())));
+            return Err(vm_err!(codes::EXISTS, "Target exists already: {}", target.display()));
         }
         self.load_config()?;
         std::fs::create_dir_all(target).with_path(target)?;

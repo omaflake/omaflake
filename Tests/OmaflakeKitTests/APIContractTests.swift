@@ -159,6 +159,11 @@ struct APIContractTests {
                 struct Response: Decodable { let error: RPCError }
                 let e = try load("error.vm-running", as: Response.self).error.apiError
                 #expect(e.kind == .vmRunning && e.code == APIError.Code.failed)
+                // A keyed message: the app renders data.text in its language
+                let text = try #require(e.text)
+                #expect(text.key == "%@ is running – shut it down first" && text.args == [.string("research")])
+                let de = ViewTextRenderer(translate: { $0 == "%@ is running – shut it down first" ? "%@ läuft – fahre sie zuerst herunter" : $0 })
+                #expect(de.render(text) == "research läuft – fahre sie zuerst herunter")
             },
             "error.network-volume": {
                 struct Response: Decodable { let error: RPCError }

@@ -9,6 +9,8 @@ publish.workspace = true
 repository.workspace = true
 
 [dependencies]
+# vm_err!'s keyed errors (plan B125)
+omaflake-macros.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 toml.workspace = true
@@ -31,3 +33,5 @@ secret-service = { version = "5.2.0", default-features = false, features = ["rt-
 
 [dev-dependencies]
 tempfile.workspace = true
+# Every error and view text has German (src/translated.rs)
+omaflake-i18n.workspace = true

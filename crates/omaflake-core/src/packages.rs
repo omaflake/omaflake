@@ -5,6 +5,7 @@
 //! the Finder shows it as one file; copying it is a backup, double-clicking it imports it. The data folder keeps VMs
 //! and images in exactly this form, so `~/.omaflake/instances/research.omaflake-vm` already is the backup.
 
+use crate::vm_err;
 use std::fs;
 use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
@@ -13,7 +14,7 @@ use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
 
-use crate::error::{Error, IoContext, Result};
+use crate::error::{IoContext, Result};
 use crate::file_format::{write_atomic, FileFormat, Step};
 use crate::models::GuestKind;
 use crate::platform::{is_writable, resolve_symlinks, standardize};
@@ -143,8 +144,8 @@ fn components(p: &Path) -> Vec<String> {
 fn copy_file(from: &Path, to: &Path) -> Result<()> {
     use std::ffi::CString;
     use std::os::unix::ffi::OsStrExt;
-    let src = CString::new(from.as_os_str().as_bytes()).map_err(|_| Error::new("path contains NUL"))?;
-    let dst = CString::new(to.as_os_str().as_bytes()).map_err(|_| Error::new("path contains NUL"))?;
+    let src = CString::new(from.as_os_str().as_bytes()).map_err(|_| vm_err!("path contains NUL"))?;
+    let dst = CString::new(to.as_os_str().as_bytes()).map_err(|_| vm_err!("path contains NUL"))?;
     let flags = libc::COPYFILE_METADATA
         | libc::COPYFILE_DATA
         | libc::COPYFILE_CLONE
@@ -154,21 +155,16 @@ fn copy_file(from: &Path, to: &Path) -> Result<()> {
     let rc = unsafe { libc::copyfile(src.as_ptr(), dst.as_ptr(), std::ptr::null_mut(), flags) };
     if rc != 0 {
         let e = std::io::Error::last_os_error();
-        return Err(Error::new(format!(
-            "Cannot copy {} to {}: {}",
-            from.display(),
-            to.display(),
-            crate::error::os_text(&e)
-        )));
+        return Err(vm_err!("Cannot copy {} to {}: {}", from.display(), to.display(), crate::error::os_text(&e)));
     }
     Ok(())
 }
 
 #[cfg(not(target_os = "macos"))]
 fn copy_file(from: &Path, to: &Path) -> Result<()> {
-    fs::copy(from, to).map(|_| ()).map_err(|e| {
-        Error::new(format!("Cannot copy {} to {}: {}", from.display(), to.display(), crate::error::os_text(&e)))
-    })
+    fs::copy(from, to)
+        .map(|_| ())
+        .map_err(|e| vm_err!("Cannot copy {} to {}: {}", from.display(), to.display(), crate::error::os_text(&e)))
 }
 
 /// manifest.json, schema `manifest` (plan B114). 0 → 1: `format` (always 1, plan B108) gave way to `$schema`
@@ -296,7 +292,7 @@ mod tests {
         assert_eq!(fs::read_link(dst.join("link")).unwrap(), PathBuf::from("sub/disk.img"));
         assert_eq!(fs::metadata(&dst).unwrap().permissions().mode() & 0o777, 0o555);
         // writable() opens a read-only package for one write
-        Package::writable(&dst, || fs::write(dst.join("x"), "y").map_err(Error::from)).unwrap();
+        Package::writable(&dst, || fs::write(dst.join("x"), "y").map_err(crate::Error::from)).unwrap();
         assert_eq!(fs::metadata(&dst).unwrap().permissions().mode() & 0o777, 0o555);
         for d in [src.join("sub"), src.clone(), dst.join("sub"), dst.clone()] {
             fs::set_permissions(&d, fs::Permissions::from_mode(0o755)).unwrap();

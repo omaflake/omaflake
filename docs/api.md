@@ -118,11 +118,20 @@ Standard JSON-RPC codes for protocol errors (`-32700` parse error, `-32600` inva
 message for people and a stable code for programs:
 
 ```json
-{"code":-32000,"message":"running – stop it first","data":{"kind":"vm-running"}}
+{"code":-32000,"message":"research is running – shut it down first",
+ "data":{"kind":"vm-running","text":{"key":"%@ is running – shut it down first",
+         "text":"research is running – shut it down first","args":["research"]}}}
 ```
 
-`data.kind` (kebab-case) lets a UI react or show its own translated text; the `message` is English. Errors without a
-kind leave `data` out. Some methods add fields to `data` next to `kind`: `networkVolume: true` (`vms.useExternal`),
+`data.kind` (kebab-case) lets a UI react; the `message` is English. `data.text` (plan B125) is the message as a
+**text** (§10.2): its key is the core's format string (`vm_err!("{} is running – shut it down first", name)` – each
+`{…}` becomes `%@`, `%` becomes `%%`), its args the values filled in, as strings (or a text of its own: a message with
+a prefix is `"%@%@"` with the prefix and the inner text; an OS error's key is the OS's text, e.g. "No such file or
+directory"). A UI shows it in its language like any view text – the macOS app, `omaf ui` and the Linux app do – and
+falls back to `message`. An error without a key (a message built at run time) has no `data.text`; one without kind and
+key leaves `data` out. The same text is in a failed job's `errorText` (next to `error`, §5) and in a page that cannot
+be built (`model.error.text`, §10.1). Protocol errors (`-32xxx` other than `-32000`) are for developers and stay
+English. Some methods add fields to `data` next to `kind`: `networkVolume: true` (`vms.useExternal`),
 `replacesConfiguration: true` (`builder.apply` without `force`). A panic inside the core is `internal` – the server
 keeps serving. Kinds are added
 as the core grows; a client treats an unknown kind as a plain error. Defined so far: `not-found`, `exists`,
@@ -237,7 +246,8 @@ comes as events, and `jobs.*` ask and steer.
   "hiddenLines": 37,        // routine lines left out of the log (still in logFile)
   "logFile": "/…/logs/image-build-….log",  // every line of the job, also the routine ones
   "result": { … },          // when finished – per kind, below
-  "error": "…"              // when failed
+  "error": "…",             // when failed
+  "errorText": {…}          // the error as a text when it has a key (§3)
 }
 ```
 
@@ -447,7 +457,8 @@ per page; the Rust types there are the contract, the JSON below their shape).
   same params is not sent again for it), then again whenever its model
   differs from the one sent last: the watcher rebuilds subscribed pages at every look at the data folder (2 s), after
   actions, when a job changes and when the activity list grows (at most every 0.3 s). The whole model comes each
-  time – a UI replaces what it shows. A page that cannot be built comes as `model: {"error": {message, kind}}`.
+  time – a UI replaces what it shows. A page that cannot be built comes as `model: {"error": {message, kind, text}}`
+  (`text` as in §3, null without a key).
   Subscribing to `doctor` or `macBase` runs the Doctor's checks once if they never ran.
 - Typical: a UI subscribes to `home`, `activity` and the page it shows (with its params); the build page's log comes
   with the `jobs` topic (`job.log`) or `jobs.log`.
@@ -495,9 +506,12 @@ Everything a user reads is a **text**: `{key, text, args}`.
   text, args}` – translated first, then filled in: "Open the Doctor first: %@" with the blockers' titles,
   `"%@ · %@ · %@"` for parts joined by " · "), or `{"param": "target"}` – the value the UI asked for that param
   (a confirmation naming the folder just chosen).
-- B117's OPEN about core texts is closed for what the views show: every page, action, question and activity line has a
-  key. Still English only: error `message`s (UIs translate by `data.kind`, §3), the details of the Doctor's checks
-  (paths, versions) and the `job.log` lines.
+- B117's OPEN about core texts is closed: every page, action, question and activity line has a key, and so has every
+  error made with `vm_err!` (§3, plan B125) – an activity line or a build page that shows an error carries it as a text
+  arg. Every key has German (`de.lproj`); a test (`api::translated`) fails for a view key – from the golden files of
+  both hosts and the pages built for a Mac and a Linux host – or an error key without it. Still English only: the
+  details of the Doctor's checks (paths, versions), the `job.log` lines, values inside a message (an OS's or a tool's
+  output) and the CLI `omaf` (docs/cli.md).
 
 ### 10.3 Building blocks
 

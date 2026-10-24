@@ -20,7 +20,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
 
 use crate::cancellation::Cancellation;
-use crate::error::{codes, Error, IoContext, Result};
+use crate::error::{codes, IoContext, Result};
 use crate::file_format::{write_atomic, FileFormat, Step, UnreadableFile};
 use crate::instance_store::InstanceStore;
 use crate::ipsw_downloader::KeepAwake;
@@ -267,7 +267,7 @@ impl ImageStore {
     /// The flake output of a NixOS recipe's image for this host: `images.<system>."<recipe>"` (plan B114)
     pub(crate) fn image_attribute(recipe: &str) -> Result<String> {
         let Some(system) = Platform::host_system(GuestKind::Nixos) else {
-            return Err(Error::with_code(codes::UNSUPPORTED_SYSTEM, "NixOS guests do not run on this computer"));
+            return Err(vm_err!(codes::UNSUPPORTED_SYSTEM, "NixOS guests do not run on this computer"));
         };
         Ok(format!("images.{system}.\"{recipe}\""))
     }
@@ -317,7 +317,7 @@ impl ImageStore {
         if r.status != 0 {
             let cancelled = r.status == 15 || cancel.is_cancelled();
             return Err(if cancelled {
-                Error::with_code(codes::CANCELLED, "Build cancelled")
+                vm_err!(codes::CANCELLED, "Build cancelled")
             } else {
                 vm_err!("nix build failed ({}) – see log", r.status)
             });
@@ -493,20 +493,14 @@ impl ImageStore {
         let name = Package::name_of(dir, PackageKind::Image)
             .unwrap_or_else(|| dir.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default());
         let Some(info) = Self::read_info(dir) else {
-            return Err(Error::with_code(
-                codes::NOT_FOUND,
-                format!("Image {name} has no image.json ({})", dir.display()),
-            ));
+            return Err(vm_err!(codes::NOT_FOUND, "Image {name} has no image.json ({})", dir.display()));
         };
         if info.kind == GuestKind::Macos {
             return Ok(Image { name, info, path: dir.to_path_buf() });
         }
         let disk = dir.join("disk.qcow2");
         if !disk.exists() {
-            return Err(Error::with_code(
-                codes::NOT_FOUND,
-                format!("Image {name}: no disk.qcow2 in {} – build it again", dir.display()),
-            ));
+            return Err(vm_err!(codes::NOT_FOUND, "Image {name}: no disk.qcow2 in {} – build it again", dir.display()));
         }
         Ok(Image { name, info, path: disk })
     }
@@ -568,9 +562,10 @@ impl ImageStore {
         let mut users: Vec<String> = instances.list().into_iter().filter(|c| c.image == name).map(|c| c.name).collect();
         users.sort();
         if !users.is_empty() {
-            return Err(Error::with_code(
+            return Err(vm_err!(
                 codes::IN_USE,
-                format!("{name} is used by {} – remove or upgrade them first", users.join(", ")),
+                "{name} is used by {} – remove or upgrade them first",
+                users.join(", ")
             ));
         }
         let line = image.info.line();

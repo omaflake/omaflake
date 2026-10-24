@@ -16,7 +16,7 @@ use std::fs;
 use std::os::unix::fs::MetadataExt;
 use std::path::Path;
 
-use crate::error::{codes, Error, IoContext, Result};
+use crate::error::{codes, IoContext, Result};
 use crate::instance_store::InstanceStore;
 use crate::models::InstanceConfig;
 use crate::paths::{Paths, Settings};
@@ -38,7 +38,7 @@ impl DataFolder {
         let from_s = from.to_string_lossy().into_owned();
         let to_s = to.to_string_lossy().into_owned();
         if from_s == to_s {
-            return Err(Error::with_code(codes::EXISTS, format!("{to_s} is the data folder already")));
+            return Err(vm_err!(codes::EXISTS, "{to_s} is the data folder already"));
         }
         if to_s.starts_with(&format!("{from_s}/")) || from_s.starts_with(&format!("{to_s}/")) {
             return Err(vm_err!("The new data folder must not be inside the old one or contain it"));
@@ -50,16 +50,17 @@ impl DataFolder {
             .map(|c| c.name)
             .collect();
         if !running.is_empty() {
-            return Err(Error::with_code(codes::VM_RUNNING, format!("Stop these VMs first: {}", running.join(", "))));
+            return Err(vm_err!(codes::VM_RUNNING, "Stop these VMs first: {}", running.join(", ")));
         }
 
         let entries: Vec<&str> = Paths::DATA_ENTRIES.iter().copied().filter(|e| from.join(e).exists()).collect();
         fs::create_dir_all(&to).with_path(&to)?;
         let clashes: Vec<&str> = entries.iter().copied().filter(|e| to.join(e).exists()).collect();
         if !clashes.is_empty() {
-            return Err(Error::with_code(
+            return Err(vm_err!(
                 codes::EXISTS,
-                format!("{to_s} already contains omaflake data ({}) – nothing was moved", clashes.join(", ")),
+                "{to_s} already contains omaflake data ({}) – nothing was moved",
+                clashes.join(", ")
             ));
         }
         if !entries.is_empty() && Self::volume(&from)? != Self::volume(&to)? {

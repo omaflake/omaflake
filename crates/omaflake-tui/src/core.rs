@@ -11,7 +11,8 @@ use omaflake_core::api::client::Client;
 use omaflake_core::api::{RpcError, Server};
 use serde_json::{json, Value};
 
-/// A refused or failed request: the core's English message and its stable kind (api.md §3)
+/// A refused or failed request: the core's message – in the TUI's language when it has a key (`data.text`) – and its
+/// stable kind (api.md §3)
 #[derive(Debug, Clone, PartialEq)]
 pub struct CoreError {
     pub message: String,
@@ -20,7 +21,8 @@ pub struct CoreError {
 
 impl From<RpcError> for CoreError {
     fn from(e: RpcError) -> CoreError {
-        CoreError { message: e.message, kind: e.kind.map(str::to_string) }
+        let message = e.data.get("text").map(crate::text::t).filter(|m| !m.is_empty()).unwrap_or(e.message);
+        CoreError { message, kind: e.kind.map(str::to_string) }
     }
 }
 
