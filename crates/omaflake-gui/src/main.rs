@@ -6,6 +6,7 @@
 
 mod app;
 mod backend;
+mod gpu;
 mod icons;
 mod pages;
 mod prefs;
@@ -20,6 +21,10 @@ mod widgets;
 use app::App;
 
 fn main() -> iced::Result {
+    // Before anything else runs: OpenGL instead of a software Vulkan adapter (lavapipe in a VM, src/gpu.rs)
+    if gpu::avoid_software_vulkan() {
+        eprintln!("omaflake: Vulkan has only a software adapter – drawing with OpenGL (WGPU_BACKEND=gl)");
+    }
     iced::daemon(App::boot, App::update, App::view)
         .title(App::title)
         .subscription(App::subscription)

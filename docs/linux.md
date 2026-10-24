@@ -24,8 +24,11 @@ nix profile install github:omaflake/omaflake#omaflake-gui
 The package holds the app `omaflake` and the CLI `omaf`, a desktop entry (`omaflake.desktop`) and the icon in the
 hicolor theme, so it shows up in the desktop's app list. It needs a GPU driver with Vulkan (or OpenGL), Wayland or X11;
 the wrapper brings the libraries iced loads at run time (Vulkan loader, libGL, Wayland, xkbcommon, the X11 libraries,
-fontconfig). In a VM without a Vulkan GPU (virgl, as in omaflake's NixOS guests) wgpu may pick Mesa's software Vulkan
-(lavapipe), which is slow and busy: `WGPU_BACKEND=gl` makes it draw with OpenGL (the lab VM sets it).
+fontconfig). In a VM without a Vulkan GPU (virgl, as in omaflake's NixOS guests) the only Vulkan device is Mesa's
+software rasterizer (lavapipe), which is slow and keeps a core busy: before its window opens the app asks Vulkan for its
+adapters and, when every one is a CPU, draws with OpenGL instead (it sets `WGPU_BACKEND=gl` for itself and says so on
+stderr). A `WGPU_BACKEND` you set (`vulkan`, `gl`) is used as it is; if OpenGL fails too, iced falls back to its
+software renderer.
 
 From a checkout (development): `cargo run -p omaflake-gui` – on a Mac too, as a development aid (the macOS app stays the
 SwiftUI one; there the tray does not exist). `VM_HOME=<folder>` points it at another data folder.
