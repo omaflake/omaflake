@@ -33,7 +33,9 @@ No Linux builder, no nix-darwin: `omaf build <recipe>` runs `nix build` of `imag
 
 The Doctor's `kvm` line is ok when `/dev/kvm` opens read-write (what QEMU does). systemd's own udev rule gives it the
 group `kvm` and mode 0666 (`dev-kvm-mode`; nixpkgs keeps that default, so on NixOS everyone may use it); distributions
-that build systemd with 0660 need you in the group `kvm`.
+that build systemd with 0660 need you in the group `kvm`. Ubuntu 26.04 is one of them: `/dev/kvm` is `root:kvm` 0660, and
+the user at the desktop gets an ACL from systemd – enough for the app, but not for `omaf` over SSH or from a service
+outside the seat; add yourself to `kvm` there.
 
 - **NixOS:** usually nothing to do once the CPU's module loads (`kvm-intel`/`kvm-amd`, in the generated
   hardware-configuration.nix). If the Doctor says *no access*: `users.users.<you>.extraGroups = [ "kvm" ];`,
@@ -89,7 +91,25 @@ of the camera, as on a Mac.
 
 ### Checking on a real machine
 
-What was run so far (plan B124): aarch64 under TCG, end to end. Still to run on an x86_64 PC with KVM (e.g. NixOS):
+What was run so far (plan B124): aarch64 under TCG, end to end; **x86_64 with KVM on real hardware (2026-10-24)** –
+Ubuntu 26.04.1 LTS (kernel 7.0) on a Ryzen 9 6900HX mini PC, omaflake 0.3.1 from `nix profile install
+github:omaflake/omaflake/v0.3.1#omaflake-gui`, QEMU 11.1.2 from nixpkgs, the official recipes over GitHub, everything over
+SSH (no window):
+
+| Step | Result |
+|---|---|
+| `omaf doctor` | all green: kvm, Nix 2.35.4, QEMU (3D), UEFI `edk2-x86_64-code.fd`, the flake set by URL |
+| `omaf build neovim-minimal` (x86_64-linux) | 300 s, image ready |
+| `omaf start t1 --headless --wait` | SSH after 15 s, `-accel kvm -cpu host`; `uname -m` x86_64, `systemd-detect-virt` kvm |
+| `omaf agent t1` | the report arrives (agent 0.3.1) – ready without SSH |
+| stop, then start straight away | stop 3 s, start again 15 s to SSH – no "SSH port in use" |
+| `OMAFLAKE_ACCEL=tcg` | SSH after 46 s |
+
+Found there: the Linux package brings no image flake (`omaf config --flake 'github:omaflake/omaflake/<tag>?dir=nix'`
+until it does, OPEN); with `OMAFLAKE_ACCEL=tcg` the start line says "no usable /dev/kvm" although KVM is there (OPEN).
+Still to run: a window (3D, sound, clipboard, camera) at the desktop, the app, a private source's token in the keyring.
+
+The steps, on any x86_64 PC with KVM:
 
 ```sh
 # 1. omaflake from this branch, QEMU, a key

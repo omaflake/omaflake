@@ -492,7 +492,8 @@ Lume (trycua) only after a license review (OPEN).
 and a presentation model (B121): the SwiftUI app (menu bar, window or both), the Linux app (iced) and `omaf ui`
 (B119); the Doctor installs the `omaf` command (B122); the lab VM brings omaflake for trying the Linux interfaces
 (B123). Linux as a host is in (B124: QEMU with KVM/TCG, native image builds, a Doctor for Linux, the "SSH port in use"
-after a stop fixed; run end to end on aarch64 under TCG). Next, in this order: **(1)** Linux host on real hardware –
+after a stop fixed; run end to end on aarch64 under TCG; **2026-10-24: run on x86_64 with KVM** – 0.3.1 on Ubuntu 26.04.1, a
+Ryzen 9 mini PC, headless: build 300 s, SSH after 15 s, the agent, stop/start; docs/linux.md). Next, in this order: **(1)** Linux host on real hardware –
 x86_64 with KVM on the maintainer's mini PC (docs/linux.md, "Checking on a real machine"), a window with GL and sound on
 a Linux desktop (the agent bridge, clipboard, camera and sound on Linux: B126, tried under TCG); **(2)** smaller items – tokens of private
 sources on Linux (Secret Service, else a 0600 file), the Linux app avoiding a software Vulkan adapter, translations
