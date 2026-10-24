@@ -3,12 +3,142 @@
 //!
 //! Builds the QEMU argument list from an instance (pure function, covered by unit tests).
 //! Reference: scripts/bootprobe.sh (M1) and spec §6.3.
+//!
+//! The host decides machine, accelerator, window and sound (`Target`, plan B124): a Mac runs aarch64 guests with HVF
+//! in Cocoa windows on CoreAudio (`Target::MAC`, the arguments the Swift code wrote); a Linux host runs guests of its
+//! own architecture with KVM – TCG when /dev/kvm cannot be used – in GTK windows on PipeWire or PulseAudio. Everything
+//! else (disk, network, share, agent ports, QMP, serial log) is the same on every host.
 use crate::agent_protocol::AgentProtocol;
 use crate::models::{DisplayMode, GlBackend, InstanceConfig, NetworkMode, QemuCapabilities};
 use crate::paths::InstancePaths;
 
+/// The guest's architecture (always the host's: guests run natively, plan B114)
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum Arch {
+    Aarch64,
+    X86_64,
+}
+
+impl Arch {
+    /// "aarch64-linux" → Aarch64, "x86_64-linux" → X86_64; None for other systems
+    pub fn of_system(system: &str) -> Option<Arch> {
+        match crate::platform::Platform::architecture(system) {
+            "aarch64" => Some(Arch::Aarch64),
+            "x86_64" => Some(Arch::X86_64),
+            _ => None,
+        }
+    }
+
+    /// QEMU's and Nix's name ("aarch64", "x86_64")
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Arch::Aarch64 => "aarch64",
+            Arch::X86_64 => "x86_64",
+        }
+    }
+
+    /// The QEMU binary for guests of this architecture
+    pub fn qemu_binary(self) -> String {
+        format!("qemu-system-{}", self.as_str())
+    }
+}
+
+/// How QEMU runs the guest's CPU: Apple's Hypervisor.framework, Linux' KVM, or TCG – QEMU's own emulator, many times
+/// slower, the fallback on a Linux host without a usable /dev/kvm
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum Accel {
+    Hvf,
+    Kvm,
+    Tcg,
+}
+
+impl Accel {
+    /// The value for `-accel`
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Accel::Hvf => "hvf",
+            Accel::Kvm => "kvm",
+            Accel::Tcg => "tcg",
+        }
+    }
+
+    pub fn parse(text: &str) -> Option<Accel> {
+        match text.trim() {
+            "hvf" => Some(Accel::Hvf),
+            "kvm" => Some(Accel::Kvm),
+            "tcg" => Some(Accel::Tcg),
+            _ => None,
+        }
+    }
+
+    /// The hardware runs the guest's CPU (not emulated)
+    pub fn is_hardware(self) -> bool {
+        self != Accel::Tcg
+    }
+}
+
+/// QEMU's window: Cocoa on a Mac, GTK on Linux
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum Ui {
+    Cocoa,
+    Gtk,
+}
+
+/// What the host gives QEMU (plan B124): the guest's architecture, the accelerator, the window toolkit and the sound
+/// backend (`-audiodev` driver; None = no sound device, e.g. a Linux host without a sound server)
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct Target {
+    pub arch: Arch,
+    pub accel: Accel,
+    pub ui: Ui,
+    pub audio: Option<&'static str>,
+}
+
+impl Target {
+    /// A Mac with Apple silicon: aarch64 with HVF, Cocoa, CoreAudio
+    pub const MAC: Target = Target { arch: Arch::Aarch64, accel: Accel::Hvf, ui: Ui::Cocoa, audio: Some("coreaudio") };
+
+    /// A Linux host running guests of `arch` with `accel`, GTK windows, sound through `audio` (`pipewire`, `pa`)
+    pub fn linux(arch: Arch, accel: Accel, audio: Option<&'static str>) -> Target {
+        Target { arch, accel, ui: Ui::Gtk, audio }
+    }
+
+    /// `-machine`: `virt` for aarch64 (KVM takes the host's interrupt controller, TCG the newest it emulates – GICv2,
+    /// the default, allows only 8 CPUs), `q35` for x86_64 (PCIe like `virt`)
+    pub fn machine(&self) -> &'static str {
+        match (self.arch, self.accel) {
+            (Arch::Aarch64, Accel::Hvf) => "virt,highmem=on",
+            (Arch::Aarch64, Accel::Kvm) => "virt,highmem=on,gic-version=host",
+            (Arch::Aarch64, Accel::Tcg) => "virt,highmem=on,gic-version=max",
+            (Arch::X86_64, _) => "q35",
+        }
+    }
+
+    /// `-cpu`: the host's CPU with HVF/KVM, everything TCG can emulate otherwise
+    pub fn cpu(&self) -> &'static str {
+        if self.accel.is_hardware() {
+            "host"
+        } else {
+            "max"
+        }
+    }
+
+    /// The GPU device: virtio-gpu on aarch64; on x86_64 virtio-vga, which also has the VGA modes the firmware and
+    /// early boot use (`-vga none` keeps QEMU's default VGA card out)
+    fn gpu(&self, gl: bool) -> &'static str {
+        match (self.arch, gl) {
+            (Arch::X86_64, false) => "virtio-vga",
+            (Arch::X86_64, true) => "virtio-vga-gl",
+            (Arch::Aarch64, false) => "virtio-gpu-pci",
+            (Arch::Aarch64, true) => "virtio-gpu-gl-pci",
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct QemuCommand {
+    /// What the host gives QEMU (default `Target::MAC`)
+    pub target: Target,
     pub firmware: String,
     pub paths: InstancePaths,
     pub share_path: Option<String>,
@@ -44,6 +174,7 @@ impl QemuCommand {
     /// Swift defaults: `gl` .on, capabilities without GL and guest owner, no initial resolution
     pub fn new(firmware: &str, paths: InstancePaths, share_path: Option<String>, display: DisplayMode) -> Self {
         QemuCommand {
+            target: Target::MAC,
             firmware: firmware.into(),
             paths,
             share_path,
@@ -78,11 +209,11 @@ impl QemuCommand {
             "-name".into(),
             c.name.clone(),
             "-machine".into(),
-            "virt,highmem=on".into(),
+            self.target.machine().into(),
             "-accel".into(),
-            "hvf".into(),
+            self.target.accel.as_str().into(),
             "-cpu".into(),
-            "host".into(),
+            self.target.cpu().into(),
             "-smp".into(),
             c.cpus.to_string(),
             "-m".into(),
@@ -108,6 +239,11 @@ impl QemuCommand {
         }
 
         let input = Self::INPUT.iter().map(|s| s.to_string());
+        if self.target.arch == Arch::X86_64 {
+            // q35 adds a VGA card of its own otherwise (at the first free slot)
+            a.extend(["-vga".into(), "none".into()]);
+        }
+        let t = &self.target;
         match self.display {
             DisplayMode::None => {
                 a.extend(["-device".into(), format!("virtio-gpu-pci,addr={}", slot::GPU)]);
@@ -117,23 +253,32 @@ impl QemuCommand {
                 // Cocoa default: Cmd → SUPER, Option → Alt. No swap-opt-cmd (swaps exactly that) and
                 // no full-grab (needs the Accessibility permission for QEMU, plan B9/B21).
                 // zoom-to-fit: window freely resizable; the window size is passed to the guest as resolution
-                a.extend(["-device".into(), format!("{},addr={}", self.gpu_device("virtio-gpu-pci"), slot::GPU)]);
-                a.extend(["-display".into(), "cocoa,zoom-to-fit=on".into()]);
+                a.extend(["-device".into(), format!("{},addr={}", self.gpu_device(t.gpu(false)), slot::GPU)]);
+                let ui = match t.ui {
+                    Ui::Cocoa => "cocoa,zoom-to-fit=on",
+                    Ui::Gtk => "gtk,zoom-to-fit=on",
+                };
+                a.extend(["-display".into(), ui.into()]);
                 a.extend(input);
             }
             DisplayMode::Gpu => {
-                a.extend(["-device".into(), format!("{},addr={}", self.gpu_device("virtio-gpu-gl-pci"), slot::GPU)]);
-                a.extend(["-display".into(), format!("cocoa,gl={},zoom-to-fit=on", self.gl.as_str())]);
+                a.extend(["-device".into(), format!("{},addr={}", self.gpu_device(t.gpu(true)), slot::GPU)]);
+                // GTK knows gl=on|off only (es is Cocoa's ANGLE path)
+                let ui = match t.ui {
+                    Ui::Cocoa => format!("cocoa,gl={},zoom-to-fit=on", self.gl.as_str()),
+                    Ui::Gtk => "gtk,gl=on,zoom-to-fit=on".into(),
+                };
+                a.extend(["-display".into(), ui]);
                 a.extend(input);
             }
         }
 
-        if c.sound_on() {
-            // Intel HD Audio as try-omarchy uses it, on CoreAudio. Without the microphone the codec is output-only:
-            // the guest sees no input and macOS never asks for microphone access.
+        if let (true, Some(driver)) = (c.sound_on(), t.audio) {
+            // Intel HD Audio as try-omarchy uses it, on CoreAudio (Mac) or PipeWire/PulseAudio (Linux). Without the
+            // microphone the codec is output-only: the guest sees no input and macOS never asks for microphone access.
             a.extend([
                 "-audiodev".into(),
-                "coreaudio,id=snd0".into(),
+                format!("{driver},id=snd0"),
                 "-device".into(),
                 format!("intel-hda,addr={}", slot::SOUND),
                 "-device".into(),
@@ -414,5 +559,181 @@ mod tests {
         let all: Vec<String> =
             values(&window, "-device").iter().filter_map(|v| v.split("addr=").nth(1).map(String::from)).collect();
         assert_eq!(all.iter().collect::<HashSet<_>>().len(), all.len()); // no slot used twice
+    }
+
+    /// The Mac's whole argument list, word for word as before the Linux host (plan B124): headless and with a 3D window
+    #[test]
+    fn mac_arguments_are_unchanged() {
+        let headless = args(&default_config());
+        let expected_head: Vec<&str> = vec![
+            "-name",
+            "t1",
+            "-machine",
+            "virt,highmem=on",
+            "-accel",
+            "hvf",
+            "-cpu",
+            "host",
+            "-smp",
+            "8",
+            "-m",
+            "16G",
+            "-drive",
+            "if=pflash,format=raw,readonly=on,file=/fw.fd",
+            "-drive",
+            "if=pflash,format=raw,file=/vm/instances/t1/efivars.fd",
+            "-drive",
+            "if=none,id=hd0,format=qcow2,file=/vm/instances/t1/disk.qcow2",
+            "-device",
+            "virtio-blk-pci,drive=hd0,bootindex=0,addr=0x2",
+            "-device",
+            "virtio-rng-pci,addr=0x3",
+            "-device",
+            "virtio-gpu-pci,addr=0x5",
+            "-display",
+            "none",
+            "-audiodev",
+            "coreaudio,id=snd0",
+            "-device",
+            "intel-hda,addr=0x9",
+            "-device",
+            "hda-output,audiodev=snd0",
+            "-netdev",
+            "user,id=n0,hostfwd=tcp:127.0.0.1:2230-:22",
+            "-device",
+            "virtio-net-pci,netdev=n0,addr=0x4",
+            "-fsdev",
+            "local,id=fs0,path=/vm/share/t1,security_model=mapped-xattr",
+            "-device",
+            "virtio-9p-pci,fsdev=fs0,mount_tag=share,addr=0x7",
+            "-device",
+            "virtio-serial-pci,addr=0x8",
+            "-chardev",
+            "socket,id=qga0,path=/vm/instances/t1/qga.sock,server=on,wait=off",
+            "-device",
+            "virtserialport,chardev=qga0,name=org.qemu.guest_agent.0",
+            "-chardev",
+            "socket,id=agent0,path=/vm/instances/t1/agent.sock,server=on,wait=off",
+            "-device",
+            "virtserialport,chardev=agent0,name=org.omaflake.agent",
+            "-chardev",
+            "socket,id=clip0,path=/vm/instances/t1/clip.sock,server=on,wait=off",
+            "-device",
+            "virtserialport,chardev=clip0,name=org.omaflake.clipboard",
+            "-qmp",
+            "unix:/vm/instances/t1/qmp.sock,server=on,wait=off",
+            "-chardev",
+            "file,id=serial0,path=/vm/instances/t1/serial.log,append=on",
+            "-serial",
+            "chardev:serial0",
+            "-pidfile",
+            "/vm/instances/t1/qemu.pid",
+        ];
+        assert_eq!(headless, expected_head);
+        let mut cmd = QemuCommand::new("/fw.fd", ip(), None, DisplayMode::Gpu);
+        cmd.capabilities = QemuCapabilities { gl: true, guest_owner: false };
+        let gpu = cmd.arguments(&default_config());
+        let window: Vec<&str> = vec![
+            "-device",
+            "virtio-gpu-gl-pci,addr=0x5",
+            "-display",
+            "cocoa,gl=on,zoom-to-fit=on",
+            "-device",
+            "qemu-xhci,addr=0x6",
+            "-device",
+            "usb-kbd",
+            "-device",
+            "usb-tablet",
+        ];
+        let at = gpu.iter().position(|a| a == "virtio-gpu-gl-pci,addr=0x5").unwrap() - 1;
+        assert_eq!(&gpu[at..at + window.len()], window);
+        assert!(!gpu.contains(&"-vga".to_string()));
+    }
+
+    fn linux(arch: Arch, accel: Accel, display: DisplayMode) -> QemuCommand {
+        let mut cmd = QemuCommand::new("/fw.fd", ip(), Some("/vm/share/t1".into()), display);
+        cmd.target = Target::linux(arch, accel, Some("pipewire"));
+        cmd.capabilities = QemuCapabilities { gl: true, guest_owner: false };
+        cmd
+    }
+
+    /// Every architecture × accelerator on a Linux host: machine, accelerator and CPU
+    #[test]
+    fn linux_machine_accelerator_and_cpu() {
+        let cases = [
+            (Arch::X86_64, Accel::Kvm, "q35", "kvm", "host"),
+            (Arch::X86_64, Accel::Tcg, "q35", "tcg", "max"),
+            (Arch::Aarch64, Accel::Kvm, "virt,highmem=on,gic-version=host", "kvm", "host"),
+            (Arch::Aarch64, Accel::Tcg, "virt,highmem=on,gic-version=max", "tcg", "max"),
+        ];
+        for (arch, accel, machine, accel_arg, cpu) in cases {
+            let a = linux(arch, accel, DisplayMode::None).arguments(&default_config());
+            assert_eq!(values(&a, "-machine"), [machine], "{arch:?} {accel:?}");
+            assert_eq!(values(&a, "-accel"), [accel_arg]);
+            assert_eq!(values(&a, "-cpu"), [cpu]);
+            // x86_64 keeps q35's own VGA card out; aarch64 has none
+            assert_eq!(values(&a, "-vga"), if arch == Arch::X86_64 { vec!["none"] } else { vec![] });
+            // host-independent parts as on the Mac
+            assert!(has(&a, "-device", "virtio-blk-pci,drive=hd0,bootindex=0,addr=0x2"));
+            assert_eq!(values(&a, "-netdev"), ["user,id=n0,hostfwd=tcp:127.0.0.1:2230-:22"]);
+            assert_eq!(values(&a, "-fsdev"), ["local,id=fs0,path=/vm/share/t1,security_model=mapped-xattr"]);
+            assert!(has(&a, "-device", "virtserialport,chardev=agent0,name=org.omaflake.agent"));
+            assert_eq!(values(&a, "-qmp"), ["unix:/vm/instances/t1/qmp.sock,server=on,wait=off"]);
+            assert_eq!(values(&a, "-serial"), ["chardev:serial0"]);
+            assert_eq!(values(&a, "-display"), ["none"]);
+            assert!(has(&a, "-device", "virtio-gpu-pci,addr=0x5"));
+        }
+    }
+
+    /// Windows on Linux: GTK, virtio-vga(-gl) on x86_64, virtio-gpu(-gl)-pci on aarch64; GL is gl=on (no ANGLE)
+    #[test]
+    fn linux_windows() {
+        let cases = [
+            (Arch::X86_64, DisplayMode::Window, "virtio-vga,addr=0x5", "gtk,zoom-to-fit=on"),
+            (Arch::X86_64, DisplayMode::Gpu, "virtio-vga-gl,addr=0x5", "gtk,gl=on,zoom-to-fit=on"),
+            (Arch::Aarch64, DisplayMode::Window, "virtio-gpu-pci,addr=0x5", "gtk,zoom-to-fit=on"),
+            (Arch::Aarch64, DisplayMode::Gpu, "virtio-gpu-gl-pci,addr=0x5", "gtk,gl=on,zoom-to-fit=on"),
+        ];
+        for (arch, display, gpu, ui) in cases {
+            for accel in [Accel::Kvm, Accel::Tcg] {
+                let mut cmd = linux(arch, accel, display);
+                cmd.gl = GlBackend::Es;
+                let a = cmd.arguments(&default_config());
+                assert!(has(&a, "-device", gpu), "{arch:?} {display:?}: {a:?}");
+                assert_eq!(values(&a, "-display"), [ui]);
+                assert!(has(&a, "-device", "usb-tablet"));
+            }
+        }
+        let mut cmd = linux(Arch::X86_64, Accel::Kvm, DisplayMode::Gpu);
+        cmd.initial_resolution = Some((1920, 1080));
+        assert!(has(&cmd.arguments(&default_config()), "-device", "virtio-vga-gl,xres=1920,yres=1080,addr=0x5"));
+    }
+
+    /// Sound on Linux through the host's sound server; none without one
+    #[test]
+    fn linux_sound() {
+        let mut cmd = linux(Arch::X86_64, Accel::Kvm, DisplayMode::None);
+        let mut c = default_config();
+        assert_eq!(values(&cmd.arguments(&c), "-audiodev"), ["pipewire,id=snd0"]);
+        c.microphone = Some(true);
+        cmd.target.audio = Some("pa");
+        assert_eq!(values(&cmd.arguments(&c), "-audiodev"), ["pa,id=snd0"]);
+        assert!(has(&cmd.arguments(&c), "-device", "hda-micro,audiodev=snd0"));
+        cmd.target.audio = None;
+        let a = cmd.arguments(&c);
+        assert!(values(&a, "-audiodev").is_empty());
+        assert!(!values(&a, "-device").iter().any(|d| d.starts_with("intel-hda")));
+    }
+
+    #[test]
+    fn architectures_and_accelerators() {
+        assert_eq!(Arch::of_system("x86_64-linux"), Some(Arch::X86_64));
+        assert_eq!(Arch::of_system("aarch64-linux"), Some(Arch::Aarch64));
+        assert_eq!(Arch::of_system("riscv64-linux"), None);
+        assert_eq!(Arch::X86_64.qemu_binary(), "qemu-system-x86_64");
+        for a in [Accel::Hvf, Accel::Kvm, Accel::Tcg] {
+            assert_eq!(Accel::parse(a.as_str()), Some(a));
+        }
+        assert!(!Accel::Tcg.is_hardware() && Accel::Kvm.is_hardware());
     }
 }

@@ -11,6 +11,7 @@ use chrono::Utc;
 use omaflake_core::builder_maintenance::BuilderMaintenance;
 use omaflake_core::cli_link::CliLink;
 use omaflake_core::platform::is_executable_file;
+use omaflake_core::qemu_command::Accel;
 use omaflake_core::{
     json, AgentState, DataFolder, DisplayMode, Error, GlBackend, GuestKind, GuestSettings, InstanceConfig,
     InstanceLock, Lengths, MacOsRelease, NetworkMode, OmaflakeId, Paths, Prerequisite, PrerequisiteStatus,
@@ -200,11 +201,24 @@ pub fn start(a: &cli::Start) -> Outcome {
         println!("Display: {shown}");
     }
     println!("{}", running_line(&c, pid));
+    if c.guest_kind() == GuestKind::Nixos {
+        // Linux hosts without a usable /dev/kvm (plan B124)
+        if let Some(line) = backends.qemu().ok().and_then(|q| q.runtime.accelerator(&c.name)).and_then(accel_line) {
+            println!("{line}");
+        }
+    }
     drop(lock);
     if a.wait {
         wait_for_ssh(&c, backend, 300.0)?;
     }
     Ok(())
+}
+
+/// What `omaf start` says about QEMU's accelerator: only TCG is worth a line (plan B124)
+pub fn accel_line(accel: Accel) -> Option<&'static str> {
+    (accel == Accel::Tcg).then_some(
+        "Accelerator: TCG – emulated, many times slower (no usable /dev/kvm – see omaf doctor); SSH may take minutes",
+    )
 }
 
 /// "<name> is running (PID <pid>[, SSH …])."
@@ -624,6 +638,10 @@ pub fn doctor(a: &cli::Doctor) -> Outcome {
         ("macOS preflight", pre.macos_preflight(latest.as_ref())),
     ];
     for (title, items) in &groups {
+        // A Linux host has no macOS preflight (plan B124)
+        if items.is_empty() {
+            continue;
+        }
         println!("{title}");
         for p in items {
             for line in doctor_lines(p) {
@@ -763,6 +781,9 @@ mod tests {
         let mut c = config("dev", GuestKind::Nixos);
         assert_eq!(created_line(&c), "Instance dev created (image omaflake.nixos.dev@date-eagle-fig, SSH port 2222).");
         assert_eq!(running_line(&c, 42), "dev is running (PID 42, SSH 127.0.0.1:2222).");
+        assert!(accel_line(Accel::Tcg).unwrap().starts_with("Accelerator: TCG"));
+        assert_eq!(accel_line(Accel::Kvm), None);
+        assert_eq!(accel_line(Accel::Hvf), None);
         c.ephemeral = true;
         c.kind = GuestKind::Macos;
         assert_eq!(

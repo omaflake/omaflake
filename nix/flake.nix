@@ -56,6 +56,9 @@
       guest = builtins.fromJSON (builtins.readFile "${omaflake-guest}/settings.json");
       ownSettings = guest // lib.optionalAttrs hasLocal (import (localDir + "/settings.nix"));
       settings = ownSettings // {
+        # omaflake leaves "email" out of guest/settings.json when it has none (plan B124: a fresh data folder failed to
+        # build with "attribute 'email' missing")
+        email = ownSettings.email or null;
         # The macOS guest user is fixed by the base (omaflake passes it); default: same as `user`
         macUser = if (ownSettings.macUser or null) != null then ownSettings.macUser else ownSettings.user;
         authorizedKeys = guest.authorizedKeys or [ ];

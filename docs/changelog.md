@@ -21,6 +21,13 @@ are collected under *Unreleased*. Releases: [GitHub](https://github.com/omaflake
   `tokens` v1.
 - **`omaf ui` and the Linux app speak German:** with a German locale (or `OMAFLAKE_LANGUAGE=de`) every page, action
   and question is shown in German – the same translations as the macOS app –, dates and sizes too.
+- **NixOS VMs on a Linux host** (issue #2, docs/linux.md): omaflake runs NixOS guests of the host's own architecture
+  (x86_64 or aarch64) with QEMU and **KVM**; without a usable `/dev/kvm` it falls back to TCG – emulated, many times
+  slower – and says so (`omaf start`, the VM's details, the Doctor). Images build natively with Nix, no Linux builder.
+  Windows open with GTK (3D with virtio-gpu-gl where QEMU has it), sound goes to PipeWire or PulseAudio. The Doctor on
+  Linux checks the host, KVM (with the fix: the group `kvm`, or virtualization in the firmware), Nix and flakes, QEMU
+  with its version, 3D and UEFI firmware, the recipes, the SSH key and git – no nix-darwin, Linux builder or macOS
+  items. x86_64 images boot with their console on the serial port too.
 
 ### Changed
 
@@ -30,6 +37,14 @@ are collected under *Unreleased*. Releases: [GitHub](https://github.com/omaflake
   `omaf new`, `omaf export recipe`) takes the recipe as it is in the folder instead of asking between it and the copy
   kept from the last build. `omaf new` takes the newest version that has an image. Words or the omaflake ID still pick
   an older version; omaf asks only when recipes of that name come from different sources or authors.
+
+### Fixed
+
+- Images build again with a data folder that has no guest email set (`attribute 'email' missing` – omaflake leaves the
+  field out then; the image flake now treats it as unset).
+- `omaf start` right after `omaf stop` no longer says "SSH port … is in use": the check now binds the port the way QEMU
+  does (with SO_REUSEADDR), so connections of the stopped VM still in TIME_WAIT do not count; a port another program
+  listens on is still refused.
 
 ## [0.3.0] – 2026-10-24
 

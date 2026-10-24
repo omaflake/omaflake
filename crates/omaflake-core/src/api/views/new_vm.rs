@@ -244,7 +244,7 @@ pub(crate) fn page(ctx: &Ctx, p: &NewVmParams) -> Option<NewVmPage> {
     if let (true, true, Some(reason)) = (mac, start, mac_limit(ctx)) {
         warnings.push(tf!("%@ – the VM is created but not started.", reason));
     }
-    let blockers = Blockers::of(&ctx.start_blockers(image.kind));
+    let blockers = Blockers::of(&ctx.start_blockers(image.kind), ctx.host);
     let valid = name_error.is_none();
     let mut params = json!({"name": name, "image": image.name, "settings": s, "start": start});
     if let (true, Some(path)) = (share, &share_path) {

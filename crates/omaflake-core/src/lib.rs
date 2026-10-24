@@ -34,6 +34,7 @@ pub mod paths;
 pub mod platform;
 pub mod prerequisites;
 pub mod qemu_command;
+pub mod qemu_host;
 pub mod qemu_runtime;
 pub mod qmp_client;
 pub mod recipe_sources;

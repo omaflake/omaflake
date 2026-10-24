@@ -224,7 +224,7 @@ pub(crate) fn page(ctx: &Ctx, p: &BuildParams) -> BuildPage {
         description: r.and_then(|r| r.description.clone()),
         state: job.as_ref().map(state_of).unwrap_or(BuildState::Idle),
         actions,
-        blockers: if active { None } else { Blockers::of(&blockers) },
+        blockers: if active { None } else { Blockers::of(&blockers, ctx.host) },
         mac_base: (mac && !has_base && !active).then(|| {
             Hint::new(
                 "macos",
