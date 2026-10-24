@@ -427,12 +427,13 @@ mod tests {
     #[test]
     fn host_values_have_their_shape() {
         let tz = GuestSettings::mac_time_zone();
-        assert!(tz == "GMT" || tz.contains('/'), "{tz}");
+        // GMT/UTC on hosts set to it (CI runners), else an area/location zone
+        assert!(tz == "GMT" || tz == "UTC" || tz.contains('/'), "{tz}");
         let locale = GuestSettings::mac_locale();
         assert!(locale.ends_with(".UTF-8") && locale.contains('_'), "{locale}");
         let k = GuestSettings::mac_keyboard();
         assert!(!k.is_empty() && k.chars().all(|c| c.is_ascii_lowercase()), "{k}");
-        if cfg!(target_os = "macos") && tz != "GMT" {
+        if cfg!(target_os = "macos") && tz.contains('/') {
             assert!(GuestChoices::time_zones().contains(&tz), "{tz}");
         }
     }
