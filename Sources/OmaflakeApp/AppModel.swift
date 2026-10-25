@@ -406,6 +406,7 @@ final class AppModel {
         switch pageModel(ref) {
         case .newVm(let p)?: p.sections.flatMap(\.fields)
         case .macBase(let p)?: p.fields
+        case .build(let p)?: p.fields ?? []
         case .settings(let p)?: p.sources.add.fields
         default: []
         }

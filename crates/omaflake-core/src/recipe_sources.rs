@@ -2195,7 +2195,7 @@ mod tests {
         let s = Settings {
             flake: Some("/f".into()),
             sources: Some(vec![RecipeSource::official()]),
-            guest: Some(GuestOverrides { user: Some("u".into()), ..Default::default() }),
+            guest: Some(GuestOverrides { keyboard: Some("us".into()), ..Default::default() }),
             ..Default::default()
         };
         matches(&Settings::FILE_FORMAT.encode(&s).unwrap());

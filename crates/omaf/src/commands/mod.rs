@@ -2,6 +2,7 @@
 //! The commands' bodies, one module per Swift file of Sources/omaf (Omaf.swift is split into recipes.rs and
 //! instances.rs), and `serve` / `call` (docs/api.md).
 
+pub mod credentials;
 pub mod instances;
 pub mod macos;
 pub mod packages;
@@ -36,6 +37,13 @@ pub fn run(command: Command) -> Outcome {
             Some(SourcesCommand::Check) => sources::check(),
         },
         Command::Build(a) => recipes::build(&a),
+        Command::Credentials(c) => match c.command {
+            None | Some(CredentialsCommand::List) => credentials::list(),
+            Some(CredentialsCommand::Add(a)) => credentials::add(&a),
+            Some(CredentialsCommand::Edit(a)) => credentials::edit(&a),
+            Some(CredentialsCommand::Remove(a)) => credentials::remove(&a.credential),
+            Some(CredentialsCommand::Default(a)) => credentials::set_default(&a.credential),
+        },
         Command::MacOs { command: MacOsCommand::Install(a) } => macos::install(&a),
         Command::Images(i) => match i.command {
             None | Some(ImagesCommand::List) => instances::images_list(),

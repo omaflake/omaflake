@@ -13,6 +13,7 @@ use omaflake_core::api::types::JobDto;
 use omaflake_core::api::views::activity::ActivityPage;
 use omaflake_core::api::views::build::{BuildPage, LogRef};
 use omaflake_core::api::views::common::{set_param, Action, Ask, AskKind, Confirm, Field, Then};
+use omaflake_core::api::views::credentials::CredentialsPage;
 use omaflake_core::api::views::doctor::{DoctorPage, MacBasePage};
 use omaflake_core::api::views::home::HomePage;
 use omaflake_core::api::views::images::{ImagePage, ImagesPage};
@@ -41,6 +42,8 @@ pub enum Model {
     Doctor(Box<DoctorPage>),
     MacBase(Box<MacBasePage>),
     Settings(Box<SettingsPage>),
+    /// Credentials (plan B137)
+    Credentials(Box<CredentialsPage>),
     Activity(Box<ActivityPage>),
     Vm(Box<VmPage>),
     Image(Box<ImagePage>),
@@ -90,6 +93,7 @@ pub fn decode(page: &str, v: Value) -> Model {
         "doctor" => de(v, Model::Doctor),
         "macBase" => de(v, Model::MacBase),
         "settings" => de(v, Model::Settings),
+        "credentials" => de(v, Model::Credentials),
         "activity" => de(v, Model::Activity),
         "vm" => de(v, Model::Vm),
         "image" => de(v, Model::Image),
@@ -111,6 +115,7 @@ impl Model {
             Model::Doctor(p) => &p.title,
             Model::MacBase(p) => &p.title,
             Model::Settings(p) => &p.title,
+            Model::Credentials(p) => &p.title,
             Model::Vm(p) => &p.title,
             Model::Image(p) => &p.title,
             Model::Error(_) => return None,
@@ -1015,6 +1020,7 @@ impl App {
         let fields: Vec<Field> = match self.current().as_ref().and_then(|p| self.model(p)) {
             Some(Model::NewVm(n)) => n.sections.iter().flat_map(|s| s.fields.clone()).collect(),
             Some(Model::MacBase(m)) => m.fields.clone(),
+            Some(Model::Build(b)) => b.fields.clone(),
             Some(Model::Settings(s)) => s.sources.add.fields.clone(),
             _ => vec![],
         };

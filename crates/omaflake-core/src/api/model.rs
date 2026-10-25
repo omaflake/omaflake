@@ -666,6 +666,8 @@ impl View<'_> {
             omaflake_id: OmaflakeId::image(i, OmaflakeId::LENGTH),
             outdated: self.expected.get(i.recipe()).map(|e| i.info.store_path.as_deref() != Some(e.as_str())),
             look: i.info.look.clone(),
+            credential: i.info.credential.clone(),
+            credential_name: i.info.credential_name.clone(),
             instances: self
                 .snap
                 .rows

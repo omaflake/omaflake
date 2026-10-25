@@ -179,10 +179,10 @@ fn guest_choice(
     f
 }
 
-/// The guests' look (plan B135): "Each recipe's own" (null) or one of the looks – there is no computer's look
+/// The default look of new images (plan B135, B137): "Each recipe's own" (null) or one of the looks
 fn look_choice(g: &GuestValues, looks: &[Look], base: &Value) -> Field {
-    let mut f =
-        Field::new("look", FieldKind::Choice, Text::new("Look"), json!(g.look)).settings("guest.look", base.clone());
+    let mut f = Field::new("look", FieldKind::Choice, Text::new("Default look"), json!(g.look))
+        .settings("guest.look", base.clone());
     f.choices = vec![Choice::new(Value::Null, Text::new("Each recipe's own"))];
     f.choices.extend(looks.iter().map(|l| Choice::new(json!(l.name), Text::verbatim(l.title.clone()))));
     f
@@ -259,12 +259,17 @@ pub(crate) fn page(ctx: &Ctx, answer: &SettingsAnswer, p: &SettingsParams) -> Se
     let d = &answer.guest_defaults;
     // settings.set replaces the whole guest object: each field sends the others as they are
     let base = json!({"guest": g});
-    let text = |id: &str, label: &str, value: &Option<String>, placeholder: &Option<String>| {
-        let mut f = Field::new(id, FieldKind::Text, Text::new(label), json!(value))
-            .settings(&format!("guest.{id}"), base.clone());
-        f.placeholder = Some(Text::verbatim(placeholder.clone().unwrap_or_default()));
-        f
-    };
+    // The default credential of new images (plan B137): this computer's values (null) or a credential
+    let mut credential = Field::new(
+        "defaultCredential",
+        FieldKind::Choice,
+        Text::new("Default credential"),
+        json!(s.default_credential),
+    )
+    .settings("defaultCredential", json!({}))
+    .help(Text::new("Credentials are created with the key at the top"));
+    credential.choices = vec![Choice::new(Value::Null, tf!("This computer – %@", &ctx.host_user))];
+    credential.choices.extend(ctx.credentials.iter().map(|c| Choice::new(json!(c.id), Text::verbatim(&c.name))));
     let c = &answer.choices;
     let mut keyboards: Vec<Choice> = c
         .keyboards
@@ -273,19 +278,17 @@ pub(crate) fn page(ctx: &Ctx, answer: &SettingsAnswer, p: &SettingsParams) -> Se
         .collect();
     keyboards.sort_by(|a, b| a.label.text.cmp(&b.label.text));
     let guest = SettingsSection {
-        title: Text::new("Guest user in the VMs"),
+        title: Text::new("Guests"),
         fields: vec![
-            text("user", "User", &g.user, &d.user),
-            text("fullName", "Full name", &g.full_name, &d.full_name),
-            text("email", "E-mail (git)", &g.email, &None),
+            credential,
+            look_choice(g, &c.looks, &base),
             guest_choice(ctx, "locale", "Language and region", &g.locale, &d.locale, choices(&c.locales, |l| l.replace(".UTF-8", "")), &base),
             guest_choice(ctx, "keyboard", "Keyboard", &g.keyboard, &d.keyboard, keyboards, &base),
             guest_choice(ctx, "timeZone", "Time zone", &g.time_zone, &d.time_zone, choices(&c.time_zones, |z| z.replace('_', " ")), &base),
-            look_choice(g, &c.looks, &base),
         ],
         footer: Some(Text::new(ctx.on_host(
-            "Empty fields and \"Like this Mac\" use your Mac's values. The lists offer only what both NixOS and macOS VMs support. Your SSH keys from ~/.ssh are added automatically. macOS VMs always use the user of the macOS base. The look colours a NixOS VM's whole desktop and a macOS VM's terminal and editors; a changed look comes with the next build of an image. A developer flake's local/settings.nix overrides these values.",
-            "Empty fields and \"Like this computer\" use this computer's values. The lists offer only what both NixOS and macOS VMs support. Your SSH keys from ~/.ssh are added automatically. The look colours a NixOS VM's whole desktop and a macOS VM's terminal and editors; a changed look comes with the next build of an image. A developer flake's local/settings.nix overrides these values.",
+            "The default credential and look are preset when an image is built – each image keeps its own. \"Like this Mac\" uses your Mac's values. The lists offer only what both NixOS and macOS VMs support. Your SSH keys from ~/.ssh are added automatically. macOS VMs always use the user of the macOS base. A developer flake's local/settings.nix overrides these values.",
+            "The default credential and look are preset when an image is built – each image keeps its own. \"Like this computer\" uses this computer's values. The lists offer only what both NixOS and macOS VMs support. Your SSH keys from ~/.ssh are added automatically. A developer flake's local/settings.nix overrides these values.",
         ))),
     };
 

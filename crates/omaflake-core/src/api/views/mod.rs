@@ -19,6 +19,7 @@
 pub mod activity;
 pub mod build;
 pub mod common;
+pub mod credentials;
 pub mod doctor;
 pub mod home;
 pub mod images;
@@ -50,9 +51,21 @@ pub use activity::ActivityEntry;
 pub use text::{Arg, Text};
 
 /// Every page `views.get` knows
-pub const PAGES: [&str; 13] = [
-    "home", "vms", "vm", "images", "image", "recipes", "newVm", "build", "doctor", "macBase", "settings", "activity",
+pub const PAGES: [&str; 14] = [
+    "home",
+    "vms",
+    "vm",
+    "images",
+    "image",
+    "recipes",
+    "newVm",
+    "build",
+    "doctor",
+    "macBase",
+    "settings",
+    "activity",
     "import",
+    "credentials",
 ];
 
 /// The computer the core runs on (`initialize`'s `host`): texts that name the Mac, Finder or the Keychain have a
@@ -101,6 +114,8 @@ pub(crate) struct Ctx {
     pub available: Option<Available>,
     pub fetching: bool,
     pub sources: Vec<SourceDto>,
+    /// The credentials (plan B137)
+    pub credentials: Vec<CredentialDto>,
     pub settings: SettingsDto,
     /// Settings' choices and the computer's guest values (only for the settings page: they read system lists)
     pub settings_answer: Option<SettingsAnswer>,
@@ -264,6 +279,7 @@ pub(crate) fn build(ctx: &Ctx, page: &PageRef) -> Result<Value, RpcError> {
         "build" => to_value(build::page(ctx, &page_params(p)?)),
         "doctor" => to_value(doctor::page(ctx)),
         "macBase" => to_value(doctor::mac_base_page(ctx, &page_params(p)?)),
+        "credentials" => to_value(credentials::page(ctx)),
         "settings" => {
             let answer = ctx.settings_answer.as_ref().ok_or_else(|| RpcError::internal("settings not gathered"))?;
             to_value(settings::page(ctx, answer, &page_params(p)?))
@@ -331,6 +347,7 @@ impl Server {
             available: self.available_cached(),
             fetching: catalogs,
             sources: self.sources(),
+            credentials: super::methods::credential_dtos(&state.paths),
             settings: super::methods::settings_dto(&state.paths),
             settings_answer,
             default_data_folder: Paths::default_home().to_string_lossy().into_owned(),

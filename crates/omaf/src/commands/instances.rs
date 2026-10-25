@@ -61,6 +61,15 @@ pub fn images_list() -> Outcome {
         let look =
             image.info.look.as_deref().map_or("unknown (built before looks)".to_string(), GuestChoices::look_name);
         println!("    Look:      {look}");
+        let credential = match &image.info.credential {
+            None => "this computer's user and name".to_string(),
+            Some(id) => omaflake_core::credentials::Credentials::new(env.paths.clone())
+                .get(id)
+                .map(|c| c.name)
+                .or_else(|| image.info.credential_name.clone().map(|n| format!("{n} (removed)")))
+                .unwrap_or_else(|| id.clone()),
+        };
+        println!("    Credential: {credential}");
         println!("    Instances: {used}");
     }
     // Images this omaflake cannot read (too old, too new, damaged, plan B114)
@@ -574,8 +583,18 @@ pub fn config(a: &cli::Config) -> Outcome {
             return Err(usage(&["config"], format!("--guest-look: {} or empty", names.join(", "))));
         }
     }
-    let guest =
-        [&a.guest_user, &a.guest_full_name, &a.guest_locale, &a.guest_keyboard, &a.guest_time_zone, &a.guest_look];
+    if let Some(reference) = &a.default_credential {
+        let credentials = omaflake_core::credentials::Credentials::new(env.paths.clone());
+        let id = if reference.is_empty() || reference == "computer" {
+            None
+        } else {
+            Some(credentials.find(reference).map(|c| c.id).ok_or_else(|| {
+                usage(&["config"], format!("--default-credential: no credential {reference} – see omaf credentials"))
+            })?)
+        };
+        s.default_credential = id;
+    }
+    let guest = [&a.guest_locale, &a.guest_keyboard, &a.guest_time_zone, &a.guest_look];
     let guest_change = guest.iter().any(|v| v.is_some());
     if guest_change {
         // An empty value removes the override (the Mac's value applies again)
@@ -585,8 +604,6 @@ pub fn config(a: &cli::Config) -> Outcome {
                 *field = (!v.is_empty()).then(|| v.clone());
             }
         };
-        set(&mut g.user, &a.guest_user);
-        set(&mut g.full_name, &a.guest_full_name);
         set(&mut g.locale, &a.guest_locale);
         set(&mut g.keyboard, &a.guest_keyboard);
         set(&mut g.time_zone, &a.guest_time_zone);
@@ -600,6 +617,7 @@ pub fn config(a: &cli::Config) -> Outcome {
         s.keep_recipe_versions = Some(keep == "on");
     }
     let changed = a.flake.is_some()
+        || a.default_credential.is_some()
         || a.qemu.is_some()
         || a.runner.is_some()
         || a.nix.is_some()
@@ -636,7 +654,16 @@ pub fn config_lines(s: &omaflake_core::Settings, paths: &Paths, g: &GuestSetting
             g.mac_user.as_deref().unwrap_or(&g.user),
             g.authorized_keys.len()
         ),
-        format!("look:   {}", g.look.as_deref().map_or("– (each recipe's own)".to_string(), GuestChoices::look_name)),
+        format!(
+            "default credential: {}",
+            omaflake_core::credentials::Credentials::new(paths.clone())
+                .default_credential()
+                .map_or_else(|| "– (this computer's user and name)".to_string(), |c| c.name)
+        ),
+        format!(
+            "default look: {}",
+            g.look.as_deref().map_or("– (each recipe's own)".to_string(), GuestChoices::look_name)
+        ),
         format!(
             "recipe versions: {}",
             if s.keep_recipe_versions.unwrap_or(false) {

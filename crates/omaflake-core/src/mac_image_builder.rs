@@ -26,6 +26,7 @@ use std::time::{Duration, Instant};
 
 use crate::cancellation::Cancellation;
 use crate::error::{codes, IoContext, Result};
+use crate::guest_settings::BuildChoice;
 use crate::image_store::{Image, ImageInfo, ImageStore};
 use crate::ipsw_downloader::KeepAwake;
 use crate::json;
@@ -64,6 +65,8 @@ pub struct BuildRequest {
     pub base: Option<PathBuf>,
     /// Keep a failed build folder for inspection instead of deleting it
     pub keep_failed: bool,
+    /// The credential and look of the image (plan B137); the macOS guest user stays the base's
+    pub choice: BuildChoice,
 }
 
 impl BuildRequest {
@@ -76,6 +79,7 @@ impl BuildRequest {
             password: password.into(),
             base: None,
             keep_failed: false,
+            choice: BuildChoice::default(),
         }
     }
 }
@@ -147,7 +151,7 @@ impl MacImageBuilder {
             "--print-out-paths".into(),
             "-L".into(),
         ];
-        args.extend(images.guest_arguments(&r.flake));
+        args.extend(images.guest_arguments_for(&r.flake, &r.choice));
         let built = Shell::stream("nix", &args, &StreamOptions { cancel: Some(cancel), ..Default::default() }, log)
             .map_err(|e| if cancel.is_cancelled() { cancelled() } else { e })?;
         if cancel.is_cancelled() {
@@ -247,7 +251,7 @@ impl MacImageBuilder {
             Some(system.clone()),
             json::now(),
         );
-        info.look = images.look_of(&r.recipe, GuestKind::Macos, &r.flake);
+        info.set_choice(&r.choice, images.look_of(&r.recipe, GuestKind::Macos, &r.flake, &r.choice));
         ImageStore::write_info(&info, &work)?;
         fs::rename(&work, &image).with_path(&image)?;
         Shell::check(

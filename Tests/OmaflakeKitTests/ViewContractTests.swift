@@ -23,19 +23,20 @@ extension APIContractTests {
         [
             "home": {
                 guard case .home(let h) = try page("home", as: "home") else { throw Unexpected() }
-                #expect(h.actions.map(\.id) == ["doctor", "settings", "dataFolder", "quit"] && h.actions[0].badge == 3)
-                #expect(h.actions[3].confirm?.text.args == [.string("research")] && h.firstTab == "vms")
+                #expect(h.actions.map(\.id) == ["doctor", "credentials", "settings", "dataFolder", "quit"] && h.actions[0].badge == 3)
+                #expect(h.actions[4].confirm?.text.args == [.string("research")] && h.firstTab == "vms")
+                #expect(h.actions[1].icon == "key")
                 #expect(h.tabs.map(\.id) == ["vms", "images", "recipes", "activity"] && h.tabs[0].badge?.count == 1)
                 #expect(h.tabs[1].badge?.kind == "working" && h.tabs[2].badge?.tone == .warning && h.tabs[3].badge == nil)
                 // The window's title is data; the header's short labels
                 #expect(h.title == ViewText(verbatim: "omaflake"))
-                #expect(h.actions.map { $0.shortLabel?.key } == ["Doctor", nil, "Data Folder", "Quit"])
-                #expect(h.actions[2].label.key == "Show Data Folder in Finder" && !h.actions.contains { $0.primary })
+                #expect(h.actions.map { $0.shortLabel?.key } == ["Doctor", nil, nil, "Data Folder", "Quit"])
+                #expect(h.actions[3].label.key == "Show Data Folder in Finder" && !h.actions.contains { $0.primary })
             },
             "home.linux": {
                 // Host wording is the core's: the host-neutral variant on Linux
                 guard case .home(let h) = try page("home.linux", as: "home") else { throw Unexpected() }
-                #expect(h.actions[2].label.key == "Show Data Folder" && h.actions[2].shortLabel?.key == "Data Folder")
+                #expect(h.actions[3].label.key == "Show Data Folder" && h.actions[3].shortLabel?.key == "Data Folder")
             },
             "vms": {
                 guard case .vms(let p) = try page("vms", as: "vms") else { throw Unexpected() }
@@ -141,7 +142,9 @@ extension APIContractTests {
             },
             "build.macos": {
                 guard case .build(let p) = try page("build.macos", as: "build") else { throw Unexpected() }
-                #expect(p.state == .idle && p.actions.first?.ask.first?.kind == .password && p.badges.first?.id == "lab")
+                // The default credential has a stored password: nothing is asked (plan B137)
+                #expect(p.state == .idle && p.actions.first?.ask.isEmpty == true && p.badges.first?.id == "lab")
+                #expect(p.fields?.map(\.id) == ["credential", "look"] && p.fields?.first?.valueParam == "credential")
             },
             "doctor": {
                 guard case .doctor(let p) = try page("doctor", as: "doctor") else { throw Unexpected() }
@@ -170,6 +173,16 @@ extension APIContractTests {
                 #expect(p.ipsw.text.text == "UniversalMac.ipsw" && p.ipsw.actions.map(\.id) == ["useApple", "chooseIpsw"])
                 #expect(p.ipsw.actions.allSatisfy { $0.method == "ui.field" && $0.params["page"] == .string("macBase") && $0.params["valueParam"] == .string("ipsw") })
                 #expect(p.ipsw.actions[0].params["value"] == .null && p.actions.first?.params["ipsw"] == .string("/Volumes/Disk/UniversalMac.ipsw"))
+            },
+            "credentials": {
+                guard case .credentials(let p) = try page("credentials", as: "credentials") else { throw Unexpected() }
+                #expect(p.rows.map(\.name) == ["Work"] && p.rows[0].badges.map(\.id) == ["default", "password"])
+                #expect(p.rows[0].actions.map(\.id) == ["edit", "password", "removePassword", "default", "remove"])
+                #expect(p.add.primary && p.add.ask.map(\.param) == ["name", "user", "fullName", "email"])
+            },
+            "credentials.linux": {
+                guard case .credentials(let p) = try page("credentials.linux", as: "credentials") else { throw Unexpected() }
+                #expect(p.footer.key?.hasPrefix("Passwords are kept in the desktop's keyring") == true)
             },
             "settings": {
                 guard case .settings(let p) = try page("settings", as: "settings") else { throw Unexpected() }

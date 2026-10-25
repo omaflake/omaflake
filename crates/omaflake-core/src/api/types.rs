@@ -273,6 +273,12 @@ pub struct ImageDto {
     /// The guest look it was built with (plan B135); left out for an image from before looks
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub look: Option<String>,
+    /// The credential it was built with (its ID, plan B137); left out: this computer's values
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub credential: Option<String>,
+    /// That credential's name when it was built
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub credential_name: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -590,8 +596,12 @@ pub struct SettingsDto {
     pub check_for_updates: bool,
     pub notifications: bool,
     pub keep_recipe_versions: bool,
-    /// The guest values set here (an unset one is the computer's, `guestDefaults`)
+    /// The guest values set here (an unset one is the computer's, `guestDefaults`); user, fullName and email are
+    /// left out since credentials (plan B137)
     pub guest: GuestValues,
+    /// The credential new images get unless another is chosen (`credentials.list`); left out: this computer's values
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub default_credential: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub flake: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -643,6 +653,32 @@ pub struct Choices {
     /// The guests' looks (plan B135)
     #[serde(default)]
     pub looks: Vec<Look>,
+}
+
+/// A credential (plan B137) – `credentials.list`; its password never leaves the secret store
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CredentialDto {
+    pub id: String,
+    pub name: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub user: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub full_name: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub email: Option<String>,
+    /// A password is stored (macOS builds need none asked)
+    pub has_password: bool,
+    /// It is the settings' default
+    pub is_default: bool,
+}
+
+/// `credentials.add` / `credentials.update`: the credential and, when a password went to a file, where (no keyring)
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct CredentialAnswer {
+    pub credential: CredentialDto,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub note: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

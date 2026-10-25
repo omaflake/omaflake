@@ -132,7 +132,8 @@ mod tests {
         assert_eq!(a["guest"], json!({"locale": "de_CH"}));
         let s = Settings::load(&server.paths());
         assert_eq!(s.check_for_updates, None);
-        assert_eq!(s.guest.unwrap().user, None);
+        // user, fullName and email are a credential's now (plan B137): left out
+        assert_eq!(s.guest.unwrap(), crate::GuestOverrides { locale: Some("de_CH".into()), ..Default::default() });
         let e = server.call("settings.set", json!({"notifications": "yes"})).unwrap_err();
         assert_eq!(e.code, protocol::INVALID_PARAMS);
         // Updates switched off: no feed is asked

@@ -175,8 +175,8 @@ pub(crate) fn settings_answer() -> SettingsAnswer {
             check_for_updates: true,
             notifications: false,
             keep_recipe_versions: false,
+            default_credential: Some("c-1".into()),
             guest: GuestValues {
-                user: Some("alex".into()),
                 locale: Some("de_CH.UTF-8".into()),
                 keyboard: Some("ch".into()),
                 look: Some("rose-pine-dawn".into()),
@@ -319,6 +319,8 @@ pub(crate) fn image(size: bool) -> ImageDto {
         current: true,
         outdated: Some(false),
         look: Some("omaflake".into()),
+        credential: Some("c-1".into()),
+        credential_name: Some("Work".into()),
     }
 }
 
@@ -342,6 +344,8 @@ pub(crate) fn image_old() -> ImageDto {
         current: false,
         outdated: None,
         look: None,
+        credential: None,
+        credential_name: None,
     }
 }
 
@@ -790,6 +794,8 @@ fn view_goldens() -> Vec<(&'static str, Value)> {
                 .unwrap(),
         ),
         ("doctor", page("doctor", json!({}))),
+        ("credentials", page("credentials", json!({}))),
+        ("credentials.linux", build(&linux, &PageRef { page: "credentials".into(), params: json!({}) }).unwrap()),
         ("macBase", page("macBase", json!({}))),
         (
             "macBase.ipsw",

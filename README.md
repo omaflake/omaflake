@@ -88,8 +88,8 @@ omaf sources add ~/src/my-recipes          # a folder: its recipes are used as t
 ```
 
 Who you are in the guests – user, full name, SSH keys, locale, keyboard, time zone – comes from your Mac (and the
-app's settings), never from a recipe; so does the look you choose over a recipe's (omaflake, Catppuccin, Rosé Pine
-Dawn or each program's own colours). Images are built by omaflake's image flake ([nix/](nix/README.md)); the app
+app's credentials), never from a recipe; every image is built from a recipe with a credential and a look (omaflake,
+Catppuccin, Rosé Pine Dawn or each program's own colours). Images are built by omaflake's image flake ([nix/](nix/README.md)); the app
 ships it, a checkout uses `omaf config --flake "$PWD/nix"`. Personal Nix extras for developers go into the
 git-ignored `nix/local/` (template `nix/local.example/`). Writing recipes: omaflake/recipes' CONTRIBUTING.md;
 the design: [docs/spec.md §11.3](docs/spec.md).

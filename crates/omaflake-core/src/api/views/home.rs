@@ -70,6 +70,7 @@ pub(crate) fn page(ctx: &Ctx) -> HomePage {
     doctor.badge = (issues > 0).then_some(issues);
     let actions = vec![
         doctor,
+        Action::show("credentials", Text::new("Credentials"), Some("key"), "credentials", json!({})),
         Action::show("settings", Text::new("Settings"), Some("settings"), "settings", json!({})),
         Action::call(
             "dataFolder",

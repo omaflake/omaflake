@@ -1,0 +1,140 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://omaflake.dev/schema/settings/v3.json",
+  "title": "omaflake settings",
+  "description": "~/.omaflake/config.json – every setting is optional. v2: guest.look. v3: credentials, defaultCredential (guest.user, fullName, email moved into a credential).",
+  "type": "object",
+  "properties": {
+    "$schema": {
+      "const": "https://omaflake.dev/schema/settings/v3.json"
+    },
+    "flake": {
+      "type": "string",
+      "description": "The image flake (folder or flake URL)"
+    },
+    "sources": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "kind",
+          "location"
+        ],
+        "properties": {
+          "kind": {
+            "enum": [
+              "github",
+              "url",
+              "folder"
+            ]
+          },
+          "location": {
+            "type": "string"
+          },
+          "branch": {
+            "type": "string"
+          },
+          "private": {
+            "type": "boolean"
+          },
+          "enabled": {
+            "type": "boolean"
+          }
+        }
+      }
+    },
+    "externalVMs": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "qemu": {
+      "type": "string"
+    },
+    "runner": {
+      "type": "string"
+    },
+    "nix": {
+      "type": "string"
+    },
+    "guest": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "timeZone": {
+          "type": "string"
+        },
+        "locale": {
+          "type": "string"
+        },
+        "keyboard": {
+          "type": "string"
+        },
+        "look": {
+          "enum": [
+            "omaflake",
+            "catppuccin",
+            "rose-pine-dawn",
+            "vanilla"
+          ],
+          "description": "The default look of new images; left out: each recipe's own"
+        }
+      }
+    },
+    "credentials": {
+      "type": "array",
+      "description": "Named credentials – who you are in a guest; their passwords are in the keychain/keyring, never here",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "name"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "user": {
+            "type": "string"
+          },
+          "fullName": {
+            "type": "string"
+          },
+          "email": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "defaultCredential": {
+      "type": "string",
+      "description": "The credential new images get (its id); left out: this computer's user and name"
+    },
+    "home": {
+      "type": "string",
+      "description": "Data folder"
+    },
+    "developerMode": {
+      "type": "boolean"
+    },
+    "checkForUpdates": {
+      "type": "boolean"
+    },
+    "notifications": {
+      "type": "boolean"
+    },
+    "keepRecipeVersions": {
+      "type": "boolean"
+    }
+  },
+  "required": [
+    "$schema"
+  ],
+  "additionalProperties": false
+}

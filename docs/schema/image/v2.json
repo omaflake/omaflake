@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://omaflake.dev/schema/image/v2.json",
   "title": "omaflake image",
-  "description": "image.json in an image package (<name>.omaflake-image): what the image is. v2: look.",
+  "description": "image.json in an image package (<name>.omaflake-image): what the image is. v2: look, lookChoice, credential, credentialName.",
   "type": "object",
   "properties": {
     "$schema": {
@@ -53,6 +53,18 @@
     "look": {
       "type": "string",
       "description": "The guest look it was built with (v2; e.g. omaflake, catppuccin, rose-pine-dawn, vanilla) – left out for an image built before looks"
+    },
+    "lookChoice": {
+      "type": "string",
+      "description": "The look chosen for the build; left out: the recipe's own"
+    },
+    "credential": {
+      "type": "string",
+      "description": "The credential it was built with (its id); left out: this computer's values"
+    },
+    "credentialName": {
+      "type": "string",
+      "description": "That credential's name when it was built"
     },
     "created": {
       "type": "string",

@@ -152,13 +152,19 @@ fn build_in_service(
     client: &Client,
     env: &Env,
     recipe: &str,
+    choice: &omaflake_core::guest_settings::BuildChoice,
     password: Option<String>,
     base: Option<String>,
     a: &cli::Build,
 ) -> Outcome {
     let rpc = |method: &str, params: Value| client.call(method, params).map_err(Error::from);
     rpc("events.subscribe", json!({"topics": ["jobs"]}))?;
-    let mut params = json!({"recipe": recipe, "keepFailed": a.keep_failed});
+    let mut params = json!({
+        "recipe": recipe,
+        "keepFailed": a.keep_failed,
+        "credential": choice.credential.as_ref().map_or("", |c| c.id.as_str()),
+        "look": choice.look.as_deref().unwrap_or(""),
+    });
     if let Some(p) = password {
         params["password"] = json!(p);
     }
@@ -219,6 +225,8 @@ pub fn build(a: &cli::Build) -> Outcome {
             eprintln!("{line}");
         }
     };
+    // The credential and look of the image (plan B137)
+    let choice = super::credentials::build_choice(&env.paths, a.credential.as_deref(), a.look.as_deref())?;
     // macOS: base and password first (Ctrl-C at the prompt still simply quits)
     let mut mac: Option<(MacImageBuilder, PathBuf, String, String)> = None;
     if d.kind == GuestKind::Macos {
@@ -232,8 +240,16 @@ pub fn build(a: &cli::Build) -> Outcome {
         };
         let user = d.user.clone().unwrap_or_else(user_name);
         let base_name = base.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
-        let password =
-            read_password(&format!("Password of {user} in {base_name} (for sudo): "), a.password_stdin, false)?;
+        // The credential's stored password, else asked
+        let stored = choice
+            .credential
+            .as_ref()
+            .filter(|_| !a.password_stdin)
+            .and_then(|c| omaflake_core::credentials::Credentials::new(env.paths.clone()).password(&c.id));
+        let password = match stored {
+            Some(p) => p,
+            None => read_password(&format!("Password of {user} in {base_name} (for sudo): "), a.password_stdin, false)?,
+        };
         mac = Some((builder, base, user, password));
     }
     // With the core service running, the build is its job: the app and other clients see it, it waits in the same
@@ -241,7 +257,7 @@ pub fn build(a: &cli::Build) -> Outcome {
     if let Some((client, _)) = service::connect(&socket_path(&env.paths)) {
         let password = mac.as_ref().map(|(_, _, _, p)| p.clone());
         let base = mac.as_ref().map(|(_, b, _, _)| b.to_string_lossy().into_owned());
-        return build_in_service(&client, &env, &recipe, password, base, a);
+        return build_in_service(&client, &env, &recipe, &choice, password, base, a);
     }
     // From here Ctrl-C cancels cleanly: the running step stops, a macOS build VM is forced off, its folder deleted
     let token = Cancellation::new();
@@ -261,11 +277,12 @@ pub fn build(a: &cli::Build) -> Outcome {
                 password,
                 base: Some(base),
                 keep_failed: a.keep_failed,
+                choice: choice.clone(),
             },
             &token,
             &log,
         ),
-        None => images.build(&recipe, &flake, None, &token, &log),
+        None => images.build(&recipe, &flake, &choice, None, &token, &log),
     };
     drop(interrupts);
     let image = built?;

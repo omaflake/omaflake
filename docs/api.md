@@ -319,7 +319,11 @@ Params and results in short; the types are those of §4.
 | `shutdown` | – | `null` – ends this session (§2) |
 | `service.restart` | – | `{jobs}` – the service ends once no job waits or runs (§1, §2) |
 | `settings.get` | – | `{settings, guestDefaults, choices: {timeZones, locales, keyboards: [{code, locale}], looks: [{name, title}]}, isDefaultDataFolder}` – `settings`: config.json's values with their defaults applied (`developerMode, checkForUpdates, notifications, keepRecipeVersions, guest: {user?, fullName?, email?, timeZone?, locale?, keyboard?, look?}, flake?, qemu?, nix?, runner?, flakeInUse?, dataFolder`); `guestDefaults`: this computer's values the guest overrides fall back to |
-| `settings.set` | any of `developerMode, checkForUpdates, notifications, keepRecipeVersions, guest, flake, qemu, nix, runner` (`null` or `""` = back to the default; keys not given stay) | `settings` – turning `keepRecipeVersions` off prunes older recipe versions |
+| `settings.set` | any of `developerMode, checkForUpdates, notifications, keepRecipeVersions, guest, defaultCredential, flake, qemu, nix, runner` (`null` or `""` = back to the default; keys not given stay; `guest` takes `locale, keyboard, timeZone, look` – user, full name and e-mail are a credential's) | `settings` – turning `keepRecipeVersions` off prunes older recipe versions |
+| `credentials.list` | – | `[{id, name, user?, fullName?, email?, hasPassword, isDefault}]` (plan B137; a password never leaves the keychain/keyring) |
+| `credentials.add` | `name, user?, fullName?, email?, password?` | `{credential, note?}` – the first one becomes the default; `note` says when the password went to a file (no keyring) |
+| `credentials.update` | `id`, any of `name, user, fullName, email, password` (`""` clears a value; `password: ""` removes the stored one) | `{credential, note?}` – its images turn outdated when a value they were built with changed |
+| `credentials.remove` | `id` | `null` – its password goes too; images built with it keep its name (`credentialName`) |
 | `dataFolder.move` | `target` | Job `data-move` (all VMs must be stopped) |
 | `updates.check` | – | `{state: "noFeed"|"upToDate"|"available"|"off", release?: {version, url, sha256?, notes?, page?}}` – a feed that cannot be read is an error (`network`) |
 
@@ -351,7 +355,7 @@ Params and results in short; the types are those of §4.
 |---|---|---|
 | `images.list` | – | `{images: [Image], unreadable}` |
 | `images.get` | `name` | `Image` with `sizeBytes` |
-| `images.build` | `recipe, password?, base?, keepFailed?` | Job `build` (macOS recipes need the guest user's password once – kept in memory only until the build VM uses it; without it `-32602`; `base`: the base folder, default the newest; `keepFailed`: keep a failed build folder) |
+| `images.build` | `recipe, credential?, look?, password?, base?, keepFailed?` | Job `build` – `credential`: a credential's id, `""` this computer's values, left out the default; `look`: a look, `""` the recipe's own, left out the default (plan B137). macOS recipes need the guest user's password once – the given one, else the credential's stored one; kept in memory only until the build VM uses it; without either `-32602`; `base`: the base folder, default the newest; `keepFailed`: keep a failed build folder) |
 | `images.remove` | `name` | `null` – refused while VMs use it (`in-use`) |
 
 ### Recipes and sources
@@ -586,7 +590,7 @@ a change at once: send `method` with `params` and the new value at `param` (`nul
 **Icons** are names a UI maps to its symbols (SF Symbols, Nerd Font glyphs or plain characters in a TUI): `vm`,
 `image`, `recipe`, `activity`, `nixos`, `macos`, `start-window`, `start-headless`, `stop`, `terminal`, `folder`,
 `export`, `import`, `external`, `hide`, `upgrade`, `reset`, `trash`, `build`, `new-vm`, `create`, `cancel`, `install`,
-`refresh`, `download`, `pause`, `apply`, `clean`, `guide`, `log`, `doctor`, `settings`, `quit`, `up`, `add`,
+`refresh`, `download`, `pause`, `apply`, `clean`, `guide`, `log`, `doctor`, `settings`, `key`, `quit`, `up`, `add`,
 `clipboard`, `sound`, `microphone`, `camera`, `ephemeral`, `network-isolated`, `network-none`, `upgradable`,
 `outdated`, `lab`, `arch`, `official`, `lock`, `lock-warning`, `github`, `url`, `warning`, `ok`, `filter`,
 `finished`, `failed`, `cancelled`. An unknown name is drawn as nothing (or its `label`).
@@ -622,7 +626,7 @@ folder with the VM" / "Share a folder with the VM", "Like this Mac – %@" / "Li
 Mac – …" / "Not for this computer – …", "… in the Keychain" / "… in the keyring", the Doctor's intro, the notification
 help, the data folder's note, the sources' footer. Both are keys; translations have both.
 
-**home** – `title`, `actions` (doctor with `badge`, settings, dataFolder, quit – with `shortLabel`s for a narrow header), `tabs: [{id, label, icon, badge?}]` with
+**home** – `title`, `actions` (doctor with `badge`, credentials (icon `key`, plan B137), settings, dataFolder, quit – with `shortLabel`s for a narrow header), `tabs: [{id, label, icon, badge?}]` with
 `badge: {kind: count|working|failed|dot, count?, tone, help}` (running VMs; a build runs or failed; a recipe changed
 since its image), `firstTab` (`recipes` while there is no VM – a UI opening for the first time starts there).
 
@@ -694,8 +698,12 @@ sharePath?, start}` and `then: back` (primary), disabled while a value is wrong.
 ```
 
 **build** – `{recipe, name, kind, badges, description?, state: idle|queued|checking|running|finished|failed|cancelled,
-actions, blockers?, macBase?, status?, progress?, outcome?, newest?, log?, job?}`. Actions: `build` ("Build", or "Add to
-Queue" while another build of the guest kind runs; a macOS recipe asks "Password of <user>"; disabled for another
+actions, fields?, blockers?, macBase?, status?, progress?, outcome?, newest?, log?, job?}`. `fields` (while no build
+runs, plan B137): `credential` (choices "This computer – <user>" as `""`, then the credentials) and `look` ("The
+recipe's own" as `""`, then the looks), preset with the settings' defaults; their values (`values.credential`,
+`values.look`) go into the build action's params. Actions: `build` ("Build", or "Add to
+Queue" while another build of the guest kind runs; a macOS recipe asks "Password of <user>" unless the credential has a
+stored password; disabled for another
 architecture, Doctor blockers, a missing macOS base) – or `cancel` ("Cancel"/"Remove from Queue") while it waits or
 runs. `progress: {step, title, count?, fraction, started, lastOutput, quietWarning, quietHelp}` – the UI counts the
 running time and the quiet time itself (orange after `quietWarning` s). `outcome: {state, icon, tone, title, detail?,
@@ -729,9 +737,15 @@ name, icon (folder|github|url), badges (official, private with or without token)
 (a switch), remove], source}`; `add.fields`: input (with "Folder …"), private (only for a GitHub repository – the core
 decides from `params.values.input`); `addAction` (primary) is `sources.add {input, private}` and asks the token for a
 private one; the two fields keep their values under `values.input` and `values.private`. `general.fields`: notifications, checkForUpdates, keepRecipeVersions, developerMode (toggles with `set`).
-`guest.fields`: user, fullName, email (placeholders: this computer's), locale, keyboard, timeZone (choices with "Like
-this Mac – …" as `null`; names are the plain values – UIs may name them in their language), look (choices: "Each
-recipe's own" as `null`, then the looks by title; plan B135). `dataFolder: {title,
+`guest.fields`: defaultCredential ("This computer – <user>" as `null`, then the credentials; plan B137), look (the
+default look: "Each recipe's own" as `null`, then the looks by title; plan B135), locale, keyboard, timeZone (choices
+with "Like this Mac – …" as `null`; names are the plain values – UIs may name them in their language).
+
+**credentials** (plan B137) – `{title, intro, rows, add, footer}`: rows `{id, name, subtitle ("user · full name ·
+e-mail · n images"), badges (default, password), actions: [edit (asks name, user, fullName, email, prefilled;
+primary), password ("Set/Change Password …", asks it twice), removePassword (confirm), default (`settings.set
+{defaultCredential}`), remove (destructive, confirm)]}`; `add` ("New Credential …", primary) asks name, user,
+fullName, email; `footer` says where passwords are kept. `dataFolder: {title,
 location, isDefault, moving, actions: [default, move], note}` – both disabled while a VM runs. Launch at login and the
 UI's language are each UI's own.
 

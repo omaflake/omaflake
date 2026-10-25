@@ -10,6 +10,8 @@
       },
       "method": "images.build",
       "params": {
+        "credential": "c-1",
+        "look": "rose-pine-dawn",
         "recipe": "omaflake.nixos.dev@velvet-tiger-orbit"
       },
       "primary": true,
@@ -65,6 +67,87 @@
     }
   },
   "description": "Entwicklungsumgebung",
+  "fields": [
+    {
+      "choices": [
+        {
+          "label": {
+            "args": [
+              "alex"
+            ],
+            "key": "This computer – %@",
+            "text": "This computer – alex"
+          },
+          "value": ""
+        },
+        {
+          "label": {
+            "text": "Work – alex"
+          },
+          "value": "c-1"
+        }
+      ],
+      "enabled": true,
+      "help": {
+        "key": "Who you are in the guest: user, full name, e-mail (Credentials, the key at the top)",
+        "text": "Who you are in the guest: user, full name, e-mail (Credentials, the key at the top)"
+      },
+      "id": "credential",
+      "kind": "choice",
+      "label": {
+        "key": "Credential",
+        "text": "Credential"
+      },
+      "param": "credential",
+      "value": "c-1",
+      "valueParam": "credential"
+    },
+    {
+      "choices": [
+        {
+          "label": {
+            "key": "The recipe's own",
+            "text": "The recipe's own"
+          },
+          "value": ""
+        },
+        {
+          "label": {
+            "text": "omaflake"
+          },
+          "value": "omaflake"
+        },
+        {
+          "label": {
+            "text": "Catppuccin Mocha"
+          },
+          "value": "catppuccin"
+        },
+        {
+          "label": {
+            "text": "Rosé Pine Dawn"
+          },
+          "value": "rose-pine-dawn"
+        },
+        {
+          "label": {
+            "text": "Vanilla"
+          },
+          "value": "vanilla"
+        }
+      ],
+      "enabled": true,
+      "id": "look",
+      "kind": "choice",
+      "label": {
+        "key": "Look",
+        "text": "Look"
+      },
+      "param": "look",
+      "value": "rose-pine-dawn",
+      "valueParam": "look"
+    }
+  ],
   "job": {
     "cancellable": true,
     "error": "Recipe \"omaflake.nixos.dev\" is not in your recipes",

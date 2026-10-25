@@ -627,6 +627,38 @@ outdated badge and status name the recipe or the guest settings as the reason. S
 `cargo test` (VM detail: the look line and its note; a macOS VM's image from before looks), goldens, `swift test`.
 Not yet run: a real build writing the look (the eval it runs was checked by hand), the app after a look change.
 
+**B137 (2026-10-25): credentials; an image = recipe + credential + look.** The maintainer's decisions: several named
+credentials (create, edit, remove) on a page of their own (a key in the header); building an image always asks its
+credential and look; the settings only hold the default credential and the default look; images and VMs show both
+next to the recipe; a credential may keep a password so macOS images build without asking. Mine, to review: a
+credential is user, full name, e-mail (+ password) – locale, keyboard and time zone stay global; without one an image
+gets this computer's values ("This computer"); the password is the macOS base user's (sudo in the build VM) – NixOS
+guests get none; German "Zugang"/"Zugänge".
+- **Core:** `credentials.rs` – `Credential {id, name, user?, fullName?, email?}` in config.json (`credentials`,
+  `defaultCredential`, settings v3 – `settings_v2_to_v3` turns a set guest user/fullName/email into a credential that
+  becomes the default), `Credentials` (list/find/add/update/remove/set_default), the password in the secret store under
+  `credential:<id>` (`Tokens::{get,has,set}_account`, the sources' store: Keychain, Secret Service, else the 0600
+  file). IDs are random ("c-" + 12 hex): the secret store is the computer's, shared by data folders and tests – a
+  counter would let them reach each other's passwords. `guest_settings::BuildChoice {credential, look}`
+  (`defaults`, `of_image`, `key`), `GuestSettings::for_choice`, `write(paths, choice)` → `guest/<credential>-<look>/`,
+  `ImageStore::guest_arguments_for`; `build`, `expected_store_path`, `look_of`, the macOS `BuildRequest` take a choice.
+  image.json v2 (unreleased, extended): `lookChoice`, `credential`, `credentialName`; the freshness check evaluates
+  each recipe with its current image's own choice (an image whose credential is gone is not checked).
+- **API:** `credentials.list/add/update/remove`, `settings.set defaultCredential`, `images.build credential/look`
+  (a macOS password: the given one, else the credential's), `ImageDto.credential/credentialName`,
+  `SettingsDto.defaultCredential`; pages: `credentials` (new; home action `credentials`, icon `key`), `build.fields`
+  (credential, look; the password asked only without a stored one), image/VM detail lines Credential and Look, list
+  subtitles "recipe · credential · look"; settings: Default credential, Default look (user/fullName/email gone).
+- **CLI:** `omaf credentials [list|add|edit|rm|default]`, `omaf build --credential --look`, `omaf config
+  --default-credential` (replaces `--guest-user`, `--guest-full-name`), `omaf images` prints Credential.
+- **UIs:** TUI (page, build fields, icon), iced (page, build fields, form values, Lucide KeyRound), SwiftUI
+  (`CredentialsPage`, `CredentialsView` with an actions menu per row, `BuildView` fields, SF Symbol `key`).
+- **Checked:** `cargo test` (credentials with a fake store: add/update/remove, passwords, unique names, defaults;
+  settings v1/v2 → v3; build page: fields, params, no password ask with a stored one, the ask with "This computer";
+  settings fields; home action; VM/image lines), golden files, `swift test`, TUI draws the credentials page and the
+  build fields, CLI in a temporary data folder. OPEN: clicking it in the SwiftUI and iced apps; a macOS build with a
+  stored password.
+
 **Found on the way:** environment variables of the CLI (`VM_FLAKE`, …) do not reach the core service – a build that
 runs there uses config.json's flake (OPEN).
 

@@ -13,18 +13,31 @@ are collected under *Unreleased*. Releases: [GitHub](https://github.com/omaflake
 
 ## [Unreleased]
 
+An image is now a recipe with a credential and a look: you choose both when you build it, the settings only preset
+them. Credentials – who you are in a guest – get a page of their own, and one can keep the password a macOS build
+needs. Your settings file becomes version 3 and image.json version 2; an older omaflake ignores the settings and no
+longer reads the images, so update every omaflake that uses this data folder.
+
 ### Added
 
-- **The look at images and VMs:** an image remembers the look it was built with, and its details – and those of every
-  VM from it – show it ("Look: Rosé Pine Dawn"; `omaf images` too). When your settings ask for another look, the line
-  says so: a new build brings it. Images built earlier show "unknown".
+- **Credentials:** named sets of user, full name and e-mail – "Work", "Private" … – on a page of their own (the key
+  next to the settings; `omaf credentials`). Create, edit and remove them; one is the default for new images.
+- **A stored password for macOS builds:** a credential can keep the macOS base user's password in the Keychain (on
+  Linux in the desktop's keyring); building a macOS image with it asks for no password.
+- **Credential and look when building:** the build page asks which credential and which look the image gets, preset
+  with the defaults (`omaf build --credential … --look …`).
+- **Credential and look at images and VMs:** the lists show them next to the recipe ("dev · Work · Rosé Pine Dawn"),
+  the details have a line each ("Credential: Work (alex)", "Look: Rosé Pine Dawn"); `omaf images` prints them. Images
+  built before show their look as "unknown" and this computer's values as their credential.
 
 ### Changed
 
-- **Images turn "outdated" right after you change a guest setting** (look, user, keyboard …), not only at the next
-  look at the recipes; the badge and the status say that the recipe or your guest settings changed. image.json
-  becomes version 2 (with the look); existing images are brought up to it when read, and an older omaflake no longer
-  reads them.
+- **The settings set defaults:** "Default credential" and "Default look" instead of user, full name and e-mail and the
+  look of every VM. A user, full name or e-mail you had set becomes a credential, which becomes the default.
+  `omaf config --default-credential` replaces `--guest-user` and `--guest-full-name`.
+- **Images turn "outdated" right away** when what they were built with changes – their recipe, their credential's
+  values, the guest settings (keyboard, locale, time zone) – not only at the next look at the recipes; the badge and
+  the status say so.
 
 ## [0.5.0] – 2026-10-25
 

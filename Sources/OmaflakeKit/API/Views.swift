@@ -617,6 +617,25 @@ public struct BuildPage: Decodable, Sendable, Equatable {
     public var newest: ViewText?
     public var log: LogRef?
     public var job: Job?
+    /// The credential and look of the image (plan B137); nil while a build runs
+    public var fields: [Field]?
+}
+
+/// The Credentials page (plan B137): who you are in a guest, one row per credential, "New Credential …"
+public struct CredentialsPage: Decodable, Sendable, Equatable {
+    public struct Row: Decodable, Sendable, Equatable, Identifiable {
+        public var id: String
+        public var name: String
+        public var subtitle: ViewText
+        public var badges: [Badge]
+        public var actions: [ViewAction]
+    }
+
+    public var title: ViewText
+    public var intro: ViewText
+    public var rows: [Row]
+    public var add: ViewAction
+    public var footer: ViewText
 }
 
 /// Where a job's log is: `jobs.log {id: job, from}` reads what is kept, then `job.log` brings new lines
@@ -816,7 +835,7 @@ public struct ViewError: Decodable, Sendable, Equatable {
 public enum PageModel: Sendable, Equatable {
     case home(HomePage), vms(VmsPage), vm(VmPage), images(ImagesPage), image(ImagePage), recipes(RecipesPage)
     case newVm(NewVmPage), build(BuildPage), doctor(DoctorPage), macBase(MacBasePage), settings(SettingsPage)
-    case activity(ActivityPage), importStep(ImportPage)
+    case activity(ActivityPage), importStep(ImportPage), credentials(CredentialsPage)
     /// The page could not be built
     case error(ViewError)
     /// A page this client does not know
@@ -841,6 +860,7 @@ public enum PageModel: Sendable, Equatable {
         case "doctor": self = .doctor(try DoctorPage(from: decoder))
         case "macBase": self = .macBase(try MacBasePage(from: decoder))
         case "settings": self = .settings(try SettingsPage(from: decoder))
+        case "credentials": self = .credentials(try CredentialsPage(from: decoder))
         case "activity": self = .activity(try ActivityPage(from: decoder))
         case "import": self = .importStep(try ImportPage(from: decoder))
         default: self = .unknown(page)

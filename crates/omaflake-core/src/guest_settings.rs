@@ -20,9 +20,10 @@ use std::process::{Command, Stdio};
 
 use serde::{Deserialize, Serialize};
 
+use crate::credentials::{Credential, Credentials};
 use crate::error::{IoContext, Result};
 use crate::file_format::write_atomic;
-use crate::image_store::ImageStore;
+use crate::image_store::{ImageInfo, ImageStore};
 use crate::mac_base_installer::MacBaseInstaller;
 use crate::mac_image_builder::MacImageBuilder;
 use crate::paths::{Paths, Settings};
@@ -69,21 +70,28 @@ impl GuestSettings {
         }
     }
 
-    /// What the flake gets for this Mac now: `mac()` with the overrides of `Settings::guest` (non-empty values; an
-    /// empty full name counts) and the newest base's guest user as `mac_user`
+    /// What the flake gets with the settings' defaults (`BuildChoice::defaults`)
     pub fn current(paths: &Paths) -> GuestSettings {
+        Self::for_choice(paths, &BuildChoice::defaults(paths))
+    }
+
+    /// What the flake gets for an image built with `choice`: `mac()` with the overrides of `Settings::guest` (locale,
+    /// keyboard, time zone; non-empty values), the credential's user, full name and e-mail, the chosen look and the
+    /// newest base's guest user as `mac_user` (plan B137)
+    pub fn for_choice(paths: &Paths, choice: &BuildChoice) -> GuestSettings {
         let mut g = Self::mac();
-        if let Some(o) = Settings::load(paths).guest {
-            let set = |v: Option<String>| v.filter(|v| !v.is_empty());
-            if let Some(v) = set(o.user) {
+        let set = |v: Option<String>| v.filter(|v| !v.is_empty());
+        if let Some(c) = &choice.credential {
+            if let Some(v) = set(c.user.clone()) {
                 g.user = v;
             }
-            if let Some(v) = o.full_name {
+            if let Some(v) = c.full_name.clone() {
                 g.full_name = v;
             }
-            if let Some(v) = set(o.email) {
-                g.email = Some(v);
-            }
+            g.email = set(c.email.clone());
+        }
+        g.look = set(choice.look.clone());
+        if let Some(o) = Settings::load(paths).guest {
             if let Some(v) = set(o.time_zone) {
                 g.time_zone = v;
             }
@@ -93,7 +101,6 @@ impl GuestSettings {
             if let Some(v) = set(o.keyboard) {
                 g.keyboard = v;
             }
-            g.look = set(o.look);
         }
         if let Some(base) = MacImageBuilder::newest_base_in(paths) {
             g.mac_user = MacBaseInstaller::user_of(&base, &paths.logs());
@@ -101,12 +108,13 @@ impl GuestSettings {
         g
     }
 
-    /// Writes `guest/settings.json` (only when the content changed) and returns the folder.
-    pub fn write(paths: &Paths) -> Result<PathBuf> {
-        let dir = paths.guest();
+    /// Writes `guest/<choice>/settings.json` (only when the content changed) and returns the folder – one per choice,
+    /// so builds and freshness checks with different credentials or looks never share a file (plan B137)
+    pub fn write(paths: &Paths, choice: &BuildChoice) -> Result<PathBuf> {
+        let dir = paths.guest().join(choice.key());
         let file = dir.join("settings.json");
         std::fs::create_dir_all(&dir).with_path(&dir)?;
-        let data = crate::json::to_pretty(&Self::current(paths), true)?;
+        let data = crate::json::to_pretty(&Self::for_choice(paths, choice), true)?;
         if std::fs::read(&file).ok().as_deref() != Some(data.as_slice()) {
             write_atomic(&file, &data)?;
         }
@@ -306,25 +314,55 @@ fn command_output(exe: &str, args: &[&str]) -> Option<String> {
     (!text.is_empty()).then_some(text)
 }
 
-/// Overrides for the guest values, from the app's settings (config.json `guest`). Keys: user, fullName, email,
-/// timeZone, locale, keyboard, look (None left out).
+/// Overrides for the guest values, from the app's settings (config.json `guest`). Keys: timeZone, locale, keyboard,
+/// look (None left out); user, full name and e-mail are a credential's since settings v3 (plan B137).
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct GuestOverrides {
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub user: Option<String>,
-    #[serde(rename = "fullName", default, skip_serializing_if = "Option::is_none")]
-    pub full_name: Option<String>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub email: Option<String>,
     #[serde(rename = "timeZone", default, skip_serializing_if = "Option::is_none")]
     pub time_zone: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub locale: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub keyboard: Option<String>,
-    /// The guests' look (settings v2); None = each recipe's
+    /// The default look of new images (settings v2); None = each recipe's
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub look: Option<String>,
+}
+
+/// What an image is built with besides its recipe (plan B137): a credential (None: this computer's values) and a look
+/// (None: the recipe's own)
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct BuildChoice {
+    pub credential: Option<Credential>,
+    pub look: Option<String>,
+}
+
+impl BuildChoice {
+    /// The settings' defaults: the default credential and the default look
+    pub fn defaults(paths: &Paths) -> BuildChoice {
+        BuildChoice {
+            credential: Credentials::new(paths.clone()).default_credential(),
+            look: Settings::load(paths).guest.and_then(|g| g.look).filter(|l| !l.is_empty()),
+        }
+    }
+
+    /// An image's own: its credential (when it still exists) and its chosen look
+    pub fn of_image(paths: &Paths, info: &ImageInfo) -> BuildChoice {
+        BuildChoice {
+            credential: info.credential.as_deref().and_then(|id| Credentials::new(paths.clone()).get(id)),
+            look: info.look_choice.clone(),
+        }
+    }
+
+    /// The folder under guest/ for this choice: "<credential id or computer>-<look or recipe>"
+    pub fn key(&self) -> String {
+        let credential = self.credential.as_ref().map_or("computer", |c| c.id.as_str());
+        let look = self.look.as_deref().unwrap_or("recipe");
+        format!("{credential}-{look}")
+            .chars()
+            .map(|c| if c.is_ascii_alphanumeric() || c == '-' { c } else { '_' })
+            .collect()
+    }
 }
 
 impl ImageStore {
@@ -334,7 +372,13 @@ impl ImageStore {
     /// folder of an omaflake checkout also gets the checkout as its `omaflake` input (`omaflake_checkout_arguments`).
     /// `["--override-input", "omaflake-guest", "path:<dir>", "--override-input", "omaflake-recipes", "path:<dir>",
     /// "--no-write-lock-file"]`, or nothing.
+    /// `guest_arguments_for` with the settings' defaults
     pub fn guest_arguments(&self, flake: &str) -> Vec<String> {
+        self.guest_arguments_for(flake, &BuildChoice::defaults(&self.paths))
+    }
+
+    /// Arguments for a `nix` call on the image flake with `choice`'s guest values (see `guest_arguments`' doc below)
+    pub fn guest_arguments_for(&self, flake: &str, choice: &BuildChoice) -> Vec<String> {
         let (mut guest, mut recipes) = (true, true);
         if flake.starts_with('/') {
             let nix = std::fs::read_to_string(Path::new(flake).join("flake.nix")).unwrap_or_default();
@@ -343,7 +387,7 @@ impl ImageStore {
         }
         let mut args = Self::omaflake_checkout_arguments(flake);
         if guest {
-            if let Ok(dir) = GuestSettings::write(&self.paths) {
+            if let Ok(dir) = GuestSettings::write(&self.paths, choice) {
                 args.extend(["--override-input".into(), "omaflake-guest".into(), format!("path:{}", dir.display())]);
             }
         }
@@ -455,11 +499,17 @@ mod tests {
         let (_t, p) = temp_paths();
         let s = Settings {
             guest: Some(GuestOverrides {
-                user: Some("dev".into()),
                 keyboard: Some("us".into()),
                 look: Some("rose-pine-dawn".into()),
                 ..Default::default()
             }),
+            credentials: Some(vec![Credential {
+                id: "c-1".into(),
+                name: "Dev".into(),
+                user: Some("dev".into()),
+                ..Default::default()
+            }]),
+            default_credential: Some("c-1".into()),
             ..Default::default()
         };
         s.save(&p).unwrap();
@@ -471,12 +521,19 @@ mod tests {
         assert!(g.user == "dev" && g.keyboard == "us" && g.mac_user.as_deref() == Some("carol"));
         assert_eq!(g.look.as_deref(), Some("rose-pine-dawn"));
         // written once, stable content (no rewrite when unchanged)
-        let dir = GuestSettings::write(&p).unwrap();
+        let choice = BuildChoice::defaults(&p);
+        let dir = GuestSettings::write(&p, &choice).unwrap();
+        assert!(dir.ends_with("guest/c-1-rose-pine-dawn"));
         let file = dir.join("settings.json");
         let first = std::fs::metadata(&file).unwrap().modified().unwrap();
-        GuestSettings::write(&p).unwrap();
+        GuestSettings::write(&p, &choice).unwrap();
         let second = std::fs::metadata(&file).unwrap().modified().unwrap();
         assert_eq!(first, second);
+        // Another choice: this computer's values, the recipe's look – a folder of its own
+        let other = BuildChoice::default();
+        let g = GuestSettings::for_choice(&p, &other);
+        assert!(g.user != "dev" && g.look.is_none() && g.keyboard == "us");
+        assert!(GuestSettings::write(&p, &other).unwrap().ends_with("guest/computer-recipe"));
     }
 
     /// Needs `GuestSettings::current` → F4 (see above)

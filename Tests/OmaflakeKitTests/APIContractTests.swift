@@ -32,7 +32,8 @@ struct APIContractTests {
             "settings.get": {
                 let s: SettingsInfo = try load("settings.get")
                 #expect(s.settings.developerMode && !s.settings.notifications && s.settings.checkForUpdates)
-                #expect(!s.settings.keepRecipeVersions && s.settings.guest.user == "alex" && s.settings.guest.fullName == nil)
+                // user, fullName and email are a credential's since settings v3 (plan B137)
+                #expect(!s.settings.keepRecipeVersions && s.settings.guest.user == nil && s.settings.guest.locale == "de_CH.UTF-8")
                 #expect(s.settings.dataFolder == "/data" && s.settings.flakeInUse == "/src/omaflake/nix" && s.settings.qemu == nil)
                 #expect(s.guestDefaults.timeZone == "Europe/Zurich" && s.guestDefaults.email == nil && !s.isDefaultDataFolder)
                 #expect(s.choices.keyboards.first == .init(code: "ch", locale: "de_CH") && s.choices.timeZones.count == 2)

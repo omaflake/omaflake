@@ -21,10 +21,11 @@ use crate::backend::{Readiness, StartOptions};
 use crate::build_progress::BuildLog;
 use crate::builder_maintenance::{AdminShell, BuilderMaintenance};
 use crate::cli_link::CliLink;
+use crate::credentials::{CredentialChange, Credentials};
 use crate::data_folder::DataFolder;
 use crate::error::{codes, Error};
 use crate::guest_choices::GuestChoices;
-use crate::guest_settings::{GuestOverrides, GuestSettings};
+use crate::guest_settings::{BuildChoice, GuestOverrides, GuestSettings};
 use crate::image_store::ImageStore;
 use crate::ipsw_downloader::MacOsRelease;
 use crate::mac_base_installer::{BaseOutcome, BaseRequest, MacBaseInstaller};
@@ -74,6 +75,21 @@ impl Server {
             }
             "settings.get" => Answer::of(self.settings_answer()?),
             "settings.set" => self.settings_set(p),
+            // Credentials (plan B137)
+            "credentials.list" => Answer::of(credential_dtos(&self.paths())),
+            "credentials.add" => self.credentials_change(None, params(p)?),
+            "credentials.update" => {
+                let p: CredentialParams = params(p)?;
+                let id = p.id.clone().ok_or_else(|| RpcError::invalid_params("id is needed"))?;
+                self.credentials_change(Some(id), p)
+            }
+            "credentials.remove" => {
+                let c = Credentials::new(self.paths()).remove(&params::<Id>(p)?.id).map_err(err)?;
+                self.events().message_text(Level::Info, super::views::text::tf!("Credential “%@” removed", c.name));
+                self.check_freshness();
+                self.poke();
+                Answer::of(Value::Null)
+            }
             "dataFolder.move" => self.data_folder_move(params(p)?),
             "updates.check" => Answer::of(self.updates_check()?),
             // Views (plan B121, api.md §10)
@@ -335,10 +351,8 @@ impl Server {
                         return Err(RpcError::invalid_params(format!("guest.look: no look \"{l}\"")));
                     }
                 }
+                // user, fullName and email are a credential's since settings v3 (plan B137) – ignored here
                 let o = GuestOverrides {
-                    user: clean(g.user),
-                    full_name: clean(g.full_name),
-                    email: clean(g.email),
                     time_zone: clean(g.time_zone),
                     locale: clean(g.locale),
                     keyboard: clean(g.keyboard),
@@ -346,6 +360,18 @@ impl Server {
                 };
                 s.guest = (o != GuestOverrides::default()).then_some(o);
             }
+        }
+        match p.get("defaultCredential") {
+            None => {}
+            Some(Value::Null) => s.default_credential = None,
+            Some(Value::String(id)) if id.is_empty() => s.default_credential = None,
+            Some(Value::String(id)) => {
+                if !s.credentials.as_ref().is_some_and(|all| all.iter().any(|c| &c.id == id)) {
+                    return Err(RpcError::from(vm_err!(codes::NOT_FOUND, "No credential \"{id}\"")));
+                }
+                s.default_credential = Some(id.clone());
+            }
+            Some(_) => return Err(RpcError::invalid_params("defaultCredential is a credential's id or null")),
         }
         if s != before {
             s.save(&paths).map_err(err)?;
@@ -739,13 +765,19 @@ impl Server {
             return Err(err(Platform::not_here(&RecipeId::qualified(&p.recipe), &d.systems.join(", "))));
         }
         let kind = d.kind;
-        let password = p.password.filter(|p| !p.is_empty());
+        let paths = self.paths();
+        let choice = build_choice(&paths, p.credential.as_deref(), p.look.as_deref())?;
+        // macOS: the password given, else the credential's stored one (plan B137)
+        let credentials = Credentials::new(paths.clone());
+        let password = p
+            .password
+            .filter(|p| !p.is_empty())
+            .or_else(|| choice.credential.as_ref().and_then(|c| credentials.password(&c.id)));
         if kind == GuestKind::Macos && password.is_none() {
             let user = d.user.clone().unwrap_or_else(platform::user_name);
             return Err(RpcError::invalid_params(format!("Password of {user} needed (sudo, once)")));
         }
         let name = RecipeId::display_name(&p.recipe, Some(d));
-        let paths = self.paths();
         self.inner.jobs.drop_ended(JobKind::Build, &p.recipe);
         let recipe = p.recipe.clone();
         let s = self.clone();
@@ -753,7 +785,7 @@ impl Server {
         let mut spec = JobSpec::new(
             JobKind::Build,
             format!("Build {name}"),
-            Box::new(move |ctx: &JobCtx| s.run_build(ctx, &recipe, kind, password, mac)),
+            Box::new(move |ctx: &JobCtx| s.run_build(ctx, &recipe, kind, &choice, password, mac)),
         );
         spec.recipe = Some(p.recipe.clone());
         spec.guest_kind = Some(kind);
@@ -789,6 +821,7 @@ impl Server {
         ctx: &JobCtx,
         recipe: &str,
         kind: GuestKind,
+        choice: &BuildChoice,
         password: Option<String>,
         mac: MacOptions,
     ) -> crate::Result<Value> {
@@ -816,12 +849,13 @@ impl Server {
                     password,
                     base: mac.base,
                     keep_failed: mac.keep_failed,
+                    choice: choice.clone(),
                 };
                 MacImageBuilder::new(paths.clone(), vz).build(&request, cancel, &*log)?
             }
             GuestKind::Nixos => {
                 ctx.log(&format!("nix build .#images.{recipe}"));
-                ImageStore::new(paths.clone()).build(recipe, &flake, None, cancel, &*log)?
+                ImageStore::new(paths.clone()).build(recipe, &flake, choice, None, cancel, &*log)?
             }
         };
         ctx.log(&format!("✓ Image {} ready", OmaflakeId::image(&image, 3)));
@@ -832,6 +866,41 @@ impl Server {
             ctx.log(&format!("Removed older image {name}"));
         }
         result(BuildResult { image: image.name, removed })
+    }
+
+    /// `credentials.add` (id None) and `credentials.update`: a field left out stays, "" clears it; `password` "" removes
+    /// the stored one
+    fn credentials_change(&self, id: Option<String>, p: CredentialParams) -> Reply {
+        let change = CredentialChange {
+            name: p.name,
+            user: p.user,
+            full_name: p.full_name,
+            email: p.email,
+            password: p.password,
+        };
+        let credentials = Credentials::new(self.paths());
+        let (c, place) = match id {
+            None => credentials.add(change),
+            Some(id) => credentials.update(&id, change),
+        }
+        .map_err(err)?;
+        // Another user or name gives other images: the lists say "outdated" at once
+        self.check_freshness();
+        self.poke();
+        let dto = credential_dtos(&self.paths())
+            .into_iter()
+            .find(|d| d.id == c.id)
+            .ok_or_else(|| RpcError::from(vm_err!(codes::NOT_FOUND, "No credential \"{}\"", c.id)))?;
+        let note = match place {
+            Some(crate::source_tokens::TokenPlace::File(path)) => {
+                Some(format!("The password is stored unencrypted in {} – no keyring", path.display()))
+            }
+            _ => None,
+        };
+        if let Some(n) = &note {
+            self.events().message_text(Level::Warning, super::views::text::Text::verbatim(n));
+        }
+        Answer::of(CredentialAnswer { credential: dto, note })
     }
 
     // MARK: Recipes
@@ -1548,14 +1617,13 @@ pub(crate) fn settings_dto(paths: &Paths) -> SettingsDto {
         check_for_updates: s.check_for_updates.unwrap_or(true),
         notifications: s.notifications.unwrap_or(true),
         keep_recipe_versions: s.keep_recipe_versions.unwrap_or(false),
+        default_credential: s.default_credential.clone(),
         guest: GuestValues {
-            user: g.user,
-            full_name: g.full_name,
-            email: g.email,
             time_zone: g.time_zone,
             locale: g.locale,
             keyboard: g.keyboard,
             look: g.look,
+            ..Default::default()
         },
         flake_in_use: s.flake_path().ok(),
         flake: s.flake,
@@ -1759,6 +1827,13 @@ struct ExternalParams {
 #[serde(rename_all = "camelCase")]
 struct BuildParams {
     recipe: String,
+    /// The credential's ID (plan B137); "" = this computer's values; left out = the default credential
+    #[serde(default)]
+    credential: Option<String>,
+    /// The look; "" = the recipe's own; left out = the default look
+    #[serde(default)]
+    look: Option<String>,
+    /// macOS: the base user's password; left out = the credential's stored one
     #[serde(default)]
     password: Option<String>,
     /// macOS: the base folder (default: the newest base)
@@ -1767,6 +1842,68 @@ struct BuildParams {
     /// macOS: keep a failed build folder for inspection
     #[serde(default)]
     keep_failed: bool,
+}
+
+/// Every credential with whether a password is stored (read without the secret: no prompt) and the default
+pub(crate) fn credential_dtos(paths: &Paths) -> Vec<CredentialDto> {
+    let credentials = Credentials::new(paths.clone());
+    let default = Settings::load(paths).default_credential;
+    credentials
+        .list()
+        .into_iter()
+        .map(|c| CredentialDto {
+            has_password: credentials.has_password(&c.id),
+            is_default: default.as_deref() == Some(c.id.as_str()),
+            id: c.id,
+            name: c.name,
+            user: c.user,
+            full_name: c.full_name,
+            email: c.email,
+        })
+        .collect()
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct CredentialParams {
+    #[serde(default)]
+    id: Option<String>,
+    #[serde(default)]
+    name: Option<String>,
+    #[serde(default)]
+    user: Option<String>,
+    #[serde(default)]
+    full_name: Option<String>,
+    #[serde(default)]
+    email: Option<String>,
+    #[serde(default)]
+    password: Option<String>,
+}
+
+/// The credential and look of a build (plan B137): `credential` None = the default, "" = this computer's values, else
+/// its ID; `look` None = the default look, "" = the recipe's own, else one of `GuestChoices::LOOKS`
+pub(crate) fn build_choice(
+    paths: &Paths,
+    credential: Option<&str>,
+    look: Option<&str>,
+) -> Result<BuildChoice, RpcError> {
+    let defaults = BuildChoice::defaults(paths);
+    let credential = match credential {
+        None => defaults.credential,
+        Some("") => None,
+        Some(id) => Some(
+            Credentials::new(paths.clone())
+                .get(id)
+                .ok_or_else(|| RpcError::from(vm_err!(codes::NOT_FOUND, "No credential \"{id}\"")))?,
+        ),
+    };
+    let look = match look {
+        None => defaults.look,
+        Some("") => None,
+        Some(l) if GuestChoices::LOOKS.iter().any(|(n, _)| *n == l) => Some(l.to_string()),
+        Some(l) => return Err(RpcError::invalid_params(format!("look: no look \"{l}\""))),
+    };
+    Ok(BuildChoice { credential, look })
 }
 
 /// What `images.build` takes for a macOS build besides the password

@@ -290,17 +290,18 @@
         },
         {
           "label": {
+            "key": "Credential",
+            "text": "Credential"
+          },
+          "value": {
+            "text": "Work (alex)"
+          }
+        },
+        {
+          "label": {
             "key": "Look",
             "text": "Look"
           },
-          "note": {
-            "args": [
-              "Rosé Pine Dawn"
-            ],
-            "key": "%@ in the settings – a new build brings it",
-            "text": "Rosé Pine Dawn in the settings – a new build brings it"
-          },
-          "tone": "warning",
           "value": {
             "text": "omaflake"
           }
@@ -500,7 +501,7 @@
     },
     "name": "research",
     "subtitle": {
-      "text": "dev (velvet) · 4 CPU · 8 GB · SSH 2201"
+      "text": "dev (velvet) · Work · omaflake · 4 CPU · 8 GB · SSH 2201"
     },
     "vm": {
       "agent": {

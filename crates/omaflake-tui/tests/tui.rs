@@ -144,10 +144,11 @@ fn draws_the_vms_tab() {
         "Virtual Machines",
         "research",
         "work",
-        "dev (velvet) · 4 CPU · 8 GB · SSH 2201",
+        "dev (velvet) · Work · omaflake · 4 CPU · 8 GB · SSH 2201",
         " omaflake ",
         // home's short labels; the letters come from what is written
         "D Doctor 3",
+        "C Credentials",
         "S Settings",
         "A Data Folder",
         "q Quit",
@@ -213,6 +214,23 @@ fn draws_every_page() {
             vec!["‹ Esc  Build Image", "dev (velvet)", "Copying the image", "62 %", "Full Log", "Cancel"],
         ),
         ("build", "build.failed", vec!["‹ Esc  Build Image", "Build failed"]),
+        // The credential and look of a new image (plan B137)
+        ("build", "build.macos", vec!["‹ Esc  Build Image", "Credential", "Work – alex", "Look", "Rosé Pine Dawn"]),
+        (
+            "credentials",
+            "credentials",
+            vec![
+                "‹ Esc  Credentials",
+                "Who you are in a guest",
+                "Work",
+                "alex · Alex Doe · 1 image",
+                "default",
+                "Edit …",
+                "Change Password …",
+                "New Credential …",
+                "login keychain",
+            ],
+        ),
         ("doctor", "doctor", vec!["‹ Esc  Doctor", "omaf ui", "Core", "Up to date", "Nix", "Check Again"]),
         (
             "settings",

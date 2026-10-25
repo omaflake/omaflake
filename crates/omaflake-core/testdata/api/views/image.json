@@ -157,17 +157,22 @@
         },
         {
           "label": {
+            "key": "Credential",
+            "text": "Credential"
+          },
+          "value": {
+            "args": [
+              "alex"
+            ],
+            "key": "This computer – %@",
+            "text": "This computer – alex"
+          }
+        },
+        {
+          "label": {
             "key": "Look",
             "text": "Look"
           },
-          "note": {
-            "args": [
-              "Rosé Pine Dawn"
-            ],
-            "key": "%@ in the settings – a new build brings it",
-            "text": "Rosé Pine Dawn in the settings – a new build brings it"
-          },
-          "tone": "warning",
           "value": {
             "key": "unknown – built before looks",
             "text": "unknown – built before looks"
@@ -231,10 +236,19 @@
       "args": [
         {
           "args": [
-            "dev"
+            {
+              "args": [
+                "dev"
+              ],
+              "key": "recipe %@",
+              "text": "recipe dev"
+            },
+            {
+              "text": "alex"
+            }
           ],
-          "key": "recipe %@",
-          "text": "recipe dev"
+          "key": "%@ · %@",
+          "text": "recipe dev · alex"
         },
         {
           "args": [
@@ -251,7 +265,7 @@
         }
       ],
       "key": "%@ · %@ · %@",
-      "text": "recipe dev · 2026-10-19 07:00 UTC · no VM"
+      "text": "recipe dev · alex · 2026-10-19 07:00 UTC · no VM"
     },
     "usedBy": []
   },

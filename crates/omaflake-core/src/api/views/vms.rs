@@ -171,7 +171,12 @@ pub(crate) fn row(ctx: &Ctx, v: &Vm) -> VmRowView {
     if v.upgradable {
         badges.push(Badge::new("upgradable", "upgrade", Text::new("Newer image available"), Tone::Warning));
     }
-    let mut subtitle = vec![recipe_name(ctx, &v.recipe), format!("{} CPU", v.cpus), format!("{} GB", v.memory_gb)];
+    let mut subtitle = vec![recipe_name(ctx, &v.recipe)];
+    // The image's credential and look (plan B137)
+    if let Some(image) = ctx.images.iter().find(|i| i.name == v.image) {
+        subtitle.extend(super::images::choice_parts(ctx, image));
+    }
+    subtitle.extend([format!("{} CPU", v.cpus), format!("{} GB", v.memory_gb)]);
     let ssh = match v.kind {
         GuestKind::Macos => v.address.as_ref().map(|a| format!("SSH {a}")),
         GuestKind::Nixos => v.ssh_port.map(|p| format!("SSH {p}")),
@@ -312,9 +317,10 @@ fn detail(ctx: &Ctx, v: &Vm) -> VmDetail {
         .map(|r| r.label.clone())
         .unwrap_or_else(|| crate::models::RecipeId::qualified(&v.recipe));
     info.push(InfoLine::new("Recipe", Text::verbatim(recipe_label)).full(&v.recipe));
-    // The look comes with the image (plan B135)
+    // The credential and the look come with the image (plan B135, B137)
     if let Some(image) = ctx.images.iter().find(|i| i.name == v.image) {
-        info.push(super::images::look_line(ctx, image.look.as_deref()));
+        info.push(super::images::credential_line(ctx, image));
+        info.push(super::images::look_line(image.look.as_deref()));
     }
     info.push(InfoLine::new(
         "Resources",

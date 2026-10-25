@@ -11,7 +11,7 @@ Two inputs are replaced by omaflake on every `nix` call (`--override-input`, wit
 
 | Input | Default here | What omaflake passes |
 |---|---|---|
-| `omaflake-guest` | `guest/` – neutral values (user `guest`, no keys) | **who you are**: user, full name, keys, locale, keyboard, time zone from your Mac (overridable in the app's settings or with `omaf config --guest-…`), and the look if you chose one; the macOS guest user is always the one of your macOS base |
+| `omaflake-guest` | `guest/` – neutral values (user `guest`, no keys) | **who you are**: the image's credential (user, full name, e-mail; else your Mac's), keys, locale, keyboard, time zone (overridable in the app's settings or with `omaf config --guest-…`) and the image's look; one folder per credential and look (plan B137); the macOS guest user is always the one of your macOS base |
 | `omaflake-recipes` | `no-recipes/` – empty, so the flake evaluates on its own | the recipes of the sources (enabled local folders as they are on disk, downloaded and imported ones), each in a tree of its own with the recipes it requires, and `recipes.json` naming them (spec §11.11) |
 
 A third input is replaced only in development: `omaflake` (default `github:omaflake/omaflake`, its `nixpkgs` follows

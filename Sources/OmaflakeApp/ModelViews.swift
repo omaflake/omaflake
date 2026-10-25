@@ -40,6 +40,7 @@ enum Icons {
         case "log": ("doc.text", nil)
         case "doctor": ("stethoscope", nil)
         case "settings": ("gearshape", nil)
+        case "key": ("key", nil)
         case "quit": ("power", nil)
         case "up": ("arrow.up", nil)
         case "add": ("plus", nil)

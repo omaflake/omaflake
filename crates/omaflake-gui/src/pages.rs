@@ -10,6 +10,7 @@ use iced::{Alignment, Color, Length};
 use omaflake_core::api::views::activity::ActivityPage;
 use omaflake_core::api::views::build::{BuildPage, LogRef, Outcome};
 use omaflake_core::api::views::common::{Action, Blockers, Field, FieldKind, Filter, FilterKind, ListHead, Tone};
+use omaflake_core::api::views::credentials::CredentialsPage;
 use omaflake_core::api::views::doctor::{DoctorItem, DoctorPage, Download, MacBasePage};
 use omaflake_core::api::views::images::{BuildJobRow, ImageRowView, ImagesPage};
 use omaflake_core::api::views::new_vm::NewVmPage;
@@ -512,7 +513,8 @@ fn activity<'a>(app: &'a App, p: &'a ActivityPage) -> El<'a> {
 pub fn page<'a>(app: &'a App, p: &PageRef, m: &'a Model) -> El<'a> {
     match m {
         Model::NewVm(n) => new_vm(app, &p.page, n),
-        Model::Build(b) => build(app, b),
+        Model::Build(b) => build(app, &p.page, b),
+        Model::Credentials(c) => credentials(app, &p.page, c),
         Model::Doctor(d) => doctor(app, d),
         Model::MacBase(m) => mac_base(app, &p.page, m),
         Model::Settings(st) => settings(app, &p.page, st),
@@ -598,7 +600,38 @@ fn button_of<'a>(a: &Action, form: Option<&str>, pulse: bool) -> El<'a> {
     }
 }
 
-fn build<'a>(app: &'a App, b: &'a BuildPage) -> El<'a> {
+/// The Credentials page (plan B137): what they are, a card with one line per credential and its actions, "New
+/// Credential …", where passwords are kept
+fn credentials<'a>(app: &'a App, page: &str, c: &'a CredentialsPage) -> El<'a> {
+    let mut rows = Column::new();
+    for r in &c.rows {
+        let mut line = row![container(name_line(
+            r.name.clone(),
+            r.badges.iter().map(badge).collect(),
+            Some(s(&r.subtitle)),
+            vec![]
+        ))
+        .width(Length::Fill)]
+        .spacing(spacing::L)
+        .align_y(Alignment::Center);
+        for a in &r.actions {
+            line = line.push(widgets::action_button(a, Some(page), app.pulse));
+        }
+        rows = rows.push(container(line).padding([7.0, spacing::XL]));
+    }
+    let add = row![space::horizontal(), button_of(&c.add, Some(page), app.pulse)];
+    column![
+        secondary(s(&c.intro)),
+        container(column![rows, divider(), container(add).padding(spacing::CARD_PADDING)])
+            .width(Length::Fill)
+            .style(style::card),
+        secondary(s(&c.footer)),
+    ]
+    .spacing(spacing::XL)
+    .into()
+}
+
+fn build<'a>(app: &'a App, page: &str, b: &'a BuildPage) -> El<'a> {
     let mut c = column![page_head(kind(&b.kind), b.name.clone(), b.badges.iter().map(badge).collect(), None)]
         .spacing(spacing::XXL);
     if let Some(d) = &b.description {
@@ -609,6 +642,14 @@ fn build<'a>(app: &'a App, b: &'a BuildPage) -> El<'a> {
     }
     if let Some(h) = &b.mac_base {
         c = c.push(container(hint(h, app.pulse)).style(style::notice(style::WARNING)));
+    }
+    // The credential and look of the image (plan B137): their values go into the build action
+    if !b.fields.is_empty() {
+        let mut f = Column::new().spacing(spacing::L);
+        for field in &b.fields {
+            f = f.push(field_view(app, page, field, false));
+        }
+        c = c.push(container(f).padding(spacing::CARD_PADDING).width(Length::Fill).style(style::card));
     }
     let mut status = row![].spacing(spacing::L).align_y(Alignment::Center);
     if let Some(st) = &b.status {

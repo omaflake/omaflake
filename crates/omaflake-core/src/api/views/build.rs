@@ -26,8 +26,13 @@ pub struct BuildPage {
     pub description: Option<String>,
     /// `idle` (no build in this session) or the latest build's state
     pub state: BuildState,
-    /// Build / Add to Queue (macOS: asks the password) – or Cancel / Remove from Queue while it waits or runs
+    /// Build / Add to Queue (macOS: asks the password unless the credential has one) – or Cancel / Remove from Queue
+    /// while it waits or runs
     pub actions: Vec<Action>,
+    /// What the image is built with besides the recipe (plan B137): the credential and the look, preset with the
+    /// settings' defaults; their values go into the build action's params (`valueParam`)
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub fields: Vec<Field>,
     /// What the Doctor reports against building (while no build runs)
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub blockers: Option<Blockers>,
@@ -119,6 +124,43 @@ pub struct LogRef {
 #[derive(Debug, Deserialize)]
 pub struct BuildParams {
     pub recipe: String,
+    /// The form's values: `credential` ("" = this computer) and `look` ("" = the recipe's own)
+    #[serde(default)]
+    pub values: BuildValues,
+}
+
+#[derive(Debug, Clone, Default, Deserialize)]
+pub struct BuildValues {
+    pub credential: Option<String>,
+    pub look: Option<String>,
+}
+
+/// The credential and look fields of the build form, and the values they have now (the user's, else the defaults)
+fn choice_fields(ctx: &Ctx, v: &BuildValues) -> (Vec<Field>, String, String) {
+    let default_credential = ctx.settings.default_credential.clone().unwrap_or_default();
+    let credential = v
+        .credential
+        .clone()
+        .filter(|id| id.is_empty() || ctx.credentials.iter().any(|c| &c.id == id))
+        .unwrap_or(default_credential);
+    let look = v.look.clone().unwrap_or_else(|| ctx.settings.guest.look.clone().unwrap_or_default());
+    let mut c = Field::new("credential", FieldKind::Choice, Text::new("Credential"), json!(credential))
+        .param("credential")
+        .value_param("credential");
+    c.choices = vec![Choice::new(json!(""), tf!("This computer – %@", &ctx.host_user))];
+    c.choices.extend(ctx.credentials.iter().map(|x| {
+        Choice::new(
+            json!(x.id),
+            Text::verbatim(format!("{} – {}", x.name, x.user.as_deref().unwrap_or(&ctx.host_user))),
+        )
+    }));
+    c.help = Some(Text::new("Who you are in the guest: user, full name, e-mail (Credentials, the key at the top)"));
+    let mut l = Field::new("look", FieldKind::Choice, Text::new("Look"), json!(look)).param("look").value_param("look");
+    l.choices = vec![Choice::new(json!(""), Text::new("The recipe's own"))];
+    l.choices.extend(
+        crate::guest_choices::GuestChoices::LOOKS.iter().map(|(n, t)| Choice::new(json!(n), Text::verbatim(*t))),
+    );
+    (vec![c, l], credential, look)
 }
 
 pub fn progress(j: &JobDto) -> Progress {
@@ -168,6 +210,8 @@ pub(crate) fn page(ctx: &Ctx, p: &BuildParams) -> BuildPage {
         badges.push(Badge::new("lab", "lab", Text::new("Development recipe (developer mode)"), Tone::Warning));
     }
 
+    let (fields, credential, look) = choice_fields(ctx, &p.values);
+    let stored_password = ctx.credentials.iter().any(|c| c.id == credential && c.has_password);
     let mut actions = Vec::new();
     match &job {
         Some(j) if active => {
@@ -181,9 +225,9 @@ pub(crate) fn page(ctx: &Ctx, p: &BuildParams) -> BuildPage {
                 Text::new(if queue { "Add to Queue" } else { "Build" }),
                 Some("build"),
                 "images.build",
-                json!({"recipe": p.recipe}),
+                json!({"recipe": p.recipe, "credential": credential, "look": look}),
             );
-            if mac {
+            if mac && !stored_password {
                 // sudo in the build VM, once; kept by the core only until the build uses it
                 let user = ctx
                     .doctor
@@ -224,6 +268,7 @@ pub(crate) fn page(ctx: &Ctx, p: &BuildParams) -> BuildPage {
         description: r.and_then(|r| r.description.clone()),
         state: job.as_ref().map(state_of).unwrap_or(BuildState::Idle),
         actions,
+        fields: if active { vec![] } else { fields },
         blockers: if active { None } else { Blockers::of(&blockers, ctx.host) },
         mac_base: (mac && !has_base && !active).then(|| {
             Hint::new(

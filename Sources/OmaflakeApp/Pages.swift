@@ -15,7 +15,8 @@ struct PageView: View {
         } else {
             switch model.pageModel(ref) {
             case .newVm(let p)?: NewVMView(page: p, ref: ref, model: model)
-            case .build(let p)?: BuildView(page: p, model: model)
+            case .build(let p)?: BuildView(page: p, ref: ref, model: model)
+            case .credentials(let p)?: CredentialsView(page: p, model: model)
             case .doctor(let p)?: DoctorView(page: p, model: model)
             case .macBase(let p)?: MacBaseView(page: p, ref: ref, model: model)
             case .settings(let p)?: SettingsView(page: p, ref: ref, model: model)
@@ -219,10 +220,55 @@ struct NewVMView: View {
     }
 }
 
+// MARK: - Credentials
+
+/// The Credentials page (plan B137): what a credential is, one line per credential with its actions, a new one
+struct CredentialsView: View {
+    let page: CredentialsPage
+    let model: AppModel
+
+    var body: some View {
+        Form {
+            Section {
+                Text(verbatim: model.t(page.intro)).font(.caption).foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                ForEach(page.rows) { r in
+                    HStack(spacing: BrandTokens.Spacing.l) {
+                        Image(systemName: "key").frame(width: 16).foregroundStyle(.secondary)
+                        VStack(alignment: .leading, spacing: 1) {
+                            HStack(spacing: BrandTokens.Spacing.s) {
+                                Text(verbatim: r.name).lineLimit(1)
+                                ForEach(r.badges) { BadgeView(badge: $0, model: model) }
+                            }
+                            Text(verbatim: model.t(r.subtitle)).font(.caption2).foregroundStyle(.secondary)
+                        }
+                        Spacer()
+                        Menu {
+                            ForEach(r.actions) { a in
+                                Button(model.t(a.label), role: a.destructive ? .destructive : nil) { model.run(a) }
+                                    .disabled(!a.enabled)
+                            }
+                        } label: { Image(systemName: "ellipsis.circle") }
+                            .menuStyle(.borderlessButton).fixedSize()
+                    }
+                }
+                HStack {
+                    Spacer()
+                    ActionPlainButton(action: page.add, model: model, isDefault: true)
+                }
+            } footer: {
+                Text(verbatim: model.t(page.footer)).font(.caption).foregroundStyle(.secondary)
+            }
+        }
+        .formStyle(.grouped)
+    }
+}
+
 // MARK: - Build image
 
 struct BuildView: View {
     let page: BuildPage
+    let ref: PageRef
     let model: AppModel
 
     var body: some View {
@@ -240,6 +286,11 @@ struct BuildView: View {
                 ForEach(page.actions) { ActionPlainButton(action: $0, model: model, isDefault: $0.primary) }
             }
             if let blockers = page.blockers { BlockersBanner(blockers: blockers, model: model) }
+            // The credential and look of the image (plan B137): their values go into the build action
+            if let fields = page.fields, !fields.isEmpty {
+                Form { ForEach(fields) { FormField(field: $0, page: ref.page, model: model) } }
+                    .formStyle(.grouped).scrollDisabled(true).frame(height: CGFloat(fields.count) * 44 + 24)
+            }
             if let hint = page.macBase {
                 HStack {
                     Image(systemName: "apple.logo").foregroundStyle(.secondary)

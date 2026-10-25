@@ -178,28 +178,40 @@ impl Tokens {
     }
 
     pub fn token(&self, source: &RecipeSource) -> Option<String> {
-        let account = source.id();
-        if let Ok(Some(token)) = self.store.get(&account) {
-            return Some(token);
-        }
-        self.file.as_ref().and_then(|f| f.get(&account))
+        self.get_account(&source.id())
     }
 
     pub fn has(&self, source: &RecipeSource) -> bool {
-        let account = source.id();
-        matches!(self.store.has(&account), Ok(true)) || self.file.as_ref().is_some_and(|f| f.has(&account))
+        self.has_account(&source.id())
     }
 
     /// Stores the token (None or "" removes it) and says where it went (None: removed). An older one goes from both
     /// places first, so a token is never in the keyring and the file at once.
     pub fn set(&self, token: Option<&str>, source: &RecipeSource) -> Result<Option<TokenPlace>> {
-        let account = source.id();
+        self.set_account(&source.id(), &format!("omaflake recipe source {}", source.display_name()), token)
+    }
+
+    /// Any secret by its account (a source's ID, `credential:<id>` – plan B137)
+    pub fn get_account(&self, account: &str) -> Option<String> {
+        if let Ok(Some(token)) = self.store.get(account) {
+            return Some(token);
+        }
+        self.file.as_ref().and_then(|f| f.get(account))
+    }
+
+    pub fn has_account(&self, account: &str) -> bool {
+        matches!(self.store.has(account), Ok(true)) || self.file.as_ref().is_some_and(|f| f.has(account))
+    }
+
+    /// Stores a secret under `account` (None or "" removes it), see `set`
+    pub fn set_account(&self, account: &str, label: &str, token: Option<&str>) -> Result<Option<TokenPlace>> {
+        let account = account.to_string();
         let _ = self.store.delete(&account);
         if let Some(file) = &self.file {
             file.delete(&account)?;
         }
         let Some(token) = token.filter(|t| !t.is_empty()) else { return Ok(None) };
-        let label = format!("omaflake recipe source {}", source.display_name());
+        let label = label.to_string();
         match self.store.set(&account, &label, token) {
             Ok(()) => Ok(Some(self.store.place())),
             Err(StoreError::Failed(e)) => Err(e),

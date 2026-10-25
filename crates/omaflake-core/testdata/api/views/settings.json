@@ -188,79 +188,83 @@
   "guest": {
     "fields": [
       {
+        "choices": [
+          {
+            "label": {
+              "args": [
+                "alex"
+              ],
+              "key": "This computer – %@",
+              "text": "This computer – alex"
+            },
+            "value": null
+          },
+          {
+            "label": {
+              "text": "Work"
+            },
+            "value": "c-1"
+          }
+        ],
         "enabled": true,
-        "id": "user",
-        "kind": "text",
-        "label": {
-          "key": "User",
-          "text": "User"
+        "help": {
+          "key": "Credentials are created with the key at the top",
+          "text": "Credentials are created with the key at the top"
         },
-        "placeholder": {
-          "text": "mac"
+        "id": "defaultCredential",
+        "kind": "choice",
+        "label": {
+          "key": "Default credential",
+          "text": "Default credential"
         },
         "set": {
           "method": "settings.set",
-          "param": "guest.user",
-          "params": {
-            "guest": {
-              "keyboard": "ch",
-              "locale": "de_CH.UTF-8",
-              "look": "rose-pine-dawn",
-              "user": "alex"
-            }
-          }
+          "param": "defaultCredential",
+          "params": {}
         },
-        "value": "alex"
+        "value": "c-1"
       },
       {
+        "choices": [
+          {
+            "label": {
+              "key": "Each recipe's own",
+              "text": "Each recipe's own"
+            },
+            "value": null
+          },
+          {
+            "label": {
+              "text": "omaflake"
+            },
+            "value": "omaflake"
+          },
+          {
+            "label": {
+              "text": "Rosé Pine Dawn"
+            },
+            "value": "rose-pine-dawn"
+          }
+        ],
         "enabled": true,
-        "id": "fullName",
-        "kind": "text",
+        "id": "look",
+        "kind": "choice",
         "label": {
-          "key": "Full name",
-          "text": "Full name"
-        },
-        "placeholder": {
-          "text": "Mac User"
+          "key": "Default look",
+          "text": "Default look"
         },
         "set": {
           "method": "settings.set",
-          "param": "guest.fullName",
+          "param": "guest.look",
           "params": {
             "guest": {
               "keyboard": "ch",
               "locale": "de_CH.UTF-8",
-              "look": "rose-pine-dawn",
-              "user": "alex"
+              "look": "rose-pine-dawn"
             }
           }
         },
-        "value": null
-      },
-      {
-        "enabled": true,
-        "id": "email",
-        "kind": "text",
-        "label": {
-          "key": "E-mail (git)",
-          "text": "E-mail (git)"
-        },
-        "placeholder": {
-          "text": ""
-        },
-        "set": {
-          "method": "settings.set",
-          "param": "guest.email",
-          "params": {
-            "guest": {
-              "keyboard": "ch",
-              "locale": "de_CH.UTF-8",
-              "look": "rose-pine-dawn",
-              "user": "alex"
-            }
-          }
-        },
-        "value": null
+        "value": "rose-pine-dawn"
       },
       {
         "choices": [
@@ -301,8 +305,7 @@
             "guest": {
               "keyboard": "ch",
               "locale": "de_CH.UTF-8",
-              "look": "rose-pine-dawn",
-              "user": "alex"
+              "look": "rose-pine-dawn"
             }
           }
         },
@@ -347,8 +350,7 @@
             "guest": {
               "keyboard": "ch",
               "locale": "de_CH.UTF-8",
-              "look": "rose-pine-dawn",
-              "user": "alex"
+              "look": "rose-pine-dawn"
             }
           }
         },
@@ -393,64 +395,20 @@
             "guest": {
               "keyboard": "ch",
               "locale": "de_CH.UTF-8",
-              "look": "rose-pine-dawn",
-              "user": "alex"
+              "look": "rose-pine-dawn"
             }
           }
         },
         "value": null
-      },
-      {
-        "choices": [
-          {
-            "label": {
-              "key": "Each recipe's own",
-              "text": "Each recipe's own"
-            },
-            "value": null
-          },
-          {
-            "label": {
-              "text": "omaflake"
-            },
-            "value": "omaflake"
-          },
-          {
-            "label": {
-              "text": "Rosé Pine Dawn"
-            },
-            "value": "rose-pine-dawn"
-          }
-        ],
-        "enabled": true,
-        "id": "look",
-        "kind": "choice",
-        "label": {
-          "key": "Look",
-          "text": "Look"
-        },
-        "set": {
-          "method": "settings.set",
-          "param": "guest.look",
-          "params": {
-            "guest": {
-              "keyboard": "ch",
-              "locale": "de_CH.UTF-8",
-              "look": "rose-pine-dawn",
-              "user": "alex"
-            }
-          }
-        },
-        "value": "rose-pine-dawn"
       }
     ],
     "footer": {
-      "key": "Empty fields and \"Like this Mac\" use your Mac's values. The lists offer only what both NixOS and macOS VMs support. Your SSH keys from ~/.ssh are added automatically. macOS VMs always use the user of the macOS base. The look colours a NixOS VM's whole desktop and a macOS VM's terminal and editors; a changed look comes with the next build of an image. A developer flake's local/settings.nix overrides these values.",
-      "text": "Empty fields and \"Like this Mac\" use your Mac's values. The lists offer only what both NixOS and macOS VMs support. Your SSH keys from ~/.ssh are added automatically. macOS VMs always use the user of the macOS base. The look colours a NixOS VM's whole desktop and a macOS VM's terminal and editors; a changed look comes with the next build of an image. A developer flake's local/settings.nix overrides these values."
+      "key": "The default credential and look are preset when an image is built – each image keeps its own. \"Like this Mac\" uses your Mac's values. The lists offer only what both NixOS and macOS VMs support. Your SSH keys from ~/.ssh are added automatically. macOS VMs always use the user of the macOS base. A developer flake's local/settings.nix overrides these values.",
+      "text": "The default credential and look are preset when an image is built – each image keeps its own. \"Like this Mac\" uses your Mac's values. The lists offer only what both NixOS and macOS VMs support. Your SSH keys from ~/.ssh are added automatically. macOS VMs always use the user of the macOS base. A developer flake's local/settings.nix overrides these values."
     },
     "title": {
-      "key": "Guest user in the VMs",
-      "text": "Guest user in the VMs"
+      "key": "Guests",
+      "text": "Guests"
     }
   },
   "sources": {

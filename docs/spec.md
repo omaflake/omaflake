@@ -417,8 +417,9 @@ zone, locale, keyboard, SSH public keys and the macOS guest user come from omafl
 it on every `nix` call with `<data folder>/guest` (`--override-input … --no-write-lock-file`, so the lock file keeps
 only the relative default). Sources: the Mac (user, full name, time zone, locale, keyboard from the HIToolbox
 preferences, `~/.ssh/*.pub`), the macOS base (its guest user – images always match their base), and the overrides in
-the app's settings / `omaf config --guest-…` – there also the look (plan B135), which has no Mac value and otherwise is
-each recipe's. A developer's `local/settings.nix` still overrides single values on top;
+the app's settings / `omaf config --guest-…`. Since plan B137 user, full name and e-mail are a **credential's**: an image
+is built from a recipe with a credential (else the Mac's values) and a look (else the recipe's), both chosen at the
+build and recorded in image.json; the settings hold only the defaults. A developer's `local/settings.nix` still overrides single values on top;
 the Doctor flags a macOS user that then differs from the base's. Flakes without the input keep working (nothing is
 passed). With preset recipes (§11.3) a user therefore needs no settings file at all; later generic images move the same
 values to the first start of an instance.

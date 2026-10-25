@@ -32,6 +32,11 @@ pub enum Command {
         about = "Build a recipe's image (NixOS: nix build <flake>#images.<recipe>; macOS: from a base, spec §6.5)."
     )]
     Build(Build),
+    #[command(
+        about = "Credentials: who you are in a guest – user, full name, e-mail, a stored password for macOS builds.",
+        args_conflicts_with_subcommands = true
+    )]
+    Credentials(Credentials),
     #[command(name = "macos", about = "macOS bases: install from Apple's IPSW.")]
     #[command(subcommand_required = true, arg_required_else_help = true)]
     MacOs {
@@ -310,6 +315,68 @@ pub struct Build {
     pub keep_failed: bool,
     #[arg(long, help = "Show every line of the build log, also the disk image tool's routine ones")]
     pub verbose: bool,
+    #[arg(
+        long,
+        value_name = "credential",
+        help = "Who you are in the guest: a credential's name or ID, or \"computer\" for this computer's user and \
+                name (default: the default credential; omaf credentials)"
+    )]
+    pub credential: Option<String>,
+    #[arg(
+        long,
+        value_name = "look",
+        help = "The guest's look: omaflake, catppuccin, rose-pine-dawn, vanilla or \"recipe\" for the recipe's own \
+                (default: the default look)"
+    )]
+    pub look: Option<String>,
+}
+
+#[derive(Debug, Args)]
+pub struct Credentials {
+    #[command(subcommand)]
+    pub command: Option<CredentialsCommand>,
+}
+
+#[derive(Debug, Subcommand)]
+pub enum CredentialsCommand {
+    #[command(about = "The credentials (* = the default).")]
+    List,
+    #[command(about = "Create a credential (the first one becomes the default).")]
+    Add(CredentialArgs),
+    #[command(about = "Change a credential: only the values given (an empty value clears it).")]
+    Edit(CredentialArgs),
+    #[command(name = "rm", about = "Delete a credential and its stored password (its images keep its name).")]
+    Remove(CredentialRef),
+    #[command(about = "Make a credential the default for new images; \"computer\" for this computer's values.")]
+    Default(CredentialRef),
+}
+
+#[derive(Debug, Args)]
+pub struct CredentialArgs {
+    #[arg(value_name = "name", help = "The credential's name (edit: its name or ID)")]
+    pub name: String,
+    #[arg(long, value_name = "name", help = "edit: a new name")]
+    pub rename: Option<String>,
+    #[arg(long, value_name = "user", help = "User in the guests (default: this computer's)")]
+    pub user: Option<String>,
+    #[arg(long, value_name = "full-name", help = "Full name (git, the account)")]
+    pub full_name: Option<String>,
+    #[arg(long, value_name = "email", help = "E-mail (git)")]
+    pub email: Option<String>,
+    #[arg(
+        long,
+        help = "Read a password from stdin (or prompt) and store it in the keychain/keyring – macOS builds then ask \
+                for none"
+    )]
+    pub password: bool,
+    #[arg(long, help = "edit: remove the stored password")]
+    pub no_password: bool,
+}
+
+#[derive(Debug, Args)]
+pub struct CredentialRef {
+    #[arg(value_name = "credential", help = "Its name or ID")]
+    pub credential: String,
 }
 
 #[derive(Debug, Args)]
@@ -571,12 +638,11 @@ pub struct Config {
     pub nix: Option<String>,
     #[arg(
         long,
-        value_name = "guest-user",
-        help = "Guest user of NixOS VMs (default: your user here; macOS VMs use the base's user)"
+        value_name = "credential",
+        help = "The credential new images get unless another is chosen: its name or ID; empty: this computer's user \
+                and name (omaf credentials)"
     )]
-    pub guest_user: Option<String>,
-    #[arg(long, value_name = "guest-full-name", help = "Full name of the guest user")]
-    pub guest_full_name: Option<String>,
+    pub default_credential: Option<String>,
     #[arg(
         long,
         value_name = "guest-locale",
@@ -598,7 +664,8 @@ pub struct Config {
     #[arg(
         long,
         value_name = "guest-look",
-        help = "Look of the guests: omaflake, catppuccin, rose-pine-dawn or vanilla; empty: each recipe's own (default)"
+        help = "The look new images get unless another is chosen: omaflake, catppuccin, rose-pine-dawn or vanilla; \
+                empty: each recipe's own (default)"
     )]
     pub guest_look: Option<String>,
     #[arg(

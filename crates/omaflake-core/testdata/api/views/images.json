@@ -480,17 +480,18 @@
           },
           {
             "label": {
+              "key": "Credential",
+              "text": "Credential"
+            },
+            "value": {
+              "text": "Work (alex)"
+            }
+          },
+          {
+            "label": {
               "key": "Look",
               "text": "Look"
             },
-            "note": {
-              "args": [
-                "Rosé Pine Dawn"
-              ],
-              "key": "%@ in the settings – a new build brings it",
-              "text": "Rosé Pine Dawn in the settings – a new build brings it"
-            },
-            "tone": "warning",
             "value": {
               "text": "omaflake"
             }
@@ -539,6 +540,8 @@
       },
       "image": {
         "created": "2026-10-21T10:00:00Z",
+        "credential": "c-1",
+        "credentialName": "Work",
         "current": true,
         "instances": [
           "research"
@@ -578,10 +581,22 @@
         "args": [
           {
             "args": [
-              "dev (velvet)"
+              {
+                "args": [
+                  "dev (velvet)"
+                ],
+                "key": "recipe %@",
+                "text": "recipe dev (velvet)"
+              },
+              {
+                "text": "Work"
+              },
+              {
+                "text": "omaflake"
+              }
             ],
-            "key": "recipe %@",
-            "text": "recipe dev (velvet)"
+            "key": "%@ · %@ · %@",
+            "text": "recipe dev (velvet) · Work · omaflake"
           },
           {
             "args": [
@@ -598,7 +613,7 @@
           }
         ],
         "key": "%@ · %@ · %@",
-        "text": "recipe dev (velvet) · 2026-10-21 10:00 UTC · 1 VM"
+        "text": "recipe dev (velvet) · Work · omaflake · 2026-10-21 10:00 UTC · 1 VM"
       },
       "usedBy": [
         "research"
@@ -762,17 +777,22 @@
           },
           {
             "label": {
+              "key": "Credential",
+              "text": "Credential"
+            },
+            "value": {
+              "args": [
+                "alex"
+              ],
+              "key": "This computer – %@",
+              "text": "This computer – alex"
+            }
+          },
+          {
+            "label": {
               "key": "Look",
               "text": "Look"
             },
-            "note": {
-              "args": [
-                "Rosé Pine Dawn"
-              ],
-              "key": "%@ in the settings – a new build brings it",
-              "text": "Rosé Pine Dawn in the settings – a new build brings it"
-            },
-            "tone": "warning",
             "value": {
               "key": "unknown – built before looks",
               "text": "unknown – built before looks"
@@ -836,10 +856,19 @@
         "args": [
           {
             "args": [
-              "dev"
+              {
+                "args": [
+                  "dev"
+                ],
+                "key": "recipe %@",
+                "text": "recipe dev"
+              },
+              {
+                "text": "alex"
+              }
             ],
-            "key": "recipe %@",
-            "text": "recipe dev"
+            "key": "%@ · %@",
+            "text": "recipe dev · alex"
           },
           {
             "args": [
@@ -856,7 +885,7 @@
           }
         ],
         "key": "%@ · %@ · %@",
-        "text": "recipe dev · 2026-10-19 07:00 UTC · no VM"
+        "text": "recipe dev · alex · 2026-10-19 07:00 UTC · no VM"
       },
       "usedBy": []
     }

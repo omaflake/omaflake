@@ -484,6 +484,7 @@ pub fn page(ctx: &Ctx, name: &str, model: &Value) -> Page {
         "macBase" => mac_base(ctx, model, &mut p),
         "newVm" => new_vm(ctx, model, &mut p),
         "settings" => settings(ctx, model, &mut p),
+        "credentials" => credentials(ctx, model, &mut p),
         _ => {}
     }
     if p.title.is_empty() {
@@ -636,6 +637,10 @@ fn build(ctx: &Ctx, model: &Value, p: &mut Page) {
     p.items.push(Item::line("", Line::from(head)));
     if let Some(d) = model.get("description").map(t).filter(|s| !s.is_empty()) {
         p.items.push(Item::line("", secondary_line(ctx, d, 3)));
+    }
+    // The credential and the look of the image (plan B137) – their values go into the build action
+    for f in arr(model, "fields") {
+        p.items.push(field(ctx, "build", f));
     }
     if let Some(bar) = button_bar(ctx, "build:actions", arr(model, "actions")) {
         p.items.push(bar);
@@ -892,6 +897,21 @@ fn new_vm(ctx: &Ctx, model: &Value, p: &mut Page) {
     p.items.push(Item::blank());
     if let Some(bar) = button_bar(ctx, "newVm:actions", arr(model, "actions")) {
         p.items.push(bar);
+    }
+}
+
+/// The Credentials page (plan B137): what they are, one row each with its actions, "New Credential …", the footer
+fn credentials(ctx: &Ctx, model: &Value, p: &mut Page) {
+    p.items.push(Item::line("", secondary_line(ctx, t(&model["intro"]), 2)));
+    p.items.push(Item::blank());
+    for row in arr(model, "rows") {
+        list_row(ctx, "credential", row, &mut p.items);
+    }
+    if let Some(bar) = button_bar(ctx, "credentials:add", std::slice::from_ref(&model["add"])) {
+        p.items.push(bar);
+    }
+    if let Some(f) = model.get("footer") {
+        p.items.push(Item::line("", secondary_line(ctx, t(f), 2)));
     }
 }
 

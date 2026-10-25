@@ -21,6 +21,20 @@
     },
     {
       "enabled": true,
+      "icon": "key",
+      "id": "credentials",
+      "label": {
+        "key": "Credentials",
+        "text": "Credentials"
+      },
+      "method": "ui.show",
+      "params": {
+        "page": "credentials",
+        "params": {}
+      }
+    },
+    {
+      "enabled": true,
       "icon": "settings",
       "id": "settings",
       "label": {

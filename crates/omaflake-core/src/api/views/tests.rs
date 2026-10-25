@@ -33,6 +33,15 @@ pub(crate) fn ctx() -> Ctx {
         available: Some(fx::available()),
         fetching: false,
         sources: vec![fx::source_official(), fx::source_private()],
+        credentials: vec![crate::api::types::CredentialDto {
+            id: "c-1".into(),
+            name: "Work".into(),
+            user: Some("alex".into()),
+            full_name: Some("Alex Doe".into()),
+            email: None,
+            has_password: true,
+            is_default: true,
+        }],
         settings: answer.settings.clone(),
         settings_answer: Some(answer),
         default_data_folder: "/home/.omaflake".into(),
@@ -96,7 +105,8 @@ fn vm_rows_say_what_the_app_said() {
     assert_eq!(page["unreadable"][0]["text"]["text"], "old: written by a newer omaflake (version 9)");
     let research = &page["rows"][0];
     assert_eq!(research["lamp"]["state"], "on");
-    assert_eq!(research["subtitle"]["text"], "dev (velvet) · 4 CPU · 8 GB · SSH 2201");
+    // The image's credential and look next to the recipe (plan B137)
+    assert_eq!(research["subtitle"]["text"], "dev (velvet) · Work · omaflake · 4 CPU · 8 GB · SSH 2201");
     let badges: Vec<&str> = research["badges"].as_array().unwrap().iter().map(|b| b["id"].as_str().unwrap()).collect();
     assert_eq!(badges, ["external", "clipboard", "sound", "upgradable"]);
     // Running: share folder, terminal, stop
@@ -130,6 +140,7 @@ fn vm_rows_say_what_the_app_said() {
             "Image",
             "omaflake ID",
             "Recipe",
+            "Credential",
             "Look",
             "Resources",
             "Network",
@@ -143,10 +154,9 @@ fn vm_rows_say_what_the_app_said() {
     );
     assert_eq!(d["info"][1]["value"]["text"], "vm:research:amber");
     assert_eq!(d["info"][0]["note"]["key"], "newer image available");
-    // The look comes with the image; the settings ask for another one (plan B135)
-    assert_eq!(d["info"][3]["value"]["text"], "omaflake");
-    assert_eq!(d["info"][3]["note"]["key"], "%@ in the settings – a new build brings it");
-    assert_eq!(d["info"][3]["note"]["text"], "Rosé Pine Dawn in the settings – a new build brings it");
+    // The credential and the look come with the image (plan B135, B137)
+    assert_eq!(d["info"][3]["value"]["text"], "Work (alex)");
+    assert_eq!(d["info"][4]["value"]["text"], "omaflake");
     // The microphone switch turns sound on with it
     assert_eq!(
         action(&d["switches"], "microphone")["params"],
@@ -461,8 +471,25 @@ fn build_page_follows_the_job() {
     c.recipes.recipes[0].runs_here = true;
     c.jobs.retain(|j| j.id != "j2");
     c.doctor.as_mut().unwrap().build_blockers.macos.clear();
+    // The form: the default credential (it has a stored password: nothing is asked) and the default look
     let page = get(&c, "build", json!({"recipe": "lab.macos.base@ocean-maple"}));
     let build = action(&page["actions"], "build");
+    assert!(build.get("ask").is_none());
+    assert_eq!(
+        build["params"],
+        json!({"recipe": "lab.macos.base@ocean-maple", "credential": "c-1", "look": "rose-pine-dawn"})
+    );
+    let fields: Vec<&str> = page["fields"].as_array().unwrap().iter().map(|f| f["id"].as_str().unwrap()).collect();
+    assert_eq!(fields, ["credential", "look"]);
+    assert_eq!(page["fields"][0]["valueParam"], "credential");
+    assert_eq!(page["fields"][0]["choices"][0]["label"]["text"], "This computer – alex");
+    assert_eq!(page["fields"][1]["choices"][0]["label"]["key"], "The recipe's own");
+    // This computer's values: no stored password – the base user's is asked
+    let page =
+        get(&c, "build", json!({"recipe": "lab.macos.base@ocean-maple", "values": {"credential": "", "look": ""}}));
+    let build = action(&page["actions"], "build");
+    assert_eq!(build["params"]["credential"], "");
+    assert_eq!(build["params"]["look"], "");
     assert_eq!(build["ask"][0]["kind"], "password");
     assert_eq!(build["ask"][0]["label"]["text"], "Password of alex");
     assert_eq!(build["enabled"], true);
@@ -678,17 +705,23 @@ fn settings_fields_store_themselves() {
     assert_eq!(locale["set"]["param"], "guest.locale");
     assert_eq!(
         locale["set"]["params"],
-        json!({"guest": {"user": "alex", "locale": "de_CH.UTF-8", "keyboard": "ch", "look": "rose-pine-dawn"}})
+        json!({"guest": {"locale": "de_CH.UTF-8", "keyboard": "ch", "look": "rose-pine-dawn"}})
     );
     assert_eq!(locale["choices"][0]["label"]["text"], "Like this Mac – de_CH.UTF-8");
-    // The look: no computer's value – null is each recipe's own (plan B135)
+    // The defaults of new images (plan B137): the credential (null = this computer) and the look (null = the
+    // recipe's own); user, full name and e-mail are a credential's
+    let credential = action(&page["guest"]["fields"], "defaultCredential");
+    assert_eq!(credential["set"], json!({"method": "settings.set", "params": {}, "param": "defaultCredential"}));
+    assert_eq!(credential["value"], "c-1");
+    assert_eq!(credential["choices"][0]["value"], Value::Null);
+    assert_eq!(credential["choices"][1]["label"]["text"], "Work");
+    assert!(page["guest"]["fields"].as_array().unwrap().iter().all(|f| f["id"] != "user"));
     let look = action(&page["guest"]["fields"], "look");
     assert_eq!(look["value"], "rose-pine-dawn");
     assert_eq!(look["set"]["param"], "guest.look");
     assert_eq!(look["choices"][0]["value"], Value::Null);
     assert_eq!(look["choices"][0]["label"]["key"], "Each recipe's own");
     assert_eq!(look["choices"][2]["label"]["text"], "Rosé Pine Dawn");
-    assert_eq!(action(&page["guest"]["fields"], "user")["placeholder"]["text"], "mac");
     // A VM runs: the data folder stays
     let df = &page["dataFolder"];
     assert_eq!(action(&df["actions"], "move")["reason"]["key"], "Stop all VMs before moving the data folder.");
@@ -827,7 +860,10 @@ fn primary_actions_and_short_labels() {
     let home = get(&c, "home", json!({}));
     let short: Vec<Option<&str>> =
         home["actions"].as_array().unwrap().iter().map(|a| a["shortLabel"]["key"].as_str()).collect();
-    assert_eq!(short, [Some("Doctor"), None, Some("Data Folder"), Some("Quit")]);
+    assert_eq!(short, [Some("Doctor"), None, None, Some("Data Folder"), Some("Quit")]);
+    // The credentials' key next to the settings (plan B137)
+    assert_eq!(home["actions"][1]["icon"], "key");
+    assert_eq!(home["actions"][1]["params"]["page"], "credentials");
 }
 
 #[test]

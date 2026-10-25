@@ -22,6 +22,7 @@ use serde_json::{Map, Value};
 use crate::cancellation::Cancellation;
 use crate::error::{codes, IoContext, Result};
 use crate::file_format::{write_atomic, FileFormat, Step, UnreadableFile};
+use crate::guest_settings::BuildChoice;
 use crate::instance_store::InstanceStore;
 use crate::ipsw_downloader::KeepAwake;
 use crate::json;
@@ -81,6 +82,15 @@ pub struct ImageInfo {
     /// without them
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub look: Option<String>,
+    /// The look chosen for the build (plan B137); None: the recipe's own – what a rebuild asks for again
+    #[serde(rename = "lookChoice", default, skip_serializing_if = "Option::is_none")]
+    pub look_choice: Option<String>,
+    /// The credential it was built with (`Credential::id`, plan B137); None: this computer's values
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub credential: Option<String>,
+    /// That credential's name when it was built – shown when it is gone
+    #[serde(rename = "credentialName", default, skip_serializing_if = "Option::is_none")]
+    pub credential_name: Option<String>,
     #[serde(with = "crate::json::iso8601")]
     pub created: DateTime<Utc>,
 }
@@ -88,6 +98,14 @@ pub struct ImageInfo {
 impl ImageInfo {
     /// image.json (see `image_v0_to_v1`, `image_v1_to_v2`)
     pub const FILE_FORMAT: FileFormat = FileFormat::new("image", "image.json", 0, &IMAGE_STEPS);
+
+    /// The credential and look of a build: the look it got (`look_of`), the chosen one and the credential's ID and name
+    pub fn set_choice(&mut self, choice: &BuildChoice, look: Option<String>) {
+        self.look = look;
+        self.look_choice = choice.look.clone();
+        self.credential = choice.credential.as_ref().map(|c| c.id.clone());
+        self.credential_name = choice.credential.as_ref().map(|c| c.name.clone());
+    }
 
     /// Author and name come from the recipe ID ("local" and the ID itself when it has no parts); pass
     /// `json::now()` for Swift's default `created: Date()`
@@ -114,6 +132,9 @@ impl ImageInfo {
             revision: revision.into(),
             store_path,
             look: None,
+            look_choice: None,
+            credential: None,
+            credential_name: None,
             created,
         }
     }
@@ -235,20 +256,26 @@ impl ImageStore {
 
     /// The store path a build of `recipe` would produce now – evaluation only, nothing is built. NixOS: the disk image,
     /// macOS: the darwin system; both are what image.json records as `storePath` (plan B82).
-    pub fn expected_store_path(&self, recipe: &str, kind: GuestKind, flake: &str) -> Result<String> {
+    pub fn expected_store_path(
+        &self,
+        recipe: &str,
+        kind: GuestKind,
+        flake: &str,
+        choice: &BuildChoice,
+    ) -> Result<String> {
         let attr = if kind == GuestKind::Macos {
             format!("darwinConfigurations.\"{recipe}\".system")
         } else {
             Self::image_attribute(recipe)?
         };
         let mut args = vec!["eval".to_string(), "--raw".into(), format!("{}#{attr}.outPath", Self::flake_ref(flake))];
-        args.extend(self.guest_arguments(flake));
+        args.extend(self.guest_arguments_for(flake, choice));
         Ok(Shell::check("nix", &args, &RunOptions::default())?.trim().to_string())
     }
 
     /// The look a build of `recipe` gets now (`omaflake.look` of its configuration with the guest values, plan B135)
     /// – evaluation only; None when the flake has no looks or the evaluation fails
-    pub fn look_of(&self, recipe: &str, kind: GuestKind, flake: &str) -> Option<String> {
+    pub fn look_of(&self, recipe: &str, kind: GuestKind, flake: &str, choice: &BuildChoice) -> Option<String> {
         let attr = if kind == GuestKind::Macos {
             format!("darwinConfigurations.\"{recipe}\"")
         } else {
@@ -256,12 +283,13 @@ impl ImageStore {
         };
         let mut args =
             vec!["eval".to_string(), "--raw".into(), format!("{}#{attr}.config.omaflake.look", Self::flake_ref(flake))];
-        args.extend(self.guest_arguments(flake));
+        args.extend(self.guest_arguments_for(flake, choice));
         let look = Shell::check("nix", &args, &RunOptions::default()).ok()?.trim().to_string();
         (!look.is_empty()).then_some(look)
     }
 
-    /// What a build of each recipe (with an image) would give now – recipes that fail to evaluate are left out
+    /// What a build of each recipe (with an image) would give now, with the credential and look its current image was
+    /// built with (plan B137) – recipes that fail to evaluate are left out, and those whose image's credential is gone
     pub fn expected_store_paths(
         &self,
         recipes: &HashMap<String, RecipeDefaults>,
@@ -269,10 +297,12 @@ impl ImageStore {
     ) -> HashMap<String, String> {
         let mut result = HashMap::new();
         for (id, d) in recipes {
-            if self.images_of(id).is_empty() {
+            let Some(image) = self.current(id) else { continue };
+            if image.info.credential.is_some() && BuildChoice::of_image(&self.paths, &image.info).credential.is_none() {
                 continue;
             }
-            if let Ok(path) = self.expected_store_path(id, d.kind, flake) {
+            let choice = BuildChoice::of_image(&self.paths, &image.info);
+            if let Ok(path) = self.expected_store_path(id, d.kind, flake, &choice) {
                 result.insert(id.clone(), path);
             }
         }
@@ -280,7 +310,7 @@ impl ImageStore {
     }
 
     /// Recipes whose current image no longer matches the recipe (its files, the modules it uses, nixpkgs, the guest
-    /// settings): a build now would give another store path.
+    /// settings, its credential's values): a build now – with its credential and look – would give another store path.
     pub fn outdated(&self, recipes: &HashMap<String, RecipeDefaults>, flake: &str) -> HashSet<String> {
         self.expected_store_paths(recipes, flake)
             .into_iter()
@@ -301,10 +331,12 @@ impl ImageStore {
     /// The build log goes line by line to `log`; `started` hands over the nix process for cancelling; `cancel` stops
     /// it. A build is run a second time when the Linux builder collected garbage during the first ("running
     /// auto-GC", plan B79). Exit status 15 or a cancelled token: "Build cancelled".
+    #[allow(clippy::too_many_arguments)]
     pub fn build(
         &self,
         recipe: &str,
         flake: &str,
+        choice: &BuildChoice,
         started: Option<&dyn Fn(Pid)>,
         cancel: &Cancellation,
         log: &Log,
@@ -320,7 +352,7 @@ impl ImageStore {
             "--print-out-paths".into(),
             "-L".into(),
         ];
-        args.extend(self.guest_arguments(flake));
+        args.extend(self.guest_arguments_for(flake, choice));
         let mut r = ShellResult { status: -1, ..Default::default() };
         for run in 1..=2 {
             if run == 2 {
@@ -374,7 +406,7 @@ impl ImageStore {
                 Some(store_path.clone()),
                 json::now(),
             );
-            info.look = self.look_of(recipe, GuestKind::Nixos, flake);
+            info.set_choice(choice, self.look_of(recipe, GuestKind::Nixos, flake, choice));
             Self::write_info(&info, &dir)?;
         }
         self.set_current(&name)?;

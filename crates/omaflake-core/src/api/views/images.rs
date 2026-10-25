@@ -217,11 +217,9 @@ pub(crate) fn row(ctx: &Ctx, i: &ImageDto) -> ImageRowView {
         1 => Text::new("1 VM"),
         n => tf!("%lld VMs", n),
     };
-    let subtitle = Text::joined(vec![
-        tf!("recipe %@", recipe_name(ctx, &i.recipe)),
-        Text::fmt("%@", vec![Arg::date(i.created)]),
-        vms,
-    ]);
+    let mut subtitle = vec![tf!("recipe %@", recipe_name(ctx, &i.recipe))];
+    subtitle.extend(choice_parts(ctx, i).into_iter().map(Text::verbatim));
+    let subtitle = Text::joined(vec![Text::joined(subtitle), Text::fmt("%@", vec![Arg::date(i.created)]), vms]);
     let blockers = ctx.start_blockers(i.kind);
     let new_vm = if blockers.is_empty() {
         Action::show("newVm", Text::new("New VM from this image"), Some("new-vm"), "newVm", json!({"image": i.name}))
@@ -256,21 +254,48 @@ pub(crate) fn row(ctx: &Ctx, i: &ImageDto) -> ImageRowView {
     }
 }
 
-/// "Look: Rosé Pine Dawn" of an image (plan B135) – with a note when the settings ask for another one, which a new
-/// build brings; "unknown" for an image built before looks
-pub(crate) fn look_line(ctx: &Ctx, look: Option<&str>) -> InfoLine {
-    let line = InfoLine::new(
+/// The credential and look of an image for a list's subtitle (plan B137): "Work · Rosé Pine Dawn" – the credential's
+/// name (this computer's user without one), the look when known
+pub(crate) fn choice_parts(ctx: &Ctx, i: &ImageDto) -> Vec<String> {
+    let credential = match &i.credential {
+        None => ctx.host_user.clone(),
+        Some(id) => ctx
+            .credentials
+            .iter()
+            .find(|c| &c.id == id)
+            .map(|c| c.name.clone())
+            .or_else(|| i.credential_name.clone())
+            .unwrap_or_else(|| id.clone()),
+    };
+    let mut parts = vec![credential];
+    parts.extend(i.look.as_deref().map(GuestChoices::look_name));
+    parts
+}
+
+/// "Look: Rosé Pine Dawn" of an image (plan B135); "unknown" for an image built before looks
+pub(crate) fn look_line(look: Option<&str>) -> InfoLine {
+    InfoLine::new(
         "Look",
         match look {
             Some(l) => Text::verbatim(GuestChoices::look_name(l)),
             None => Text::new("unknown – built before looks"),
         },
-    );
-    match ctx.settings.guest.look.as_deref() {
-        Some(want) if look != Some(want) => {
-            line.note(tf!("%@ in the settings – a new build brings it", GuestChoices::look_name(want)), Tone::Warning)
+    )
+}
+
+/// "Credential: Work (alex)" of an image (plan B137): this computer's values without one; a credential that is gone
+/// keeps its name, with a note
+pub(crate) fn credential_line(ctx: &Ctx, i: &ImageDto) -> InfoLine {
+    match (&i.credential, ctx.credentials.iter().find(|c| Some(&c.id) == i.credential.as_ref())) {
+        (None, _) => InfoLine::new("Credential", tf!("This computer – %@", &ctx.host_user)),
+        (Some(_), Some(c)) => InfoLine::new(
+            "Credential",
+            Text::verbatim(format!("{} ({})", c.name, c.user.as_deref().unwrap_or(&ctx.host_user))),
+        ),
+        (Some(id), None) => {
+            InfoLine::new("Credential", Text::verbatim(i.credential_name.clone().unwrap_or_else(|| id.clone())))
+                .note(Text::new("removed – a new build needs another credential"), Tone::Warning)
         }
-        _ => line,
     }
 }
 
@@ -302,7 +327,8 @@ fn detail(ctx: &Ctx, i: &ImageDto, outdated: Option<bool>) -> ImageDetail {
         InfoLine::new("Built", Text::fmt("%@", vec![Arg::date(i.created)])),
         InfoLine::new("Recipe state", revision),
         status,
-        look_line(ctx, i.look.as_deref()),
+        credential_line(ctx, i),
+        look_line(i.look.as_deref()),
         InfoLine::new("Used by", if used.is_empty() { Text::new("no VM") } else { Text::verbatim(&used) }).full(&used),
         InfoLine::new(
             "Size",

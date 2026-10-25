@@ -16,6 +16,7 @@ pub mod build_progress;
 pub mod builder_maintenance;
 pub mod cancellation;
 pub mod cli_link;
+pub mod credentials;
 pub mod data_folder;
 pub mod file_format;
 pub mod guest_choices;

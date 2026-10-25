@@ -459,17 +459,18 @@
           },
           {
             "label": {
+              "key": "Credential",
+              "text": "Credential"
+            },
+            "value": {
+              "text": "Work (alex)"
+            }
+          },
+          {
+            "label": {
               "key": "Look",
               "text": "Look"
             },
-            "note": {
-              "args": [
-                "Rosé Pine Dawn"
-              ],
-              "key": "%@ in the settings – a new build brings it",
-              "text": "Rosé Pine Dawn in the settings – a new build brings it"
-            },
-            "tone": "warning",
             "value": {
               "text": "omaflake"
             }
@@ -669,7 +670,7 @@
       },
       "name": "research",
       "subtitle": {
-        "text": "dev (velvet) · 4 CPU · 8 GB · SSH 2201"
+        "text": "dev (velvet) · Work · omaflake · 4 CPU · 8 GB · SSH 2201"
       },
       "vm": {
         "agent": {
@@ -891,17 +892,22 @@
           },
           {
             "label": {
+              "key": "Credential",
+              "text": "Credential"
+            },
+            "value": {
+              "args": [
+                "alex"
+              ],
+              "key": "This computer – %@",
+              "text": "This computer – alex"
+            }
+          },
+          {
+            "label": {
               "key": "Look",
               "text": "Look"
             },
-            "note": {
-              "args": [
-                "Rosé Pine Dawn"
-              ],
-              "key": "%@ in the settings – a new build brings it",
-              "text": "Rosé Pine Dawn in the settings – a new build brings it"
-            },
-            "tone": "warning",
             "value": {
               "key": "unknown – built before looks",
               "text": "unknown – built before looks"
@@ -1050,7 +1056,7 @@
       },
       "name": "work",
       "subtitle": {
-        "text": "dev · 6 CPU · 16 GB"
+        "text": "dev · alex · 6 CPU · 16 GB"
       },
       "vm": {
         "audio": false,

@@ -189,7 +189,8 @@ while omaflake is not in front (menu window closed, app window hidden or in the 
   keeps it in the Keychain, never in a file. Footer: recipes from other sources are not reviewed by the omaflake team
 - Settings: guest user in the VMs (user, full name, e-mail as text; language and region, keyboard, time zone chosen
   from lists that offer only what NixOS and macOS guests both support (`GuestChoices`, plan B46); "Like this Mac" or empty = the Mac's value;
-  the look – "Each recipe's own" or omaflake, Catppuccin Mocha, Rosé Pine Dawn, Vanilla (plan B135);
+  the default credential and the default look of new images (plan B135, B137); Credentials (the key in the header):
+  create, edit and remove them, store a password for macOS builds; building an image asks its credential and look;
   SSH keys from ~/.ssh; macOS VMs use the base's user), language (System, English, Deutsch – stored as `AppleLanguages` in the app's defaults, restart button);
   data folder (default `~/.omaflake`, move it elsewhere or back; `DataFolder.move`)
 
