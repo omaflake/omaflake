@@ -189,6 +189,7 @@ let
 in
 if plain then {
   desktop = null;
+  macos = null;
   wezterm = "{}";
   zellij = { theme = "default"; kdl = null; };
   nvim = { plugins = [ ]; lua = ''return "auto"''; };
@@ -251,6 +252,18 @@ if plain then {
       }
     '';
   };
+
+  # macOS guests' system look (the macOS desktop module): light or dark from `appearance`, the rest from [macos] –
+  # values checked in a guest only (plan BM22); without them graphite and clear icons for a dark look, macOS' own for
+  # a light one
+  macos =
+    let m = data.macos or { }; in {
+      inherit dark;
+      accent = m.accent or (if dark then "graphite" else "multicolor");
+      icons = m.icons or (if dark then "clear" else "default");
+      folders = m.folders or (if dark then "graphite" else "default");
+      wallpaper = m.wallpaper or (if dark then "black" else "default");
+    };
 
   nvim = theme "neovim" nvimThemes { plugins = [ ]; lua = nvimFromColors + lualine; };
   emacs = theme "emacs" emacsThemes { packages = _: [ ]; elisp = emacsFromColors; };

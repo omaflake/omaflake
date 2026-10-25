@@ -35,6 +35,15 @@ in
     description = "The guest look's colours, for recipes (read only).";
   };
 
+  # The macOS desktop's part of the look (plan B141): { dark; accent; icons; folders; wallpaper }, null for none
+  options.omaflake.lookMacos = lib.mkOption {
+    type = lib.types.nullOr (lib.types.attrsOf lib.types.anything);
+    readOnly = true;
+    default = look.macos;
+    defaultText = lib.literalMD "the `macos` part of the look (nix/looks/adapter.nix)";
+    description = "The guest look's macOS system settings, for the macOS desktop recipe (read only).";
+  };
+
   config = {
     # Priority 40: above a recipe's plain value (100) and even its lib.mkForce (50)
     omaflake.look = lib.mkIf ((settings.look or null) != null) (lib.mkOverride 40 settings.look);

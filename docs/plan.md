@@ -788,6 +788,14 @@ Entwurf-Baukasten.md):
     can be active at once: same context and mode; a desktop-wide one with any unmoded one; an outer program's unmoded
     one with an inner program's (a module says what it runs inside, e.g. Zellij and Neovim inside the terminal).
     Ctrl+P in Zellij's pane mode does not overlap Ctrl+P in Neovim.
+  - **macOS in the looks:** a look covers macOS guests' system appearance too – light or dark from `appearance`, the
+    rest from an optional `[macos]` (accent, icons, folders, wallpaper); without it graphite and clear icons for a dark
+    look, macOS' own for a light one. Only values checked in a guest (BM22) for now: accent multicolor | graphite,
+    icons default | clear, folders default | graphite, wallpaper default | black. Done 2026-10-25: schema look/v1,
+    tools/catalog.py, `adapter.nix` (`macos`), option `omaflake.lookMacos`, the catalog's `macos/minimal` takes it
+    (evaluated with all four looks: omaflake and Catppuccin dark/graphite/clear/black as before, Rosé Pine Dawn and
+    Vanilla leave macOS' own). OPEN: the other accent and folder colours, clear icons in a light look and a wallpaper
+    in any colour – read in a macOS 27 guest first, then added to the schema; an image built and looked at.
   - **First-party modules live in the catalog** (omaflake/catalog `modules/omaflake/…`); the image flake keeps only
     the bases and turns looks into configuration.
   - **Backward compatibility does not matter before the stable 1.0** (see CLAUDE.md, File versions): formats, API

@@ -297,6 +297,37 @@
     "plain": {
       "type": "boolean",
       "description": "true: the look sets no colours – every program keeps its own (Vanilla); then colors and terminal are left out"
+    },
+    "macos": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "macOS guests' system look (the macOS desktop module); light or dark comes from appearance. Only values checked in a guest (plan BM22); left out: graphite and clear icons for a dark look, macOS' own for a light one",
+      "properties": {
+        "accent": {
+          "enum": [
+            "multicolor",
+            "graphite"
+          ]
+        },
+        "icons": {
+          "enum": [
+            "default",
+            "clear"
+          ]
+        },
+        "folders": {
+          "enum": [
+            "default",
+            "graphite"
+          ]
+        },
+        "wallpaper": {
+          "enum": [
+            "default",
+            "black"
+          ]
+        }
+      }
     }
   },
   "patternProperties": {

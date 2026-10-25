@@ -7,6 +7,7 @@
 # What adapter.nix makes of a look – an attribute set:
 #   desktop  NixOS only – Hyprland, Waybar, Fuzzel, Mako, the prompt, GTK and the pointer; colours as "RRGGBB";
 #            null: each program's own colours
+#   macos    macOS only – { dark; accent; icons; folders; wallpaper } for the macOS desktop; null: macOS' own
 #   wezterm  Lua table constructor merged over WezTerm's configuration
 #   zellij   { theme = name; kdl = the theme's KDL, null for a theme built into Zellij }
 #   nvim     { plugins = [ { name; plugin; } ] (loaded with :packadd); lua = sets the colours, returns lualine's theme }
