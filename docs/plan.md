@@ -932,8 +932,13 @@ editor.**
   recipe, module, key binding set and look validate against the JSON Schemas; parts installed from the catalog
   checkout (`parts::tests`); `cargo test` (416 core tests), `swift test`, TUI and iced tests (the new pages drawn);
   the CLI in a scratch data folder (recipes from the local catalog, `recipes show`, `modules`, `profiles`).
-- **OPEN:** images built from the new recipes and looked at (NixOS on the Mac and the x86_64 PC, macOS research and
-  minimal); the new pages clicked through in the three UIs; installing from the public catalog (needs the catalog
+- **Built:** `neovim-minimal` (aarch64-linux, on the Linux builder) with a locale of two keyboards, started headless
+  and checked over SSH: host name from the recipe, time zone and `de,ru` with the toggle, the look's files, Hyprland's
+  binds (`Hyprland --verify-config`: config ok), Zellij's preset with the recipe's keys (`zellij setup --check`: well
+  defined), Neovim's `<Space>ff`, `EDITOR=nvim`. Found and fixed with it: `omaf build` without `--look` took the default
+  look instead of the recipe's (now `LookStore::suggested`), and a build through the service lost the locale.
+- **OPEN:** images of the other new recipes built and looked at (emacs-minimal, neovim-research, lab; the x86_64 PC;
+  macOS research and minimal), a desktop session looked at in a window; the new pages clicked through in the three UIs; installing from the public catalog (needs the catalog
   commit pushed – the public one is still v3, which this omaflake refuses); a kept version of a local folder's recipe
   does not keep its modules; the website's catalog page; recipes' locale restrictions in the catalog (none of
   omaflake's recipes restricts locales yet).

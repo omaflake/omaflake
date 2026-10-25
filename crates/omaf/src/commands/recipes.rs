@@ -162,6 +162,7 @@ fn build_in_service(
         "keepFailed": a.keep_failed,
         "credential": choice.credential.as_ref().map_or("", |c| c.id.as_str()),
         "look": choice.look.as_deref().unwrap_or(""),
+        "locale": choice.locale.as_ref().map_or("", |l| l.id.as_str()),
     });
     if let Some(b) = base {
         params["base"] = json!(b);
@@ -220,9 +221,22 @@ pub fn build(a: &cli::Build) -> Outcome {
             eprintln!("{line}");
         }
     };
-    // The credential and look of the image (plan B137)
+    // The credential and look of the image (plan B137); without --look the recipe's when it is installed (B142)
+    let suggested = if a.look.is_none() {
+        let settings = env.settings();
+        RecipeLibrary::new(env.paths.clone())
+            .available(&settings)
+            .into_iter()
+            .find(|x| x.id == recipe)
+            .and_then(|x| omaflake_core::composition::RecipeSpec::read(&x.folder).ok())
+            .and_then(|spec| omaflake_core::looks::LookStore::new(env.paths.clone()).suggested(&settings, &spec))
+            .map(|l| l.id)
+    } else {
+        None
+    };
+    let look = a.look.clone().or(suggested);
     let choice =
-        super::credentials::build_choice(&env.paths, a.credential.as_deref(), a.look.as_deref(), a.locale.as_deref())?;
+        super::credentials::build_choice(&env.paths, a.credential.as_deref(), look.as_deref(), a.locale.as_deref())?;
     // macOS: the base and its credential's password – nothing is asked (plan B139)
     let mut choice = choice;
     let mut mac: Option<(MacImageBuilder, PathBuf, String, String)> = None;

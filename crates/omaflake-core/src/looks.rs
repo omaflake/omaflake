@@ -265,6 +265,12 @@ impl LookStore {
             .or_else(|| all.into_iter().next())
     }
 
+    /// The look a recipe suggests (recipe.toml `look`) when it is here in a version the recipe allows (plan B142)
+    pub fn suggested(&self, settings: &Settings, spec: &crate::composition::RecipeSpec) -> Option<Look> {
+        let r = spec.look.as_ref()?;
+        self.list(settings).into_iter().find(|l| l.reference() == r.id && r.allows(&l.version))
+    }
+
     /// Makes `id` the default look
     pub fn set_default(&self, id: &str) -> Result<()> {
         let mut s = Settings::load(&self.paths);
@@ -417,6 +423,32 @@ bright = ["#4c566a", "#bf616a", "#a3be8c", "#ebcb8b", "#81a1c1", "#b48ead", "#8f
         let s = Settings::load(&paths);
         assert!(store.list(&s).is_empty() && s.default_look.is_none() && store.default_look(&s).is_none());
         assert!(store.remove("alice.look.nord").is_err());
+    }
+
+    #[test]
+    fn a_recipes_suggested_look() {
+        let (_t, paths) = temp_paths();
+        let src = tempfile::tempdir().unwrap();
+        source_with(
+            src.path(),
+            &[("alice", "nord", &LOOK.replace("author = \"alice\"", "version = \"1.2.0\"\nauthor = \"alice\""))],
+        );
+        let mut s = Settings::load(&paths);
+        s.sources =
+            Some(vec![RecipeSource::new(RecipeSourceKind::Folder, &src.path().to_string_lossy(), None, None, None)]);
+        let spec = |look: &str| {
+            crate::composition::RecipeSpec::parse(&format!(
+                "\"$schema\" = \"https://omaflake.dev/schema/recipe/v2.json\"\nplatform = \"nixos\"\nlook = {look}\n"
+            ))
+            .unwrap()
+        };
+        let store = LookStore::new(paths);
+        assert_eq!(store.suggested(&s, &spec("\"alice/nord\"")).map(|l| l.id), Some("alice.look.nord".into()));
+        assert!(
+            store.suggested(&s, &spec("{ id = \"alice/nord\", min = \"2.0.0\" }")).is_none(),
+            "not a version it allows"
+        );
+        assert!(store.suggested(&s, &spec("\"alice/other\"")).is_none());
     }
 
     #[test]
