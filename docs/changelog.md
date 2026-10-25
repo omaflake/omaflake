@@ -13,53 +13,47 @@ are collected under *Unreleased*. Releases: [GitHub](https://github.com/omaflake
 
 ## [Unreleased]
 
-### Added
-
-- **Copy a credential's password:** a quick icon on each credential copies its password after Touch ID or your
-  login password (on Linux at once); the clipboard is cleared after 90 seconds. You never have to remember a guest's
-  password (`omaf credentials copy-password`).
-- **macOS bases in the images tab:** a section of their own under the images, with Show in Finder and Remove (not
-  while a macOS base is installed or a macOS image is built).
-
-### Changed
-
-- **Credentials as the other lists:** each row shows the name, who uses it (lamp, "alex · 1 image") and Copy
-  Password; a click opens its values and actions (Edit, Change Password, Make Default, Remove).
-- **Editing a credential is a form:** every field says what it is for (the user name is NixOS's login, home folder
-  and `omaf ssh`; macOS guests keep the base's user). While images use the credential only its name can change – the
-  other fields are greyed out with the reason –, and it cannot be removed until those images are gone.
-- **Every credential has a password:** it is asked (twice) when you create one and can be changed, not removed.
-- **Settings: "For new images"** instead of "Guests" – the values (credential, look, language, keyboard, time zone)
-  are used when an image is built; existing images and their VMs keep what they were built with.
-- **Doctor:** one line "omaflake" with the app's and the core's version, right above the update check.
-
-## [0.5.1] – 2026-10-25
+## [0.5.2] – 2026-10-25
 
 An image is now a recipe with a credential and a look: you choose both when you build it, the settings only preset
-them. Credentials – who you are in a guest – get a page of their own, and one can keep the password a macOS build
-needs. Your settings file becomes version 3 and image.json version 2; an older omaflake ignores the settings and no
-longer reads the images, so update every omaflake that uses this data folder.
+them. Credentials – who you are in a guest – get a page of their own; each keeps its password, which macOS builds use
+and which you can copy whenever a guest asks for it. Your settings file becomes version 3 and image.json version 2;
+an older omaflake ignores the settings and no longer reads the images, so update every omaflake that uses this data
+folder. (0.5.1 was not published; its changes are part of this release.)
 
 ### Added
 
 - **Credentials:** named sets of user, full name and e-mail – "Work", "Private" … – on a page of their own (the key
-  next to the settings; `omaf credentials`). Create, edit and remove them; one is the default for new images.
-- **A stored password for macOS builds:** a credential can keep the macOS base user's password in the Keychain (on
-  Linux in the desktop's keyring); building a macOS image with it asks for no password.
+  next to the settings; `omaf credentials`). Each row shows who uses it ("alex · 1 image"); a click opens its values
+  and actions (Edit, Change Password, Make Default, Remove). One is the default for new images.
+- **A password for every credential:** asked (twice) when you create one, kept in the Keychain (on Linux in the
+  desktop's keyring); it can be changed, not removed. Building a macOS image with the credential asks for no
+  password.
+- **Copy a credential's password:** the quick icon on each credential copies its password after Touch ID or your
+  login password (on Linux at once); the clipboard is cleared after 90 seconds – you never have to remember a guest's
+  password (`omaf credentials copy-password`).
 - **Credential and look when building:** the build page asks which credential and which look the image gets, preset
   with the defaults (`omaf build --credential … --look …`).
 - **Credential and look at images and VMs:** the lists show them next to the recipe ("dev · Work · Rosé Pine Dawn"),
   the details have a line each ("Credential: Work (alex)", "Look: Rosé Pine Dawn"); `omaf images` prints them. Images
   built before show their look as "unknown" and this computer's values as their credential.
+- **macOS bases in the images tab:** a section of their own under the images, with Show in Finder and Remove (not
+  while a macOS base is installed or a macOS image is built).
 
 ### Changed
 
-- **The settings set defaults:** "Default credential" and "Default look" instead of user, full name and e-mail and the
-  look of every VM. A user, full name or e-mail you had set becomes a credential, which becomes the default.
+- **The settings set defaults "For new images":** "Default credential" and "Default look" instead of user, full name
+  and e-mail and the look of every VM; the section (formerly "Guests") says that its values – credential, look,
+  language, keyboard, time zone – are used when an image is built, while existing images and their VMs keep what they
+  were built with. A user, full name or e-mail you had set becomes a credential, which becomes the default.
   `omaf config --default-credential` replaces `--guest-user` and `--guest-full-name`.
-- **Images turn "outdated" right away** when what they were built with changes – their recipe, their credential's
-  values, the guest settings (keyboard, locale, time zone) – not only at the next look at the recipes; the badge and
-  the status say so.
+- **A used credential stays as it is:** editing is a form whose fields say what they are for (the user name is
+  NixOS's login, home folder and `omaf ssh`; macOS guests keep the base's user). While images use the credential
+  only its name can change – the other fields are greyed out with the reason –, and it cannot be removed until those
+  images are gone.
+- **Images turn "outdated" right away** when what they were built with changes – their recipe, the guest settings
+  (keyboard, locale, time zone) – not only at the next look at the recipes; the badge and the status say so.
+- **Doctor:** one line "omaflake" with the app's and the core's version, right above the update check.
 
 ## [0.5.0] – 2026-10-25
 
