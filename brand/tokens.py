@@ -4,7 +4,7 @@
 
     Sources/OmaflakeApp/BrandTokens.swift   SwiftUI (Color, CGFloat, Font)
     crates/omaflake-brand/src/tokens.rs     Rust, no dependencies (colours as [u8; 4] and [f32; 4], lengths as f32)
-    nix/looks/omaflake-palette.nix          the omaflake look of the guests ([look]), colours as "RRGGBB"
+    nix/looks/omaflake.toml                 the omaflake look of the guests ([look]) as look data (schema look/v1)
 
 Needs Python 3.11+ (tomllib), nothing else. Run from anywhere:
     python3 tokens.py            write the generated files
@@ -18,7 +18,7 @@ ROOT = os.path.dirname(HERE)
 SOURCE = os.path.join(HERE, "tokens.toml")
 SWIFT = os.path.join(ROOT, "Sources", "OmaflakeApp", "BrandTokens.swift")
 RUST = os.path.join(ROOT, "crates", "omaflake-brand", "src", "tokens.rs")
-NIX = os.path.join(ROOT, "nix", "looks", "omaflake-palette.nix")
+NIX = os.path.join(ROOT, "nix", "looks", "omaflake.toml")
 
 WEIGHTS = ("regular", "medium", "semibold", "bold", "heavy")
 LENGTH_GROUPS = ("spacing", "radius", "glow", "size", "icon")
@@ -205,16 +205,57 @@ def rust(t):
 # --- Nix -------------------------------------------------------------------------------------------------------------
 
 def nix(t):
-    out = ["# " + HEADER.format(c="#"),
-           "# The omaflake look's colours ([look] in brand/tokens.toml) as \"RRGGBB\", used by nix/looks/omaflake.nix\n",
-           "{\n"]
+    """The omaflake look as look data (look.toml, schema look/v1, plan B141): black, high contrast, white text; red and
+    cyan – the hero's split – as fine accents: the active window's border, the active workspace, the cursor, matches.
+    Neovim and Emacs: Modus Vivendi (black, WCAG AAA) with the accents."""
+    c = {}
     for k, spec in t["look"].items():
         if "alpha" in spec or "rgb" in spec:
             raise ValueError(f"look.{k}: give palette or hex, no alpha or rgb")
         r, g, b, _ = resolve(t, k, spec)
-        out.append(f'  {k} = "{round(r * 255):02X}{round(g * 255):02X}{round(b * 255):02X}";\n')
-    out.append("}\n")
-    return "".join(out)
+        c[k] = f'"#{round(r * 255):02X}{round(g * 255):02X}{round(b * 255):02X}"'
+    terminal = lambda keys: "[" + ", ".join(c[k] for k in keys) + "]"
+    return "".join([
+        "# " + HEADER.format(c="#"),
+        "# The omaflake look ([look] in brand/tokens.toml) as look data – the image flake turns it into each program's\n",
+        "# configuration (nix/looks/adapter.nix).\n",
+        '"$schema" = "https://omaflake.dev/schema/look/v1.json"\n',
+        'author = "omaflake"\n',
+        'license = "MIT"\n',
+        'title = "omaflake"\n',
+        'description = "Black and high contrast with white text; red and cyan only as fine accents."\n',
+        'description_de = "Schwarz und kontrastreich mit weißer Schrift; Rot und Cyan nur als feine Akzente."\n',
+        'tags = ["dark", "high-contrast"]\n',
+        'homepage = "https://omaflake.dev"\n',
+        'appearance = "dark"\n\n',
+        "[colors]\n",
+        f"background = {c['base']}\n",
+        f"surface = {c['surface']}\n",
+        f"selection = {c['border']}\n",
+        f"text = {c['text']}\n",
+        f"subtext = {c['subtext']}\n",
+        f"muted = {c['muted']}\n",
+        f"accent = {c['cyan']}\n",
+        f"urgent = {c['red']}\n",
+        f"cursor = {c['cyan']}\n\n",
+        "[terminal]\n",
+        f"normal = {terminal(['overlay', 'red', 'green', 'yellow', 'blue', 'magenta', 'cyan', 'subtext'])}\n",
+        f"bright = {terminal(['muted', 'red', 'green', 'yellow', 'blue', 'magenta', 'cyan', 'text'])}\n\n",
+        "[desktop]\n",
+        f"border = [{c['red']}, {c['cyan']}]   # the active window: the split as a gradient\n",
+        f"inactive_border = {c['overlay']}\n",
+        f"clock = {c['text']}\n",
+        f"split = [{c['red']}, {c['cyan']}]    # the active workspace's number: a 1 px red/cyan edge\n",
+        f"prompt = {{ ok = {c['cyan']}, error = {c['red']}, directory = {c['text']} }}\n",
+        'gtk = "adw-gtk3-dark"\n',
+        'cursor_theme = "Bibata-Modern-Classic"\n\n',
+        "[neovim]\n",
+        'theme = "modus"\n',
+        'style = "modus_vivendi"\n\n',
+        "[emacs]\n",
+        'theme = "modus"\n',
+        'style = "modus-vivendi"\n',
+    ])
 
 
 def main(argv):

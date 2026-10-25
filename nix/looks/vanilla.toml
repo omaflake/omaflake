@@ -1,0 +1,8 @@
+"$schema" = "https://omaflake.dev/schema/look/v1.json"
+author = "omaflake"
+license = "MIT"
+title = "Vanilla"
+description = "Every program in its own colours – fonts, layout and keys stay omaflake's."
+description_de = "Jedes Programm in seinen eigenen Farben – Schriften, Anordnung und Tasten bleiben omaflakes."
+tags = ["plain"]
+plain = true   # sets no colours: no [colors], no [terminal]

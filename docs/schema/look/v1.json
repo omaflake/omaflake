@@ -293,6 +293,10 @@
           }
         }
       ]
+    },
+    "plain": {
+      "type": "boolean",
+      "description": "true: the look sets no colours – every program keeps its own (Vanilla); then colors and terminal are left out"
     }
   },
   "patternProperties": {
@@ -306,10 +310,30 @@
     "license",
     "title",
     "description",
-    "tags",
-    "appearance",
-    "colors",
-    "terminal"
+    "tags"
   ],
-  "additionalProperties": false
+  "additionalProperties": false,
+  "allOf": [
+    {
+      "if": {
+        "not": {
+          "properties": {
+            "plain": {
+              "const": true
+            }
+          },
+          "required": [
+            "plain"
+          ]
+        }
+      },
+      "then": {
+        "required": [
+          "appearance",
+          "colors",
+          "terminal"
+        ]
+      }
+    }
+  ]
 }

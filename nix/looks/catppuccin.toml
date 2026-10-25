@@ -1,0 +1,40 @@
+# A copy of omaflake/catalog looks/omaflake/catppuccin/look.toml while omaflake still names looks (plan B141 step 1).
+"$schema" = "https://omaflake.dev/schema/look/v1.json"
+author = "omaflake"
+license = "MIT"
+title = "Catppuccin Mocha"
+description = "Soothing pastel on a dark base – the darkest of Catppuccin's four flavours."
+description_de = "Beruhigende Pastelltöne auf dunklem Grund – die dunkelste der vier Catppuccin-Varianten."
+tags = ["dark", "pastel"]
+homepage = "https://catppuccin.com"
+appearance = "dark"
+
+# The palette: https://catppuccin.com/palette (Mocha)
+[colors]
+background = "#1e1e2e"   # base
+surface = "#1e1e2e"      # base
+selection = "#45475a"    # surface1
+text = "#cdd6f4"
+subtext = "#a6adc8"      # subtext0
+muted = "#6c7086"        # overlay0
+accent = "#cba6f7"       # mauve
+urgent = "#f38ba8"       # red
+
+# Catppuccin's own terminal mapping (black, red, green, yellow, blue, magenta, cyan, white)
+# OPEN: checked against Catppuccin's ports when the image flake reads looks (it used WezTerm's "Catppuccin Mocha")
+[terminal]
+normal = ["#45475a", "#f38ba8", "#a6e3a1", "#f9e2af", "#89b4fa", "#f5c2e7", "#94e2d5", "#bac2de"]
+bright = ["#585b70", "#f38ba8", "#a6e3a1", "#f9e2af", "#89b4fa", "#f5c2e7", "#94e2d5", "#a6adc8"]
+
+[desktop]
+border = ["#cba6f7", "#89b4fa"]   # mauve to blue
+inactive_border = "#313244"       # surface0
+clock = "#89b4fa"                 # blue
+
+[neovim]
+theme = "catppuccin"
+flavour = "mocha"
+
+[emacs]
+theme = "catppuccin"
+flavour = "mocha"

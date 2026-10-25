@@ -1,0 +1,41 @@
+# A copy of omaflake/catalog looks/omaflake/rose-pine-dawn/look.toml while omaflake still names looks (plan B141 step 1).
+"$schema" = "https://omaflake.dev/schema/look/v1.json"
+author = "omaflake"
+license = "MIT"
+title = "Rosé Pine Dawn"
+description = "Light and mild – cream, rose, iris and gold."
+description_de = "Hell und mild – Creme, Rosé, Iris und Gold."
+tags = ["light", "pastel"]
+homepage = "https://rosepinetheme.com"
+appearance = "light"
+
+# The palette: https://rosepinetheme.com/palette (Dawn)
+[colors]
+background = "#faf4ed"   # base
+surface = "#fffaf3"
+selection = "#dfdad9"    # highlight med
+text = "#575279"
+subtext = "#797593"      # subtle
+muted = "#9893a5"
+accent = "#907aa9"       # iris
+urgent = "#b4637a"       # love
+cursor = "#cecacd"       # highlight high
+
+# Rosé Pine's own terminal mapping (rose-pine/wezterm)
+[terminal]
+normal = ["#f2e9e1", "#b4637a", "#286983", "#ea9d34", "#56949f", "#907aa9", "#d7827e", "#575279"]
+bright = ["#9893a5", "#b4637a", "#286983", "#ea9d34", "#56949f", "#907aa9", "#d7827e", "#575279"]
+
+[desktop]
+border = ["#d7827e", "#907aa9"]   # rose to iris
+inactive_border = "#dfdad9"
+clock = "#286983"                 # pine
+prompt = { ok = "#286983", error = "#b4637a", directory = "#907aa9" }
+gtk = "adw-gtk3"
+cursor_theme = "Bibata-Modern-Ice"
+
+[neovim]
+theme = "rose-pine"
+variant = "dawn"
+
+# Emacs: no Rosé Pine in nixpkgs – the theme comes from the colours

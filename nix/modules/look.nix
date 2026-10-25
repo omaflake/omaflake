@@ -1,8 +1,8 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
-# The look of a guest (plan B135) – NixOS and macOS. A recipe picks one like its editor line
-# (`omaflake.look = "catppuccin";`); the user's guest setting (the app's settings, `omaf config --guest-look`) wins.
-# What each look sets is in looks/. Here: the per-program files under /etc/omaflake/look/, which the guest's own
-# configuration loads – home-manager's on NixOS (home/look.nix, home/neovim.nix, home/emacs.nix), the files a macOS
+# The look of a guest (plan B135; data since B141) – NixOS and macOS. A recipe picks one like its editor line
+# (`omaflake.look = "catppuccin";`); the user's choice wins: a look's name, or its data (look.toml as read) once
+# omaflake hands it over. looks/adapter.nix makes each program's part of it. Here: the per-program files under
+# /etc/omaflake/look/, which the guest's own configuration loads – home-manager's on NixOS (home/look.nix, home/neovim.nix, home/emacs.nix), the files a macOS
 # recipe writes once into the home folder. A changed look comes with the rebuilt image; the user's files stay.
 #
 #   /etc/omaflake/look/name           the look's name
@@ -14,15 +14,15 @@
 
 let
   looks = import ../looks { inherit pkgs lib; };
-  name = config.omaflake.look;
-  look = looks.get name;
+  name = looks.nameOf config.omaflake.look;
+  look = looks.get config.omaflake.look;
   dir = "/etc/omaflake/look";
 in
 {
   options.omaflake.look = lib.mkOption {
-    type = lib.types.enum looks.names;
+    type = lib.types.either (lib.types.enum looks.names) (lib.types.attrsOf lib.types.anything);
     default = "omaflake";
-    description = "The guest's look: omaflake (black, high contrast), catppuccin (Catppuccin Mocha), rose-pine-dawn (light and mild) or vanilla (each program's own colours).";
+    description = "The guest's look: a name – omaflake (black, high contrast), catppuccin (Catppuccin Mocha), rose-pine-dawn (light and mild) or vanilla (each program's own colours) – or a look's data (look.toml, schema look/v1).";
   };
 
   # For recipes that colour a program of their own (neovim-research: zathura): the look's desktop colours as

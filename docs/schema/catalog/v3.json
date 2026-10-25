@@ -207,8 +207,6 @@
           "description",
           "tags",
           "license",
-          "appearance",
-          "swatches",
           "version",
           "files"
         ],
@@ -250,15 +248,19 @@
           "appearance": {
             "enum": [
               "dark",
-              "light"
+              "light",
+              null
             ]
           },
           "homepage": {
             "type": "string"
           },
           "swatches": {
-            "type": "object",
-            "description": "The main colours, for a preview without downloading",
+            "type": [
+              "object",
+              "null"
+            ],
+            "description": "The main colours, for a preview without downloading; null for a plain look",
             "properties": {
               "background": {
                 "type": "string",
@@ -316,6 +318,9 @@
                 }
               }
             }
+          },
+          "plain": {
+            "type": "boolean"
           }
         }
       }
