@@ -13,6 +13,12 @@ are collected under *Unreleased*. Releases: [GitHub](https://github.com/omaflake
 
 ## [Unreleased]
 
+## [0.6.1] – 2026-10-25
+
+A fix for 0.6.0: installed modules could be mixed up, so images failed to build. **After updating, remove the
+modules in the Modules tab (or move `~/.omaflake/modules` aside) and install them again** – "Install All" in the Modules
+tab does it in one go.
+
 ### Fixed
 
 - Installed modules could hold another module's files when several recipes were installed at once (all of them

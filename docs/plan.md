@@ -503,6 +503,12 @@ for `omaf ui` and the Linux app and German error messages everywhere (B125), the
 for `omaf new -r` when its recipe line names another computer's folder; click tests of B119/B121 (macOS app, Linux app on a real desktop). Then M12 once the Developer ID
 is there.
 
+**Release 0.6.1 (2026-10-25):** the fix of B143 – parallel installs mixed up the installed modules (each install has its
+own work folder now) –, with the Modules tab's rows without a colour frame, "Create macOS Base …" once, the base being
+created shown under macOS Bases, and "Install All" for recipes, modules and looks. Checked by the maintainer before
+the release: with the modules reinstalled, both NixOS recipes and the macOS recipe built and ran as VMs. Unsigned, for
+the maintainer to try. Open after it: the new UI clicked in the app (B143), the ideas of B144.
+
 **Release 0.6.0 (2026-10-25):** recipes as building blocks (B141, B142): recipe v2 is data – a platform, modules,
 a suggested look, key bindings, requirements, how a VM runs; the first-party modules and key bindings in omaflake/catalog
 (catalog v4); installing a recipe brings its parts; the Modules tab, Profiles, My Recipes (the recipe editor), what a

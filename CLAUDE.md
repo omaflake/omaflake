@@ -83,7 +83,7 @@ nix/local.example/         template for personal settings → nix/local/ (git-ig
 
 ## Next step
 
-State and order: **docs/plan.md §8** (2026-10-25, release 0.6.0): recipes as building blocks – platform, modules, look,
+State and order: **docs/plan.md §8** (2026-10-25, release 0.6.1 – 0.6.0 and the fix of B143): recipes as building blocks – platform, modules, look,
 key bindings, requirements (B141, B142; modules and recipes in omaflake/catalog), locales, profiles, My Recipes; an image
 is a recipe with a credential, a look and a locale (B137–B141), looks for the guests (B135, installable since 0.6.0), the Linux host checked on an x86_64 PC (0.4.0, B124–B131); next the OPEN items in docs/linux.md and plan §8; M12 (signing, notarization, helper, macOS camera extension, self-update) once the Developer ID is there. Development base `mac-base-26A434`; develop with the `lab` recipes
 (developer mode in the app).
