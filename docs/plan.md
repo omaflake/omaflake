@@ -503,6 +503,11 @@ for `omaf ui` and the Linux app and German error messages everywhere (B125), the
 for `omaf new -r` when its recipe line names another computer's folder; click tests of B119/B121 (macOS app, Linux app on a real desktop). Then M12 once the Developer ID
 is there.
 
+**Release 0.6.2 (2026-10-26):** the fixes of B145 – the recipe list without Nix (installed recipes stay installed
+while Nix is unavailable), QEMU with 3D before the first on PATH, the Doctor's Mount … for a Nix Store that is not at
+/nix –, and a recipe's build button greyed out with the Doctor's sign instead of a Doctor button. Unsigned, for the
+maintainer to try first (a restart with the Nix Store under /Volumes, Mount …, builds and VMs) – OPEN until then.
+
 **Release 0.6.1 (2026-10-25):** the fix of B143 – parallel installs mixed up the installed modules (each install has its
 own work folder now) –, with the Modules tab's rows without a colour frame, "Create macOS Base …" once, the base being
 created shown under macOS Bases, and "Install All" for recipes, modules and looks. Checked by the maintainer before

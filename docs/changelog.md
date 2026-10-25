@@ -13,6 +13,12 @@ are collected under *Unreleased*. Releases: [GitHub](https://github.com/omaflake
 
 ## [Unreleased]
 
+## [0.6.2] – 2026-10-26
+
+A fix for a Mac whose Nix Store was not mounted at `/nix` after a restart: Nix, omaflake's QEMU and the installed
+recipes seemed gone, and NixOS VMs ran slowly without 3D. **If the Doctor says "Nix Store volume not at /nix", click
+Mount …** – nothing has to be installed again.
+
 ### Fixed
 
 - Recipes no longer show as not installed when Nix is unavailable (e.g. its volume is not mounted after a restart):
