@@ -503,6 +503,13 @@ for `omaf ui` and the Linux app and German error messages everywhere (B125), the
 for `omaf new -r` when its recipe line names another computer's folder; click tests of B119/B121 (macOS app, Linux app on a real desktop). Then M12 once the Developer ID
 is there.
 
+**Release 0.5.0 (2026-10-25):** looks for the guests (B135) – omaflake's own as the standard, Catppuccin Mocha, Rosé
+Pine Dawn and Vanilla, chosen by the recipe or the user's guest setting (config.json v2); Zellij at a key with keys
+that leave Neovim alone, moving and resizing windows by keyboard, every key starting with Cmd or Ctrl (B133, B134);
+`omaf ui`'s action menu scrolls (B132). Unsigned, for the maintainer to try the looks in the app. Open after it: each
+look seen in a running VM (one omaflake-look VM looked at on the Mac), VS Code in macos/research, Emacs' Meta keys
+under lv3:alt_switch.
+
 **Release 0.4.0 (2026-10-24):** the Linux host checked on real x86_64 hardware and fixed where it failed – OpenGL for
 QEMU from Nix outside NixOS (B127), the guest following the window (B128), the clipboard on GNOME (B129), the guest
 camera (B130), the image flake in the Linux package (B131), the official NixOS recipes for x86_64-linux too. Unsigned.
