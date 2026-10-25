@@ -133,6 +133,7 @@ pub fn hint_on(p: &PrerequisiteDto, host: super::HostOs) -> Text {
         I::Qemu => "Needed for NixOS guests: install omaflake's QEMU, or enter a path.",
         I::Flake => "Choose the folder with your recipes (flake.nix).",
         I::SshKey => "Create a key – used for SSH into VMs, image builds and macOS bases.",
+        I::Credential => "Create a credential – who you are in the guests: user, full name and a password, asked once. omaflake builds images and macOS bases with it by itself.",
         I::Git => "Optional: without it, image names show “nogit” instead of the flake's revision.",
         I::Cli if limited => {
             "Another omaf comes first on your PATH – install this omaflake's, or remove the other one."
@@ -279,6 +280,10 @@ fn item(ctx: &Ctx, p: &PrerequisiteDto) -> DoctorItem {
                 ),
             )
             .enabled_if(!nix_missing, Some(Text::new("Nix"))),
+        );
+    } else if p.item == I::Credential && p.status != S::Ok {
+        actions.push(
+            Action::show("credential", Text::new("New Credential …"), Some("add"), "credential", json!({})).primary(),
         );
     } else if let Some(command) = &p.install {
         actions.push(
@@ -478,10 +483,10 @@ pub struct MacBasePage {
     /// "macOS from Apple (IPSW)": the file chosen or Apple's, the download – the IPSW's only place on the page (its
     /// actions set `values.ipsw` with `ui.field`)
     pub ipsw: IpswLine,
-    /// The guest user and its full name
+    /// The credential the guest user is created from (plan B139)
     pub fields: Vec<Field>,
     pub installing: bool,
-    /// Create Base (asks the password twice)
+    /// Create Base (no password asked: the credential's); "New Credential …" while there is none
     pub actions: Vec<Action>,
     /// The latest base creation's log (its job, as the build page's)
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -507,8 +512,7 @@ pub struct MacBaseParams {
 #[derive(Debug, Default, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct MacBaseValues {
-    pub user: Option<String>,
-    pub full_name: Option<String>,
+    pub credential: Option<String>,
     pub ipsw: Option<String>,
 }
 
@@ -519,16 +523,14 @@ pub(crate) fn mac_base_page(ctx: &Ctx, p: &MacBaseParams) -> MacBasePage {
     let ipsw_item = find(I::Ipsw);
     let installing = ctx.active_job(JobKind::MacosInstall).is_some();
     let downloading = download_job(ctx);
-    // The macOS recipes' guest user, so base and images agree from the start
-    let default_user = ctx
-        .recipes
-        .recipes
-        .iter()
-        .find(|r| r.kind == crate::models::GuestKind::Macos)
-        .and_then(|r| r.user.clone())
-        .unwrap_or_else(|| ctx.host_user.clone());
-    let user = p.values.user.clone().unwrap_or(default_user);
-    let full_name = p.values.full_name.clone().unwrap_or_else(|| ctx.host_full_name.clone());
+    // The guest user comes from a credential – the default one unless another is chosen (plan B139)
+    let credential = p
+        .values
+        .credential
+        .clone()
+        .filter(|id| ctx.credentials.iter().any(|c| &c.id == id))
+        .or_else(|| ctx.settings.default_credential.clone())
+        .unwrap_or_default();
     let ipsw = p.values.ipsw.clone().filter(|s| !s.is_empty());
     let base = base_item.and_then(|b| match b.status {
         S::Ok => Some(Hint::new("ok", Text::verbatim(&b.detail), Tone::Success)),
@@ -575,32 +577,25 @@ pub(crate) fn mac_base_page(ctx: &Ctx, p: &MacBaseParams) -> MacBasePage {
         (None, Some(i)) => Text::verbatim(&i.detail),
         (None, None) => Text::verbatim("…"),
     };
-    let fields = vec![
-        Field::new("user", FieldKind::Text, Text::new("Guest user"), json!(user))
-            .param("user")
-            .value_param("user")
-            .enabled_if(!installing, None),
-        Field::new("fullName", FieldKind::Text, Text::new("Full name"), json!(full_name))
-            .param("fullName")
-            .value_param("fullName")
-            .enabled_if(!installing, None),
-    ];
-    let mut params = json!({"user": user, "fullName": full_name});
+    let fields = vec![super::credentials::credential_choice(
+        ctx,
+        &credential,
+        "The base's user gets this credential's user, full name and password; macOS images are built with it, so no password is ever asked.",
+    )
+    .enabled_if(!installing, None)];
+    let mut params = json!({"credential": credential});
     if let Some(i) = &ipsw {
         params["ipsw"] = json!(i);
     }
-    let mut password = Ask::new("password", AskKind::Password, Text::new("Password"));
-    password.repeat = true;
     let create = Action::call("create", Text::new("Create Base"), Some("create"), "macos.installBase", params)
-        .ask(password)
         .enabled_if(!installing, Some(Text::new("running …")))
         .enabled_if(downloading.is_none(), None)
-        .enabled_if(!user.is_empty(), Some(Text::new("Guest user")))
+        .enabled_if(!credential.is_empty(), Some(Text::new("Create a credential first – the key at the top")))
         .enabled_if(base_item.is_none_or(|b| b.status != S::Ok), base_item.map(|b| Text::verbatim(&b.detail)))
         .primary();
     MacBasePage {
         title: Text::new("Create macOS Base"),
-        intro: Text::new("Creates your macOS base from the IPSW: your guest user, automatic login, SSH with your keys from ~/.ssh. No manual steps; a missing IPSW is downloaded first."),
+        intro: Text::new("Creates your macOS base from the IPSW: the guest user from your credential, automatic login, SSH with your keys from ~/.ssh. No manual steps and no password to type; a missing IPSW is downloaded first."),
         base,
         ipsw: IpswLine {
             label: Text::new("macOS from Apple (IPSW)"),
@@ -610,7 +605,11 @@ pub(crate) fn mac_base_page(ctx: &Ctx, p: &MacBaseParams) -> MacBasePage {
         },
         fields,
         installing,
-        actions: vec![create],
+        actions: if ctx.credentials.is_empty() {
+            vec![super::credentials::new_credential(), create]
+        } else {
+            vec![create]
+        },
         log: ctx.jobs.iter().rev().find(|j| j.kind == JobKind::MacosInstall).map(super::build::log_ref),
     }
 }

@@ -896,11 +896,8 @@
               "text": "Credential"
             },
             "value": {
-              "args": [
-                "alex"
-              ],
-              "key": "This computer – %@",
-              "text": "This computer – alex"
+              "key": "none – built before credentials",
+              "text": "none – built before credentials"
             }
           },
           {
@@ -1056,7 +1053,7 @@
       },
       "name": "work",
       "subtitle": {
-        "text": "dev · alex · 6 CPU · 16 GB"
+        "text": "dev · – · 6 CPU · 16 GB"
       },
       "vm": {
         "audio": false,

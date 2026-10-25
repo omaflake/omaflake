@@ -694,6 +694,35 @@ update below.
   service shows the Touch ID / password prompt, copies, the clipboard is empty after 90 s (unanswered, the call waits
   up to 5 minutes and says "not confirmed"); Doctor "App 0.5.2 · Core 0.5.2"; the bases section; "For new images".
 
+**B139 (2026-10-25): a macOS base is created from a credential; no password is ever typed; the Doctor requires a
+credential.** The maintainer's decisions: a base's guest user comes from a credential (user, full name, password from
+the keychain), the base shows it, macOS builds take it – "never a manual password: you set up the credentials, from
+then on omaflake does everything"; the Doctor requires at least one credential (and so a default); the host's user
+name only prefills the first credential, after that the host has nothing to do with credentials ("This computer" is
+gone).
+- **Core:** `mac_base_installer::BaseRecord` – `omaflake-base.json` in the base folder (schema `base` v1: credential,
+  credentialName, user), written when an install finishes, or by `assign` into a finished, read-only base (made
+  writable for it, then read-only again); `BaseInfo.record`. `credentials::{Login, Usage}`:
+  `Credentials::{login, base_login, login_of_base, assign_to_base}` (the base's user must be the credential's),
+  `Usage::{of, check_change, check_remove}` (images and bases; a base locks user, full name, e-mail and password).
+  `default_credential()` falls back to the first credential, `remove` moves the default on, `set_default` takes an id,
+  `add` needs a user; `GuestSettings::for_choice` takes the credential's user as its full name when it has none.
+  Prerequisite `credential` (Requirements; a build blocker for both guest kinds).
+- **API:** `macos.installBase {credential?, ipsw?}` (user/fullName/password still accepted), `bases.assign`,
+  `BaseDto.credential/credentialName`, `images.build` for macOS: the base's credential and password (a `password`
+  only for a base without one), no `""` = this computer; `settings.set defaultCredential` needs an id. Pages:
+  `baseCredential` (the credential form's shape), `macBase` (a credential choice, no password ask), `build` (macOS:
+  the base's credential, fixed; "Assign Credential …" for a base without one; never a password ask), bases rows
+  (credential, badge `no-credential`, action `assign`), credentials rows (usage incl. bases), settings (no "This
+  computer"), first-credential prefill.
+- **CLI:** `omaf macos install --credential`, `omaf macos assign`, `omaf build` without `--password-stdin`, `omaf
+  credentials add` needs `--user` after the first, `default computer` gone. **UIs:** TUI, iced and SwiftUI route
+  `baseCredential` to the credential form; SwiftUI's macBase page renders its fields generically.
+- **Checked:** `cargo test` (base record, login, assign with a user check, a read-only base stays read-only, usage
+  locks; pages; golden `baseCredential`), TUI and iced tests, `swift test`. OPEN: a real base installed from a
+  credential and a macOS build without a password prompt (needs a new base: ~30 minutes); assigning the credential to
+  `mac-base-26A434` on the maintainer's Mac.
+
 **Found on the way:** environment variables of the CLI (`VM_FLAKE`, …) do not reach the core service – a build that
 runs there uses config.json's flake (OPEN).
 

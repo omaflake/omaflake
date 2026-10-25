@@ -161,11 +161,8 @@
             "text": "Credential"
           },
           "value": {
-            "args": [
-              "alex"
-            ],
-            "key": "This computer – %@",
-            "text": "This computer – alex"
+            "key": "none – built before credentials",
+            "text": "none – built before credentials"
           }
         },
         {
@@ -244,11 +241,11 @@
               "text": "recipe dev"
             },
             {
-              "text": "alex"
+              "text": "–"
             }
           ],
           "key": "%@ · %@",
-          "text": "recipe dev · alex"
+          "text": "recipe dev · –"
         },
         {
           "args": [
@@ -265,7 +262,7 @@
         }
       ],
       "key": "%@ · %@ · %@",
-      "text": "recipe dev · alex · 2026-10-19 07:00 UTC · no VM"
+      "text": "recipe dev · – · 2026-10-19 07:00 UTC · no VM"
     },
     "usedBy": []
   },

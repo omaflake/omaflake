@@ -85,7 +85,8 @@ impl GuestSettings {
             if let Some(v) = set(c.user.clone()) {
                 g.user = v;
             }
-            if let Some(v) = c.full_name.clone() {
+            // Its own full name, else its user – never this computer's (plan B139)
+            if let Some(v) = set(c.full_name.clone()).or_else(|| set(c.user.clone())) {
                 g.full_name = v;
             }
             g.email = set(c.email.clone());

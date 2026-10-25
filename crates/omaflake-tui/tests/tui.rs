@@ -235,7 +235,7 @@ fn draws_every_page() {
             "credential.edit",
             vec!["‹ Esc  Edit Credential", "only its name can change", "Name", "User", "Cancel", "Save"],
         ),
-        ("images", "images", vec!["macOS Bases", "mac-base-26A434", "macOS 26A434 · user alex", "newest"]),
+        ("images", "images", vec!["macOS Bases", "mac-base-26A434", "macOS 26A434 · Work (alex)", "newest"]),
         ("doctor", "doctor", vec!["‹ Esc  Doctor", "omaf ui", "Core", "Up to date", "Nix", "Check Again"]),
         (
             "settings",
@@ -323,24 +323,15 @@ fn ui_field_sets_the_value_of_its_page_by_value_param() {
     h.type_text("/tmp/a.ipsw");
     h.key(KeyCode::Enter);
     assert_eq!(h.app.stack.last().unwrap().params, json!({"values": {"ipsw": "/tmp/a.ipsw"}}));
-    // The user field keeps its value under its valueParam too
+    // The credential of the base is a field of the page too (plan B139)
     let page = h.app.page();
-    let at = page.items.iter().position(|i| i.key == "macBase:field:user").unwrap();
-    let first = h.app.selected_index(&page).unwrap();
-    for _ in 0..page.items[first..at].iter().filter(|i| i.selectable).count() {
-        h.key(KeyCode::Down);
-    }
-    h.key(KeyCode::Enter);
-    h.app.key(KeyEvent::new(KeyCode::Char('u'), KeyModifiers::CONTROL));
-    h.type_text("sam");
-    h.key(KeyCode::Enter);
-    assert_eq!(h.app.stack.last().unwrap().params, json!({"values": {"ipsw": "/tmp/a.ipsw", "user": "sam"}}));
+    assert!(page.items.iter().any(|i| i.key == "macBase:field:credential"));
     // value null: back to the default (Apple's)
     h.app.run_action(&field(Some(Value::Null)));
     h.settle();
-    assert_eq!(h.app.stack.last().unwrap().params, json!({"values": {"user": "sam"}}));
+    assert_eq!(h.app.stack.last().unwrap().params, json!({"values": {}}));
     let last = h.calls("views.subscribe").pop().unwrap();
-    assert_eq!(last["pages"][3], json!({"page": "macBase", "params": {"values": {"user": "sam"}}}));
+    assert_eq!(last["pages"][3], json!({"page": "macBase", "params": {"values": {}}}));
 }
 
 #[test]

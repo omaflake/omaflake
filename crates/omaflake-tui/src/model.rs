@@ -485,7 +485,9 @@ pub fn page(ctx: &Ctx, name: &str, model: &Value) -> Page {
         "newVm" => new_vm(ctx, model, &mut p),
         "settings" => settings(ctx, model, &mut p),
         "credentials" => credentials(ctx, model, &mut p),
-        "credential" => credential(ctx, model, &mut p),
+        "credential" => credential(ctx, "credential", model, &mut p),
+        // The credential of a macOS base from before bases kept theirs: the same form (plan B139)
+        "baseCredential" => credential(ctx, "baseCredential", model, &mut p),
         _ => {}
     }
     if p.title.is_empty() {
@@ -933,16 +935,16 @@ fn credentials(ctx: &Ctx, model: &Value, p: &mut Page) {
 }
 
 /// One credential's form (plan B137): what it is for, why only the name can change, the fields, Cancel and Save
-fn credential(ctx: &Ctx, model: &Value, p: &mut Page) {
+fn credential(ctx: &Ctx, page: &str, model: &Value, p: &mut Page) {
     p.items.push(Item::line("", secondary_line(ctx, t(&model["intro"]), 2)));
     if let Some(l) = model.get("locked") {
         p.items.push(Item::line("", toned_line(ctx, t(l), Tone::Warning, 2)));
     }
     p.items.push(Item::blank());
     for f in arr(model, "fields") {
-        p.items.push(field(ctx, "credential", f));
+        p.items.push(field(ctx, page, f));
     }
-    if let Some(bar) = button_bar(ctx, "credential:actions", arr(model, "actions")) {
+    if let Some(bar) = button_bar(ctx, &format!("{page}:actions"), arr(model, "actions")) {
         p.items.push(bar);
     }
 }

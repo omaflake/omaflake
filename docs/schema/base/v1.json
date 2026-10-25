@@ -1,0 +1,31 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://omaflake.dev/schema/base/v1.json",
+  "title": "omaflake macOS base",
+  "description": "omaflake-base.json in a macOS base folder (bases/mac-base-<build>/): the credential its guest user was created from or assigned – macOS image builds log in with its user and stored password.",
+  "type": "object",
+  "properties": {
+    "$schema": {
+      "const": "https://omaflake.dev/schema/base/v1.json"
+    },
+    "credential": {
+      "description": "The credential's ID in config.json (\"c-\" and 12 hex digits)",
+      "type": "string"
+    },
+    "credentialName": {
+      "description": "The credential's name when it was set",
+      "type": "string"
+    },
+    "user": {
+      "description": "The base's guest user",
+      "type": "string"
+    }
+  },
+  "required": [
+    "$schema",
+    "credential",
+    "credentialName",
+    "user"
+  ],
+  "additionalProperties": false
+}

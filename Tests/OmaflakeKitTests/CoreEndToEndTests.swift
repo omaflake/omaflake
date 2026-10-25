@@ -123,9 +123,10 @@ struct CoreEndToEndTests {
         // Form values by `valueParam`: the page is asked again with them; the IPSW is in its line only, set by
         // `ui.field` actions on `values.ipsw` of macBase
         let macBase: MacBasePage = try await client.call("views.get", PageRef("macBase", .object(["values": .object([
-            "user": .string("e2e"), "ipsw": .string("/nowhere/test.ipsw"),
+            "credential": .string("c-none"), "ipsw": .string("/nowhere/test.ipsw"),
         ])])))
-        #expect(macBase.fields.first { $0.valueParam == "user" }?.value == .string("e2e"))
+        // The guest user comes from a credential (plan B139); this data folder has none: nothing chosen
+        #expect(macBase.fields.first { $0.valueParam == "credential" }?.value == .string(""))
         #expect(!macBase.fields.contains { $0.id == "ipsw" } && macBase.actions.primary?.id == "create")
         let useApple = macBase.ipsw.actions.first { $0.method == "ui.field" && $0.params["value"] == .null }
         let choose = macBase.ipsw.actions.first { $0.method == "ui.field" && $0.params["value"] == nil }

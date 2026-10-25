@@ -1,17 +1,6 @@
 {
   "actions": [
     {
-      "ask": [
-        {
-          "kind": "password",
-          "label": {
-            "key": "Password",
-            "text": "Password"
-          },
-          "param": "password",
-          "repeat": true
-        }
-      ],
       "enabled": false,
       "icon": "create",
       "id": "create",
@@ -21,8 +10,7 @@
       },
       "method": "macos.installBase",
       "params": {
-        "fullName": "Alex Example",
-        "user": "alex"
+        "credential": "c-1"
       },
       "primary": true
     }
@@ -43,34 +31,34 @@
   },
   "fields": [
     {
+      "choices": [
+        {
+          "label": {
+            "text": "Work – alex"
+          },
+          "value": "c-1"
+        }
+      ],
       "enabled": true,
-      "id": "user",
-      "kind": "text",
-      "label": {
-        "key": "Guest user",
-        "text": "Guest user"
+      "help": {
+        "key": "The base's user gets this credential's user, full name and password; macOS images are built with it, so no password is ever asked.",
+        "text": "The base's user gets this credential's user, full name and password; macOS images are built with it, so no password is ever asked."
       },
-      "param": "user",
-      "value": "alex",
-      "valueParam": "user"
-    },
-    {
-      "enabled": true,
-      "id": "fullName",
-      "kind": "text",
+      "id": "credential",
+      "kind": "choice",
       "label": {
-        "key": "Full name",
-        "text": "Full name"
+        "key": "Credential",
+        "text": "Credential"
       },
-      "param": "fullName",
-      "value": "Alex Example",
-      "valueParam": "fullName"
+      "param": "credential",
+      "value": "c-1",
+      "valueParam": "credential"
     }
   ],
   "installing": false,
   "intro": {
-    "key": "Creates your macOS base from the IPSW: your guest user, automatic login, SSH with your keys from ~/.ssh. No manual steps; a missing IPSW is downloaded first.",
-    "text": "Creates your macOS base from the IPSW: your guest user, automatic login, SSH with your keys from ~/.ssh. No manual steps; a missing IPSW is downloaded first."
+    "key": "Creates your macOS base from the IPSW: the guest user from your credential, automatic login, SSH with your keys from ~/.ssh. No manual steps and no password to type; a missing IPSW is downloaded first.",
+    "text": "Creates your macOS base from the IPSW: the guest user from your credential, automatic login, SSH with your keys from ~/.ssh. No manual steps and no password to type; a missing IPSW is downloaded first."
   },
   "ipsw": {
     "actions": [

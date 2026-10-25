@@ -136,25 +136,36 @@ pub struct BuildValues {
 }
 
 /// The credential and look fields of the build form, and the values they have now (the user's, else the defaults)
-fn choice_fields(ctx: &Ctx, v: &BuildValues) -> (Vec<Field>, String, String) {
+fn choice_fields(
+    ctx: &Ctx,
+    v: &BuildValues,
+    base: Option<&crate::api::types::BaseDto>,
+) -> (Vec<Field>, String, String) {
     let default_credential = ctx.settings.default_credential.clone().unwrap_or_default();
-    let credential = v
-        .credential
-        .clone()
-        .filter(|id| id.is_empty() || ctx.credentials.iter().any(|c| &c.id == id))
-        .unwrap_or(default_credential);
+    let credential =
+        v.credential.clone().filter(|id| ctx.credentials.iter().any(|c| &c.id == id)).unwrap_or(default_credential);
+    // macOS: the base's credential, fixed – its user and password are the base's account (plan B139)
+    let credential = match base {
+        Some(b) => b.credential.clone().unwrap_or_default(),
+        None => credential,
+    };
     let look = v.look.clone().unwrap_or_else(|| ctx.settings.guest.look.clone().unwrap_or_default());
     let mut c = Field::new("credential", FieldKind::Choice, Text::new("Credential"), json!(credential))
         .param("credential")
         .value_param("credential");
-    c.choices = vec![Choice::new(json!(""), tf!("This computer – %@", &ctx.host_user))];
-    c.choices.extend(ctx.credentials.iter().map(|x| {
-        Choice::new(
-            json!(x.id),
-            Text::verbatim(format!("{} – {}", x.name, x.user.as_deref().unwrap_or(&ctx.host_user))),
-        )
-    }));
+    c.choices = ctx
+        .credentials
+        .iter()
+        .map(|x| Choice::new(json!(x.id), Text::verbatim(format!("{} – {}", x.name, x.user.as_deref().unwrap_or("–")))))
+        .collect();
     c.help = Some(Text::new("Who you are in the guest: user, full name, e-mail (Credentials, the key at the top)"));
+    if let Some(b) = base {
+        c.help = Some(Text::new("macOS images are built with the credential of their base: its user and password"));
+        if b.credential.is_none() {
+            c.choices = vec![Choice::new(json!(""), Text::new("none yet – assign one to the base"))];
+        }
+        c = c.enabled_if(false, Some(tf!("The credential of %@", &b.name)));
+    }
     let mut l = Field::new("look", FieldKind::Choice, Text::new("Look"), json!(look)).param("look").value_param("look");
     l.choices = vec![Choice::new(json!(""), Text::new("The recipe's own"))];
     l.choices.extend(
@@ -210,8 +221,11 @@ pub(crate) fn page(ctx: &Ctx, p: &BuildParams) -> BuildPage {
         badges.push(Badge::new("lab", "lab", Text::new("Development recipe (developer mode)"), Tone::Warning));
     }
 
-    let (fields, credential, look) = choice_fields(ctx, &p.values);
-    let stored_password = ctx.credentials.iter().any(|c| c.id == credential && c.has_password);
+    // macOS images are built on the newest base, with its credential (plan B139)
+    let base = if mac { ctx.bases.iter().find(|b| b.newest) } else { None };
+    let (fields, credential, look) = choice_fields(ctx, &p.values, base);
+    let no_credential = ctx.credentials.is_empty();
+    let base_without = base.filter(|b| b.credential.is_none());
     let mut actions = Vec::new();
     match &job {
         Some(j) if active => {
@@ -227,17 +241,10 @@ pub(crate) fn page(ctx: &Ctx, p: &BuildParams) -> BuildPage {
                 "images.build",
                 json!({"recipe": p.recipe, "credential": credential, "look": look}),
             );
-            if mac && !stored_password {
-                // sudo in the build VM, once; kept by the core only until the build uses it
-                let user = ctx
-                    .doctor
-                    .as_ref()
-                    .and_then(|d| d.mac_base_user.clone())
-                    .or_else(|| r.and_then(|r| r.user.clone()))
-                    .unwrap_or_else(|| ctx.host_user.clone());
-                build = build.ask(Ask::new("password", AskKind::Password, tf!("Password of %@", user)));
-            }
+            // No password is asked: NixOS needs none, macOS takes the base credential's (plan B139)
             build = build
+                .enabled_if(!no_credential, Some(Text::new("Create a credential first – the key at the top")))
+                .enabled_if(base_without.is_none(), Some(Text::new("Assign a credential to the macOS base first")))
                 .enabled_if(r.is_some(), None)
                 .enabled_if(r.is_none_or(|r| r.runs_here), r.map(|r| super::recipes::not_here(ctx, &r.systems)))
                 .enabled_if(blockers.is_empty(), Some(tf!("Open the Doctor first: %@", blocker_titles(&blockers))))
@@ -270,20 +277,41 @@ pub(crate) fn page(ctx: &Ctx, p: &BuildParams) -> BuildPage {
         actions,
         fields: if active { vec![] } else { fields },
         blockers: if active { None } else { Blockers::of(&blockers, ctx.host) },
-        mac_base: (mac && !has_base && !active).then(|| {
-            Hint::new(
-                "macos",
-                Text::new("No macOS base yet – it is needed for macOS images and is created from Apple's macOS once."),
-                Tone::Normal,
+        mac_base: if !mac || active {
+            None
+        } else if !has_base {
+            Some(
+                Hint::new(
+                    "macos",
+                    Text::new(
+                        "No macOS base yet – it is needed for macOS images and is created from Apple's macOS once.",
+                    ),
+                    Tone::Normal,
+                )
+                .action(Action::show(
+                    "macBase",
+                    Text::new("Create macOS Base …"),
+                    Some("macos"),
+                    "macBase",
+                    json!({}),
+                )),
             )
-            .action(Action::show(
-                "macBase",
-                Text::new("Create macOS Base …"),
-                Some("macos"),
-                "macBase",
-                json!({}),
-            ))
-        }),
+        } else {
+            base_without.map(|b| {
+                Hint::new(
+                    "macos",
+                    tf!("%@ has no credential yet – assign the one its user was created with; then images are built without asking for a password.", &b.name),
+                    Tone::Warning,
+                )
+                .action(Action::show(
+                    "assign",
+                    Text::new("Assign Credential …"),
+                    Some("key"),
+                    "baseCredential",
+                    json!({"name": b.name}),
+                ))
+            })
+        },
         status,
         progress: progress_view,
         outcome,

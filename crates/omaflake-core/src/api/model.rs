@@ -323,8 +323,10 @@ pub(crate) fn build_blockers<'a>(
 ) -> Vec<&'a Prerequisite> {
     use PrerequisiteItem::*;
     let needed: &[PrerequisiteItem] = match kind {
-        GuestKind::Nixos => &[Nix, Flakes, NixDarwin, LinuxBuilder, Flake, BuilderRunning, FlakeEval, NixSpace],
-        GuestKind::Macos => &[Host, Nix, Flakes, Flake, SshKey, FlakeEval, MacBase, MacSpace],
+        GuestKind::Nixos => {
+            &[Nix, Flakes, NixDarwin, LinuxBuilder, Flake, Credential, BuilderRunning, FlakeEval, NixSpace]
+        }
+        GuestKind::Macos => &[Host, Nix, Flakes, Flake, SshKey, Credential, FlakeEval, MacBase, MacSpace],
     };
     all.filter(|p| {
         needed.contains(&p.item)
@@ -371,6 +373,7 @@ pub(crate) fn requirement_title_on(item: PrerequisiteItem, host: super::views::H
         Qemu => "QEMU (NixOS guests)",
         Flake => "Recipes (your flake)",
         SshKey => "SSH key",
+        Credential => "Credential",
         Git => "git (optional)",
         Cli => "omaf command (optional)",
         BuilderRunning => "Linux builder answers",

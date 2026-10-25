@@ -26,6 +26,7 @@ one, and never removes a published version from this site. Editors use the URL t
 | `settings` | `~/.omaflake/config.json` | [v3](settings/v3.json) |
 | `installed` | `<data>/recipes/.installed.json` | [v1](installed/v1.json) |
 | `macos-vm` | `config.json` of a macOS VM folder | [v1](macos-vm/v1.json) |
+| `base` | `omaflake-base.json` in a macOS base folder – the credential of its guest user | [v1](base/v1.json) |
 | `manifest` | `manifest.json` of an exported package | [v1](manifest/v1.json) |
 | `catalog` | `catalog.json` of a recipe source | [v2](catalog/v2.json) |
 | `recipe` | `recipe.toml` of a recipe (TOML, checked as data) | [v1](recipe/v1.json) |

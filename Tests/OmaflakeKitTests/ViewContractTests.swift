@@ -164,8 +164,9 @@ extension APIContractTests {
             "macBase": {
                 guard case .macBase(let p) = try page("macBase", as: "macBase") else { throw Unexpected() }
                 // The IPSW is shown once: in `ipsw`, not among the fields
-                #expect(p.fields.map(\.id) == ["user", "fullName"] && p.actions.first?.ask.first?.repeat == true)
-                #expect(p.fields.map(\.valueParam) == ["user", "fullName"] && p.actions.primary?.id == "create")
+                // The guest user from a credential, no password asked (plan B139)
+                #expect(p.fields.map(\.id) == ["credential"] && p.fields[0].kind == .choice && p.actions.first?.ask.isEmpty == true)
+                #expect(p.fields.map(\.valueParam) == ["credential"] && p.actions.primary?.id == "create")
                 #expect(p.base?.tone == .warning && p.ipsw.download != nil && p.ipsw.actions.map(\.method) == ["jobs.cancel"])
                 // The log as the build page's: the base creation's real job
                 #expect(p.log?.job == "j6" && p.log?.from == 0 && p.log?.lines == 3 && p.log?.full?.method == "ui.open")
@@ -181,7 +182,7 @@ extension APIContractTests {
                 guard case .credentials(let p) = try page("credentials", as: "credentials") else { throw Unexpected() }
                 // A row as the other lists: in use (lamp, by whom), the quick Copy Password, the rest when opened
                 #expect(p.rows.map(\.name) == ["Work"] && p.rows[0].badges.map(\.id) == ["default"])
-                #expect(p.rows[0].lamp.state == .on && p.rows[0].usedBy.count == 1 && p.rows[0].actions.map(\.id) == ["copyPassword"])
+                #expect(p.rows[0].lamp.state == .on && p.rows[0].usedBy.count == 2 && p.rows[0].actions.map(\.id) == ["copyPassword"])
                 #expect(p.rows[0].detail.actions.map(\.id) == ["edit", "password", "default", "remove"])
                 #expect(p.add.method == "ui.show" && p.add.params["page"] == .string("credential"))
             },
@@ -192,6 +193,12 @@ extension APIContractTests {
                 #expect(p.fields.allSatisfy { $0.enabled && $0.valueParam == $0.param })
                 let create = try #require(p.actions.last)
                 #expect(create.method == "credentials.add" && create.ask.first?.kind == .password && create.then == .back)
+            },
+            "baseCredential": {
+                // A base from before bases kept their credential: the same form, one choice (plan B139)
+                guard case .credential(let p) = try page("baseCredential", as: "baseCredential") else { throw Unexpected() }
+                #expect(p.fields.map(\.id) == ["credential"] && p.actions.last?.method == "bases.assign")
+                #expect(p.actions.last?.params["name"] == .string("mac-base-26A434"))
             },
             "credential.edit": {
                 // Used by an image: only the name can change, the other fields are greyed out with the reason

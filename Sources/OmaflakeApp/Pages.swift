@@ -558,7 +558,7 @@ struct RequirementRow: View {
 
 // MARK: - macOS base
 
-/// Creating the macOS base: IPSW (Apple's or a file), the guest user, progress and log
+/// Creating the macOS base: IPSW (Apple's or a file), the credential of its guest user, progress and log
 struct MacBaseView: View {
     let page: MacBasePage
     let ref: PageRef
@@ -581,24 +581,13 @@ struct MacBaseView: View {
                     ForEach(page.ipsw.actions) { ActionPlainButton(action: $0, model: model) }
                 }
             } label: { Text(verbatim: model.t(page.ipsw.label)) }
-            GroupBox {
-                Grid(alignment: .leading, horizontalSpacing: 10, verticalSpacing: 8) {
-                    ForEach(page.fields.filter { $0.kind == .text }) { field in
-                        GridRow {
-                            Text(verbatim: model.t(field.label))
-                            TextField("", text: Binding(get: { (model.formValue(ref.page, field) ?? field.value).string ?? "" },
-                                                        set: { model.setFormValue(ref.page, field, .string($0), typing: true) }))
-                                .labelsHidden().disabled(!field.enabled)
-                        }
-                    }
-                }
-                .textFieldStyle(.roundedBorder)
-                .padding(BrandTokens.Spacing.s)
-            } label: { Text(verbatim: model.t(page.fields.first?.label)) }
+            // The credential the guest user is created from (plan B139) – no password to type
+            Form { ForEach(page.fields) { FormField(field: $0, page: ref.page, model: model) } }
+                .formStyle(.grouped).scrollDisabled(true).frame(height: CGFloat(page.fields.count) * 64 + 24)
             HStack {
                 if page.installing {
                     ProgressView().controlSize(.small)
-                    Text(verbatim: model.t(page.actions.first?.reason)).foregroundStyle(.secondary)
+                    Text(verbatim: model.t(page.actions.first { $0.id == "create" }?.reason)).foregroundStyle(.secondary)
                 }
                 Spacer()
                 ForEach(page.actions) { ActionPlainButton(action: $0, model: model, form: ref, isDefault: $0.primary) }

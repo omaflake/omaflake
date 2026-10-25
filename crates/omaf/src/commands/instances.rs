@@ -585,14 +585,10 @@ pub fn config(a: &cli::Config) -> Outcome {
     }
     if let Some(reference) = &a.default_credential {
         let credentials = omaflake_core::credentials::Credentials::new(env.paths.clone());
-        let id = if reference.is_empty() || reference == "computer" {
-            None
-        } else {
-            Some(credentials.find(reference).map(|c| c.id).ok_or_else(|| {
-                usage(&["config"], format!("--default-credential: no credential {reference} – see omaf credentials"))
-            })?)
-        };
-        s.default_credential = id;
+        let id = credentials.find(reference).map(|c| c.id).ok_or_else(|| {
+            usage(&["config"], format!("--default-credential: no credential {reference} – see omaf credentials"))
+        })?;
+        s.default_credential = Some(id);
     }
     let guest = [&a.guest_locale, &a.guest_keyboard, &a.guest_time_zone, &a.guest_look];
     let guest_change = guest.iter().any(|v| v.is_some());
@@ -658,7 +654,7 @@ pub fn config_lines(s: &omaflake_core::Settings, paths: &Paths, g: &GuestSetting
             "default credential: {}",
             omaflake_core::credentials::Credentials::new(paths.clone())
                 .default_credential()
-                .map_or_else(|| "– (this computer's user and name)".to_string(), |c| c.name)
+                .map_or_else(|| "– (none yet: omaf credentials add)".to_string(), |c| c.name)
         ),
         format!(
             "default look: {}",

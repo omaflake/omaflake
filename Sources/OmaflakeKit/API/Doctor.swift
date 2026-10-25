@@ -6,6 +6,8 @@ public struct Prerequisite: Decodable, Sendable, Equatable, Identifiable {
     public enum Item: String, OpenEnum {
         // what the Mac brings
         case host, nix, flakes, nixDarwin, linuxBuilder, qemu, flake, sshKey, git
+        /// At least one credential, the default (plan B139)
+        case credential
         /// Linux hosts: /dev/kvm usable (plan B124)
         case kvm
         /// The `omaf` command on the user's PATH (optional)

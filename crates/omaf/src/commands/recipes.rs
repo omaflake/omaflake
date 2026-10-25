@@ -6,7 +6,6 @@ use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
 
 use omaflake_core::mac_image_builder::BuildRequest;
-use omaflake_core::platform::user_name;
 use omaflake_core::{
     BuildLog, Cancellation, Error, GuestKind, Lengths, MacImageBuilder, OmaflakeId, Platform, RecipeDefaults, RecipeId,
     RecipeLibrary, RecipeRef, RecipeSourceKind, SourceClient,
@@ -21,7 +20,7 @@ use serde_json::{json, Value};
 use super::service;
 use crate::cli;
 use crate::tty::Interrupts;
-use crate::util::{choose_recipe, folder_path, local_date, pad, read_password, shortest_argument, usage, Env, Outcome};
+use crate::util::{choose_recipe, folder_path, local_date, pad, shortest_argument, usage, Env, Outcome};
 
 /// Header of `omaf recipes`
 pub fn recipes_header() -> String {
@@ -153,7 +152,6 @@ fn build_in_service(
     env: &Env,
     recipe: &str,
     choice: &omaflake_core::guest_settings::BuildChoice,
-    password: Option<String>,
     base: Option<String>,
     a: &cli::Build,
 ) -> Outcome {
@@ -165,9 +163,6 @@ fn build_in_service(
         "credential": choice.credential.as_ref().map_or("", |c| c.id.as_str()),
         "look": choice.look.as_deref().unwrap_or(""),
     });
-    if let Some(p) = password {
-        params["password"] = json!(p);
-    }
     if let Some(b) = base {
         params["base"] = json!(b);
     }
@@ -227,7 +222,8 @@ pub fn build(a: &cli::Build) -> Outcome {
     };
     // The credential and look of the image (plan B137)
     let choice = super::credentials::build_choice(&env.paths, a.credential.as_deref(), a.look.as_deref())?;
-    // macOS: base and password first (Ctrl-C at the prompt still simply quits)
+    // macOS: the base and its credential's password – nothing is asked (plan B139)
+    let mut choice = choice;
     let mut mac: Option<(MacImageBuilder, PathBuf, String, String)> = None;
     if d.kind == GuestKind::Macos {
         let builder = MacImageBuilder::new(env.paths.clone(), env.backends()?.vz()?.clone());
@@ -238,26 +234,17 @@ pub fn build(a: &cli::Build) -> Outcome {
             ))
             .into());
         };
-        let user = d.user.clone().unwrap_or_else(user_name);
-        let base_name = base.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
-        // The credential's stored password, else asked
-        let stored = choice
-            .credential
-            .as_ref()
-            .filter(|_| !a.password_stdin)
-            .and_then(|c| omaflake_core::credentials::Credentials::new(env.paths.clone()).password(&c.id));
-        let password = match stored {
-            Some(p) => p,
-            None => read_password(&format!("Password of {user} in {base_name} (for sudo): "), a.password_stdin, false)?,
-        };
-        mac = Some((builder, base, user, password));
+        let login = omaflake_core::credentials::Credentials::new(env.paths.clone()).login_of_base(&base)?;
+        let user = d.user.clone().unwrap_or_else(|| login.user.clone());
+        choice.credential = Some(login.credential.clone());
+        mac = Some((builder, base, user, login.password));
     }
     // With the core service running, the build is its job: the app and other clients see it, it waits in the same
     // queue (plan B120); this command follows its log
     if let Some((client, _)) = service::connect(&socket_path(&env.paths)) {
-        let password = mac.as_ref().map(|(_, _, _, p)| p.clone());
+        // The service takes the base's credential itself
         let base = mac.as_ref().map(|(_, b, _, _)| b.to_string_lossy().into_owned());
-        return build_in_service(&client, &env, &recipe, &choice, password, base, a);
+        return build_in_service(&client, &env, &recipe, &choice, base, a);
     }
     // From here Ctrl-C cancels cleanly: the running step stops, a macOS build VM is forced off, its folder deleted
     let token = Cancellation::new();

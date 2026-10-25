@@ -19,7 +19,10 @@ use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
+use serde::{Deserialize, Serialize};
+
 use crate::error::{codes, IoContext, Result};
+use crate::file_format::{FileFormat, Step};
 use crate::ipsw_downloader::{free_space, gigabytes, IpswDownloader, KeepAwake, MacOsRelease};
 use crate::mac_image_builder::BuildVm;
 use crate::mac_vm::{DhcpLeases, MacVmBundle, RunnerClient};
@@ -32,6 +35,51 @@ use crate::sockets::{self, Ports};
 use crate::trash::Disposal;
 use crate::vm_err;
 use crate::vz_backend::VzBackend;
+
+static BASE_STEPS: [Step; 1] = [|_| Ok(())];
+
+/// `omaflake-base.json` in a base folder (plan B139): the credential its guest user was created from – macOS image
+/// builds take its password from there, so nobody types one. Bases from before have none until one is assigned.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct BaseRecord {
+    /// The credential's ID ("c-…")
+    pub credential: String,
+    /// Its name when it was set, for when it is gone
+    #[serde(rename = "credentialName")]
+    pub credential_name: String,
+    /// The guest user
+    pub user: String,
+}
+
+impl BaseRecord {
+    pub const FILE: &'static str = "omaflake-base.json";
+    pub const FILE_FORMAT: FileFormat = FileFormat::new("base", "omaflake-base.json", 1, &BASE_STEPS);
+
+    /// A base's record, None for a base without one (or one that cannot be read)
+    pub fn of(dir: &Path) -> Option<BaseRecord> {
+        let data = fs::read(dir.join(Self::FILE)).ok()?;
+        Self::FILE_FORMAT.decode::<BaseRecord>(&data).ok().map(|(r, _)| r)
+    }
+
+    /// Writes the record into a base folder – also a finished, read-only one (made writable for it, then read-only
+    /// again)
+    pub fn write(&self, dir: &Path) -> Result<()> {
+        let data = Self::FILE_FORMAT.encode(self)?;
+        let mode = fs::metadata(dir).with_path(dir)?.permissions().mode();
+        let readonly = mode & 0o200 == 0;
+        if readonly {
+            fs::set_permissions(dir, fs::Permissions::from_mode(mode | 0o200)).with_path(dir)?;
+        }
+        let file = dir.join(Self::FILE);
+        let _ = fs::set_permissions(&file, fs::Permissions::from_mode(0o644));
+        let written = crate::file_format::write_atomic(&file, &data);
+        if readonly {
+            let _ = fs::set_permissions(&file, fs::Permissions::from_mode(0o444));
+            let _ = fs::set_permissions(dir, fs::Permissions::from_mode(mode));
+        }
+        written
+    }
+}
 
 #[derive(Debug, Clone)]
 pub struct MacBaseInstaller {
@@ -279,6 +327,7 @@ impl MacBaseInstaller {
                 BaseInfo {
                     ready: Self::is_ready(&dir),
                     user: Self::user_of(&dir, &paths.logs()),
+                    record: BaseRecord::of(&dir),
                     newest: newest.as_deref() == Some(dir.as_path()),
                     size_bytes: allocated(&dir),
                     os_build,
@@ -613,6 +662,8 @@ pub struct BaseInfo {
     pub os_build: Option<String>,
     /// Its guest user (the ready marker)
     pub user: Option<String>,
+    /// The credential it was created from or assigned (plan B139)
+    pub record: Option<BaseRecord>,
     /// Installed completely (new macOS images can be built from it)
     pub ready: bool,
     /// The one new macOS images are built from

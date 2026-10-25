@@ -51,7 +51,7 @@ pub use activity::ActivityEntry;
 pub use text::{Arg, Text};
 
 /// Every page `views.get` knows
-pub const PAGES: [&str; 15] = [
+pub const PAGES: [&str; 16] = [
     "home",
     "vms",
     "vm",
@@ -67,6 +67,7 @@ pub const PAGES: [&str; 15] = [
     "import",
     "credentials",
     "credential",
+    "baseCredential",
 ];
 
 /// The computer the core runs on (`initialize`'s `host`): texts that name the Mac, Finder or the Keychain have a
@@ -293,6 +294,12 @@ pub(crate) fn build(ctx: &Ctx, page: &PageRef) -> Result<Value, RpcError> {
                     "No credential \"{}\"",
                     p.id.unwrap_or_default()
                 ))
+            })?)
+        }
+        "baseCredential" => {
+            let p: credentials::BaseCredentialParams = page_params(p)?;
+            to_value(credentials::base_credential_page(ctx, &p).ok_or_else(|| {
+                RpcError::from(crate::vm_err!(crate::error::codes::NOT_FOUND, "No macOS base \"{}\"", p.name))
             })?)
         }
         "settings" => {

@@ -46,6 +46,7 @@ pub fn run(command: Command) -> Outcome {
             Some(CredentialsCommand::CopyPassword(a)) => credentials::copy_password(&a.credential),
         },
         Command::MacOs { command: MacOsCommand::Install(a) } => macos::install(&a),
+        Command::MacOs { command: MacOsCommand::Assign(a) } => macos::assign(&a),
         Command::Images(i) => match i.command {
             None | Some(ImagesCommand::List) => instances::images_list(),
             Some(ImagesCommand::Remove { name }) => instances::images_remove(&name),

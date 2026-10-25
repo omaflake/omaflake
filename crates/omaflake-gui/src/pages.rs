@@ -1403,14 +1403,14 @@ pub mod tests {
         assert_eq!(apple.params["page"], "macBase");
         let _ = app.update(Message::Run(Box::new(apple), None));
         assert!(!app.forms["macBase"].contains_key("ipsw"));
-        // Typed values are kept by valueParam
-        let user = m.fields.iter().find(|f| f.id == "user").unwrap();
+        // Chosen values are kept by valueParam: the credential of the base (plan B139)
+        let credential = m.fields.iter().find(|f| f.id == "credential").unwrap();
         let _ = app.update(Message::FormSet {
             page: "macBase".into(),
-            key: user.value_param.clone().unwrap(),
-            value: serde_json::json!("guest"),
+            key: credential.value_param.clone().unwrap(),
+            value: serde_json::json!("c-2"),
         });
-        assert_eq!(field_value(&app, "macBase", user), serde_json::json!("guest"));
+        assert_eq!(field_value(&app, "macBase", credential), serde_json::json!("c-2"));
     }
 
     #[test]

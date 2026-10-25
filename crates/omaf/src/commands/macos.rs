@@ -4,12 +4,12 @@
 use std::io::Write;
 use std::path::Path;
 
-use omaflake_core::mac_base_installer::{BaseOutcome, BaseRequest};
-use omaflake_core::platform::{full_user_name, user_name};
+use omaflake_core::credentials::Credentials;
+use omaflake_core::mac_base_installer::{BaseOutcome, BaseRecord, BaseRequest};
 use omaflake_core::MacBaseInstaller;
 
 use crate::cli;
-use crate::util::{folder_path, read_password, Env, Outcome};
+use crate::util::{folder_path, usage, Env, Outcome};
 
 fn last_component(p: &Path) -> String {
     p.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default()
@@ -18,8 +18,10 @@ fn last_component(p: &Path) -> String {
 pub fn install(a: &cli::MacInstall) -> Outcome {
     let env = Env::new();
     let installer = MacBaseInstaller::new(env.paths.clone(), env.backends()?.vz()?.clone());
-    let user = a.user.clone().unwrap_or_else(user_name);
-    let mut request = BaseRequest::new(&user, &a.full_name.clone().unwrap_or_else(full_user_name), None);
+    // The guest user from a credential, its password from the keychain – nothing is typed (plan B139)
+    let login = Credentials::new(env.paths.clone()).base_login(a.credential.as_deref())?;
+    let user = login.user.clone();
+    let mut request = BaseRequest::new(&user, &login.full_name, None);
     request.ipsw = a.ipsw.as_deref().map(folder_path);
     request.cpus = a.cpus;
     request.memory_gb = a.memory;
@@ -29,16 +31,40 @@ pub fn install(a: &cli::MacInstall) -> Outcome {
         println!("{} exists already – nothing to do (delete {} to start over).", last_component(&base), base.display());
         return Ok(());
     }
-    // Asked up front, so the long download/installation runs unattended
     if !a.no_first_boot {
-        request.password =
-            Some(read_password(&format!("Password for the new guest user {user}: "), a.password_stdin, true)?);
+        request.password = Some(login.password.clone());
     }
+    println!("Guest user {user} from the credential {}.", login.credential.name);
     let outcome = installer.install(&request, &|_| {}, &|_, _| {}, &|line: &str| {
         println!("{line}");
         let _ = std::io::stdout().flush();
     })?;
+    if let BaseOutcome::Created { dir, ready: true } = &outcome {
+        BaseRecord {
+            credential: login.credential.id.clone(),
+            credential_name: login.credential.name.clone(),
+            user: user.clone(),
+        }
+        .write(dir)?;
+    }
     println!("{}", outcome_text(&outcome, &user));
+    Ok(())
+}
+
+/// `omaf macos assign <base> <credential>`: the credential of a base from before bases kept theirs (plan B139)
+pub fn assign(a: &cli::MacAssign) -> Outcome {
+    let env = Env::new();
+    let Some(base) = MacBaseInstaller::list(&env.paths).into_iter().find(|b| b.name == a.base) else {
+        return Err(usage(
+            &["macos", "assign"],
+            format!("No macOS base {} in {}", a.base, env.paths.bases().display()),
+        ));
+    };
+    let record = Credentials::new(env.paths.clone()).assign_to_base(&base.path, &a.credential)?;
+    println!(
+        "{} uses the credential {} – macOS images are built with its password now (a wrong one shows at the next build).",
+        a.base, record.credential_name
+    );
     Ok(())
 }
 

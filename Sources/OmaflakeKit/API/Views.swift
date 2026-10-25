@@ -897,6 +897,8 @@ public enum PageModel: Sendable, Equatable {
         case "settings": self = .settings(try SettingsPage(from: decoder))
         case "credentials": self = .credentials(try CredentialsPage(from: decoder))
         case "credential": self = .credential(try CredentialPage(from: decoder))
+        // The credential of a macOS base from before bases kept theirs: the same form (plan B139)
+        case "baseCredential": self = .credential(try CredentialPage(from: decoder))
         case "activity": self = .activity(try ActivityPage(from: decoder))
         case "import": self = .importStep(try ImportPage(from: decoder))
         default: self = .unknown(page)

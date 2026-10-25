@@ -674,6 +674,12 @@ pub struct BaseDto {
     pub created: Option<DateTime<Utc>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub size_bytes: Option<i64>,
+    /// The credential its user was created from or assigned (plan B139); None: not known yet
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub credential: Option<String>,
+    /// That credential's name when it was set
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub credential_name: Option<String>,
 }
 
 /// A credential (plan B137) – `credentials.list`; its password never leaves the secret store

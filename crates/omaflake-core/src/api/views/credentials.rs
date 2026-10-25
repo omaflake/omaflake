@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 //! The Credentials page (`credentials`, plan B137): who you are in a guest – named sets of user, full name, e-mail and
 //! an optional stored password (for macOS builds); an image is built with one of them, the settings name the default.
-//! The form of one (`credential`): a new one, or one to edit – only its name while images use it.
+//! The form of one (`credential`): a new one, or one to edit – only its name while images use it. The same form
+//! assigns a credential to a macOS base created before bases kept theirs (`baseCredential`, plan B139).
 
 use serde::{Deserialize, Serialize};
 use serde_json::json;
@@ -103,20 +104,26 @@ pub(crate) fn credential_page(ctx: &Ctx, p: &CredentialParams) -> Option<Credent
     };
     let v = &p.values;
     let name = v.name.clone().unwrap_or_else(|| c.map(|c| c.name.clone()).unwrap_or_default());
-    let user =
-        v.user.clone().unwrap_or_else(|| c.and_then(|c| c.user.clone()).unwrap_or_else(|| ctx.host_user.clone()));
-    let full = v
-        .full_name
-        .clone()
-        .unwrap_or_else(|| c.and_then(|c| c.full_name.clone()).unwrap_or_else(|| ctx.host_full_name.clone()));
+    // Only the first credential starts from this computer's user and name; after that the host has nothing to do
+    // with credentials (plan B139)
+    let first = c.is_none() && ctx.credentials.is_empty();
+    let host = |v: &str| if first { v.to_string() } else { String::new() };
+    let user = v.user.clone().unwrap_or_else(|| match c {
+        Some(c) => c.user.clone().unwrap_or_default(),
+        None => host(&ctx.host_user),
+    });
+    let full = v.full_name.clone().unwrap_or_else(|| match c {
+        Some(c) => c.full_name.clone().unwrap_or_default(),
+        None => host(&ctx.host_full_name),
+    });
     let email = v.email.clone().unwrap_or_else(|| c.and_then(|c| c.email.clone()).unwrap_or_default());
-    let used = c.map_or(0, |c| images_with(ctx, &c.id));
+    let used = c.map_or(0, |c| used_by(ctx, &c.id).len());
     let locked = (used > 0).then(|| {
         Text::new(
-            "Images are built with it, so only its name can change – they carry its user, full name and e-mail. For other values create a new credential (or remove those images first).",
+            "Images or a macOS base use it, so only its name can change – they carry its user, full name and e-mail, a base also its password. For other values create a new credential.",
         )
     });
-    let lock_reason = locked.as_ref().map(|_| Text::new("Used by images – only the name can change"));
+    let lock_reason = locked.as_ref().map(|_| Text::new("In use – only the name can change"));
     let text = |id: &str, label: &str, value: &str, help: &str| {
         Field::new(id, FieldKind::Text, Text::new(label), json!(value)).param(id).value_param(id).help(Text::new(help))
     };
@@ -133,10 +140,12 @@ pub(crate) fn credential_page(ctx: &Ctx, p: &CredentialParams) -> Option<Credent
         "user",
         "User",
         &user,
-        "NixOS: the login user – the automatic login, the home folder /home/<user> and omaf ssh. macOS guests keep the base's user.",
+        "NixOS: the login user – the automatic login, the home folder /home/<user> and omaf ssh. macOS: the user of a base created with it.",
     )
     .enabled_if(locked.is_none(), lock_reason.clone());
-    if !valid_user(user.trim()) {
+    if user.trim().is_empty() {
+        user_field.error = Some(Text::new("A credential needs a user"));
+    } else if !valid_user(user.trim()) {
         user_field.error =
             Some(tf!("Invalid user name \"%@\": a–z, 0–9, \"_\" and \"-\", starting with a letter", user.trim()));
     }
@@ -144,7 +153,7 @@ pub(crate) fn credential_page(ctx: &Ctx, p: &CredentialParams) -> Option<Credent
         "fullName",
         "Full name",
         &full,
-        "NixOS: the account's description and git's user.name. Not used in macOS guests.",
+        "NixOS: the account's description and git's user.name. macOS: the account's name in a base created with it.",
     )
     .enabled_if(locked.is_none(), lock_reason.clone());
     let mut email_field =
@@ -179,7 +188,7 @@ pub(crate) fn credential_page(ctx: &Ctx, p: &CredentialParams) -> Option<Credent
         title: Text::new(if p.id.is_some() { "Edit Credential" } else { "New Credential" }),
         id: p.id.clone(),
         intro: Text::new(
-            "Who you are in a guest. NixOS guests take the user, full name and e-mail; macOS guests keep the base's user. The password – asked when you create it – is kept in the keychain for macOS builds and to copy whenever a guest asks.",
+            "Who you are in a guest. NixOS images take the user, full name and e-mail; a macOS base is created with the user, full name and password. The password – asked once, here – is kept in the keychain: omaflake uses it for macOS bases and builds, and you can copy it whenever a guest asks.",
         ),
         fields: vec![name_field, user_field, full_field, email_field],
         locked,
@@ -187,33 +196,42 @@ pub(crate) fn credential_page(ctx: &Ctx, p: &CredentialParams) -> Option<Credent
     })
 }
 
-/// Images built with credential `id`
-fn images_with(ctx: &Ctx, id: &str) -> usize {
-    ctx.images.iter().filter(|i| i.credential.as_deref() == Some(id)).count()
+/// The images built with credential `id`, then the macOS bases created from it (plan B139)
+fn used_by(ctx: &Ctx, id: &str) -> Vec<String> {
+    let images = ctx.images.iter().filter(|i| i.credential.as_deref() == Some(id)).map(|i| i.name.clone());
+    let bases = ctx.bases.iter().filter(|b| b.credential.as_deref() == Some(id)).map(|b| b.name.clone());
+    images.chain(bases).collect()
 }
 
 /// The password ask of a new credential or a changed password: twice, with what it is for
 fn password_ask(name: &str) -> Ask {
     let mut password = Ask::new("password", AskKind::Password, tf!("Password of %@", name));
     password.prompt = Some(Text::new(
-        "The password of the guest's user – a macOS build needs it once (sudo in the build VM, the base's user); it never goes into an image. Kept in the keychain: copy it from here whenever a guest asks.",
+        "The password of the guest's user, kept in the keychain: omaflake creates macOS bases with it and builds macOS images with it (sudo), so you never type it there; it never goes into an image. Copy it from here whenever a guest asks.",
     ));
     password.repeat = true;
     password
 }
 
 fn row(ctx: &Ctx, c: &CredentialDto) -> CredentialRow {
-    let used_by: Vec<String> =
-        ctx.images.iter().filter(|i| i.credential.as_deref() == Some(c.id.as_str())).map(|i| i.name.clone()).collect();
-    let user = c.user.clone().unwrap_or_else(|| ctx.host_user.clone());
-    let subtitle = Text::joined(vec![
+    let used_by = used_by(ctx, &c.id);
+    let images = ctx.images.iter().filter(|i| i.credential.as_deref() == Some(c.id.as_str())).count();
+    let bases = ctx.bases.iter().filter(|b| b.credential.as_deref() == Some(c.id.as_str())).count();
+    let user = c.user.clone().unwrap_or_else(|| "–".into());
+    let mut parts = vec![
         Text::verbatim(&user),
-        match used_by.len() {
+        match images {
             0 => Text::new("no image"),
             1 => Text::new("1 image"),
             n => tf!("%lld images", n),
         },
-    ]);
+    ];
+    match bases {
+        0 => {}
+        1 => parts.push(Text::new("1 macOS base")),
+        n => parts.push(tf!("%lld macOS bases", n)),
+    }
+    let subtitle = Text::joined(parts);
     let mut badges = Vec::new();
     if c.is_default {
         badges.push(
@@ -252,6 +270,11 @@ fn row(ctx: &Ctx, c: &CredentialDto) -> CredentialRow {
         id.clone(),
     );
     set_password.ask = vec![password_ask(&c.name)];
+    // A base's account keeps the password it was created with
+    let set_password = set_password.enabled_if(
+        bases == 0,
+        Some(Text::new("A macOS base's user has this password – it stays as long as the base is there")),
+    );
     let default = Action::call(
         "default",
         Text::new("Make Default"),
@@ -270,18 +293,19 @@ fn row(ctx: &Ctx, c: &CredentialDto) -> CredentialRow {
             .button("Remove")
             .destructive(),
         )
-        .enabled_if(used_by.is_empty(), Some(Text::new("Images are built with it – remove them first")));
+        .enabled_if(bases == 0, Some(Text::new("A macOS base was created from it – remove the base first")))
+        .enabled_if(images == 0, Some(Text::new("Images are built with it – remove them first")));
     let used = used_by.join(", ");
     let none = Text::new("none");
     let info = vec![
         InfoLine::new("User", Text::verbatim(&user))
-            .note(Text::new("NixOS: login, home folder, SSH · macOS: the base's user"), Tone::Normal),
+            .note(Text::new("NixOS: login, home folder, SSH · macOS: the user of its bases"), Tone::Normal),
         InfoLine::new("Full name", c.full_name.clone().map_or(none.clone(), Text::verbatim))
             .note(Text::new("NixOS: the account, git"), Tone::Normal),
         InfoLine::new("E-mail", c.email.clone().map_or(none.clone(), Text::verbatim))
             .note(Text::new("NixOS: git"), Tone::Normal),
         InfoLine::new("Password", Text::new(if c.has_password { "stored in the keychain" } else { "none – set one" }))
-            .note(Text::new("macOS builds (sudo); copy it whenever a guest asks"), Tone::Normal),
+            .note(Text::new("macOS bases and builds; copy it whenever a guest asks"), Tone::Normal),
         InfoLine::new("Used by", if used.is_empty() { Text::new("no image") } else { Text::verbatim(&used) })
             .full(&used),
     ];
@@ -289,9 +313,9 @@ fn row(ctx: &Ctx, c: &CredentialDto) -> CredentialRow {
         id: c.id.clone(),
         name: c.name.clone(),
         lamp: if used_by.is_empty() {
-            Lamp::new(LampState::Off, "No image uses this credential")
+            Lamp::new(LampState::Off, "No image or macOS base uses this credential")
         } else {
-            Lamp::new(LampState::On, "Images are built with it")
+            Lamp::new(LampState::On, "Images or a macOS base use it")
         },
         subtitle,
         badges,
@@ -305,10 +329,8 @@ pub(crate) fn page(ctx: &Ctx) -> CredentialsPage {
     let add = Action::show("add", Text::new("New Credential …"), Some("add"), "credential", json!({})).primary();
     CredentialsPage {
         title: Text::new("Credentials"),
-        intro: tf!(
-            "Who you are in a guest. NixOS guests take the user (login, home folder, SSH), the full name and the e-mail (the account, git); macOS guests keep the base's user and use only the stored password, for building. Every image is built with one credential – without one it gets this computer's: %@ (%@).",
-            &ctx.host_user,
-            &ctx.host_full_name
+        intro: Text::new(
+            "Who you are in a guest. NixOS images take the user (login, home folder, SSH), the full name and the e-mail (the account, git); a macOS base is created with the user, full name and password, and its images are built with them. The password is asked once, when you create the credential – after that omaflake uses it by itself. Every image and every macOS base is made with a credential; the default one unless you choose another.",
         ),
         rows: ctx.credentials.iter().map(|c| row(ctx, c)).collect(),
         add,
@@ -317,4 +339,92 @@ pub(crate) fn page(ctx: &Ctx) -> CredentialsPage {
             "Passwords are kept in the desktop's keyring (Secret Service), else unencrypted in ~/.config/omaflake/tokens.json. The default credential for new images is chosen in the Settings; a changed credential makes its images outdated.",
         )),
     }
+}
+
+/// A choice of the credentials ("Work – alex"), for what needs a password: a macOS base (plan B139)
+pub(crate) fn credential_choice(ctx: &Ctx, value: &str, help: &str) -> Field {
+    let mut f = Field::new("credential", FieldKind::Choice, Text::new("Credential"), json!(value))
+        .param("credential")
+        .value_param("credential");
+    f.choices = ctx
+        .credentials
+        .iter()
+        .map(|x| Choice::new(json!(x.id), Text::verbatim(format!("{} – {}", x.name, x.user.as_deref().unwrap_or("–")))))
+        .collect();
+    f.help = Some(Text::new(help));
+    f
+}
+
+/// "New Credential …" where a credential is needed and there is none
+pub(crate) fn new_credential() -> Action {
+    Action::show("newCredential", Text::new("New Credential …"), Some("add"), "credential", json!({}))
+}
+
+#[derive(Debug, Default, Deserialize)]
+pub struct BaseCredentialParams {
+    pub name: String,
+    #[serde(default)]
+    pub values: BaseCredentialValues,
+}
+
+#[derive(Debug, Clone, Default, Deserialize)]
+pub struct BaseCredentialValues {
+    pub credential: Option<String>,
+}
+
+/// `baseCredential`: the credential of a macOS base created before bases kept theirs (plan B139) – the one with its
+/// user and password; macOS images are built with it, without asking for a password
+pub(crate) fn base_credential_page(ctx: &Ctx, p: &BaseCredentialParams) -> Option<CredentialPage> {
+    let b = ctx.bases.iter().find(|b| b.name == p.name)?;
+    let user_of = |c: &CredentialDto| c.user.clone().unwrap_or_default();
+    let chosen = p
+        .values
+        .credential
+        .clone()
+        .filter(|id| ctx.credentials.iter().any(|c| &c.id == id))
+        .or_else(|| b.credential.clone())
+        .or_else(|| ctx.credentials.iter().find(|c| Some(user_of(c)) == b.user).map(|c| c.id.clone()))
+        .or_else(|| ctx.settings.default_credential.clone())
+        .or_else(|| ctx.credentials.first().map(|c| c.id.clone()))
+        .unwrap_or_default();
+    let mut field = credential_choice(
+        ctx,
+        &chosen,
+        "The credential with the base's user and its password – the same user and password it was created with.",
+    );
+    let c = ctx.credentials.iter().find(|c| c.id == chosen);
+    if let (Some(c), Some(base_user)) = (c, &b.user) {
+        if &user_of(c) != base_user {
+            field.error = Some(tf!("The base's user is %@ – this credential has %@", base_user, user_of(c)));
+        }
+    }
+    let error =
+        if ctx.credentials.is_empty() { Some(Text::new("Create a credential first")) } else { field.error.clone() };
+    let save = Action::call(
+        "save",
+        Text::new("Use Credential"),
+        Some("apply"),
+        "bases.assign",
+        json!({"name": b.name, "credential": chosen}),
+    )
+    .then(Then::Back)
+    .enabled_if(error.is_none(), error)
+    .primary();
+    let mut actions = vec![Action::call("cancel", Text::new("Cancel"), None, "ui.back", json!({}))];
+    if ctx.credentials.is_empty() {
+        actions.push(new_credential());
+    }
+    actions.push(save);
+    Some(CredentialPage {
+        title: tf!("Credential of %@", &b.name),
+        id: None,
+        intro: tf!(
+            "%@ was created before bases kept their credential. Choose the one its user %@ was created with – same user, same password. macOS images are then built with it, without asking for a password; a wrong password shows at the next build.",
+            &b.name,
+            b.user.clone().unwrap_or_else(|| "?".into())
+        ),
+        fields: vec![field],
+        locked: None,
+        actions,
+    })
 }

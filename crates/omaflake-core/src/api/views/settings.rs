@@ -259,7 +259,7 @@ pub(crate) fn page(ctx: &Ctx, answer: &SettingsAnswer, p: &SettingsParams) -> Se
     let d = &answer.guest_defaults;
     // settings.set replaces the whole guest object: each field sends the others as they are
     let base = json!({"guest": g});
-    // The default credential of new images (plan B137): this computer's values (null) or a credential
+    // The default credential of new images and macOS bases (plan B137, B139) – there is one while there are any
     let mut credential = Field::new(
         "defaultCredential",
         FieldKind::Choice,
@@ -267,9 +267,9 @@ pub(crate) fn page(ctx: &Ctx, answer: &SettingsAnswer, p: &SettingsParams) -> Se
         json!(s.default_credential),
     )
     .settings("defaultCredential", json!({}))
-    .help(Text::new("Credentials are created with the key at the top"));
-    credential.choices = vec![Choice::new(Value::Null, tf!("This computer – %@", &ctx.host_user))];
-    credential.choices.extend(ctx.credentials.iter().map(|c| Choice::new(json!(c.id), Text::verbatim(&c.name))));
+    .help(Text::new("Credentials are created with the key at the top"))
+    .enabled_if(!ctx.credentials.is_empty(), Some(Text::new("Create a credential first – the key at the top")));
+    credential.choices = ctx.credentials.iter().map(|c| Choice::new(json!(c.id), Text::verbatim(&c.name))).collect();
     let c = &answer.choices;
     let mut keyboards: Vec<Choice> = c
         .keyboards
@@ -287,7 +287,7 @@ pub(crate) fn page(ctx: &Ctx, answer: &SettingsAnswer, p: &SettingsParams) -> Se
             guest_choice(ctx, "timeZone", "Time zone", &g.time_zone, &d.time_zone, choices(&c.time_zones, |z| z.replace('_', " ")), &base),
         ],
         footer: Some(Text::new(ctx.on_host(
-            "Used when an image is built – existing images and their VMs keep what they were built with (language, keyboard …); build an image again to take a change. The credential and look are only preset: the build page lets you choose others. \"Like this Mac\" uses your Mac's values. The lists offer only what both NixOS and macOS VMs support. Your SSH keys from ~/.ssh are added automatically. macOS VMs always use the user of the macOS base. A developer flake's local/settings.nix overrides these values.",
+            "Used when an image is built – existing images and their VMs keep what they were built with (language, keyboard …); build an image again to take a change. The credential and look are only preset: the build page lets you choose others. \"Like this Mac\" uses your Mac's values. The lists offer only what both NixOS and macOS VMs support. Your SSH keys from ~/.ssh are added automatically. macOS VMs have the user of their macOS base, which is created with a credential. A developer flake's local/settings.nix overrides these values.",
             "Used when an image is built – existing images and their VMs keep what they were built with (language, keyboard …); build an image again to take a change. The credential and look are only preset: the build page lets you choose others. \"Like this computer\" uses this computer's values. The lists offer only what both NixOS and macOS VMs support. Your SSH keys from ~/.ssh are added automatically. A developer flake's local/settings.nix overrides these values.",
         ))),
     };

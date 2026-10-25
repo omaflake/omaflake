@@ -195,8 +195,11 @@ fn bases_section(ctx: &Ctx) -> BasesSection {
                 Some(build) => tf!("macOS %@", build),
                 None => Text::new("macOS"),
             }];
-            if let Some(user) = &b.user {
-                parts.push(tf!("user %@", user));
+            // The credential its user was created from (plan B139), else only the user
+            match (&b.credential_name, &b.user) {
+                (Some(c), Some(user)) => parts.push(Text::verbatim(format!("{c} ({user})"))),
+                (None, Some(user)) => parts.push(tf!("user %@", user)),
+                _ => {}
             }
             if let Some(created) = b.created {
                 parts.push(Text::fmt("%@", vec![Arg::date(created)]));
@@ -222,6 +225,17 @@ fn bases_section(ctx: &Ctx) -> BasesSection {
                     .label(Text::new("incomplete")),
                 );
             }
+            if b.ready && b.credential.is_none() {
+                badges.push(
+                    Badge::new(
+                        "no-credential",
+                        "lock-warning",
+                        Text::new("No credential yet – assign the one its user was created with; macOS images are built with it"),
+                        Tone::Warning,
+                    )
+                    .label(Text::new("no credential")),
+                );
+            }
             let remove_text = Text::new(
                 "It is deleted and cannot be restored. macOS images and VMs made from it stay – they are copies. New macOS images need a base.",
             );
@@ -234,8 +248,24 @@ fn bases_section(ctx: &Ctx) -> BasesSection {
                 },
                 subtitle: Text::joined(parts),
                 badges,
-                actions: vec![
-                    Action::call("reveal", Text::new("Show in Finder"), Some("folder"), "ui.reveal", json!({"path": b.path})),
+                actions: [
+                    (b.ready && b.credential.is_none()).then(|| {
+                        Action::show(
+                            "assign",
+                            Text::new("Assign Credential …"),
+                            Some("key"),
+                            "baseCredential",
+                            json!({"name": b.name}),
+                        )
+                        .primary()
+                    }),
+                    Some(Action::call(
+                        "reveal",
+                        Text::new("Show in Finder"),
+                        Some("folder"),
+                        "ui.reveal",
+                        json!({"path": b.path}),
+                    )),
                     Action::call("remove", Text::new("Remove …"), Some("trash"), "bases.remove", json!({"name": b.name}))
                         .destructive()
                         .confirm(
@@ -246,8 +276,12 @@ fn bases_section(ctx: &Ctx) -> BasesSection {
                         .enabled_if(
                             !busy,
                             Some(Text::new("A macOS base is being installed or a macOS image built – wait until it ends")),
-                        ),
-                ],
+                        )
+                        .into(),
+                ]
+                .into_iter()
+                .flatten()
+                .collect(),
             }
         })
         .collect::<Vec<_>>();
@@ -375,10 +409,10 @@ pub(crate) fn row(ctx: &Ctx, i: &ImageDto) -> ImageRowView {
 }
 
 /// The credential and look of an image for a list's subtitle (plan B137): "Work · Rosé Pine Dawn" – the credential's
-/// name (this computer's user without one), the look when known
+/// name ("–" for an image built before credentials), the look when known
 pub(crate) fn choice_parts(ctx: &Ctx, i: &ImageDto) -> Vec<String> {
     let credential = match &i.credential {
-        None => ctx.host_user.clone(),
+        None => "–".to_string(),
         Some(id) => ctx
             .credentials
             .iter()
@@ -403,15 +437,14 @@ pub(crate) fn look_line(look: Option<&str>) -> InfoLine {
     )
 }
 
-/// "Credential: Work (alex)" of an image (plan B137): this computer's values without one; a credential that is gone
-/// keeps its name, with a note
+/// "Credential: Work (alex)" of an image (plan B137); an image from before credentials has none (it was built with
+/// this computer's user); a credential that is gone keeps its name, with a note
 pub(crate) fn credential_line(ctx: &Ctx, i: &ImageDto) -> InfoLine {
     match (&i.credential, ctx.credentials.iter().find(|c| Some(&c.id) == i.credential.as_ref())) {
-        (None, _) => InfoLine::new("Credential", tf!("This computer – %@", &ctx.host_user)),
-        (Some(_), Some(c)) => InfoLine::new(
-            "Credential",
-            Text::verbatim(format!("{} ({})", c.name, c.user.as_deref().unwrap_or(&ctx.host_user))),
-        ),
+        (None, _) => InfoLine::new("Credential", Text::new("none – built before credentials")),
+        (Some(_), Some(c)) => {
+            InfoLine::new("Credential", Text::verbatim(format!("{} ({})", c.name, c.user.as_deref().unwrap_or("–"))))
+        }
         (Some(id), None) => {
             InfoLine::new("Credential", Text::verbatim(i.credential_name.clone().unwrap_or_else(|| id.clone())))
                 .note(Text::new("removed – a new build needs another credential"), Tone::Warning)

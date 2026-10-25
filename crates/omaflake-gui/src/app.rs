@@ -96,6 +96,8 @@ pub fn decode(page: &str, v: Value) -> Model {
         "settings" => de(v, Model::Settings),
         "credentials" => de(v, Model::Credentials),
         "credential" => de(v, Model::Credential),
+        // The credential of a macOS base from before bases kept theirs: the same form (plan B139)
+        "baseCredential" => de(v, Model::Credential),
         "activity" => de(v, Model::Activity),
         "vm" => de(v, Model::Vm),
         "image" => de(v, Model::Image),

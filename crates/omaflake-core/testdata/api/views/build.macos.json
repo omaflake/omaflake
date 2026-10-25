@@ -87,25 +87,15 @@
       "choices": [
         {
           "label": {
-            "args": [
-              "alex"
-            ],
-            "key": "This computer – %@",
-            "text": "This computer – alex"
-          },
-          "value": ""
-        },
-        {
-          "label": {
             "text": "Work – alex"
           },
           "value": "c-1"
         }
       ],
-      "enabled": true,
+      "enabled": false,
       "help": {
-        "key": "Who you are in the guest: user, full name, e-mail (Credentials, the key at the top)",
-        "text": "Who you are in the guest: user, full name, e-mail (Credentials, the key at the top)"
+        "key": "macOS images are built with the credential of their base: its user and password",
+        "text": "macOS images are built with the credential of their base: its user and password"
       },
       "id": "credential",
       "kind": "choice",
@@ -114,6 +104,13 @@
         "text": "Credential"
       },
       "param": "credential",
+      "reason": {
+        "args": [
+          "mac-base-26A434"
+        ],
+        "key": "The credential of %@",
+        "text": "The credential of mac-base-26A434"
+      },
       "value": "c-1",
       "valueParam": "credential"
     },

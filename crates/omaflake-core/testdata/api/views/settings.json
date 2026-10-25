@@ -191,16 +191,6 @@
         "choices": [
           {
             "label": {
-              "args": [
-                "alex"
-              ],
-              "key": "This computer – %@",
-              "text": "This computer – alex"
-            },
-            "value": null
-          },
-          {
-            "label": {
               "text": "Work"
             },
             "value": "c-1"
@@ -403,8 +393,8 @@
       }
     ],
     "footer": {
-      "key": "Used when an image is built – existing images and their VMs keep what they were built with (language, keyboard …); build an image again to take a change. The credential and look are only preset: the build page lets you choose others. \"Like this Mac\" uses your Mac's values. The lists offer only what both NixOS and macOS VMs support. Your SSH keys from ~/.ssh are added automatically. macOS VMs always use the user of the macOS base. A developer flake's local/settings.nix overrides these values.",
-      "text": "Used when an image is built – existing images and their VMs keep what they were built with (language, keyboard …); build an image again to take a change. The credential and look are only preset: the build page lets you choose others. \"Like this Mac\" uses your Mac's values. The lists offer only what both NixOS and macOS VMs support. Your SSH keys from ~/.ssh are added automatically. macOS VMs always use the user of the macOS base. A developer flake's local/settings.nix overrides these values."
+      "key": "Used when an image is built – existing images and their VMs keep what they were built with (language, keyboard …); build an image again to take a change. The credential and look are only preset: the build page lets you choose others. \"Like this Mac\" uses your Mac's values. The lists offer only what both NixOS and macOS VMs support. Your SSH keys from ~/.ssh are added automatically. macOS VMs have the user of their macOS base, which is created with a credential. A developer flake's local/settings.nix overrides these values.",
+      "text": "Used when an image is built – existing images and their VMs keep what they were built with (language, keyboard …); build an image again to take a change. The credential and look are only preset: the build page lets you choose others. \"Like this Mac\" uses your Mac's values. The lists offer only what both NixOS and macOS VMs support. Your SSH keys from ~/.ssh are added automatically. macOS VMs have the user of their macOS base, which is created with a credential. A developer flake's local/settings.nix overrides these values."
     },
     "title": {
       "key": "For new images",

@@ -33,11 +33,12 @@ pub enum Command {
     )]
     Build(Build),
     #[command(
-        about = "Credentials: who you are in a guest – user, full name, e-mail, a stored password for macOS builds.",
+        about = "Credentials: who you are in a guest – user, full name, e-mail and a password, kept for macOS bases and \
+                 builds.",
         args_conflicts_with_subcommands = true
     )]
     Credentials(Credentials),
-    #[command(name = "macos", about = "macOS bases: install from Apple's IPSW.")]
+    #[command(name = "macos", about = "macOS bases: install from Apple's IPSW with a credential, or assign one.")]
     #[command(subcommand_required = true, arg_required_else_help = true)]
     MacOs {
         #[command(subcommand)]
@@ -309,8 +310,6 @@ pub struct Build {
     pub recipe: String,
     #[arg(long, value_name = "base", help = "macOS: base folder (default: newest ~/.omaflake/bases/mac-base-*)")]
     pub base: Option<String>,
-    #[arg(long, help = "macOS: read the guest user's password (for sudo, once) from stdin instead of prompting")]
-    pub password_stdin: bool,
     #[arg(long, help = "macOS: keep a failed build folder for inspection instead of deleting it")]
     pub keep_failed: bool,
     #[arg(long, help = "Show every line of the build log, also the disk image tool's routine ones")]
@@ -318,8 +317,8 @@ pub struct Build {
     #[arg(
         long,
         value_name = "credential",
-        help = "Who you are in the guest: a credential's name or ID, or \"computer\" for this computer's user and \
-                name (default: the default credential; omaf credentials)"
+        help = "NixOS: who you are in the guest – a credential's name or ID (default: the default credential; omaf \
+                credentials). macOS images take their base's credential"
     )]
     pub credential: Option<String>,
     #[arg(
@@ -347,7 +346,7 @@ pub enum CredentialsCommand {
     Edit(CredentialArgs),
     #[command(name = "rm", about = "Delete a credential and its stored password (its images keep its name).")]
     Remove(CredentialRef),
-    #[command(about = "Make a credential the default for new images; \"computer\" for this computer's values.")]
+    #[command(about = "Make a credential the default for new images and macOS bases.")]
     Default(CredentialRef),
     #[command(
         name = "copy-password",
@@ -363,7 +362,7 @@ pub struct CredentialArgs {
     pub name: String,
     #[arg(long, value_name = "name", help = "edit: a new name")]
     pub rename: Option<String>,
-    #[arg(long, value_name = "user", help = "User in the guests (default: this computer's)")]
+    #[arg(long, value_name = "user", help = "User in the guests (the first credential: this computer's by default)")]
     pub user: Option<String>,
     #[arg(long, value_name = "full-name", help = "Full name (git, the account)")]
     pub full_name: Option<String>,
@@ -643,8 +642,8 @@ pub struct Config {
     #[arg(
         long,
         value_name = "credential",
-        help = "The credential new images get unless another is chosen: its name or ID; empty: this computer's user \
-                and name (omaf credentials)"
+        help = "The credential new images and macOS bases get unless another is chosen: its name or ID (omaf \
+                credentials)"
     )]
     pub default_credential: Option<String>,
     #[arg(
@@ -769,6 +768,19 @@ pub enum MacOsCommand {
                       folders are reused, never overwritten."
     )]
     Install(MacInstall),
+    #[command(
+        about = "Assign a credential to a base created before bases kept theirs: its user and password, so macOS \
+                 builds ask for none."
+    )]
+    Assign(MacAssign),
+}
+
+#[derive(Debug, Args)]
+pub struct MacAssign {
+    #[arg(value_name = "base", help = "The base's name, e.g. mac-base-26A434")]
+    pub base: String,
+    #[arg(value_name = "credential", help = "The credential's name or ID – the one its user was created with")]
+    pub credential: String,
 }
 
 #[derive(Debug, Args)]
@@ -781,12 +793,13 @@ pub struct MacInstall {
     pub memory: u32,
     #[arg(long, value_name = "disk", default_value_t = 80, help = "Disk size in GiB (thin-provisioned)")]
     pub disk: u32,
-    #[arg(long, value_name = "user", help = "Guest user to create (default: your Mac user name)")]
-    pub user: Option<String>,
-    #[arg(long, value_name = "full-name", help = "Full name of the guest user (default: yours)")]
-    pub full_name: Option<String>,
-    #[arg(long, help = "Read the guest user's password from stdin instead of prompting")]
-    pub password_stdin: bool,
+    #[arg(
+        long,
+        value_name = "credential",
+        help = "The credential the guest user is created from – user, full name, password (default: the default \
+                credential; omaf credentials)"
+    )]
+    pub credential: Option<String>,
     #[arg(long, help = "Stop after the clone, without the first boot")]
     pub no_first_boot: bool,
     #[arg(long, help = "Show the first boot in a window")]

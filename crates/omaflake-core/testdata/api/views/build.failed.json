@@ -72,16 +72,6 @@
       "choices": [
         {
           "label": {
-            "args": [
-              "alex"
-            ],
-            "key": "This computer – %@",
-            "text": "This computer – alex"
-          },
-          "value": ""
-        },
-        {
-          "label": {
             "text": "Work – alex"
           },
           "value": "c-1"

@@ -77,11 +77,12 @@ impl Credentials {
             .cloned()
     }
 
-    /// The default credential (the settings' `defaultCredential`); None: this computer's values
+    /// The default credential: the settings' `defaultCredential`, else the first one – there is a default whenever
+    /// there is a credential (plan B139); None only without any
     pub fn default_credential(&self) -> Option<Credential> {
         let s = Settings::load(&self.paths);
-        let id = s.default_credential?;
-        s.credentials.unwrap_or_default().into_iter().find(|c| c.id == id)
+        let all = s.credentials.unwrap_or_default();
+        s.default_credential.and_then(|id| all.iter().find(|c| c.id == id).cloned()).or_else(|| all.into_iter().next())
     }
 
     pub fn has_password(&self, id: &str) -> bool {
@@ -109,8 +110,12 @@ impl Credentials {
         }
         let mut c = Credential { id: Self::new_id(&all), name, ..Default::default() };
         Self::apply(&mut c, &change)?;
+        // The host has nothing to do with credentials (plan B139): each names its own user
+        if c.user.is_none() {
+            return Err(vm_err!("A credential needs a user"));
+        }
         all.push(c.clone());
-        if s.default_credential.is_none() && all.len() == 1 {
+        if s.default_credential.as_ref().is_none_or(|id| !all.iter().any(|c| &c.id == id)) {
             s.default_credential = Some(c.id.clone());
         }
         s.credentials = Some(all);
@@ -159,7 +164,8 @@ impl Credentials {
         };
         let c = all.remove(i);
         if s.default_credential.as_deref() == Some(id) {
-            s.default_credential = None;
+            // Another one becomes the default
+            s.default_credential = all.first().map(|c| c.id.clone());
         }
         s.credentials = (!all.is_empty()).then_some(all);
         s.save(&self.paths)?;
@@ -167,15 +173,13 @@ impl Credentials {
         Ok(c)
     }
 
-    /// Makes `id` the default (None: this computer's values)
-    pub fn set_default(&self, id: Option<&str>) -> Result<()> {
+    /// Makes `id` the default – there is always one while there are credentials (plan B139)
+    pub fn set_default(&self, id: &str) -> Result<()> {
         let mut s = Settings::load(&self.paths);
-        if let Some(id) = id {
-            if !s.credentials.as_ref().is_some_and(|all| all.iter().any(|c| c.id == id)) {
-                return Err(vm_err!(codes::NOT_FOUND, "No credential \"{id}\""));
-            }
+        if !s.credentials.as_ref().is_some_and(|all| all.iter().any(|c| c.id == id)) {
+            return Err(vm_err!(codes::NOT_FOUND, "No credential \"{id}\""));
         }
-        s.default_credential = id.map(str::to_string);
+        s.default_credential = Some(id.to_string());
         s.save(&self.paths)
     }
 
@@ -277,6 +281,162 @@ pub fn copy_to_clipboard(text: &str) -> Result<()> {
     Err(vm_err!("No clipboard tool (pbcopy, wl-copy, xclip) to copy with"))
 }
 
+/// A guest user's account as omaflake creates or logs into it (plan B139): from a credential, with its password
+#[derive(Debug, Clone)]
+pub struct Login {
+    pub credential: Credential,
+    pub user: String,
+    pub full_name: String,
+    pub password: String,
+}
+
+/// What uses a credential (plan B137, B139): images built with it, macOS bases created from it
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct Usage {
+    pub images: Vec<String>,
+    pub bases: Vec<String>,
+}
+
+impl Usage {
+    pub fn of(paths: &Paths, id: &str) -> Usage {
+        let images = crate::image_store::ImageStore::new(paths.clone())
+            .list()
+            .into_iter()
+            .filter(|i| i.info.credential.as_deref() == Some(id))
+            .map(|i| i.name)
+            .collect();
+        let bases = crate::mac_base_installer::MacBaseInstaller::list(paths)
+            .into_iter()
+            .filter(|b| b.record.as_ref().is_some_and(|r| r.credential == id))
+            .map(|b| b.name)
+            .collect();
+        Usage { images, bases }
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.images.is_empty() && self.bases.is_empty()
+    }
+
+    /// Whether `change` of `current` may be made: images carry its user, full name and e-mail, a macOS base's
+    /// account has its user and password – while used, only the name can change
+    pub fn check_change(&self, current: &Credential, change: &CredentialChange) -> Result<()> {
+        let clean = |v: &Option<String>| v.as_deref().map(str::trim).filter(|v| !v.is_empty()).map(str::to_string);
+        let changes = |new: &Option<String>, old: &Option<String>| new.is_some() && clean(new) != clean(old);
+        let values = changes(&change.user, &current.user)
+            || changes(&change.full_name, &current.full_name)
+            || changes(&change.email, &current.email);
+        if values && !self.bases.is_empty() {
+            return Err(vm_err!(
+                codes::IN_USE,
+                "A macOS base was created from this credential – only its name can change"
+            ));
+        }
+        if values && !self.images.is_empty() {
+            return Err(vm_err!(codes::IN_USE, "Images are built with this credential – only its name can change"));
+        }
+        if change.password.as_deref().is_some_and(|p| !p.is_empty()) && !self.bases.is_empty() {
+            return Err(vm_err!(
+                codes::IN_USE,
+                "A macOS base's user has this password – it stays as long as the base is there"
+            ));
+        }
+        Ok(())
+    }
+
+    /// Whether the credential may be removed
+    pub fn check_remove(&self) -> Result<()> {
+        if !self.bases.is_empty() {
+            return Err(vm_err!(codes::IN_USE, "A macOS base was created from this credential – remove it first"));
+        }
+        if !self.images.is_empty() {
+            return Err(vm_err!(codes::IN_USE, "Images are built with this credential – remove them first"));
+        }
+        Ok(())
+    }
+}
+
+impl Credentials {
+    /// The account of a credential: its user and full name (else this computer's) and its stored password
+    pub fn login(&self, c: &Credential) -> Result<Login> {
+        let password = self.password(&c.id).filter(|p| !p.is_empty()).ok_or_else(|| {
+            vm_err!(
+                codes::PREREQUISITE,
+                "The credential \"{}\" has no password yet – set one under Credentials",
+                c.name
+            )
+        })?;
+        Ok(Login {
+            user: c.user.clone().filter(|u| !u.is_empty()).unwrap_or_else(crate::platform::user_name),
+            full_name: c.full_name.clone().filter(|n| !n.is_empty()).unwrap_or_else(crate::platform::full_user_name),
+            credential: c.clone(),
+            password,
+        })
+    }
+
+    /// The account a new macOS base gets (plan B139): credential `reference` (ID or name), else the default one
+    pub fn base_login(&self, reference: Option<&str>) -> Result<Login> {
+        let c = match reference.filter(|r| !r.is_empty()) {
+            Some(r) => self.find(r).ok_or_else(|| vm_err!(codes::NOT_FOUND, "No credential \"{r}\""))?,
+            None => self.default_credential().ok_or_else(|| {
+                vm_err!(
+                    codes::PREREQUISITE,
+                    "No credential yet – create one first (Credentials, or omaf credentials add)"
+                )
+            })?,
+        };
+        self.login(&c)
+    }
+
+    /// The account macOS image builds log into on base `dir`: its record's credential with its password – so no
+    /// build asks for one (plan B139)
+    pub fn login_of_base(&self, dir: &std::path::Path) -> Result<Login> {
+        let name = dir.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
+        let record = crate::mac_base_installer::BaseRecord::of(dir).ok_or_else(|| {
+            vm_err!(
+                codes::PREREQUISITE,
+                "{} has no credential yet – assign the one its user was created with (Images → macOS Bases, or omaf macos assign {} <credential>)",
+                name,
+                name
+            )
+        })?;
+        let c = self.get(&record.credential).ok_or_else(|| {
+            vm_err!(
+                codes::NOT_FOUND,
+                "The credential of {} (\"{}\") is gone – assign another one",
+                name,
+                record.credential_name
+            )
+        })?;
+        let mut login = self.login(&c)?;
+        // The account is the base's: its user, whatever the credential says now
+        login.user = record.user;
+        Ok(login)
+    }
+
+    /// Assigns credential `reference` to base `dir` – for a base created before bases had one (plan B139). Its user
+    /// must be the base's; whether the password is right shows the next build.
+    pub fn assign_to_base(
+        &self,
+        dir: &std::path::Path,
+        reference: &str,
+    ) -> Result<crate::mac_base_installer::BaseRecord> {
+        use crate::mac_base_installer::{BaseRecord, MacBaseInstaller};
+        let c = self.find(reference).ok_or_else(|| vm_err!(codes::NOT_FOUND, "No credential \"{reference}\""))?;
+        let login = self.login(&c)?;
+        if !MacBaseInstaller::is_ready(dir) {
+            return Err(vm_err!(codes::PREREQUISITE, "{} is not installed completely", dir.display()));
+        }
+        if let Some(user) = MacBaseInstaller::user_of(dir, &self.paths.logs()) {
+            if user != login.user {
+                return Err(vm_err!("The base's user is {} – the credential \"{}\" has {}", user, c.name, login.user));
+            }
+        }
+        let record = BaseRecord { credential: c.id.clone(), credential_name: c.name.clone(), user: login.user };
+        record.write(dir)?;
+        Ok(record)
+    }
+}
+
 /// A random credential ID: "c-" and 12 hex digits (time, process and a counter, hashed)
 pub fn random_id() -> String {
     use std::collections::hash_map::RandomState;
@@ -365,11 +525,64 @@ mod tests {
         c.update(&w1, CredentialChange { password: Some("new".into()), ..Default::default() }).unwrap();
         assert_eq!(c.password(&w1).as_deref(), Some("new"));
         assert_eq!(c.find("private").map(|p| p.id), Some(p2.clone()));
-        // Removing the default leaves this computer's values; the password goes too
+        // Removing the default makes another one the default; the password goes too
         c.remove(&w1).unwrap();
-        assert!(c.default_credential().is_none() && fake.0.lock().unwrap().len() == 1);
-        c.set_default(Some(&p2)).unwrap();
-        assert!(c.set_default(Some("c-9")).is_err());
+        assert_eq!(c.default_credential().map(|d| d.id), Some(p2.clone()));
+        assert_eq!(fake.0.lock().unwrap().len(), 1);
+        c.set_default(&p2).unwrap();
+        assert!(c.set_default("c-9").is_err());
         assert!(c.add(change("Work", "alex", Some("pw"))).is_ok()); // the name is free again
+                                                                    // Every credential names its own user – the host has nothing to do with them (plan B139)
+        assert!(c
+            .add(CredentialChange { name: Some("NoUser".into()), password: Some("pw".into()), ..Default::default() })
+            .is_err());
+        c.remove(&p2).unwrap();
+        let rest = c.list();
+        assert_eq!(c.default_credential().map(|d| d.id), rest.first().map(|r| r.id.clone()));
+    }
+
+    #[test]
+    fn a_base_keeps_its_credential_and_builds_log_in_with_it() {
+        use crate::mac_base_installer::{BaseRecord, MacBaseInstaller};
+        use std::os::unix::fs::PermissionsExt;
+        let (_t, c, _fake) = setup();
+        // No credential: a base cannot be created
+        assert!(c.base_login(None).is_err());
+        let (work, _) = c.add(change("Work", "alex", Some("secret"))).unwrap();
+        let (other, _) = c.add(change("Other", "sam", Some("pw"))).unwrap();
+        // The default, or the one named
+        let login = c.base_login(None).unwrap();
+        assert_eq!((login.user.as_str(), login.password.as_str()), ("alex", "secret"));
+        assert_eq!(c.base_login(Some("other")).unwrap().credential.id, other.id);
+        // A finished base from before: read-only, its user in the ready marker, no record
+        let dir = c.paths.bases().join("mac-base-1");
+        std::fs::create_dir_all(&dir).unwrap();
+        std::fs::write(dir.join(MacBaseInstaller::READY_MARKER), "alex\n").unwrap();
+        std::fs::set_permissions(&dir, std::fs::Permissions::from_mode(0o555)).unwrap();
+        let e = c.login_of_base(&dir).unwrap_err();
+        assert!(e.to_string().contains("has no credential yet"), "{e}");
+        // Another user than the base's is refused; the right one is written, the folder stays read-only
+        assert!(c.assign_to_base(&dir, "Other").is_err());
+        let record = c.assign_to_base(&dir, &work.id).unwrap();
+        assert_eq!(BaseRecord::of(&dir), Some(record));
+        assert_eq!(std::fs::metadata(&dir).unwrap().permissions().mode() & 0o777, 0o555);
+        let login = c.login_of_base(&dir).unwrap();
+        assert_eq!((login.credential.id.as_str(), login.password.as_str()), (work.id.as_str(), "secret"));
+        // Used by the base: user and password stay, removing is refused; the name may change
+        let usage = Usage::of(&c.paths, &work.id);
+        assert_eq!(usage.bases, vec!["mac-base-1".to_string()]);
+        let current = c.get(&work.id).unwrap();
+        assert!(usage
+            .check_change(&current, &CredentialChange { user: Some("bob".into()), ..Default::default() })
+            .is_err());
+        assert!(usage
+            .check_change(&current, &CredentialChange { password: Some("x".into()), ..Default::default() })
+            .is_err());
+        assert!(usage
+            .check_change(&current, &CredentialChange { name: Some("Job".into()), ..Default::default() })
+            .is_ok());
+        assert!(usage.check_remove().is_err());
+        assert!(Usage::of(&c.paths, &other.id).check_remove().is_ok());
+        std::fs::set_permissions(&dir, std::fs::Permissions::from_mode(0o755)).unwrap();
     }
 }

@@ -211,9 +211,10 @@ short as it can be).
 - **CatalogRecipe** – an entry of a source's `catalog.json` (spec §11.3: `id`, `author`, `kind`, `name`,
   `description` in the session's language, `tags`, `license`, `lab`, `systems`, `requires`, `homepage`, `version`,
   `files: [{path, size, sha256}]`) plus `source` and `runsHere`.
-- **Prerequisite** – `item` (`host`, `kvm`, `nix`, `flakes`, `nixDarwin`, `linuxBuilder`, `qemu`, `flake`, `sshKey`, `git`,
+- **Prerequisite** – `item` (`host`, `kvm`, `nix`, `flakes`, `nixDarwin`, `linuxBuilder`, `qemu`, `flake`, `sshKey`,
+  `credential` (at least one credential – the default; images and macOS bases are made with it, plan B139), `git`,
   `cli`, `builderRunning`, `flakeEval`, `nixSpace`, `ipsw`, `macBase`, `macSpace`; a Linux host checks `host`, `kvm`,
-  `nix`, `flakes`, `qemu`, `flake`, `sshKey`, `git`, `cli`, then `flakeEval`, `nixSpace` – no macOS preflight, plan B124), `status` (`ok` | `limited` | `missing`),
+  `nix`, `flakes`, `qemu`, `flake`, `sshKey`, `credential`, `git`, `cli`, then `flakeEval`, `nixSpace` – no macOS preflight, plan B124), `status` (`ok` | `limited` | `missing`),
   `title` (English; UIs translate by `item`), `required`, `detail`, `hint`, `install` (a command), `settablePath`,
   `freeBytes`, `neededBytes`, `baseUser`, `expectedUser`. `git` and `cli` (the `omaf` command on the user's PATH) are
   optional (`required` false, not counted in `issues`).
@@ -319,14 +320,15 @@ Params and results in short; the types are those of §4.
 | `shutdown` | – | `null` – ends this session (§2) |
 | `service.restart` | – | `{jobs}` – the service ends once no job waits or runs (§1, §2) |
 | `settings.get` | – | `{settings, guestDefaults, choices: {timeZones, locales, keyboards: [{code, locale}], looks: [{name, title}]}, isDefaultDataFolder}` – `settings`: config.json's values with their defaults applied (`developerMode, checkForUpdates, notifications, keepRecipeVersions, guest: {user?, fullName?, email?, timeZone?, locale?, keyboard?, look?}, flake?, qemu?, nix?, runner?, flakeInUse?, dataFolder`); `guestDefaults`: this computer's values the guest overrides fall back to |
-| `settings.set` | any of `developerMode, checkForUpdates, notifications, keepRecipeVersions, guest, defaultCredential, flake, qemu, nix, runner` (`null` or `""` = back to the default; keys not given stay; `guest` takes `locale, keyboard, timeZone, look` – user, full name and e-mail are a credential's) | `settings` – turning `keepRecipeVersions` off prunes older recipe versions |
+| `settings.set` | any of `developerMode, checkForUpdates, notifications, keepRecipeVersions, guest, defaultCredential, flake, qemu, nix, runner` (`null` or `""` = back to the default; keys not given stay; `guest` takes `locale, keyboard, timeZone, look` – user, full name and e-mail are a credential's; `defaultCredential` takes a credential's id – there is always a default while there are credentials, plan B139) | `settings` – turning `keepRecipeVersions` off prunes older recipe versions |
 | `credentials.list` | – | `[{id, name, user?, fullName?, email?, hasPassword, isDefault}]` (plan B137; a password never leaves the keychain/keyring) |
-| `credentials.add` | `name, password, user?, fullName?, email?` | `{credential, note?}` – every credential has a password (plan B138); the first one becomes the default; `note` says when the password went to a file (no keyring) |
-| `credentials.update` | `id`, any of `name, user, fullName, email, password` (`""` clears a value; a password can be changed, not removed) | `{credential, note?}` – while images use it only `name` and `password` may change (`invalidParams` otherwise) |
-| `credentials.remove` | `id` | `null` – its password goes too; refused while images use it ("Images are built with this credential – remove them first") |
+| `credentials.add` | `name, user, password, fullName?, email?` | `{credential, note?}` – every credential has a user and a password (plan B138, B139); the first one becomes the default; `note` says when the password went to a file (no keyring) |
+| `credentials.update` | `id`, any of `name, user, fullName, email, password` (`""` clears a value; a password can be changed, not removed) | `{credential, note?}` – while images use it only `name` and `password` may change, while a macOS base uses it only `name` (`in-use` otherwise) |
+| `credentials.remove` | `id` | `null` – its password goes too; refused while images or a macOS base use it (`in-use`); another one becomes the default |
 | `credentials.copyPassword` | `id` | `null` – asks the owner first (macOS: Touch ID or the login password, LocalAuthentication), copies the password to the clipboard and clears it after 90 s; refused when not confirmed (plan B138) |
-| `bases.list` | – | `[{name, path, osBuild?, user?, ready, newest, created?, sizeBytes?}]` – the macOS bases (`bases/mac-base-*`; plan B138) |
+| `bases.list` | – | `[{name, path, osBuild?, user?, ready, newest, created?, sizeBytes?, credential?, credentialName?}]` – the macOS bases (`bases/mac-base-*`; plan B138), with the credential of their user (plan B139) |
 | `bases.remove` | `name` | `null` – deletes the base; refused while a macOS base is installed or a macOS image is built |
+| `bases.assign` | `name, credential` | `null` – writes the credential (ID or name) into a base created before bases kept theirs (`omaflake-base.json`, plan B139); its user must be the base's |
 | `dataFolder.move` | `target` | Job `data-move` (all VMs must be stopped) |
 | `updates.check` | – | `{state: "noFeed"|"upToDate"|"available"|"off", release?: {version, url, sha256?, notes?, page?}}` – a feed that cannot be read is an error (`network`) |
 
@@ -358,7 +360,7 @@ Params and results in short; the types are those of §4.
 |---|---|---|
 | `images.list` | – | `{images: [Image], unreadable}` |
 | `images.get` | `name` | `Image` with `sizeBytes` |
-| `images.build` | `recipe, credential?, look?, password?, base?, keepFailed?` | Job `build` – `credential`: a credential's id, `""` this computer's values, left out the default; `look`: a look, `""` the recipe's own, left out the default (plan B137). macOS recipes need the guest user's password once – the given one, else the credential's stored one; kept in memory only until the build VM uses it; without either `-32602`; `base`: the base folder, default the newest; `keepFailed`: keep a failed build folder) |
+| `images.build` | `recipe, credential?, look?, base?, keepFailed?` | Job `build` – `credential`: a credential's id, left out (or `""`) the default – without any credential `prerequisite`; `look`: a look, `""` the recipe's own, left out the default (plan B137). A macOS recipe takes its base's credential and its stored password – nothing is asked (plan B139); a base without a credential is refused (`prerequisite`) unless a `password` is given (API version 1); `base`: the base folder, default the newest; `keepFailed`: keep a failed build folder) |
 | `images.remove` | `name` | `null` – refused while VMs use it (`in-use`) |
 
 ### Recipes and sources
@@ -394,7 +396,7 @@ Params and results in short; the types are those of §4.
 | `doctor.check` | – | `{prerequisites, nixosPreflight, macosPreflight, latestRelease?, buildBlockers: {nixos, macos}, startBlockers: {nixos, macos}, issues, requirementsMissing, hasMacBase, macBaseUser?, builderSystemIsOmaflakes, cli?, checked}` – blockers are Prerequisites; `builderSystemIsOmaflakes`: this Mac's nix-darwin system comes from omaflake's image flake (else `builder.apply` needs `force`); `cli: {link, target?, installed, blocked, onPath, admin}`: the `omaf` command's link (where Install puts it, this omaflake's `omaf` it points to – absent when the core does not run as `omaf` –, omaflake's link is there, a file that is not omaflake's is in the way, the link's folder is on the login PATH, Install asks for an administrator); a build runs these checks right before it starts, `vms.start` refuses a start blocker of the last check (`prerequisite`) |
 | `doctor.setPath` | `item: "nix"|"qemu"|"flake", path` | as `doctor.check` |
 | `macos.downloadIpsw` | – | Job `ipsw-download` → `result: {file, version}` (cancel pauses; it continues from there) |
-| `macos.installBase` | `user, fullName, password, ipsw?` | Job `macos-install` → `result: {base, existing, ready}` |
+| `macos.installBase` | `credential?, ipsw?` | Job `macos-install` → `result: {base, existing, ready}` – the guest user, full name and password from the credential (ID or name; default: the default credential), recorded in the base (plan B139); `user, fullName, password` directly still work (API version 1) |
 | `doctor.installCli` / `doctor.uninstallCli` | – | Job `cli-install` → `result: {link, installed, message}` – the `omaf` command (plan B122): a symlink to this omaflake's `omaf` (inside omaflake.app the bundled `Contents/MacOS/omaf`, else the running executable or the `omaf` next to it). macOS: `/usr/local/bin/omaf` through the administrator dialog (a dismissed dialog cancels the job); Linux: `~/.local/bin/omaf`, no root. Install replaces a link or an older `omaf` there and refuses another file (`exists`); Uninstall removes only omaflake's link (`not-found` otherwise); one at a time (`in-use`) |
 | `builder.installNix` / `builder.setup` / `builder.apply` (`force?`) / `builder.cleanUp` | – | Job → `result: {message}` – each asks for an administrator through the system's own dialog; one at a time (`in-use`); `builder.apply` on a nix-darwin system that is not omaflake's needs `force` (error data `replacesConfiguration`); a dismissed dialog cancels the job |
 
@@ -488,6 +490,7 @@ Pages and their params:
 | `doctor` | – | versions and updates, the checks in three sections with their actions |
 | `credentials` | – | the credentials, each with its usage and Copy Password (plan B137, B138) |
 | `credential` | `id?` | one credential's form: new, or to edit (only the name while images use it) |
+| `baseCredential` | `name` | the same form for a macOS base from before bases kept their credential: which one its user has (plan B139) |
 | `macBase` | `values?` | Create macOS Base |
 | `settings` | `values?` | recipe sources (with the new source's form), general switches, guest values, data folder |
 | `activity` | – | what happened in this server, newest first |
@@ -665,7 +668,8 @@ runs ("Shut the VM down first") or is busy.
 **images** – list head (filter `status`: In use/Not in use, `kind`, `recipe`; tool: import), `jobs` (builds that wait,
 run, failed or were cancelled: `{id, name, kind, state, title, count?, fraction?, actions: [cancel | dismiss], open,
 job}` – `open` is the row's `primary`: a click opens the build page), `bases?` (on a Mac only, plan B138: `{title,
-rows: [{name, lamp, subtitle, badges (newest), actions: [reveal, remove]}], empty?, create (the macOS base page),
+rows: [{name, lamp, subtitle ("macOS 26A434 · Work (alex) · date · size"), badges (newest, no-credential), actions:
+[assign (only without a credential: `baseCredential`), reveal, remove]}], empty?, create (the macOS base page),
 footer}`), `rows` (macOS before NixOS, by recipe name,
 newest first: lamp green when a VM uses it, badge `outdated`, subtitle "recipe dev · <date> · 1 VM", actions reveal and
 newVm (primary) – or the Doctor's warning (primary) –, details: info omaflake ID,
@@ -706,12 +710,11 @@ sharePath?, start}` and `then: back` (primary), disabled while a value is wrong.
 
 **build** – `{recipe, name, kind, badges, description?, state: idle|queued|checking|running|finished|failed|cancelled,
 actions, fields?, blockers?, macBase?, status?, progress?, outcome?, newest?, log?, job?}`. `fields` (while no build
-runs, plan B137): `credential` (choices "This computer – <user>" as `""`, then the credentials) and `look` ("The
-recipe's own" as `""`, then the looks), preset with the settings' defaults; their values (`values.credential`,
-`values.look`) go into the build action's params. Actions: `build` ("Build", or "Add to
-Queue" while another build of the guest kind runs; a macOS recipe asks "Password of <user>" unless the credential has a
-stored password; disabled for another
-architecture, Doctor blockers, a missing macOS base) – or `cancel` ("Cancel"/"Remove from Queue") while it waits or
+runs, plan B137): `credential` (the credentials) and `look` ("The recipe's own" as `""`, then the looks), preset with
+the settings' defaults; their values (`values.credential`, `values.look`) go into the build action's params. A macOS
+recipe's `credential` is the newest base's, disabled (plan B139). Actions: `build` ("Build", or "Add to Queue" while
+another build of the guest kind runs; never asks a password; disabled for another architecture, Doctor blockers, no
+credential, a missing macOS base or one without a credential – then `macBase` names it with "Assign Credential …") – or `cancel` ("Cancel"/"Remove from Queue") while it waits or
 runs. `progress: {step, title, count?, fraction, started, lastOutput, quietWarning, quietHelp}` – the UI counts the
 running time and the quiet time itself (orange after `quietWarning` s). `outcome: {state, icon, tone, title, detail?,
 action?}` ("Image ready" with "New VM …", "Build failed" with the error, "Build cancelled"). `log: {job, from, lines,
@@ -734,18 +737,18 @@ Create … / Show … (`ui.show macBase`), the `omaf` command's Install … / Un
 a file that is not omaflake's is in the way, the hint then says so – or how to add the link's folder to the PATH).
 Linux builder tasks run one at a time: the others say which runs.
 
-**macBase** – `{title, intro, base?, ipsw: {label, text, download?, actions}, fields: [user, fullName], installing,
-actions: [create], log?}`; params `{values?: {user, fullName, ipsw}}` (defaults: the macOS recipes' guest user or this
-computer's, its full name, Apple's IPSW). The IPSW is shown once, in `ipsw`: its actions "Choose IPSW …" and "Use
-Apple's" are `ui.field` on `values.ipsw` of this page. `create` (primary) is `macos.installBase` and asks the password
-twice. `log`: the latest base creation's job, as the build page's (`{job, from, lines, …}` – the job's real id).
+**macBase** – `{title, intro, base?, ipsw: {label, text, download?, actions}, fields: [credential], installing,
+actions: [newCredential?, create], log?}`; params `{values?: {credential, ipsw}}` (defaults: the default credential,
+Apple's IPSW). The IPSW is shown once, in `ipsw`: its actions "Choose IPSW …" and "Use Apple's" are `ui.field` on
+`values.ipsw` of this page. `create` (primary) is `macos.installBase {credential, ipsw?}` – no password is asked: the
+credential's (plan B139); without a credential it is disabled and `newCredential` opens the form. `log`: the latest base creation's job, as the build page's (`{job, from, lines, …}` – the job's real id).
 
 **settings** – `{sources, general, guest, dataFolder}`. `sources: {title, rows, add, addAction, footer}` – rows `{id,
 name, icon (folder|github|url), badges (official, private with or without token), subtitle, actions: [up, enabled
 (a switch), remove], source}`; `add.fields`: input (with "Folder …"), private (only for a GitHub repository – the core
 decides from `params.values.input`); `addAction` (primary) is `sources.add {input, private}` and asks the token for a
 private one; the two fields keep their values under `values.input` and `values.private`. `general.fields`: notifications, checkForUpdates, keepRecipeVersions, developerMode (toggles with `set`).
-`guest` ("For new images": its footer says existing images and VMs keep what they were built with) – `fields`: defaultCredential ("This computer – <user>" as `null`, then the credentials; plan B137), look (the
+`guest` ("For new images": its footer says existing images and VMs keep what they were built with) – `fields`: defaultCredential (the credentials, disabled without any; plan B137, B139), look (the
 default look: "Each recipe's own" as `null`, then the looks by title; plan B135), locale, keyboard, timeZone (choices
 with "Like this Mac – …" as `null`; names are the plain values – UIs may name them in their language).
 

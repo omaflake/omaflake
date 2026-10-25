@@ -47,6 +47,8 @@ pub enum PrerequisiteItem {
     Qemu,
     Flake,
     SshKey,
+    /// At least one credential – the default one (plan B139): who you are in the guests, with its password
+    Credential,
     Git,
     /// The `omaf` command on the user's PATH (optional, plan B122)
     Cli,
@@ -73,6 +75,7 @@ impl PrerequisiteItem {
             PrerequisiteItem::Qemu => "qemu",
             PrerequisiteItem::Flake => "flake",
             PrerequisiteItem::SshKey => "sshKey",
+            PrerequisiteItem::Credential => "credential",
             PrerequisiteItem::Git => "git",
             PrerequisiteItem::Cli => "cli",
             PrerequisiteItem::BuilderRunning => "builderRunning",
@@ -293,6 +296,7 @@ impl Prerequisites {
                 self.qemu(),
                 self.flake(&settings, nix.as_deref()),
                 self.ssh_key(),
+                self.credential(),
                 self.git(),
             ];
         }
@@ -305,6 +309,7 @@ impl Prerequisites {
             self.qemu(),
             self.flake(&settings, nix.as_deref()),
             self.ssh_key(),
+            self.credential(),
             self.git(),
         ]
     }
@@ -606,6 +611,21 @@ impl Prerequisites {
             &if none { "no public key in ~/.ssh".to_string() } else { files.join(", ") },
             if none { "Create a key (used for omaf ssh, image builds and macOS bases)" } else { "" },
             none.then(|| Self::INSTALL_SSH_KEY.to_string()),
+        )
+    }
+
+    /// A credential (plan B139): images and macOS bases are made with one – the default unless another is chosen
+    pub(crate) fn credential(&self) -> Prerequisite {
+        let found = crate::credentials::Credentials::new(self.paths.clone()).default_credential();
+        Prerequisite::new(
+            PrerequisiteItem::Credential,
+            status(found.is_some(), PrerequisiteStatus::Missing),
+            &match &found {
+                Some(c) => format!("{} ({}, default)", c.name, c.user.as_deref().unwrap_or("–")),
+                None => "none yet".to_string(),
+            },
+            if found.is_some() { "" } else { "Create a credential – who you are in the guests, with a password" },
+            None,
         )
     }
 
@@ -1070,11 +1090,11 @@ mod tests {
         let nixos: Vec<PrerequisiteItem> = pre.nixos_preflight().iter().map(|p| p.item).collect();
         use PrerequisiteItem::*;
         if cfg!(target_os = "linux") {
-            assert_eq!(items, [Host, Kvm, Nix, Flakes, Qemu, Flake, SshKey, Git]);
+            assert_eq!(items, [Host, Kvm, Nix, Flakes, Qemu, Flake, SshKey, Credential, Git]);
             assert_eq!(nixos, [FlakeEval, NixSpace]);
             assert!(pre.macos_preflight(None).is_empty());
         } else {
-            assert_eq!(items, [Host, Nix, Flakes, NixDarwin, LinuxBuilder, Qemu, Flake, SshKey, Git]);
+            assert_eq!(items, [Host, Nix, Flakes, NixDarwin, LinuxBuilder, Qemu, Flake, SshKey, Credential, Git]);
             assert_eq!(nixos, [BuilderRunning, FlakeEval, NixSpace]);
             assert_eq!(pre.macos_preflight(None).len(), 3);
         }

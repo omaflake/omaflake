@@ -51,6 +51,8 @@ pub(crate) fn ctx() -> Ctx {
             newest: true,
             created: Some(fx::date("2026-10-17T10:00:00Z")),
             size_bytes: Some(41_000_000_000),
+            credential: Some("c-1".into()),
+            credential_name: Some("Work".into()),
         }],
         settings: answer.settings.clone(),
         settings_answer: Some(answer),
@@ -478,12 +480,12 @@ fn build_page_follows_the_job() {
     c.jobs[0].result = Some(json!({"image": "omaflake.nixos.dev@cedar-mango-lift", "removed": []}));
     let page = get(&c, "build", json!({"recipe": "omaflake.nixos.dev@velvet-tiger-orbit"}));
     assert_eq!(page["outcome"]["action"]["params"]["params"]["image"], "omaflake.nixos.dev@cedar-mango-lift");
-    // A macOS recipe asks the password of the base's user; queued behind another macOS build
+    // A macOS recipe: no password is ever asked – the base's credential has it (plan B139)
     c.recipes.recipes[0].runs_here = true;
     c.jobs.retain(|j| j.id != "j2");
     c.doctor.as_mut().unwrap().build_blockers.macos.clear();
-    // The form: the default credential (it has a stored password: nothing is asked) and the default look
-    let page = get(&c, "build", json!({"recipe": "lab.macos.base@ocean-maple"}));
+    // The form: the base's credential (fixed) and the default look
+    let page = get(&c, "build", json!({"recipe": "lab.macos.base@ocean-maple", "values": {"credential": "c-9"}}));
     let build = action(&page["actions"], "build");
     assert!(build.get("ask").is_none());
     assert_eq!(
@@ -493,18 +495,26 @@ fn build_page_follows_the_job() {
     let fields: Vec<&str> = page["fields"].as_array().unwrap().iter().map(|f| f["id"].as_str().unwrap()).collect();
     assert_eq!(fields, ["credential", "look"]);
     assert_eq!(page["fields"][0]["valueParam"], "credential");
-    assert_eq!(page["fields"][0]["choices"][0]["label"]["text"], "This computer – alex");
+    assert_eq!(page["fields"][0]["choices"][0]["label"]["text"], "Work – alex");
+    assert_eq!(page["fields"][0]["enabled"], false, "the base's credential");
     assert_eq!(page["fields"][1]["choices"][0]["label"]["key"], "The recipe's own");
-    // This computer's values: no stored password – the base user's is asked
-    let page =
-        get(&c, "build", json!({"recipe": "lab.macos.base@ocean-maple", "values": {"credential": "", "look": ""}}));
-    let build = action(&page["actions"], "build");
-    assert_eq!(build["params"]["credential"], "");
-    assert_eq!(build["params"]["look"], "");
-    assert_eq!(build["ask"][0]["kind"], "password");
-    assert_eq!(build["ask"][0]["label"]["text"], "Password of alex");
     assert_eq!(build["enabled"], true);
     assert_eq!(page["state"], "idle");
+    // A base from before credentials: assign one first – still no password asked
+    c.bases[0].credential = None;
+    let page = get(&c, "build", json!({"recipe": "lab.macos.base@ocean-maple"}));
+    let build = action(&page["actions"], "build");
+    assert!(build.get("ask").is_none());
+    assert_eq!(build["enabled"], false);
+    assert_eq!(
+        page["macBase"]["action"]["params"],
+        json!({"page": "baseCredential", "params": {"name": "mac-base-26A434"}})
+    );
+    // No credential at all: nothing is built (the Doctor says so too)
+    c.credentials.clear();
+    c.bases[0].credential = Some("c-1".into());
+    let page = get(&c, "build", json!({"recipe": "omaflake.nixos.dev@velvet-tiger-orbit"}));
+    assert_eq!(action(&page["actions"], "build")["enabled"], false);
 }
 
 // MARK: Doctor
@@ -669,21 +679,29 @@ fn doctor_omaf_command() {
 fn mac_base_page() {
     let c = ctx();
     let page = get(&c, "macBase", json!({}));
-    assert_eq!(page["fields"][0]["value"], "alex");
-    assert_eq!(page["fields"][1]["value"], "Alex Example");
+    // The guest user comes from a credential – the default one; no password is asked (plan B139)
+    assert_eq!(page["fields"][0]["id"], "credential");
+    assert_eq!(page["fields"][0]["value"], "c-1");
     assert_eq!(page["base"]["tone"], "warning");
     let create = action(&page["actions"], "create");
-    assert_eq!(create["ask"][0]["repeat"], true);
+    assert!(create.get("ask").is_none());
     assert_eq!(create["enabled"], false, "the IPSW downloads");
     assert_eq!(ids(&page["ipsw"]["actions"]), ["pause"]);
     let mut c = ctx();
     c.jobs.retain(|j| j.id != "j4");
-    let page = get(&c, "macBase", json!({"values": {"ipsw": "/x/UniversalMac.ipsw", "user": "sam"}}));
+    let page = get(&c, "macBase", json!({"values": {"ipsw": "/x/UniversalMac.ipsw", "credential": "c-1"}}));
     assert_eq!(page["ipsw"]["text"]["text"], "UniversalMac.ipsw");
     assert_eq!(ids(&page["ipsw"]["actions"]), ["useApple", "chooseIpsw"]);
     let create = action(&page["actions"], "create");
-    assert_eq!(create["params"], json!({"user": "sam", "fullName": "Alex Example", "ipsw": "/x/UniversalMac.ipsw"}));
+    assert_eq!(create["params"], json!({"credential": "c-1", "ipsw": "/x/UniversalMac.ipsw"}));
     assert_eq!(create["enabled"], true);
+    // Without a credential: create one first
+    let mut none = c.clone();
+    none.credentials.clear();
+    none.settings.default_credential = None;
+    let empty = get(&none, "macBase", json!({}));
+    assert_eq!(ids(&empty["actions"]), ["newCredential", "create"]);
+    assert_eq!(action(&empty["actions"], "create")["enabled"], false);
     assert_eq!(page["log"]["job"], "j6", "the base's creation is a job like any other");
     assert_eq!(page["log"]["from"], 0);
     // The IPSW is shown once: in its line, set with ui.field on this page
@@ -691,8 +709,11 @@ fn mac_base_page() {
     let choose = action(&page["ipsw"]["actions"], "chooseIpsw");
     assert_eq!(choose["params"], json!({"page": "macBase", "params": {}, "field": "ipsw", "valueParam": "ipsw"}));
     assert_eq!(action(&page["ipsw"]["actions"], "useApple")["params"]["value"], Value::Null);
-    let user = action(&page["fields"], "user");
-    assert_eq!((user["param"].clone(), user["valueParam"].clone()), (json!("user"), json!("user")));
+    let credential = action(&page["fields"], "credential");
+    assert_eq!(
+        (credential["param"].clone(), credential["valueParam"].clone()),
+        (json!("credential"), json!("credential"))
+    );
     assert_eq!(create["primary"], true);
 }
 
@@ -719,13 +740,12 @@ fn settings_fields_store_themselves() {
         json!({"guest": {"locale": "de_CH.UTF-8", "keyboard": "ch", "look": "rose-pine-dawn"}})
     );
     assert_eq!(locale["choices"][0]["label"]["text"], "Like this Mac – de_CH.UTF-8");
-    // The defaults of new images (plan B137): the credential (null = this computer) and the look (null = the
-    // recipe's own); user, full name and e-mail are a credential's
+    // The defaults of new images (plan B137): the credential (always one – the host has none, plan B139) and the
+    // look (null = the recipe's own); user, full name and e-mail are a credential's
     let credential = action(&page["guest"]["fields"], "defaultCredential");
     assert_eq!(credential["set"], json!({"method": "settings.set", "params": {}, "param": "defaultCredential"}));
     assert_eq!(credential["value"], "c-1");
-    assert_eq!(credential["choices"][0]["value"], Value::Null);
-    assert_eq!(credential["choices"][1]["label"]["text"], "Work");
+    assert_eq!(credential["choices"][0]["label"]["text"], "Work");
     assert!(page["guest"]["fields"].as_array().unwrap().iter().all(|f| f["id"] != "user"));
     let look = action(&page["guest"]["fields"], "look");
     assert_eq!(look["value"], "rose-pine-dawn");
@@ -1125,25 +1145,28 @@ fn credentials_are_rows_and_a_used_one_keeps_its_values() {
     let work = &page["rows"][0];
     // A row as the other lists: lamp (in use), name, subtitle, the quick action; the rest when opened
     assert_eq!(work["lamp"]["state"], "on");
-    assert_eq!(work["subtitle"]["text"], "alex · 1 image");
-    assert_eq!(work["usedBy"], json!(["omaflake.nixos.dev@cedar-mango-lift"]));
+    assert_eq!(work["subtitle"]["text"], "alex · 1 image · 1 macOS base");
+    assert_eq!(work["usedBy"], json!(["omaflake.nixos.dev@cedar-mango-lift", "mac-base-26A434"]));
     assert_eq!(ids(&work["actions"]), ["copyPassword"]);
     assert_eq!(work["actions"][0]["enabled"], true);
     assert_eq!(ids(&work["detail"]["actions"]), ["edit", "password", "default", "remove"]);
     let remove = action(&work["detail"]["actions"], "remove");
     assert_eq!(remove["enabled"], false);
-    assert_eq!(remove["reason"]["key"], "Images are built with it – remove them first");
+    assert_eq!(remove["reason"]["key"], "A macOS base was created from it – remove the base first");
+    // A base's account keeps its password
+    let password = action(&work["detail"]["actions"], "password");
+    assert_eq!(password["enabled"], false);
     let edit = action(&work["detail"]["actions"], "edit");
     assert_eq!(edit["method"], "ui.show");
     assert_eq!(edit["params"], json!({"page": "credential", "params": {"id": "c-1"}}));
     // Its form: images use it – only the name can change, the other fields say why
     let form = get(&c, "credential", json!({"id": "c-1"}));
-    assert!(form["locked"]["key"].as_str().unwrap().starts_with("Images are built with it"));
+    assert!(form["locked"]["key"].as_str().unwrap().starts_with("Images or a macOS base use it"));
     let fields = form["fields"].as_array().unwrap();
     assert_eq!(fields[0]["enabled"], true);
     for f in &fields[1..] {
         assert_eq!(f["enabled"], false, "{}", f["id"]);
-        assert_eq!(f["reason"]["key"], "Used by images – only the name can change");
+        assert_eq!(f["reason"]["key"], "In use – only the name can change");
     }
     let save = action(&form["actions"], "save");
     assert_eq!(save["params"], json!({"id": "c-1", "name": "Work"}));
@@ -1165,6 +1188,15 @@ fn credentials_are_rows_and_a_used_one_keeps_its_values() {
         (json!("password"), json!(true))
     );
     assert_eq!(create["then"], "back");
+    // Only the first credential starts from this computer's user; later ones from nothing (plan B139)
+    assert_eq!(get(&c, "credential", json!({}))["fields"][1]["value"], "");
+    let mut first = c.clone();
+    first.credentials.clear();
+    let form = get(&first, "credential", json!({}));
+    assert_eq!(
+        (form["fields"][1]["value"].clone(), form["fields"][2]["value"].clone()),
+        (json!("alex"), json!("Alex Example"))
+    );
 }
 
 #[test]
@@ -1176,13 +1208,32 @@ fn macos_bases_are_a_section_of_the_images_on_a_mac() {
     let row = &bases["rows"][0];
     assert_eq!(row["name"], "mac-base-26A434");
     assert_eq!(row["badges"][0]["id"], "newest");
-    assert!(row["subtitle"]["text"].as_str().unwrap().starts_with("macOS 26A434 · user alex"));
+    assert!(row["subtitle"]["text"].as_str().unwrap().starts_with("macOS 26A434 · Work (alex)"));
+    assert!(row["actions"].as_array().unwrap().iter().all(|a| a["id"] != "assign"));
     // A macOS build runs: the base stays
     assert_eq!(action(&row["actions"], "remove")["enabled"], false);
     c.jobs.clear();
     let page = get(&c, "images", json!({}));
     let remove = action(&page["bases"]["rows"][0]["actions"], "remove");
     assert_eq!((remove["enabled"].clone(), remove["method"].clone()), (json!(true), json!("bases.remove")));
+    // A base from before credentials: a warning and the way to assign one – the form takes the one with its user
+    c.bases[0].credential = None;
+    c.bases[0].credential_name = None;
+    let page = get(&c, "images", json!({}));
+    let row = &page["bases"]["rows"][0];
+    assert!(row["badges"].as_array().unwrap().iter().any(|b| b["id"] == "no-credential"));
+    let assign = action(&row["actions"], "assign");
+    assert_eq!(assign["params"], json!({"page": "baseCredential", "params": {"name": "mac-base-26A434"}}));
+    let form = get(&c, "baseCredential", json!({"name": "mac-base-26A434"}));
+    assert_eq!(form["fields"][0]["value"], "c-1");
+    let save = action(&form["actions"], "save");
+    assert_eq!(save["params"], json!({"name": "mac-base-26A434", "credential": "c-1"}));
+    assert_eq!((save["enabled"].clone(), save["then"].clone()), (json!(true), json!("back")));
+    let mut other = c.clone();
+    other.credentials[0].user = Some("sam".into());
+    let form = get(&other, "baseCredential", json!({"name": "mac-base-26A434"}));
+    assert_eq!(form["fields"][0]["error"]["key"], "The base's user is %@ – this credential has %@");
+    assert_eq!(action(&form["actions"], "save")["enabled"], false);
     // None: the way to create one; Linux: no section
     c.bases.clear();
     assert_eq!(get(&c, "images", json!({}))["bases"]["empty"]["action"]["id"], "macBase");

@@ -13,6 +13,26 @@ are collected under *Unreleased*. Releases: [GitHub](https://github.com/omaflake
 
 ## [Unreleased]
 
+### Added
+
+- **The Doctor requires a credential:** images and macOS bases are made with one, so "Credential" is a requirement
+  now – with "New Credential …" while there is none.
+- **A macOS base keeps its credential:** a new base is created from a credential – its user, full name and
+  password – and remembers it; the bases section shows it ("Work (alex)"). An older base gets one with "Assign
+  Credential …" (`omaf macos assign <base> <credential>`); its user must be the base's.
+
+### Changed
+
+- **No password is ever typed after a credential's creation:** creating a macOS base and building a macOS image take
+  the credential's stored password; the build page shows the base's credential and asks for nothing.
+  `omaf macos install --credential` replaces `--user`, `--full-name` and the password prompt; `omaf build` no longer
+  takes `--password-stdin`.
+- **The host has nothing to do with credentials:** only the first credential starts from this computer's user and
+  name; "This computer" is gone as a choice – every image is built with a credential (the default unless another is
+  chosen), and there is always a default while there are credentials. Every credential names its own user.
+- **A credential used by a macOS base** keeps its user, full name and password – only its name can change – and
+  cannot be removed while the base is there.
+
 ## [0.5.2] – 2026-10-25
 
 An image is now a recipe with a credential and a look: you choose both when you build it, the settings only preset

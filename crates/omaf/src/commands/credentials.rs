@@ -1,11 +1,13 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! `omaf credentials` (plan B137): who you are in a guest – named sets of user, full name, e-mail and a stored password
-//! for macOS builds. An image is built with one of them (`omaf build --credential`), the default is the settings'.
+//! `omaf credentials` (plan B137, B139): who you are in a guest – named sets of user, full name, e-mail and a password,
+//! kept in the keychain for macOS bases and builds. An image is built with one of them (`omaf build --credential`), a
+//! macOS base is created with one; the default is the settings'. Only the first one starts from this computer's user.
 
 use omaflake_core::credentials::{Credential, CredentialChange, Credentials};
 use omaflake_core::guest_settings::BuildChoice;
 use omaflake_core::platform::{full_user_name, user_name};
-use omaflake_core::{GuestChoices, Paths};
+use omaflake_core::GuestChoices;
+use omaflake_core::Paths;
 
 use crate::cli;
 use crate::util::{pad, read_password, usage, Env, Failure, Outcome};
@@ -22,7 +24,6 @@ pub fn list() -> Outcome {
     let default = credentials.default_credential().map(|c| c.id);
     let all = credentials.list();
     let mark = |yes: bool| if yes { "*" } else { " " };
-    println!("{} {}{}{}", mark(default.is_none()), pad("computer", 16), pad(&user_name(), 14), full_user_name());
     for c in &all {
         let mut notes = Vec::new();
         if let Some(e) = &c.email {
@@ -41,15 +42,20 @@ pub fn list() -> Outcome {
         );
     }
     if all.is_empty() {
-        println!("(no credentials yet – omaf credentials add <name> --user <user> --full-name <name>)");
+        println!("(no credentials yet – omaf credentials add <name>: images and macOS bases need one)");
     }
     Ok(())
 }
 
-fn change(a: &cli::CredentialArgs, name: Option<String>, adding: bool) -> Result<CredentialChange, Failure> {
+fn change(
+    a: &cli::CredentialArgs,
+    name: Option<String>,
+    adding: bool,
+    first: bool,
+) -> Result<CredentialChange, Failure> {
     // Every credential has a password (plan B137): asked when it is added (stdin with --password), on edit only with
     // --password
-    let prompt = "Password of the guest's user (kept in the keychain/keyring): ";
+    let prompt = "Password of the guest's user (kept in the keychain/keyring; omaflake uses it by itself): ";
     let password = if adding {
         Some(read_password(prompt, a.password, !a.password)?)
     } else if a.password {
@@ -59,8 +65,9 @@ fn change(a: &cli::CredentialArgs, name: Option<String>, adding: bool) -> Result
     };
     Ok(CredentialChange {
         name,
-        user: a.user.clone().or_else(|| adding.then(user_name)),
-        full_name: a.full_name.clone().or_else(|| adding.then(full_user_name)),
+        // Only the first credential starts from this computer's user and name (plan B139)
+        user: a.user.clone().or_else(|| (adding && first).then(user_name)),
+        full_name: a.full_name.clone().or_else(|| (adding && first).then(full_user_name)),
         email: a.email.clone(),
         password,
     })
@@ -74,7 +81,12 @@ fn said(place: Option<omaflake_core::source_tokens::TokenPlace>) {
 
 pub fn add(a: &cli::CredentialArgs) -> Outcome {
     let env = Env::new();
-    let (c, place) = Credentials::new(env.paths.clone()).add(change(a, Some(a.name.clone()), true)?)?;
+    let credentials = Credentials::new(env.paths.clone());
+    if a.user.is_none() && !credentials.list().is_empty() {
+        return Err(usage(&["credentials", "add"], "--user: the guest user of this credential"));
+    }
+    let first = credentials.list().is_empty();
+    let (c, place) = credentials.add(change(a, Some(a.name.clone()), true, first)?)?;
     said(place);
     println!("Credential {} added ({}).", c.name, c.user.as_deref().unwrap_or("–"));
     Ok(())
@@ -84,15 +96,10 @@ pub fn edit(a: &cli::CredentialArgs) -> Outcome {
     let env = Env::new();
     let credentials = Credentials::new(env.paths.clone());
     let c = credential(&credentials, &a.name, "edit")?;
-    // Images carry its user, full name and e-mail: while any uses it, only the name can change (plan B137)
-    let used = env.images().list().iter().filter(|i| i.info.credential.as_deref() == Some(c.id.as_str())).count();
-    if used > 0 && (a.user.is_some() || a.full_name.is_some() || a.email.is_some()) {
-        return Err(usage(
-            &["credentials", "edit"],
-            format!("Images are built with {} ({used}) – only its name can change (--rename)", c.name),
-        ));
-    }
-    let (c, place) = credentials.update(&c.id, change(a, a.rename.clone(), false)?)?;
+    let change = change(a, a.rename.clone(), false, false)?;
+    // Images and macOS bases carry its values: while used, only the name can change (plan B137, B139)
+    omaflake_core::credentials::Usage::of(&env.paths, &c.id).check_change(&c, &change)?;
+    let (c, place) = credentials.update(&c.id, change)?;
     said(place);
     println!("Credential {} changed – images built with it are now outdated: build them again to take it.", c.name);
     Ok(())
@@ -102,13 +109,7 @@ pub fn remove(reference: &str) -> Outcome {
     let env = Env::new();
     let credentials = Credentials::new(env.paths.clone());
     let c = credential(&credentials, reference, "rm")?;
-    let used = env.images().list().iter().filter(|i| i.info.credential.as_deref() == Some(c.id.as_str())).count();
-    if used > 0 {
-        return Err(usage(
-            &["credentials", "rm"],
-            format!("Images are built with {} ({used}) – remove them first (omaf images rm)", c.name),
-        ));
-    }
+    omaflake_core::credentials::Usage::of(&env.paths, &c.id).check_remove()?;
     credentials.remove(&c.id)?;
     println!("Credential {} removed.", c.name);
     Ok(())
@@ -117,14 +118,9 @@ pub fn remove(reference: &str) -> Outcome {
 pub fn set_default(reference: &str) -> Outcome {
     let env = Env::new();
     let credentials = Credentials::new(env.paths.clone());
-    if reference == "computer" || reference.is_empty() {
-        credentials.set_default(None)?;
-        println!("New images get this computer's user and name.");
-        return Ok(());
-    }
     let c = credential(&credentials, reference, "default")?;
-    credentials.set_default(Some(&c.id))?;
-    println!("New images get the credential {}.", c.name);
+    credentials.set_default(&c.id)?;
+    println!("New images and macOS bases get the credential {}.", c.name);
     Ok(())
 }
 
@@ -143,13 +139,16 @@ pub fn copy_password(reference: &str) -> Outcome {
     Ok(())
 }
 
-/// `--credential` and `--look` of `omaf build`: None = the defaults; "computer" = this computer's values; "recipe" =
+/// `--credential` and `--look` of `omaf build`: None = the defaults (a credential is needed – plan B139); "recipe" =
 /// the recipe's own look
 pub fn build_choice(paths: &Paths, credential_ref: Option<&str>, look: Option<&str>) -> Result<BuildChoice, Failure> {
     let defaults = BuildChoice::defaults(paths);
-    let credential = match credential_ref {
-        None => defaults.credential,
-        Some("computer") | Some("") => None,
+    let credential = match credential_ref.filter(|r| !r.is_empty()) {
+        None => {
+            Some(defaults.credential.ok_or_else(|| {
+                usage(&["build"], "No credential yet – create one first: omaf credentials add <name>")
+            })?)
+        }
         Some(r) => Some(
             credential(&Credentials::new(paths.clone()), r, "list")
                 .map_err(|_| usage(&["build"], format!("--credential: no credential {r} – see omaf credentials")))?,

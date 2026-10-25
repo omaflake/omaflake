@@ -86,14 +86,8 @@ impl Server {
             "credentials.copyPassword" => self.credentials_copy_password(&params::<Id>(p)?.id),
             "credentials.remove" => {
                 let id = params::<Id>(p)?.id;
-                // Images carry its values: a credential in use stays (plan B137)
-                let used = credential_images(&self.paths(), &id);
-                if used > 0 {
-                    return Err(RpcError::from(vm_err!(
-                        codes::IN_USE,
-                        "Images are built with this credential – remove them first"
-                    )));
-                }
+                // Images and macOS bases carry its values: a credential in use stays (plan B137, B139)
+                crate::credentials::Usage::of(&self.paths(), &id).check_remove().map_err(err)?;
                 let c = Credentials::new(self.paths()).remove(&id).map_err(err)?;
                 self.events().message_text(Level::Info, super::views::text::tf!("Credential “%@” removed", c.name));
                 self.check_freshness();
@@ -146,6 +140,7 @@ impl Server {
             // macOS bases (plan B137)
             "bases.list" => Answer::of(base_dtos(&self.paths())),
             "bases.remove" => self.bases_remove(&params::<Name>(p)?.name),
+            "bases.assign" => self.bases_assign(params(p)?),
             // Recipes and sources
             "recipes.list" => self.recipes_list(params(p)?),
             "recipes.available" => Answer::of(self.recipes_available(true)?),
@@ -378,8 +373,8 @@ impl Server {
         }
         match p.get("defaultCredential") {
             None => {}
-            Some(Value::Null) => s.default_credential = None,
-            Some(Value::String(id)) if id.is_empty() => s.default_credential = None,
+            // There is always a default while there are credentials (plan B139)
+            Some(Value::Null) => return Err(RpcError::invalid_params("defaultCredential: a credential's id")),
             Some(Value::String(id)) => {
                 if !s.credentials.as_ref().is_some_and(|all| all.iter().any(|c| &c.id == id)) {
                     return Err(RpcError::from(vm_err!(codes::NOT_FOUND, "No credential \"{id}\"")));
@@ -777,6 +772,22 @@ impl Server {
         Answer::of(Value::Null)
     }
 
+    /// Assigns a credential to a macOS base created before bases had one (plan B139)
+    fn bases_assign(&self, p: AssignParams) -> Reply {
+        let paths = self.paths();
+        let Some(base) = MacBaseInstaller::list(&paths).into_iter().find(|b| b.name == p.name) else {
+            return Err(RpcError::from(vm_err!(codes::NOT_FOUND, "No macOS base \"{}\"", p.name)));
+        };
+        let record = Credentials::new(paths).assign_to_base(&base.path, &p.credential).map_err(err)?;
+        self.events().message_text(
+            Level::Info,
+            super::views::text::tf!("%@ uses the credential “%@”", p.name, record.credential_name),
+        );
+        self.check_freshness();
+        self.poke();
+        Answer::of(Value::Null)
+    }
+
     fn images_remove(&self, name: &str) -> Reply {
         let paths = self.paths();
         let backends = crate::backend::Backends::new(paths.clone()).map_err(err)?;
@@ -806,16 +817,33 @@ impl Server {
         }
         let kind = d.kind;
         let paths = self.paths();
-        let choice = build_choice(&paths, p.credential.as_deref(), p.look.as_deref())?;
-        // macOS: the password given, else the credential's stored one (plan B137)
-        let credentials = Credentials::new(paths.clone());
-        let password = p
-            .password
-            .filter(|p| !p.is_empty())
-            .or_else(|| choice.credential.as_ref().and_then(|c| credentials.password(&c.id)));
-        if kind == GuestKind::Macos && password.is_none() {
-            let user = d.user.clone().unwrap_or_else(platform::user_name);
-            return Err(RpcError::invalid_params(format!("Password of {user} needed (sudo, once)")));
+        let mut choice = build_choice(&paths, p.credential.as_deref(), p.look.as_deref())?;
+        // macOS: the base's credential and its stored password – nobody types one (plan B139); a password given
+        // still works for a base without a credential
+        let mut password = None;
+        if kind == GuestKind::Macos {
+            let base = p
+                .base
+                .clone()
+                .filter(|b| !b.is_empty())
+                .map(PathBuf::from)
+                .or_else(|| MacImageBuilder::newest_base_in(&paths));
+            let given = p.password.clone().filter(|p| !p.is_empty());
+            match base.map(|b| Credentials::new(paths.clone()).login_of_base(&b)) {
+                Some(Ok(login)) => {
+                    choice.credential = Some(login.credential);
+                    password = Some(login.password);
+                }
+                Some(Err(e)) if given.is_none() => return Err(err(e)),
+                _ => password = given,
+            }
+            if password.is_none() {
+                return Err(RpcError::from(vm_err!(
+                    codes::PREREQUISITE,
+                    "No base found (expected {}/mac-base-<os-build>) – create one with: omaf macos install",
+                    paths.bases().display()
+                )));
+            }
         }
         let name = RecipeId::display_name(&p.recipe, Some(d));
         self.inner.jobs.drop_ended(JobKind::Build, &p.recipe);
@@ -920,21 +948,9 @@ impl Server {
         };
         let credentials = Credentials::new(self.paths());
         if let Some(id) = &id {
-            // Images carry its user, full name and e-mail: while any uses it, only the name can change (plan B137)
-            let used = credential_images(&self.paths(), id);
+            // Images and macOS bases carry its values: while used, only the name can change (plan B137, B139)
             let current = credentials.get(id).unwrap_or_default();
-            let clean = |v: &Option<String>| v.as_deref().map(str::trim).filter(|v| !v.is_empty()).map(str::to_string);
-            let changes = |new: &Option<String>, old: &Option<String>| new.is_some() && clean(new) != clean(old);
-            if used > 0
-                && (changes(&change.user, &current.user)
-                    || changes(&change.full_name, &current.full_name)
-                    || changes(&change.email, &current.email))
-            {
-                return Err(RpcError::from(vm_err!(
-                    codes::IN_USE,
-                    "Images are built with this credential – only its name can change"
-                )));
-            }
+            crate::credentials::Usage::of(&self.paths(), id).check_change(&current, &change).map_err(err)?;
         }
         let (c, place) = match id {
             None => credentials.add(change),
@@ -1461,7 +1477,23 @@ impl Server {
             return Err(RpcError::from(crate::vm_err!(codes::IN_USE, "{} runs already", job.title)));
         }
         let s = self.clone();
-        let InstallBaseParams { user, full_name, password, ipsw } = p;
+        // The guest user comes from a credential, its password from the secret store (plan B139); user, full name and
+        // password given directly still work (API version 1)
+        let (user, full_name, password, record) = match (p.user, p.password) {
+            (Some(user), Some(password)) if p.credential.is_none() => {
+                (user.clone(), p.full_name.unwrap_or(user), password, None)
+            }
+            _ => {
+                let login = Credentials::new(self.paths()).base_login(p.credential.as_deref()).map_err(err)?;
+                let record = crate::mac_base_installer::BaseRecord {
+                    credential: login.credential.id.clone(),
+                    credential_name: login.credential.name.clone(),
+                    user: login.user.clone(),
+                };
+                (login.user, login.full_name, login.password, Some(record))
+            }
+        };
+        let ipsw = p.ipsw;
         let mut spec = JobSpec::new(
             JobKind::MacosInstall,
             format!("Create the macOS base (user {user})"),
@@ -1490,6 +1522,9 @@ impl Server {
                         BaseResult { base: dir.to_string_lossy().into_owned(), existing: true, ready: true }
                     }
                     BaseOutcome::Created { dir, ready } => {
+                        if let (Some(r), true) = (&record, ready) {
+                            r.write(&dir)?;
+                        }
                         ctx.log(&format!("✓ {} is ready – build a macOS image next.", file_name(&dir)));
                         BaseResult { base: dir.to_string_lossy().into_owned(), existing: false, ready }
                     }
@@ -1702,7 +1737,7 @@ pub(crate) fn settings_dto(paths: &Paths) -> SettingsDto {
         check_for_updates: s.check_for_updates.unwrap_or(true),
         notifications: s.notifications.unwrap_or(true),
         keep_recipe_versions: s.keep_recipe_versions.unwrap_or(false),
-        default_credential: s.default_credential.clone(),
+        default_credential: Credentials::new(paths.clone()).default_credential().map(|c| c.id),
         guest: GuestValues {
             time_zone: g.time_zone,
             locale: g.locale,
@@ -1942,19 +1977,16 @@ pub(crate) fn base_dtos(paths: &Paths) -> Vec<BaseDto> {
             newest: b.newest,
             created: b.created,
             size_bytes: b.size_bytes,
+            credential: b.record.as_ref().map(|r| r.credential.clone()),
+            credential_name: b.record.map(|r| r.credential_name),
         })
         .collect()
-}
-
-/// How many images are built with credential `id`
-pub(crate) fn credential_images(paths: &Paths, id: &str) -> usize {
-    ImageStore::new(paths.clone()).list().iter().filter(|i| i.info.credential.as_deref() == Some(id)).count()
 }
 
 /// Every credential with whether a password is stored (read without the secret: no prompt) and the default
 pub(crate) fn credential_dtos(paths: &Paths) -> Vec<CredentialDto> {
     let credentials = Credentials::new(paths.clone());
-    let default = Settings::load(paths).default_credential;
+    let default = credentials.default_credential().map(|c| c.id);
     credentials
         .list()
         .into_iter()
@@ -1995,15 +2027,19 @@ pub(crate) fn build_choice(
     look: Option<&str>,
 ) -> Result<BuildChoice, RpcError> {
     let defaults = BuildChoice::defaults(paths);
-    let credential = match credential {
-        None => defaults.credential,
-        Some("") => None,
-        Some(id) => Some(
-            Credentials::new(paths.clone())
-                .get(id)
-                .ok_or_else(|| RpcError::from(vm_err!(codes::NOT_FOUND, "No credential \"{id}\"")))?,
-        ),
+    // Every image is built with a credential – left out (or "") the default one (plan B139)
+    let credential = match credential.filter(|c| !c.is_empty()) {
+        None => defaults.credential.ok_or_else(|| {
+            RpcError::from(vm_err!(
+                codes::PREREQUISITE,
+                "No credential yet – create one first (Credentials, or omaf credentials add)"
+            ))
+        })?,
+        Some(id) => Credentials::new(paths.clone())
+            .get(id)
+            .ok_or_else(|| RpcError::from(vm_err!(codes::NOT_FOUND, "No credential \"{id}\"")))?,
     };
+    let credential = Some(credential);
     let look = match look {
         None => defaults.look,
         Some("") => None,
@@ -2099,11 +2135,26 @@ struct SetPathParams {
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct InstallBaseParams {
-    user: String,
-    full_name: String,
-    password: String,
+    /// The credential the guest user is created from (ID or name; default: the default credential) – plan B139
+    #[serde(default)]
+    credential: Option<String>,
+    /// Without a credential (API version 1): user, full name and password directly
+    #[serde(default)]
+    user: Option<String>,
+    #[serde(default)]
+    full_name: Option<String>,
+    #[serde(default)]
+    password: Option<String>,
     #[serde(default)]
     ipsw: Option<String>,
+}
+
+#[derive(Deserialize)]
+struct AssignParams {
+    /// The base ("mac-base-26A434")
+    name: String,
+    /// The credential's ID or name
+    credential: String,
 }
 
 #[cfg(test)]

@@ -154,11 +154,7 @@
               "text": "macOS 26A434"
             },
             {
-              "args": [
-                "alex"
-              ],
-              "key": "user %@",
-              "text": "user alex"
+              "text": "Work (alex)"
             },
             {
               "args": [
@@ -180,7 +176,7 @@
             }
           ],
           "key": "%@ · %@ · %@ · %@",
-          "text": "macOS 26A434 · user alex · 2026-10-17 10:00 UTC · 41.0 GB"
+          "text": "macOS 26A434 · Work (alex) · 2026-10-17 10:00 UTC · 41.0 GB"
         }
       }
     ],
@@ -921,11 +917,8 @@
               "text": "Credential"
             },
             "value": {
-              "args": [
-                "alex"
-              ],
-              "key": "This computer – %@",
-              "text": "This computer – alex"
+              "key": "none – built before credentials",
+              "text": "none – built before credentials"
             }
           },
           {
@@ -1004,11 +997,11 @@
                 "text": "recipe dev"
               },
               {
-                "text": "alex"
+                "text": "–"
               }
             ],
             "key": "%@ · %@",
-            "text": "recipe dev · alex"
+            "text": "recipe dev · –"
           },
           {
             "args": [
@@ -1025,7 +1018,7 @@
           }
         ],
         "key": "%@ · %@ · %@",
-        "text": "recipe dev · alex · 2026-10-19 07:00 UTC · no VM"
+        "text": "recipe dev · – · 2026-10-19 07:00 UTC · no VM"
       },
       "usedBy": []
     }
