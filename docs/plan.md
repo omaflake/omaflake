@@ -792,13 +792,14 @@ Entwurf-Baukasten.md):
     the bases and turns looks into configuration.
   - **Backward compatibility does not matter before the stable 1.0** (see CLAUDE.md, File versions): formats, API
     params and migrations may change or go without a transition until then.
-- **A recipe is always data** (`recipe.toml` v2): `base` (nixos | macos), `modules`, `look`, `keymap`, `requirements`
+- **A recipe is always data** (`recipe.toml` v2): `platform` (nixos | macos), `modules`, `look`, `keymap`, `requirements`
   (minimum cpus, memory, disk – a smaller profile is warned about, still allowed), `vm` (display, network, share,
   ephemeral, devices). No Nix in a recipe: an author who needs Nix writes a module. One click installs a recipe with
   its modules, look and key bindings – a working, opinionated image; recipes are safe to share, only bases and
   modules need review. Users can put recipes together in the app (a local source "My recipes").
-- **Bases** stay in the image flake (omaflake's guest modules: user, locale, SSH, Nix, agent, share); the base sets
-  the host name from the recipe's name. OPEN: the name clashes with the installed macOS base – proposal "platform".
+- **Platforms** (German "Plattform"; first called bases – the word is the installed macOS base's) stay in the image
+  flake (omaflake's guest modules: user, locale, SSH, Nix, agent, share); the platform sets the host name from the
+  recipe's name. Decided: "platform" – "core"/"Kern" is the core service's name.
 - **Modules** ("Modul", not "add-on": sounds commercial) are Nix, reviewed, in the catalog
   (`modules/<author>/<kind>/<name>/` with `module.toml`): `provides` capabilities, `needs` capabilities, `enhances`
   concrete modules (an integration only that module allows: SyncTeX is zathura's, vimtex neovim's). A recipe missing a
