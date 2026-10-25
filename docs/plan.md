@@ -780,6 +780,14 @@ Entwurf-Baukasten.md):
   - **Where references point:** only to the catalogs of the sources set up and to what is installed locally – the
     official catalog always as the fallback and the default. A recipe never loads modules from a source by itself:
     a module of another source must be installed (its source added) by hand first.
+  - **Key bindings:** each module declares its actions that can be bound, each with a default key – a module works
+    without any key binding set. A key binding set overrides keys of actions of the modules it names. A recipe may
+    combine several sets (e.g. a general one and a special one for one module); later ones win for the same action.
+    The recipe is checked for overlapping keys. **Modes are part of the abstraction:** a binding has a context – the
+    whole desktop, or a program (a module) – and optionally a mode of that module; two bindings overlap only when both
+    can be active at once: same context and mode; a desktop-wide one with any unmoded one; an outer program's unmoded
+    one with an inner program's (a module says what it runs inside, e.g. Zellij and Neovim inside the terminal).
+    Ctrl+P in Zellij's pane mode does not overlap Ctrl+P in Neovim.
   - **First-party modules live in the catalog** (omaflake/catalog `modules/omaflake/…`); the image flake keeps only
     the bases and turns looks into configuration.
   - **Backward compatibility does not matter before the stable 1.0** (see CLAUDE.md, File versions): formats, API
