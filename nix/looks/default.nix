@@ -2,7 +2,8 @@
 # The looks of omaflake's guests (plan B135; data since B141): a look is look.toml data (schema look/v1), installed
 # from a source's catalog; omaflake hands the chosen look's data over at the build (`settings.look`). Nothing is built
 # in – adapter.nix turns a look into what each program gets; modules/look.nix puts the per-program files under
-# /etc/omaflake/look/, home/look.nix colours the NixOS desktop. Without a look every program keeps its own colours.
+# /etc/omaflake/look/, the modules colour their programs (omaflake.lookParts). Without a look every program keeps its
+# own colours.
 #
 # What adapter.nix makes of a look – an attribute set:
 #   desktop  NixOS only – Hyprland, Waybar, Fuzzel, Mako, the prompt, GTK and the pointer; colours as "RRGGBB";

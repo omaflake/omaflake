@@ -384,6 +384,45 @@ pub struct RecipeDto {
     pub outdated: bool,
     /// Its line's versions, newest first
     pub versions: Vec<VersionDto>,
+    /// What it is made of (recipe v2, plan B142); None when its recipe.toml cannot be read
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub parts: Option<RecipePartsDto>,
+}
+
+/// What a recipe is made of (plan B142): its modules (and whether each is here in a version it allows), its suggested
+/// look and key binding sets, every key it binds, and what is wrong – `issues` that `block` a build (a part missing)
+/// or are warnings (a need no module provides, incompatible modules, keys that overlap or break the key rule)
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RecipePartsDto {
+    pub modules: Vec<ModuleUseDto>,
+    /// The suggested look ("omaflake/omaflake"), and the installed look's id when it is here
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub look: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub look_id: Option<String>,
+    pub keymaps: Vec<String>,
+    pub bindings: Vec<crate::composition::Binding>,
+    pub issues: Vec<crate::composition::Issue>,
+    /// Modules that are not free software
+    pub unfree: Vec<String>,
+    pub requirements: crate::composition::Requirements,
+    pub locales: crate::composition::LocaleRules,
+}
+
+/// A module as a recipe uses it
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ModuleUseDto {
+    /// "omaflake/latex", with the versions the recipe allows ("omaflake/latex ≥ 1.0.0")
+    pub reference: String,
+    /// The module here: its title and version (None: not here, or not in a version the recipe allows)
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub title: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub version: Option<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub provides: Vec<String>,
 }
 
 /// `recipes.list` and the `recipes.changed` event
@@ -432,7 +471,12 @@ pub struct CatalogRecipeDto {
     pub license: Option<String>,
     pub lab: bool,
     pub systems: Vec<String>,
-    pub requires: Vec<String>,
+    /// What is in it (recipe v2, plan B142): its modules, suggested look and key binding sets, as references with the
+    /// versions they allow ("omaflake/latex ≥ 1.0.0")
+    pub modules: Vec<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub look: Option<String>,
+    pub keymaps: Vec<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub homepage: Option<String>,
     pub version: String,
@@ -727,6 +771,55 @@ pub struct LookDto {
     pub images: Vec<String>,
 }
 
+/// A module or a key binding set – here, or offered by a source's catalog (`modules.list`, plan B142)
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PartDto {
+    /// "<author>.<platform>.<name>" (a module) or "<author>.keymap.<name>"
+    pub id: String,
+    /// "<author>/<name>"
+    pub reference: String,
+    /// "module" | "keymap"
+    pub kind: String,
+    /// A module's platform
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub platform: Option<GuestKind>,
+    pub title: String,
+    pub description: String,
+    pub version: String,
+    pub tags: Vec<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub provides: Vec<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub needs: Vec<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub enhances: Vec<String>,
+    /// A module's actions with their default keys; a key binding set's keys ("<module> <action>" → key)
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub keys: BTreeMap<String, String>,
+    pub unfree: bool,
+    pub source: String,
+    pub source_name: String,
+    pub official: bool,
+    /// In the data folder (false: a local folder source's – or, offered, not here)
+    pub installed: bool,
+    /// Its source offers a newer version
+    pub update: bool,
+    /// The recipes here made of it (their names)
+    pub recipes: Vec<String>,
+}
+
+/// `modules.list` (plan B142): the modules and key binding sets here, what the catalogs fetched last offer besides
+#[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ModulesAnswer {
+    pub parts: Vec<PartDto>,
+    pub offered: Vec<PartDto>,
+    /// (id, why it cannot be read)
+    pub unreadable: Vec<(String, String)>,
+    pub fetched: bool,
+}
+
 /// A look a source's catalog offers that is not here (`looks.list`)
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -759,6 +852,18 @@ pub struct LooksAnswer {
     pub unreadable: Vec<(String, String)>,
     /// The catalogs were fetched in this session
     pub fetched: bool,
+}
+
+/// A profile (`profiles.list`, plan B142): CPU cores and RAM a new VM gets
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ProfileDto {
+    pub id: String,
+    pub name: String,
+    pub cpus: u32,
+    #[serde(rename = "memoryGB")]
+    pub memory_gb: u32,
+    pub is_default: bool,
 }
 
 /// A locale (`locales.list`, plan B141): language and region, time zone, the guest's keyboards
@@ -902,6 +1007,8 @@ pub enum JobKind {
     RecipeInstall,
     /// Install looks (`looks.install`, `looks.installRecommended`, plan B141)
     LookInstall,
+    /// Install a module or key binding set (`modules.install`, plan B142)
+    ModuleInstall,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]

@@ -101,6 +101,12 @@ pub fn decode(page: &str, v: Value) -> Model {
         // Locales (plan B141): the same page and form as credentials
         "locales" => de(v, Model::Credentials),
         "locale" => de(v, Model::Credential),
+        // Plan B142: profiles in the credentials' shapes, the recipe editor in the credential form's, modules in the
+        // looks'
+        "profiles" => de(v, Model::Credentials),
+        "profile" => de(v, Model::Credential),
+        "recipeEditor" => de(v, Model::Credential),
+        "modules" => de(v, Model::Looks),
         // The credential of a macOS base from before bases kept theirs: the same form (plan B139)
         "baseCredential" => de(v, Model::Credential),
         "activity" => de(v, Model::Activity),
@@ -798,9 +804,9 @@ impl App {
         }
     }
 
-    /// The recipes and the looks tab fetch the sources' catalogs once when they open (as the macOS app did)
+    /// The recipes, modules and looks tabs fetch the sources' catalogs once when they open (as the macOS app did)
     fn refresh_catalogs_once(&mut self) -> Task<Message> {
-        if !matches!(self.tab.as_str(), "recipes" | "looks") || self.catalogs_asked {
+        if !matches!(self.tab.as_str(), "recipes" | "modules" | "looks") || self.catalogs_asked {
             return Task::none();
         }
         let (loaded, head) = match self.models.get(&self.tab_page().key()) {
@@ -898,7 +904,7 @@ impl App {
             }
             "activity" => self.activity_arrived(),
             "vms" => self.update_tray(),
-            "recipes" | "looks" => tasks.push(self.refresh_catalogs_once()),
+            "recipes" | "modules" | "looks" => tasks.push(self.refresh_catalogs_once()),
             "settings" => {
                 if let Some(Model::Settings(s)) = self.current().as_ref().and_then(|p| self.model(p)) {
                     if let Some(f) = s.general.fields.iter().find(|f| f.id == "notifications") {

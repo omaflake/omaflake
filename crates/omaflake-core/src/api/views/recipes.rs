@@ -12,7 +12,8 @@ use super::common::*;
 use super::text::{tf, Arg, Text};
 use super::vms::{kind_badge, unreadable};
 use super::Ctx;
-use crate::api::types::{CatalogRecipeDto, RecipeDto, VersionDto};
+use crate::api::types::{CatalogRecipeDto, RecipeDto, RecipePartsDto, VersionDto};
+use crate::composition::Issue;
 use crate::models::RecipeId;
 use crate::recipe_sources::RecipeSourceKind;
 
@@ -74,6 +75,12 @@ pub struct RecipeDetail {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub description: Option<String>,
     pub info: Vec<InfoLine>,
+    /// What is missing (with "Install Missing Parts"), what is wrong, unfree software (plan B142)
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub notes: Vec<Hint>,
+    /// Its keys: an action's title, its key, the module it belongs to (plan B142)
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub keys: Vec<InfoLine>,
     pub versions: Vec<VersionRow>,
     /// Update (when its source has a newer version) on the left, remove all versions on the right
     pub actions: Vec<Action>,
@@ -229,6 +236,8 @@ pub(crate) fn page(ctx: &Ctx, p: &RecipesParams) -> RecipesPage {
             "Recipes (.omaflake-recipe) or a folder of recipes – copied into your recipes",
             "Import",
         )),
+        Action::show("newRecipe", Text::new("New Recipe …"), Some("add"), "recipeEditor", json!({}))
+            .help(Text::new("Put a recipe together from modules, a look and key bindings")),
     ];
     head.empty = if all.is_empty() && offered.is_empty() {
         Some(Hint::new(
@@ -316,8 +325,11 @@ fn lab_badge() -> Badge {
 
 pub(crate) fn row(ctx: &Ctx, r: &RecipeDto) -> RecipeRowView {
     let building = ctx.active_build(&r.id).is_some();
+    let missing = r.parts.as_ref().is_some_and(|p| p.issues.iter().any(Issue::blocks));
     let lamp = if building {
         Lamp::new(LampState::Working, "being built – see Images")
+    } else if missing {
+        Lamp::new(LampState::Attention, "Parts it is made of are not here – install them")
     } else if r.image.is_none() {
         Lamp::new(LampState::Off, "not built yet")
     } else if r.outdated {
@@ -371,6 +383,84 @@ pub(crate) fn row(ctx: &Ctx, r: &RecipeDto) -> RecipeRowView {
         detail: detail(ctx, r),
         recipe: r.clone(),
     }
+}
+
+/// What a recipe is made of, said for people (plan B142): what is missing – with the action that installs it –, what
+/// is wrong (warnings: the recipe stays buildable), unfree software
+pub(crate) fn notes(ctx: &Ctx, recipe: &str, p: &RecipePartsDto) -> Vec<Hint> {
+    let mut out = Vec::new();
+    let missing: Vec<String> = p
+        .issues
+        .iter()
+        .filter_map(|i| match i {
+            Issue::MissingModule { reference, have } | Issue::MissingKeymap { reference, have } => Some(match have {
+                Some(v) => format!("{reference} ({v})"),
+                None => reference.clone(),
+            }),
+            _ => None,
+        })
+        .collect();
+    let look_missing = p.look.as_ref().filter(|_| p.look_id.is_none());
+    let install = || {
+        Action::call(
+            "installParts",
+            Text::new("Install Missing Parts"),
+            Some("download"),
+            "recipes.installParts",
+            json!({"id": recipe}),
+        )
+        .enabled_if(!ctx.installing(recipe), Some(Text::new("Being installed")))
+        .primary()
+    };
+    if !missing.is_empty() {
+        out.push(
+            Hint::new(
+                "warning",
+                tf!("Not here yet: %@ – the recipe is made of them", missing.join(", ")),
+                Tone::Warning,
+            )
+            .action(install()),
+        );
+    }
+    if let Some(look) = look_missing {
+        let hint = Hint::new(
+            "look",
+            tf!("Its look %@ is not installed – the build uses the one you choose", look),
+            Tone::Normal,
+        );
+        out.push(if missing.is_empty() { hint.action(install()) } else { hint });
+    }
+    for i in &p.issues {
+        let text = match i {
+            Issue::Needs { module, capability } => {
+                tf!("%@ needs a %@ – no module of the recipe provides one", module, capability)
+            }
+            Issue::Incompatible { capability, modules } => {
+                tf!("%@ do not go together: each is the %@", modules.join(" + "), capability)
+            }
+            Issue::KeysOverlap { first, second } => tf!(
+                "Keys overlap: %@ (%@, %@) and %@ (%@, %@)",
+                &first.title,
+                &first.module,
+                &first.key,
+                &second.title,
+                &second.module,
+                &second.key
+            ),
+            Issue::KeyRule { binding } => tf!(
+                "%@ (%@, %@): without a mode a key starts with Super or Ctrl",
+                &binding.title,
+                &binding.module,
+                &binding.key
+            ),
+            _ => continue,
+        };
+        out.push(Hint::new("warning", text, Tone::Warning));
+    }
+    if !p.unfree.is_empty() {
+        out.push(Hint::new("license", tf!("Not free software: %@", p.unfree.join(", ")), Tone::Normal));
+    }
+    out
 }
 
 /// The switches a new VM starts with, in words (`RecipeRowView.defaults`)
@@ -440,6 +530,54 @@ fn detail(ctx: &Ctx, r: &RecipeDto) -> RecipeDetail {
     if let Some(l) = &r.license {
         info.push(InfoLine::new("License", Text::verbatim(l)));
     }
+    // What it is made of (plan B142)
+    let mut keys = Vec::new();
+    let mut notes_here = Vec::new();
+    if let Some(p) = &r.parts {
+        let modules: Vec<String> = p
+            .modules
+            .iter()
+            .map(|m| match (&m.title, &m.version) {
+                (Some(t), Some(v)) => format!("{t} {v}"),
+                _ => m.reference.clone(),
+            })
+            .collect();
+        info.push(
+            InfoLine::new("Modules", Text::verbatim(modules.join(", ")))
+                .full(p.modules.iter().map(|m| m.reference.clone()).collect::<Vec<_>>().join(", ")),
+        );
+        if let Some(look) = &p.look {
+            info.push(InfoLine::new("Look", Text::verbatim(look)));
+        }
+        if !p.keymaps.is_empty() {
+            info.push(InfoLine::new("Key bindings", Text::verbatim(p.keymaps.join(", "))));
+        }
+        if p.requirements.cpus > 0 {
+            info.push(InfoLine::new(
+                "Needs at least",
+                Text::verbatim(format!(
+                    "{} CPU · {} GB RAM · {} GB",
+                    p.requirements.cpus, p.requirements.memory_gb, p.requirements.disk_gb
+                )),
+            ));
+        }
+        keys = p
+            .bindings
+            .iter()
+            .map(|b| InfoLine {
+                // The module's own words (module.toml), like its description
+                label: Text::verbatim(&b.title),
+                value: Text::verbatim(&b.key),
+                note: Some(match &b.mode {
+                    Some(mode) => tf!("%@, in its %@ mode", &b.module, mode),
+                    None => Text::verbatim(&b.module),
+                }),
+                tone: Some(Tone::Normal),
+                full: None,
+            })
+            .collect();
+        notes_here = notes(ctx, &r.id, p);
+    }
     let n = ctx.recipes.id_lengths.recipe;
     let versions = r.versions.iter().map(|v| version_row(v, n)).collect();
     let mut actions = Vec::new();
@@ -455,6 +593,21 @@ fn detail(ctx: &Ctx, r: &RecipeDto) -> RecipeDetail {
             .enabled_if(!ctx.installing(&u.recipe.id), None),
         );
     }
+    // A recipe of your own is edited, any other copied into My Recipes (plan B142)
+    let mine = r
+        .folder
+        .as_deref()
+        .and_then(|f| crate::my_recipes::MyRecipes::new(ctx.paths.clone()).base_of(std::path::Path::new(f)))
+        .is_some();
+    if r.parts.is_some() {
+        actions.push(Action::show(
+            if mine { "edit" } else { "copy" },
+            Text::new(if mine { "Edit …" } else { "Copy to My Recipes …" }),
+            Some(if mine { "edit" } else { "copy" }),
+            "recipeEditor",
+            json!({"id": r.id}),
+        ));
+    }
     actions.push(
         Action::call("removeAll", Text::new("Remove All Versions …"), Some("trash"), "recipes.removeLine", json!({"line": r.line}))
             .destructive()
@@ -468,7 +621,7 @@ fn detail(ctx: &Ctx, r: &RecipeDto) -> RecipeDetail {
             )
             .enabled_if(r.versions.iter().any(|v| !v.live && v.images.is_empty()), None),
     );
-    RecipeDetail { description: r.description.clone(), info, versions, actions }
+    RecipeDetail { description: r.description.clone(), info, notes: notes_here, keys, versions, actions }
 }
 
 fn version_row(v: &VersionDto, words: usize) -> VersionRow {
@@ -549,8 +702,8 @@ fn offered_row(ctx: &Ctx, r: &CatalogRecipeDto) -> OfferedRow {
     if let Some(l) = &r.license {
         info.push(InfoLine::new("License", Text::verbatim(l)));
     }
-    if !r.requires.is_empty() {
-        info.push(InfoLine::new("Requires", Text::verbatim(r.requires.join(", "))));
+    if !r.modules.is_empty() {
+        info.push(InfoLine::new("Modules", Text::verbatim(r.modules.join(", "))));
     }
     info.push(InfoLine::new(
         "Files",

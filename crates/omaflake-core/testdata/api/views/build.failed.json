@@ -12,7 +12,7 @@
       "params": {
         "credential": "c-1",
         "locale": "l-1",
-        "look": "omaflake.look.rose-pine-dawn",
+        "look": "omaflake.look.omaflake",
         "recipe": "omaflake.nixos.dev@velvet-tiger-orbit"
       },
       "primary": true,
@@ -120,7 +120,7 @@
         "text": "Look"
       },
       "param": "look",
-      "value": "omaflake.look.rose-pine-dawn",
+      "value": "omaflake.look.omaflake",
       "valueParam": "look"
     },
     {
@@ -219,6 +219,46 @@
     }
   },
   "name": "dev (velvet)",
+  "notes": [
+    {
+      "action": {
+        "enabled": true,
+        "icon": "download",
+        "id": "installParts",
+        "label": {
+          "key": "Install Missing Parts",
+          "text": "Install Missing Parts"
+        },
+        "method": "recipes.installParts",
+        "params": {
+          "id": "omaflake.nixos.dev@velvet-tiger-orbit"
+        },
+        "primary": true
+      },
+      "icon": "warning",
+      "text": {
+        "args": [
+          "omaflake/neovim ≥ 1.0.0"
+        ],
+        "key": "Not here yet: %@ – the recipe is made of them",
+        "text": "Not here yet: omaflake/neovim ≥ 1.0.0 – the recipe is made of them"
+      },
+      "tone": "warning"
+    },
+    {
+      "icon": "warning",
+      "text": {
+        "args": [
+          "Float the window",
+          "omaflake/hyprland",
+          "t"
+        ],
+        "key": "%@ (%@, %@): without a mode a key starts with Super or Ctrl",
+        "text": "Float the window (omaflake/hyprland, t): without a mode a key starts with Super or Ctrl"
+      },
+      "tone": "warning"
+    }
+  ],
   "outcome": {
     "detail": {
       "args": [

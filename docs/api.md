@@ -193,8 +193,15 @@ the recipe has it –, `lab`, `display`, `tags`, `license`, `homepage`) plus:
 `id`, `base`, `qualified` (`omaflake/nixos/dev`), `displayName`, `label`, `runsHere`, `source` (source id),
 `line`, `distinction` (what tells it apart from a recipe of the same author/kind/name, plan B110), `folder`,
 `installed` (`{source, version, installed}` for downloaded ones), `image` (its line's current image), `outdated`
-(the recipe changed since that image was built, plan B73/B82), `versions` (its line's versions, newest first).
-`lab` is a boolean here (false when unset).
+(the recipe changed since that image was built, plan B73/B82), `versions` (its line's versions, newest first),
+`parts?` (what it is made of, plan B142 – left out when its recipe.toml cannot be read): `{modules: [{reference (with
+the versions it allows, "omaflake/neovim ≥ 1.0.0"), title?, version?, provides}] (title and version: the module here,
+none when it is not here in an allowed version), look?, lookId? (the installed look when it is here), keymaps,
+bindings: [{module, action, title, key, context ("desktop" or a module), mode?, from? (the key binding set that gave
+the key)}], issues: [{kind: missingModule|missingKeymap {reference, have?} (they block a build) | needs {module,
+capability} | incompatible {capability, modules} | keysOverlap {first, second} | keyRule {binding}}], unfree,
+requirements: {cpus, memory_gb, disk_gb}, locales: {rtl?, languages?}}`. `cpus`, `memoryGB`, `diskGB` are the
+recipe's `[requirements]`, `network`, `share`, … its `[vm]`. `lab` is a boolean here (false when unset).
 
 **Version** – `id`, `source`, `added` (left out for the recipe a local folder has now), `newest` (the line's
 newest), `live` (in a local folder source, edited in place), `images` (built from it), `label` (its omaflake ID as
@@ -209,8 +216,9 @@ short as it can be).
   `private`, `official`, `hasToken` (a private repository's token is in the system keychain – read without its secret,
   so no keychain prompt; false for public sources).
 - **CatalogRecipe** – an entry of a source's `catalog.json` (spec §11.3: `id`, `author`, `kind`, `name`,
-  `description` in the session's language, `tags`, `license`, `lab`, `systems`, `requires`, `homepage`, `version`,
-  `files: [{path, size, sha256}]`) plus `source` and `runsHere`.
+  `description` in the session's language, `tags`, `license`, `lab`, `systems`, `modules`, `look?`, `keymaps` – as
+  references with the versions they allow –, `homepage`, `version`, `files: [{path, size, sha256}]`) plus `source` and
+  `runsHere`.
 - **Prerequisite** – `item` (`host`, `kvm`, `nix`, `flakes`, `nixDarwin`, `linuxBuilder`, `qemu`, `flake`, `sshKey`,
   `credential` (at least one credential – the default; images and macOS bases are made with it, plan B139), `look` (at
   least one installed look – the default, plan B141; its action `looks.installRecommended`), `git`,
@@ -235,6 +243,7 @@ comes as events, and `jobs.*` ask and steer.
   "id": "j7",
   "kind": "build",          // build | macos-install | ipsw-download | builder-install-nix | builder-setup
                             // | builder-apply | builder-clean-up | cli-install | import | export | data-move
+                            // | recipe-install | look-install | module-install
                             // | recipe-install
   "title": "Build dev",
   "recipe": "omaflake.nixos.dev@…",    // build, recipe-install
@@ -337,6 +346,14 @@ Params and results in short; the types are those of §4.
 | `locales.update` | `id`, any of `name, locale, timeZone, keyboards` | `{id}` – while images are built with it only `name` may change (`in-use`) |
 | `locales.remove` | `id` | `null` – refused while images are built with it (`in-use`); another one becomes the default |
 | `locales.setDefault` | `id` | `null` – the locale new images get unless the build chooses another |
+| `profiles.list` | – | `[{id, name, cpus, memoryGB, isDefault}]` (plan B142) – how big a new VM is; kept in config.json |
+| `profiles.add` | `name, cpus?, memoryGB?` | `{id}` – the first one becomes the default; names are unique (any case) |
+| `profiles.update` | `id`, any of `name, cpus, memoryGB` | `{id}` – VMs created with it keep their size |
+| `profiles.remove` | `id` | `null` – another one becomes the default |
+| `profiles.setDefault` | `id` | `null` – the profile new VMs get unless another is chosen |
+| `modules.list` | `fetch?` | `{parts, offered, unreadable, fetched}` (plan B142) – `parts`: the modules and key binding sets here `[{id, reference, kind: module|keymap, platform?, title, description, version, tags, provides, needs, enhances, keys (a module's actions → default key; a set's "<module> <action>" → key), unfree, source, sourceName, official, installed, update, recipes (the recipes here made of it)}]`; `offered`: what the catalogs offer besides (`fetch: true` – or the first call – looks into them) |
+| `modules.install` | `id, source` | Job `module-install` – a module (`<author>.<platform>.<name>`) or key binding set (`<author>.keymap.<name>`), every file checked against the catalog's SHA-256 |
+| `modules.remove` | `id` | `null` – recipes made of it cannot be built until it is back |
 | `bases.list` | – | `[{name, path, osBuild?, user?, ready, newest, created?, sizeBytes?, credential?, credentialName?}]` – the macOS bases (`bases/mac-base-*`; plan B138), with the credential of their user (plan B139) |
 | `bases.remove` | `name` | `null` – deletes the base; refused while a macOS base is installed or a macOS image is built |
 | `bases.assign` | `name, credential` | `null` – writes the credential (ID or name) into a base created before bases kept theirs (`omaflake-base.json`, plan B139); its user must be the base's |
@@ -371,7 +388,9 @@ Params and results in short; the types are those of §4.
 |---|---|---|
 | `images.list` | – | `{images: [Image], unreadable}` |
 | `images.get` | `name` | `Image` with `sizeBytes` |
-| `images.build` | `recipe, credential?, look?, locale?, base?, keepFailed?` | Job `build` – `credential`: a credential's id, left out (or `""`) the default – without any credential `prerequisite`; `look`: an installed look (id, `<author>/<name>`, name or title), left out (or `""`) the default (plan B137, B141) – its data goes to the image flake (`settings.look`); without any look the Doctor blocks the build; `locale`: a locale's id or name, left out (or `""`) the default – without any locale the image gets this computer's values (plan B141). A macOS recipe takes its base's credential and its stored password – nothing is asked (plan B139); a base without a credential is refused (`prerequisite`); `base`: the base folder, default the newest; `keepFailed`: keep a failed build folder) |
+| `images.build` | `recipe, credential?, look?, locale?, base?, keepFailed?` | Job `build` – `credential`: a credential's id, left out (or `""`) the default – without any credential `prerequisite`; `look`: an installed look (id, `<author>/<name>`, name or title), left out (or `""`) the default (plan B137, B141) – its data goes to the image flake (`settings.look`); without any look the Doctor blocks the build; left out, the recipe's suggested look when it is installed (plan B142);
+`locale`: a locale's id or name, left out (or `""`) the default – without any locale the image gets this computer's
+values (plan B141). A recipe whose modules or key binding sets are not here is refused (`prerequisite`, plan B142). A macOS recipe takes its base's credential and its stored password – nothing is asked (plan B139); a base without a credential is refused (`prerequisite`); `base`: the base folder, default the newest; `keepFailed`: keep a failed build folder) |
 | `images.remove` | `name` | `null` – refused while VMs use it (`in-use`) |
 
 ### Recipes and sources
@@ -380,7 +399,10 @@ Params and results in short; the types are those of §4.
 |---|---|---|
 | `recipes.list` | `all?` | `{recipes: [Recipe], lines: {line: [Version]}, idLengths: {recipe, image, vm}, qemuGL, unreadable, labHidden}` – lab recipes only in developer mode or with `all` |
 | `recipes.available` | – | fetches the enabled remote sources' catalogs: `{offered: [CatalogRecipe], updates: [{id, recipe: CatalogRecipe}], suggested: [CatalogRecipe], errors: {sourceId: message}}` |
-| `recipes.install` | `id, source` | Job `recipe-install` (with what it requires) |
+| `recipes.install` | `id, source` | Job `recipe-install` – the recipe and what it is made of that is not here: its modules, key binding sets and look, each from the first source that has it in a version the recipe allows (the official catalog last, plan B142) |
+| `recipes.installParts` | `id` | Job `recipe-install` – what a recipe here is made of and is missing (the build page's "Install Missing Parts") |
+| `recipes.save` | `name, platform, description?, modules: ["<author>/<name>"], look?, keymaps?, requirements: {cpus, memory_gb, disk_gb}, vm: {display, network, share, ephemeral}, previous?` | `{base}` – a recipe of your own, written into My Recipes (`<data>/my-recipes/recipes/my/<platform>/<name>/recipe.toml`, recipe v2), which becomes the first source; `previous` ("my.nixos.work"): the recipe edited – renamed, its old folder goes |
+| `recipes.delete` | `base` | `null` – deletes one of your own recipes ("my.<platform>.<name>"); images built from it stay |
 | `recipes.installSuggested` | – | `[Job]` |
 | `recipes.remove` | `id` | `null` |
 | `recipes.removeLine` | `line` | `{removed: [id], kept: [id]}` – kept: images use them, or they live in a local folder |
@@ -501,6 +523,10 @@ Pages and their params:
 | `doctor` | – | versions and updates, the checks in three sections with their actions |
 | `credentials` | – | the credentials, each with its usage and Copy Password (plan B137, B138) |
 | `looks` | – | the Looks tab: the looks here with their colours, usage and the default, what the sources offer besides (plan B141) |
+| `modules` | – | the Modules tab: modules and key binding sets here with the recipes made of them, what the sources offer (plan B142; the looks' shape) |
+| `locales`, `locale` | `id?, values?` | the locales and one locale's form (plan B141; the credentials' shapes) |
+| `profiles`, `profile` | `id?, values?` | the profiles and one profile's form (plan B142; the credentials' shapes) |
+| `recipeEditor` | `id?, values?` | a recipe of your own put together from modules, a look and key bindings (plan B142; the credential form's shape) |
 | `credential` | `id?` | one credential's form: new, or to edit (only the name while images use it) |
 | `baseCredential` | `name` | the same form for a macOS base from before bases kept their credential: which one its user has (plan B139) |
 | `macBase` | `values?` | Create macOS Base |
@@ -646,7 +672,7 @@ folder with the VM" / "Share a folder with the VM", "Like this Mac – %@" / "Li
 Mac – …" / "Not for this computer – …", "… in the Keychain" / "… in the keyring", the Doctor's intro, the notification
 help, the data folder's note, the sources' footer. Both are keys; translations have both.
 
-**home** – `title`, `actions` (doctor with `badge`, credentials (icon `key`, plan B137), locales (icon `globe`, plan B141), settings, dataFolder, quit – with `shortLabel`s for a narrow header), `tabs: [{id, label, icon, badge?}]` (vms, images, recipes, looks – icon `look`, a warning dot without any look, plan B141 – and activity) with
+**home** – `title`, `actions` (doctor with `badge`, credentials (icon `key`, plan B137), locales (icon `globe`, plan B141), profiles (icon `gauge`, plan B142), settings, dataFolder, quit – with `shortLabel`s for a narrow header), `tabs: [{id, label, icon, badge?}]` (vms, images, recipes, modules – icon `module`, plan B142 –, looks – icon `look`, a warning dot without any look, plan B141 – and activity) with
 `badge: {kind: count|working|failed|dot, count?, tone, help}` (running VMs; a build runs or failed; a recipe changed
 since its image), `firstTab` (`recipes` while there is no VM – a UI opening for the first time starts there).
 
@@ -699,7 +725,7 @@ with Install), `unreadable`, `footer`. The UI runs `refresh` once when the tab o
 into.
 
 **recipes** – list head (filter `status`: With image/Without image, `kind`, `tag`, `otherSystems`; tools: refresh –
-`recipes.available`, busy while it runs – and import), `catalogsLoaded` (else the UI runs `refresh` when the tab
+`recipes.available`, busy while it runs –, import and "New Recipe …" – `ui.show recipeEditor`), `catalogsLoaded` (else the UI runs `refresh` when the tab
 opens, as the app did; the views never fetch), `loading` with `loadingText` ("Looking into the recipe sources …", next to
 a spinner), `updates?` (`{title, all?, rows: [{id, name, kind, source,
 action}], note}`; "Add Version"/"Add All" when older versions are kept), `suggestion?` (no recipe yet: "Start with the
@@ -708,14 +734,21 @@ first, then by kind and name: lamp – working while it builds, off not built, a
 `secondary` (author, distinction), badges lab and arch, `tags`, actions reveal and build – `ui.show build`, or the
 Doctor's warning, or disabled for another architecture –, details: description, info, `versions` (`{id, words,
 state, actions: [export, remove], version}`; remove disabled for a folder's version or one images are built from) and
-actions update, removeAll; build is the row's primary), `offeredTitle` ("More recipes in your sources", while there are
+actions update, edit (one of yours) or copy ("Copy to My Recipes …", `ui.show recipeEditor {id}`), removeAll; since
+plan B142 also the info lines modules, look, key bindings, needs at least, `notes` (hints: what is missing with
+"Install Missing Parts" – `recipes.installParts` –, its look when not installed, warnings, unfree software) and `keys`
+(info lines: an action's title, its key, its module and mode); the lamp is attention while parts are missing; build is
+the row's primary), `offeredTitle` ("More recipes in your sources", while there are
 offers) and `offered` (not installed: lamp off or working, badges official/lab/arch, install (primary), details with
-the "not reviewed" warning for recipes not from omaflake/recipes), `unreadable`, `errors` (sources that failed),
+the "not reviewed" warning for recipes not from omaflake/catalog), `unreadable`, `errors` (sources that failed),
 `labHidden` with `labHint` (a hint with the way to Settings).
 
 **newVm** – `{image, recipe, kind, subtitle, description?, lab, blockers?, sections: [{title?, fields}], warnings,
-valid, actions: [cancel, create]}`. Params `{image, values?: {name, cpus, memoryGB, diskGB, network, share, sharePath,
-ephemeral, audio, microphone, clipboard, camera, start}}`; missing values are the recipe's (sound and clipboard on,
+valid, actions: [cancel, create]}`. Params `{image, values?: {name, profile, cpus, memoryGB, diskGB, network, share,
+sharePath, ephemeral, audio, microphone, clipboard, camera, start}}`; with a profile (plan B142: the chosen one, else
+the default; `""` = custom values) CPU cores and RAM are the profile's and those fields disabled; a field `profile`
+(the profiles and "Custom values") comes first in the resources while there are profiles, and less than the recipe
+needs adds a warning. Missing values are the recipe's (sound and clipboard on,
 microphone and camera off where it says nothing), the name the next free one. Fields: name (errors: "A name is
 needed", the name rule, "“%@” is here already"), ephemeral, CPU cores (1–10), RAM (1–48 GB), disk (10–500 GB step 10;
 `info` "as the image" for macOS), sound, microphone (needs sound), clipboard, camera (NixOS), network (no `isolated`
@@ -730,7 +763,10 @@ sharePath?, start}` and `then: back` (primary), disabled while a value is wrong.
 ```
 
 **build** – `{recipe, name, kind, badges, description?, state: idle|queued|checking|running|finished|failed|cancelled,
-actions, fields?, blockers?, macBase?, status?, progress?, outcome?, newest?, log?, job?}`. `fields` (while no build
+actions, fields?, blockers?, macBase?, notes?, status?, progress?, outcome?, newest?, log?, job?}`. `notes` (plan
+B142): the recipe's (as its row's), and a locale the recipe is not made for (a warning); the look is preset with the
+recipe's suggestion when it is installed. `build` is disabled while parts are missing ("Install what the recipe is made
+of first"). `fields` (while no build
 runs, plan B137): `credential` (the credentials), `look` (the looks) and `locale` ("This computer's values" as `""` without
 any locale, else the locales), preset with the defaults; their values (`values.credential`, `values.look`,
 `values.locale`) go into the build action's params. A macOS
@@ -772,7 +808,9 @@ decides from `params.values.input`); `addAction` (primary) is `sources.add {inpu
 private one; the two fields keep their values under `values.input` and `values.private`. `general.fields`: notifications, checkForUpdates, keepRecipeVersions, developerMode (toggles with `set`).
 `guest` ("This Mac" / "This computer", plan B141) – `fields`: hostKeyboard (this computer's own keyboard; "As the Mac
 says – …" / "As the system says – …" as `null`, then the keyboards). The defaults for new images are set in their own
-pages: credentials, looks and locales.
+pages: credentials, looks and locales; for new VMs: profiles. `dataFolder: {title, location, isDefault, moving,
+actions: [default, move], note}` – both disabled while a VM runs. Launch at login and the UI's language are each UI's
+own.
 
 **credentials** (plan B137, B138) – `{title, intro, rows, add, footer}`: rows as the other lists `{id, name, lamp (on
 while images use it), subtitle ("user · n images"), badges (default), usedBy (the images' names), actions:
@@ -795,9 +833,29 @@ used)]}}`; `add` ("New Locale …") opens `locale`; `intro` names this computer'
 **locale** (params `id?`, `values`) – the shape of **credential**: `fields: [name, locale, timeZone, keyboard,
 keyboard2, keyboard3]` (choices; the second and third with "none" as `""`; a new one preset with this computer's
 values), `locked?` while images are built with it (only `name` then), `actions: [cancel, save (`locales.update`) |
-create (`locales.add`)]` – disabled with the field's error (no name, a name taken, a keyboard twice). `dataFolder: {title,
-location, isDefault, moving, actions: [default, move], note}` – both disabled while a VM runs. Launch at login and the
-UI's language are each UI's own.
+create (`locales.add`)]` – disabled with the field's error (no name, a name taken, a keyboard twice).
+
+**profiles** (plan B142) – the shape of **credentials**: rows `{id, name, lamp (on: the default), subtitle ("2 CPU · 4
+GB RAM"), badges (default), actions: [default], detail: {info (CPU cores, RAM), actions: [edit (`ui.show profile {id}`),
+default (`profiles.setDefault`), remove (destructive, confirm)]}}`; `add` ("New Profile …") opens `profile`.
+
+**profile** (params `id?`, `values`) – the shape of **credential**: `fields: [name, cpus (1–64), memoryGB (1–512)]`
+(a new one 4 CPU, 8 GB), `actions: [cancel, save (`profiles.update`) | create (`profiles.add`)]`.
+
+**modules** (plan B142) – the shape of **looks** (UIs draw it with the same view; rows without `swatches`): the modules
+(NixOS, then macOS) and key binding sets here, then `offered`; subtitle "omaflake/hyprland · 1.0.0 · NixOS module · 1
+recipe"; badges official, update, unfree; details: about, provides, needs, works with, keys, source, used by; actions
+update (`modules.install`), remove (`modules.remove`, confirm naming the recipes made of it; disabled for a local
+folder's). Offered rows install with `modules.install {id, source}`. List head: refresh – `modules.list {fetch: true}`.
+
+**recipeEditor** (params `id?` – a recipe to edit when it is one of yours (My Recipes), else to copy –, `values`) – the
+shape of **credential** (plan B142): `fields`: name, platform (nixos | macos), description, one toggle per module of the
+platform – those here and those the sources offer – (`module:<author>/<name>`, label "Title (capabilities)", help its
+description or "– from <source>, installed with the recipe"), look (installed and offered, "none" as `""`), keymap1,
+keymap2 (key binding sets, "none" as `""`; the second wins over the first), cpus, memoryGB, diskGB (what a VM needs at
+least), display, network, share, ephemeral, and `check` (`info`: the warnings of what is chosen – needs, incompatible,
+keys that overlap or break the key rule – or "Nothing to warn about"). Actions: cancel, delete (one of yours:
+`recipes.delete {base}`, confirm), save (`recipes.save`, `then: back`; disabled without a valid name or a module).
 
 **import** – `{title, path, name, kind, valid, reason?, action?, inspection}`: `action` is `packages.import` (a VM whose name
 is taken: the question with `input: {param: "name", default: "<name>-2"}`; the same image: "Replace" with `replace`)

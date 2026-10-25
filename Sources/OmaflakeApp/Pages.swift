@@ -332,6 +332,8 @@ struct BuildView: View {
                     if let a = hint.action { Button(model.t(a.label)) { model.run(a) } }
                 }
             }
+            // What the recipe is made of and what is wrong (plan B142)
+            ForEach(Array((page.notes ?? []).enumerated()), id: \.offset) { HintRow(hint: $1, model: model) }
             // Where it stands
             if let status = page.status {
                 Label(model.t(status), systemImage: "clock").font(.caption).foregroundStyle(.secondary)

@@ -51,6 +51,8 @@ pub struct FormSection {
 #[serde(rename_all = "camelCase")]
 pub struct NewVmValues {
     pub name: Option<String>,
+    /// A profile's id; "" = custom values (plan B142)
+    pub profile: Option<String>,
     pub cpus: Option<u32>,
     #[serde(rename = "memoryGB")]
     pub memory_gb: Option<u32>,
@@ -118,6 +120,17 @@ pub(crate) fn page(ctx: &Ctx, p: &NewVmParams) -> Option<NewVmPage> {
     take!(microphone, "microphone");
     take!(clipboard, "clipboard");
     take!(camera, "camera");
+    // The profile (plan B142): the chosen one, else the default; with one its CPU cores and RAM are the VM's
+    let profile_id = v
+        .profile
+        .clone()
+        .or_else(|| ctx.profiles.iter().find(|p| p.is_default).map(|p| p.id.clone()))
+        .unwrap_or_default();
+    let profile = ctx.profiles.iter().find(|p| p.id == profile_id);
+    if let Some(p) = profile {
+        s["cpus"] = json!(p.cpus);
+        s["memoryGB"] = json!(p.memory_gb);
+    }
     if mac && s["network"] == json!("isolated") {
         // macOS guests have no isolated mode (plan BM27)
         s["network"] = json!("shared");
@@ -161,16 +174,31 @@ pub(crate) fn page(ctx: &Ctx, p: &NewVmParams) -> Option<NewVmPage> {
     ];
     first[0].error = name_error.clone();
     first[0].placeholder = Some(Text::verbatim(&suggested));
+    let from_profile = profile.map(|p| tf!("From the profile %@ – choose custom values to change it", &p.name));
+    let mut profile_field = Field::new("profile", FieldKind::Choice, Text::new("Profile"), json!(profile_id))
+        .value_param("profile")
+        .help(Text::new("CPU cores and RAM (Profiles, at the top)"));
+    profile_field.choices = ctx
+        .profiles
+        .iter()
+        .map(|p| Choice::new(json!(p.id), Text::verbatim(format!("{} – {} CPU · {} GB", p.name, p.cpus, p.memory_gb))))
+        .chain(std::iter::once(Choice::new(json!(""), Text::new("Custom values"))))
+        .collect();
     let mut resources = vec![
         Field::new("cpus", FieldKind::Number, tf!("CPU cores: %lld", get_int("cpus")), s["cpus"].clone())
             .param("settings.cpus")
             .value_param("cpus")
-            .range(1, 10, 1),
+            .range(1, 10, 1)
+            .enabled_if(profile.is_none(), from_profile.clone()),
         Field::new("memoryGB", FieldKind::Number, tf!("RAM: %lld GB", get_int("memoryGB")), s["memoryGB"].clone())
             .param("settings.memoryGB")
             .value_param("memoryGB")
-            .range(1, 48, 1),
+            .range(1, 48, 1)
+            .enabled_if(profile.is_none(), from_profile),
     ];
+    if !ctx.profiles.is_empty() {
+        resources.insert(0, profile_field);
+    }
     if mac {
         // The clone keeps the image's disk (APFS resize in the guest: OPEN, plan BM27)
         resources.push(Field::new("diskGB", FieldKind::Info, Text::new("Disk"), json!(Text::new("as the image"))));
@@ -241,6 +269,20 @@ pub(crate) fn page(ctx: &Ctx, p: &NewVmParams) -> Option<NewVmPage> {
         .value_param("start");
 
     let mut warnings = Vec::new();
+    // Less than the recipe needs: a warning, the VM can still be created (plan B141)
+    if let Some(req) = recipe.and_then(|r| r.parts.as_ref()).map(|p| p.requirements).filter(|r| r.cpus > 0) {
+        let short = get_int("cpus") < req.cpus as i64
+            || get_int("memoryGB") < req.memory_gb as i64
+            || (!mac && get_int("diskGB") < req.disk_gb as i64);
+        if short {
+            warnings.push(tf!(
+                "Its recipe needs at least %lld CPU cores, %lld GB RAM and a %lld GB disk – this VM gets less and may be slow or run out of space.",
+                req.cpus,
+                req.memory_gb,
+                req.disk_gb
+            ));
+        }
+    }
     if let (true, true, Some(reason)) = (mac, start, mac_limit(ctx)) {
         warnings.push(tf!("%@ – the VM is created but not started.", reason));
     }

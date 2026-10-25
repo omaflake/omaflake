@@ -422,6 +422,11 @@ pub struct Settings {
     /// This computer's keyboard (XKB name): the physical one, preset for new locales; None: as the system says
     #[serde(rename = "hostKeyboard", default, skip_serializing_if = "Option::is_none")]
     pub host_keyboard: Option<String>,
+    /// Profiles – CPU cores and RAM a new VM gets (plan B141, B142; settings v5)
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub profiles: Option<Vec<crate::profiles::Profile>>,
+    #[serde(rename = "defaultProfile", default, skip_serializing_if = "Option::is_none")]
+    pub default_profile: Option<String>,
     /// Data folder; None = ~/.omaflake. Only read from ~/.omaflake/config.json; change it with `DataFolder::move_to`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub home: Option<String>,

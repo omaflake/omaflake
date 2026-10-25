@@ -1,0 +1,469 @@
+{
+  "actions": [
+    {
+      "enabled": true,
+      "help": {
+        "key": "Look into the sources for modules and key bindings",
+        "text": "Look into the sources for modules and key bindings"
+      },
+      "icon": "refresh",
+      "id": "refresh",
+      "label": {
+        "key": "Refresh",
+        "text": "Refresh"
+      },
+      "method": "modules.list",
+      "params": {
+        "fetch": true
+      }
+    }
+  ],
+  "catalogsLoaded": true,
+  "count": 2,
+  "footer": {
+    "key": "A module is a piece of a recipe – a desktop, a terminal, an editor, LaTeX – written in Nix; key bindings give its actions their keys. Recipes name them, and installing a recipe brings them along. Modules are code: install them only from sources you trust.",
+    "text": "A module is a piece of a recipe – a desktop, a terminal, an editor, LaTeX – written in Nix; key bindings give its actions their keys. Recipes name them, and installing a recipe brings them along. Modules are code: install them only from sources you trust."
+  },
+  "loading": false,
+  "offered": [
+    {
+      "actions": [
+        {
+          "enabled": true,
+          "icon": "download",
+          "id": "install",
+          "label": {
+            "key": "Install",
+            "text": "Install"
+          },
+          "method": "modules.install",
+          "params": {
+            "id": "omaflake.macos.vscode",
+            "source": "github:omaflake/recipes@main"
+          },
+          "primary": true
+        }
+      ],
+      "badges": [
+        {
+          "help": {
+            "key": "By omaflake, from its catalog",
+            "text": "By omaflake, from its catalog"
+          },
+          "icon": "official",
+          "id": "official",
+          "tone": "accent"
+        },
+        {
+          "help": {
+            "key": "Not free software",
+            "text": "Not free software"
+          },
+          "icon": "license",
+          "id": "unfree",
+          "label": {
+            "key": "unfree",
+            "text": "unfree"
+          },
+          "tone": "normal"
+        }
+      ],
+      "detail": {
+        "actions": [
+          {
+            "enabled": true,
+            "icon": "download",
+            "id": "install",
+            "label": {
+              "key": "Install",
+              "text": "Install"
+            },
+            "method": "modules.install",
+            "params": {
+              "id": "omaflake.macos.vscode",
+              "source": "github:omaflake/recipes@main"
+            },
+            "primary": true
+          }
+        ],
+        "info": [
+          {
+            "label": {
+              "key": "About",
+              "text": "About"
+            },
+            "value": {
+              "text": "VS Code."
+            }
+          },
+          {
+            "label": {
+              "key": "Source",
+              "text": "Source"
+            },
+            "value": {
+              "text": "omaflake/recipes"
+            }
+          }
+        ]
+      },
+      "id": "omaflake.macos.vscode",
+      "lamp": {
+        "help": {
+          "key": "Not installed",
+          "text": "Not installed"
+        },
+        "state": "off"
+      },
+      "name": "VS Code",
+      "subtitle": {
+        "args": [
+          {
+            "text": "omaflake/vscode"
+          },
+          {
+            "text": "1.0.0"
+          },
+          {
+            "key": "macOS module",
+            "text": "macOS module"
+          },
+          {
+            "text": "omaflake/recipes"
+          }
+        ],
+        "key": "%@ · %@ · %@ · %@",
+        "text": "omaflake/vscode · 1.0.0 · macOS module · omaflake/recipes"
+      },
+      "swatches": []
+    }
+  ],
+  "offeredTitle": {
+    "key": "In your sources",
+    "text": "In your sources"
+  },
+  "rows": [
+    {
+      "actions": [
+        {
+          "enabled": true,
+          "help": {
+            "key": "Installs the newer version; images made with it are outdated then",
+            "text": "Installs the newer version; images made with it are outdated then"
+          },
+          "icon": "download",
+          "id": "update",
+          "label": {
+            "key": "Update",
+            "text": "Update"
+          },
+          "method": "modules.install",
+          "params": {
+            "id": "omaflake.nixos.hyprland",
+            "source": "github:omaflake/recipes@main"
+          }
+        }
+      ],
+      "badges": [
+        {
+          "help": {
+            "key": "By omaflake, from its catalog",
+            "text": "By omaflake, from its catalog"
+          },
+          "icon": "official",
+          "id": "official",
+          "tone": "accent"
+        },
+        {
+          "help": {
+            "key": "Its source has a newer version",
+            "text": "Its source has a newer version"
+          },
+          "icon": "update",
+          "id": "update",
+          "label": {
+            "key": "update",
+            "text": "update"
+          },
+          "tone": "warning"
+        }
+      ],
+      "detail": {
+        "actions": [
+          {
+            "enabled": true,
+            "help": {
+              "key": "Installs the newer version; images made with it are outdated then",
+              "text": "Installs the newer version; images made with it are outdated then"
+            },
+            "icon": "download",
+            "id": "update",
+            "label": {
+              "key": "Update",
+              "text": "Update"
+            },
+            "method": "modules.install",
+            "params": {
+              "id": "omaflake.nixos.hyprland",
+              "source": "github:omaflake/recipes@main"
+            }
+          },
+          {
+            "confirm": {
+              "button": {
+                "key": "Remove",
+                "text": "Remove"
+              },
+              "destructive": true,
+              "text": {
+                "args": [
+                  "dev"
+                ],
+                "key": "Recipes made of it cannot be built until it is back: %@",
+                "text": "Recipes made of it cannot be built until it is back: dev"
+              },
+              "title": {
+                "args": [
+                  "Hyprland"
+                ],
+                "key": "Remove %@?",
+                "text": "Remove Hyprland?"
+              }
+            },
+            "destructive": true,
+            "enabled": true,
+            "help": {
+              "args": [
+                "dev"
+              ],
+              "key": "Used by %@",
+              "text": "Used by dev"
+            },
+            "icon": "trash",
+            "id": "remove",
+            "label": {
+              "key": "Remove …",
+              "text": "Remove …"
+            },
+            "method": "modules.remove",
+            "params": {
+              "id": "omaflake.nixos.hyprland"
+            }
+          }
+        ],
+        "info": [
+          {
+            "label": {
+              "key": "About",
+              "text": "About"
+            },
+            "value": {
+              "text": "Hyprland."
+            }
+          },
+          {
+            "label": {
+              "key": "Provides",
+              "text": "Provides"
+            },
+            "value": {
+              "text": "desktop"
+            }
+          },
+          {
+            "label": {
+              "key": "Needs",
+              "text": "Needs"
+            },
+            "value": {
+              "text": "terminal"
+            }
+          },
+          {
+            "full": "terminal: Super+Return",
+            "label": {
+              "key": "Keys",
+              "text": "Keys"
+            },
+            "value": {
+              "text": "terminal: Super+Return"
+            }
+          },
+          {
+            "label": {
+              "key": "Source",
+              "text": "Source"
+            },
+            "value": {
+              "text": "omaflake/recipes"
+            }
+          },
+          {
+            "label": {
+              "key": "Used by",
+              "text": "Used by"
+            },
+            "value": {
+              "text": "dev"
+            }
+          }
+        ]
+      },
+      "id": "omaflake.nixos.hyprland",
+      "lamp": {
+        "help": {
+          "key": "Recipes here are made of it",
+          "text": "Recipes here are made of it"
+        },
+        "state": "on"
+      },
+      "name": "Hyprland",
+      "subtitle": {
+        "args": [
+          {
+            "text": "omaflake/hyprland"
+          },
+          {
+            "text": "1.0.0"
+          },
+          {
+            "key": "NixOS module",
+            "text": "NixOS module"
+          },
+          {
+            "key": "1 recipe",
+            "text": "1 recipe"
+          }
+        ],
+        "key": "%@ · %@ · %@ · %@",
+        "text": "omaflake/hyprland · 1.0.0 · NixOS module · 1 recipe"
+      },
+      "swatches": []
+    },
+    {
+      "actions": [],
+      "badges": [
+        {
+          "help": {
+            "key": "By omaflake, from its catalog",
+            "text": "By omaflake, from its catalog"
+          },
+          "icon": "official",
+          "id": "official",
+          "tone": "accent"
+        }
+      ],
+      "detail": {
+        "actions": [
+          {
+            "confirm": {
+              "button": {
+                "key": "Remove",
+                "text": "Remove"
+              },
+              "destructive": true,
+              "text": {
+                "key": "Install it again from its source any time.",
+                "text": "Install it again from its source any time."
+              },
+              "title": {
+                "args": [
+                  "omaflake"
+                ],
+                "key": "Remove %@?",
+                "text": "Remove omaflake?"
+              }
+            },
+            "destructive": true,
+            "enabled": true,
+            "icon": "trash",
+            "id": "remove",
+            "label": {
+              "key": "Remove …",
+              "text": "Remove …"
+            },
+            "method": "modules.remove",
+            "params": {
+              "id": "omaflake.keymap.default"
+            }
+          }
+        ],
+        "info": [
+          {
+            "label": {
+              "key": "About",
+              "text": "About"
+            },
+            "value": {
+              "text": "omaflake."
+            }
+          },
+          {
+            "full": "omaflake/hyprland terminal: Super+Return",
+            "label": {
+              "key": "Keys",
+              "text": "Keys"
+            },
+            "value": {
+              "text": "omaflake/hyprland terminal: Super+Return"
+            }
+          },
+          {
+            "label": {
+              "key": "Source",
+              "text": "Source"
+            },
+            "value": {
+              "text": "omaflake/recipes"
+            }
+          },
+          {
+            "label": {
+              "key": "Used by",
+              "text": "Used by"
+            },
+            "value": {
+              "key": "no recipe",
+              "text": "no recipe"
+            }
+          }
+        ]
+      },
+      "id": "omaflake.keymap.default",
+      "lamp": {
+        "help": {
+          "key": "No recipe here is made of it",
+          "text": "No recipe here is made of it"
+        },
+        "state": "off"
+      },
+      "name": "omaflake",
+      "subtitle": {
+        "args": [
+          {
+            "text": "omaflake/default"
+          },
+          {
+            "text": "1.0.0"
+          },
+          {
+            "key": "key bindings",
+            "text": "key bindings"
+          },
+          {
+            "key": "no recipe",
+            "text": "no recipe"
+          }
+        ],
+        "key": "%@ · %@ · %@ · %@",
+        "text": "omaflake/default · 1.0.0 · key bindings · no recipe"
+      },
+      "swatches": []
+    }
+  ],
+  "title": {
+    "key": "Modules",
+    "text": "Modules"
+  },
+  "unreadable": []
+}

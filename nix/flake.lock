@@ -112,6 +112,18 @@
         "type": "github"
       }
     },
+    "omaflake-catalog": {
+      "flake": false,
+      "locked": {
+        "path": "./no-catalog",
+        "type": "path"
+      },
+      "original": {
+        "path": "./no-catalog",
+        "type": "path"
+      },
+      "parent": []
+    },
     "omaflake-guest": {
       "flake": false,
       "locked": {
@@ -124,18 +136,6 @@
       },
       "parent": []
     },
-    "omaflake-recipes": {
-      "flake": false,
-      "locked": {
-        "path": "./no-recipes",
-        "type": "path"
-      },
-      "original": {
-        "path": "./no-recipes",
-        "type": "path"
-      },
-      "parent": []
-    },
     "root": {
       "inputs": {
         "home-manager": "home-manager",
@@ -143,8 +143,8 @@
         "nix-homebrew": "nix-homebrew",
         "nixpkgs": "nixpkgs",
         "omaflake": "omaflake",
-        "omaflake-guest": "omaflake-guest",
-        "omaflake-recipes": "omaflake-recipes"
+        "omaflake-catalog": "omaflake-catalog",
+        "omaflake-guest": "omaflake-guest"
       }
     }
   },

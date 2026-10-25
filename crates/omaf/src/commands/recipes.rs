@@ -351,12 +351,21 @@ pub fn install(a: &cli::RecipesInstall) -> Outcome {
         if !catalog.recipes.iter().any(|r| r.id == id) {
             continue;
         }
-        let written = RecipeLibrary::new(env.paths.clone()).install(&id, &catalog, &client)?;
+        let library = RecipeLibrary::new(env.paths.clone());
+        let written = library.install(&id, &catalog, &client)?;
         if written.is_empty() {
             println!("{} is up to date.", a.recipe);
         } else {
             let names: Vec<String> = written.iter().map(|w| RecipeId::qualified(w)).collect();
             println!("Installed from {}: {}", s.display_name(), names.join(", "));
+        }
+        // What it is made of comes along: modules, key bindings, its look (plan B142)
+        let folder = written.first().and_then(|w| library.folder(w)).or_else(|| {
+            library.available(&env.settings()).into_iter().find(|x| RecipeId::base(&x.id) == id).map(|x| x.folder)
+        });
+        if let Some(spec) = folder.and_then(|f| omaflake_core::composition::RecipeSpec::read(&f).ok()) {
+            let catalogs = omaflake_core::parts::fetch_part_catalogs(&env.settings());
+            omaflake_core::parts::install_recipe_parts(&env.paths, &spec, &catalogs, &mut |line| println!("{line}"))?;
         }
         return Ok(());
     }
@@ -428,6 +437,83 @@ pub fn versions(a: &cli::RecipesVersions) -> Outcome {
     }
     if wanted.is_some_and(|w| w.is_empty()) {
         return Err(usage(&["recipes", "versions"], format!("No recipe {}", a.recipe.as_deref().unwrap_or(""))));
+    }
+    Ok(())
+}
+
+/// `omaf recipes show`: what a recipe is made of (plan B142) – its modules (here or missing), look, key bindings, every
+/// key, and what is wrong; `--install` installs what is missing
+pub fn show(a: &cli::RecipesShow) -> Outcome {
+    use omaflake_core::composition::{Composition, Issue, RecipeSpec};
+    let env = Env::new();
+    let settings = env.settings();
+    let library = RecipeLibrary::new(env.paths.clone());
+    let available = library.available(&settings);
+    let ids: Vec<String> = available.iter().map(|x| x.id.clone()).collect();
+    let id = RecipeId::resolve(&a.recipe, &ids, None)?;
+    let Some(entry) = available.iter().find(|x| x.id == id) else {
+        return Err(usage(&["recipes", "show"], format!("No recipe {} – see omaf recipes", a.recipe)));
+    };
+    let spec = RecipeSpec::read(&entry.folder)?;
+    if a.install {
+        let catalogs = omaflake_core::parts::fetch_part_catalogs(&settings);
+        omaflake_core::parts::install_recipe_parts(&env.paths, &spec, &catalogs, &mut |line| println!("{line}"))?;
+    }
+    let modules = omaflake_core::modules::ModuleStore::new(env.paths.clone());
+    let c = Composition::of(
+        &spec,
+        &modules.list(&settings),
+        &omaflake_core::keymaps::KeymapStore::new(env.paths.clone()).list(&settings),
+        &modules.capabilities(&settings),
+    );
+    println!("{} ({})", RecipeId::qualified(&id), spec.platform.as_str());
+    println!("modules:");
+    for r in &spec.modules {
+        match c.modules.iter().find(|m| m.reference() == r.id) {
+            Some(m) => println!("  {}{} {}", pad(&r.label(), 30), m.title, m.version),
+            None => println!("  {}– not here", pad(&r.label(), 30)),
+        }
+    }
+    if let Some(look) = &spec.look {
+        println!("look:          {}", look.label());
+    }
+    if !spec.keymaps.is_empty() {
+        println!("key bindings:  {}", spec.keymaps.iter().map(|k| k.label()).collect::<Vec<_>>().join(", "));
+    }
+    let r = spec.requirements;
+    if r.cpus > 0 {
+        println!("needs:         {} CPU · {} GB RAM · {} GB disk", r.cpus, r.memory_gb, r.disk_gb);
+    }
+    if !c.bindings.is_empty() {
+        println!("keys:");
+        for b in &c.bindings {
+            let mode = b.mode.as_ref().map(|m| format!(" ({m} mode)")).unwrap_or_default();
+            println!("  {}{}{}{mode}", pad(&b.key, 22), pad(&b.module, 22), b.title);
+        }
+    }
+    for i in &c.issues {
+        let text = match i {
+            Issue::MissingModule { reference, have } | Issue::MissingKeymap { reference, have } => match have {
+                Some(v) => format!("{reference} is here in {v}, which the recipe does not allow"),
+                None => format!("{reference} is not here – omaf recipes show {} --install", a.recipe),
+            },
+            Issue::Needs { module, capability } => format!("{module} needs a {capability} – no module provides one"),
+            Issue::Incompatible { capability, modules } => {
+                format!("{} do not go together: each is the {capability}", modules.join(" + "))
+            }
+            Issue::KeysOverlap { first, second } => format!(
+                "keys overlap: {} {} ({}) and {} {} ({})",
+                first.module, first.action, first.key, second.module, second.action, second.key
+            ),
+            Issue::KeyRule { binding } => format!(
+                "{} {} ({}): without a mode a key starts with Super or Ctrl",
+                binding.module, binding.action, binding.key
+            ),
+        };
+        println!("{} {text}", if i.blocks() { "✗" } else { "⚠" });
+    }
+    if !c.unfree.is_empty() {
+        println!("not free software: {}", c.unfree.join(", "));
     }
     Ok(())
 }

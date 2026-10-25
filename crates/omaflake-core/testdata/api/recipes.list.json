@@ -86,6 +86,84 @@
       "name": "dev",
       "network": "shared",
       "outdated": true,
+      "parts": {
+        "bindings": [
+          {
+            "action": "terminal",
+            "context": "desktop",
+            "key": "Super+Return",
+            "module": "omaflake/hyprland",
+            "title": "Open a terminal"
+          },
+          {
+            "action": "quit",
+            "context": "desktop",
+            "key": "Ctrl+q",
+            "mode": "normal",
+            "module": "omaflake/zellij",
+            "title": "Quit Zellij"
+          },
+          {
+            "action": "float",
+            "context": "desktop",
+            "key": "t",
+            "module": "omaflake/hyprland",
+            "title": "Float the window"
+          }
+        ],
+        "issues": [
+          {
+            "have": null,
+            "kind": "missingModule",
+            "reference": "omaflake/neovim ≥ 1.0.0"
+          },
+          {
+            "binding": {
+              "action": "float",
+              "context": "desktop",
+              "key": "t",
+              "module": "omaflake/hyprland",
+              "title": "Float the window"
+            },
+            "kind": "keyRule"
+          }
+        ],
+        "keymaps": [
+          "omaflake/default"
+        ],
+        "locales": {
+          "rtl": false
+        },
+        "look": "omaflake/omaflake",
+        "lookId": "omaflake.look.omaflake",
+        "modules": [
+          {
+            "provides": [
+              "desktop"
+            ],
+            "reference": "omaflake/hyprland",
+            "title": "Hyprland",
+            "version": "1.0.0"
+          },
+          {
+            "provides": [
+              "terminal"
+            ],
+            "reference": "omaflake/wezterm",
+            "title": "WezTerm",
+            "version": "1.0.0"
+          },
+          {
+            "reference": "omaflake/neovim ≥ 1.0.0"
+          }
+        ],
+        "requirements": {
+          "cpus": 4,
+          "disk_gb": 40,
+          "memory_gb": 8
+        },
+        "unfree": []
+      },
       "qualified": "omaflake/nixos/dev",
       "runsHere": true,
       "share": true,

@@ -26,7 +26,10 @@ pub mod images;
 pub mod import;
 pub mod locales;
 pub mod looks;
+pub mod modules;
 pub mod new_vm;
+pub mod profiles;
+pub mod recipe_editor;
 pub mod recipes;
 pub mod settings;
 pub mod text;
@@ -53,7 +56,7 @@ pub use activity::ActivityEntry;
 pub use text::{Arg, Text};
 
 /// Every page `views.get` knows
-pub const PAGES: [&str; 19] = [
+pub const PAGES: [&str; 23] = [
     "home",
     "vms",
     "vm",
@@ -70,8 +73,12 @@ pub const PAGES: [&str; 19] = [
     "credentials",
     "credential",
     "looks",
+    "modules",
     "locales",
     "locale",
+    "profiles",
+    "profile",
+    "recipeEditor",
     "baseCredential",
 ];
 
@@ -125,8 +132,12 @@ pub(crate) struct Ctx {
     pub credentials: Vec<CredentialDto>,
     /// The locales (plan B141)
     pub locales: Vec<crate::api::types::LocaleDto>,
+    /// The profiles (plan B142)
+    pub profiles: Vec<crate::api::types::ProfileDto>,
     /// The looks here and what the catalogs fetched last offer (plan B141)
     pub looks: crate::api::types::LooksAnswer,
+    /// The modules and key binding sets here and what the catalogs offer (plan B142)
+    pub modules: crate::api::types::ModulesAnswer,
     /// The macOS bases (plan B137)
     pub bases: Vec<BaseDto>,
     pub settings: SettingsDto,
@@ -296,7 +307,29 @@ pub(crate) fn build(ctx: &Ctx, page: &PageRef) -> Result<Value, RpcError> {
         "macBase" => to_value(doctor::mac_base_page(ctx, &page_params(p)?)),
         "credentials" => to_value(credentials::page(ctx)),
         "looks" => to_value(looks::page(ctx)),
+        "modules" => to_value(modules::page(ctx)),
         "locales" => to_value(locales::page(ctx)),
+        "profiles" => to_value(profiles::page(ctx)),
+        "recipeEditor" => {
+            let p: recipe_editor::EditorParams = page_params(p)?;
+            to_value(recipe_editor::page(ctx, &p).ok_or_else(|| {
+                RpcError::from(crate::vm_err!(
+                    crate::error::codes::NOT_FOUND,
+                    "No recipe \"{}\"",
+                    p.id.unwrap_or_default()
+                ))
+            })?)
+        }
+        "profile" => {
+            let p: profiles::ProfileParams = page_params(p)?;
+            to_value(profiles::profile_page(ctx, &p).ok_or_else(|| {
+                RpcError::from(crate::vm_err!(
+                    crate::error::codes::NOT_FOUND,
+                    "No profile \"{}\"",
+                    p.id.unwrap_or_default()
+                ))
+            })?)
+        }
         "locale" => {
             let answer = ctx.settings_answer.as_ref().ok_or_else(|| RpcError::internal("settings not gathered"))?;
             let p: locales::LocaleParams = page_params(p)?;
@@ -402,7 +435,9 @@ impl Server {
             sources: self.sources(),
             credentials: super::methods::credential_dtos(&state.paths),
             looks: self.looks_answer(language_for_looks.as_deref()),
+            modules: self.modules_answer(language_for_looks.as_deref()),
             locales: super::methods::locale_dtos(&state.paths),
+            profiles: super::methods::profile_dtos(&state.paths),
             bases: super::methods::base_dtos(&state.paths),
             settings: super::methods::settings_dto(&state.paths),
             settings_answer,

@@ -13,6 +13,13 @@ are collected under *Unreleased*. Releases: [GitHub](https://github.com/omaflake
 
 ## [Unreleased]
 
+**Recipes are put together from building blocks now.** A recipe is data – a platform, the **modules** in it, a
+suggested look, **key bindings**, what a VM needs at least and how it runs –, and the Nix lives in modules, reviewed in
+their catalog. Installing a recipe brings what it is made of; the new **Modules** tab lists the modules and key
+bindings here; **Profiles** say how big a new VM is; and **New Recipe …** puts a recipe of your own together in the
+app. Recipes of the old format (recipe.toml v1 with default.nix) and catalogs before version 4 are not read any more
+(no compatibility before 1.0): omaflake/catalog has all of omaflake's recipes in the new format.
+
 Looks are installable now, like recipes: the new **Looks** tab lists the looks here with their colours, which images
 use them and the default one, and what your sources offer besides. No look is built in any more. The official source
 is the new **omaflake/catalog** – recipes and looks; omaflake/recipes is archived. Your settings file becomes version
@@ -23,6 +30,24 @@ version 3 records an image's locale.
 
 ### Added
 
+- **Modules and key bindings:** omaflake's own recipes are made of modules in omaflake/catalog – Hyprland, the shell,
+  WezTerm, Zellij, Neovim, Emacs, Zathura, LaTeX, Typst, Python for data, pandoc, omaflake development (NixOS); the
+  desktop, terminal tools, WezTerm, Zellij, Neovim, LaTeX, Typst, VS Code, Homebrew, pandoc, lazygit (macOS) – and
+  the key bindings `omaflake/default`. A module says what it provides and needs (capabilities: desktop, terminal,
+  multiplexer, shell, editor, default-editor, pdf-viewer) and which actions take a key; a recipe names modules and key
+  binding sets in any version, an exact one, or a minimum and/or maximum. `omaf modules [available|install|rm]`.
+- **What a recipe is made of** shows in its details and on the build page: its modules, look, key bindings, every key,
+  what is missing ("Install Missing Parts" – a build waits for it) and warnings (a module needs something no other
+  provides, Neovim and Emacs together, keys that overlap or break the key rule, unfree software, a locale the recipe
+  is not made for). `omaf recipes show <recipe> [--install]`.
+- **The Modules tab:** the modules and key bindings here with the recipes made of them; install, update and remove
+  them, and see what your sources offer besides.
+- **Profiles** (the gauge in the header): CPU cores and RAM of a new VM. The New VM page offers them, preset with the
+  default ("Custom values" sets them by hand), and warns when a VM gets less than its recipe needs. `omaf profiles
+  [add|edit|rm|default]`, `omaf new --profile`.
+- **My Recipes:** "New Recipe …" in the Recipes tab, or "Copy to My Recipes …" on any recipe, opens the recipe editor
+  – a platform, a switch per module, a look, up to two key binding sets, what a VM needs and how it runs, with the
+  warnings while you choose. Saved recipes are a source of their own in the data folder and built like any other.
 - **The Looks tab:** install looks from your sources (omaflake's own, Catppuccin, Rosé Pine Dawn, Vanilla in the
   official catalog), see a strip of their colours and which images use them, make one the default, update and remove
   them (not while images are built with one). `omaf looks [available|install|rm|default]`.
@@ -40,6 +65,13 @@ version 3 records an image's locale.
 
 ### Changed
 
+- **Recipe format v2 and catalog v4:** a recipe is recipe.toml only (`platform`, `modules`, `look`, `keymaps`,
+  `[requirements]`, `[vm]`, `[locales]`); Nix belongs in a module. The image flake's input is `omaflake-catalog` (a
+  catalog-shaped tree: recipes, modules, key bindings) instead of `omaflake-recipes`. Older recipes and catalogs are
+  not read; `requires` is gone. A recipe package (`.omaflake-recipe`) carries the recipe alone.
+- **Keys in the guests come from the recipe:** each module's default keys, overridden by the recipe's key binding sets
+  – the same keys as before for omaflake's recipes.
+- **A build uses the recipe's look** when it is installed and none is chosen; otherwise the default look.
 - **Defaults live in their tabs:** the default credential is set on the Credentials page, the default look in the
   Looks tab, the default locale on the Locales page; the settings keep only this computer's own keyboard ("This
   Mac"). `omaf config` loses `--default-credential`, `--guest-look`, `--guest-locale`, `--guest-keyboard` and

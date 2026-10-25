@@ -6,7 +6,7 @@
 //! catalog.json, or a local folder. Recipes from a remote source are downloaded (every file checked against the
 //! catalog's SHA-256) into <data folder>/recipes/<id>/; a local folder is used as it is, so a recipe being written
 //! there is built as it is on disk. Before every Nix call the recipes are put together into one folder that the image
-//! flake gets as its input `omaflake-recipes`.
+//! flake gets as its input `omaflake-catalog`.
 //!
 //! Swift's `async` functions (fetching, installing) are blocking here (ureq).
 //!
@@ -374,12 +374,24 @@ pub struct CatalogRecipe {
     pub license: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub lab: Option<bool>,
-    /// What it can be built for (`Platform`, schema 2)
+    /// What it can be built for (`Platform`)
     pub systems: Vec<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub requires: Option<Vec<String>>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub homepage: Option<String>,
+    /// What is in it (catalog v4, recipe v2): modules, the suggested look, key binding sets
+    #[serde(default)]
+    pub modules: Vec<crate::composition::PartRef>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub look: Option<crate::composition::PartRef>,
+    #[serde(default)]
+    pub keymaps: Vec<crate::composition::PartRef>,
+    #[serde(default)]
+    pub requirements: crate::composition::Requirements,
+    /// How a VM from it runs (display, network, share, ephemeral, devices)
+    #[serde(default)]
+    pub vm: BTreeMap<String, Value>,
+    #[serde(default)]
+    pub locales: crate::composition::LocaleRules,
     pub version: String,
     pub files: Vec<CatalogFile>,
 }
@@ -431,23 +443,30 @@ impl CatalogRecipe {
 pub struct RecipeCatalog {
     pub source: CatalogSource,
     pub recipes: Vec<CatalogRecipe>,
-    /// Looks (catalog v3, plan B140); none in older catalogs
+    /// Modules, key binding sets (catalog v4, plan B142) and looks (B140)
+    #[serde(default)]
+    pub modules: Vec<crate::modules::CatalogModule>,
+    #[serde(default)]
+    pub keymaps: Vec<crate::keymaps::CatalogKeymap>,
     #[serde(default)]
     pub looks: Vec<crate::looks::CatalogLook>,
+    /// The capabilities modules provide and need (capabilities.toml)
+    #[serde(default)]
+    pub capabilities: BTreeMap<String, crate::modules::Capability>,
 }
 
 impl RecipeCatalog {
-    /// The catalog's version this omaflake knows – `$schema` https://omaflake.dev/schema/catalog/v3.json (2: `systems`
-    /// per recipe, plan B114; 3: `looks`, plan B140) – and the oldest it reads: version 1 (`"schema": 1`, before B114;
-    /// its recipes ran on Apple silicon). A catalog comes from its source and is only read, never rewritten.
-    pub const VERSION: usize = 3;
-    pub const MINIMUM: usize = 1;
+    /// The catalog's version this omaflake reads – `$schema` https://omaflake.dev/schema/catalog/v4.json (recipes v2
+    /// with modules, key binding sets and looks, plan B142). Older catalogs are not read: their recipes are Nix, which
+    /// this omaflake no longer builds (no compatibility before 1.0, plan B141). A catalog comes from its source and is
+    /// only read, never rewritten.
+    pub const VERSION: usize = 4;
+    pub const MINIMUM: usize = 4;
 
-    /// Reads catalog.json: version from `$schema` (type must be "catalog") or the old `"schema": n`; checked with
-    /// `FileFormat::check(…, file: "catalog.json")`; version 1 recipes get `systems = [legacy system of their kind]`.
-    /// Errors read "Not a recipe catalog (catalog.json): …".
+    /// Reads catalog.json: its version from `$schema` (type must be "catalog"), checked with
+    /// `FileFormat::check(…, file: "catalog.json")`. Errors read "Not a recipe catalog (catalog.json): …".
     pub fn decode(data: &[u8]) -> Result<RecipeCatalog> {
-        let Ok(Value::Object(mut object)) = serde_json::from_slice::<Value>(data) else {
+        let Ok(Value::Object(object)) = serde_json::from_slice::<Value>(data) else {
             return Err(vm_err!("Not a recipe catalog (catalog.json): not JSON"));
         };
         let found = match object.get("$schema").and_then(Value::as_str) {
@@ -455,24 +474,23 @@ impl RecipeCatalog {
                 Some((t, v)) if t == "catalog" => v,
                 _ => return Err(vm_err!("Not a recipe catalog (catalog.json): {schema}")),
             },
-            // before B114
             None => object.get("schema").and_then(Value::as_u64).unwrap_or(0) as usize,
         };
         FileFormat::check(found, Self::MINIMUM, Self::VERSION, "catalog.json")?;
-        if found < 2 {
-            if let Some(Value::Array(recipes)) = object.get_mut("recipes") {
-                // Version 1 has no systems: its recipes were made for Apple silicon
-                if recipes.iter().all(Value::is_object) {
-                    for r in recipes.iter_mut() {
-                        let kind = r.get("kind").and_then(Value::as_str).and_then(GuestKind::parse);
-                        let system = Platform::legacy_system(kind.unwrap_or(GuestKind::Nixos));
-                        r["systems"] = Value::Array(vec![Value::String(system.into())]);
-                    }
-                }
-            }
-        }
         serde_json::from_value::<RecipeCatalog>(Value::Object(object))
             .map_err(|e| vm_err!("Not a recipe catalog (catalog.json): {e}"))
+    }
+
+    /// A catalog with nothing in it (tests, and what a source without one shows)
+    pub fn empty(name: &str) -> RecipeCatalog {
+        RecipeCatalog {
+            source: CatalogSource { name: name.to_string(), description: None, homepage: None },
+            recipes: vec![],
+            modules: vec![],
+            keymaps: vec![],
+            looks: vec![],
+            capabilities: BTreeMap::new(),
+        }
     }
 }
 
@@ -679,8 +697,6 @@ pub struct Installed {
     /// RecipeSource::id it came from
     pub source: String,
     pub version: String,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub requires: Option<Vec<String>>,
     /// With fractions of a second (versions of a line come in order, plan B111); older files without
     #[serde(with = "crate::json::iso8601_fractional")]
     pub installed: DateTime<Utc>,
@@ -753,11 +769,11 @@ impl RecipeLibrary {
     /// Source name of recipes that came from a package or a folder (no catalog, no updates)
     pub const IMPORTED_SOURCE: &'static str = "import";
 
-    /// recipe.toml's version this omaflake knows – `"$schema" = "https://omaflake.dev/schema/recipe/v1.json"` – and the
-    /// oldest it still builds (version 0: no `$schema`, the systems of Apple silicon). The image flake reads the same
-    /// range (plan B114). A recipe is never migrated here: a newer version comes from its author.
-    pub const RECIPE_VERSION: usize = 1;
-    pub const RECIPE_MINIMUM: usize = 0;
+    /// recipe.toml's version this omaflake builds – `"$schema" = "https://omaflake.dev/schema/recipe/v2.json"`: data
+    /// only, with modules (plan B142). The image flake reads the same. A recipe is never migrated here: a newer version
+    /// comes from its author; v1 recipes (Nix) are not built any more (no compatibility before 1.0, plan B141).
+    pub const RECIPE_VERSION: usize = 2;
+    pub const RECIPE_MINIMUM: usize = 2;
 
     /// How many staged folders `stage` keeps
     const STAGED_KEPT: usize = 8;
@@ -868,19 +884,6 @@ impl RecipeLibrary {
         out
     }
 
-    /// The recipe a recipe's `requires` means: the one of that base from the same source, otherwise the first one
-    pub(crate) fn requirement<'a>(
-        &self,
-        base: &str,
-        source: &str,
-        available: &'a [AvailableRecipe],
-    ) -> Option<&'a AvailableRecipe> {
-        available
-            .iter()
-            .find(|a| RecipeId::base(&a.id) == base && a.source == source)
-            .or_else(|| available.iter().find(|a| RecipeId::base(&a.id) == base))
-    }
-
     /// A source's name for lists: the source's own, "imported" recipes by where they are kept
     pub fn source_name(&self, source: &str, settings: &Settings) -> String {
         if source == Self::IMPORTED_SOURCE {
@@ -912,70 +915,45 @@ impl RecipeLibrary {
 
     // MARK: Install and remove
 
-    /// Downloads a recipe and those it requires (from the same catalog), checking every file's size and SHA-256.
-    /// A recipe whose content is here already (any source) is not downloaded again; a new version replaces the older
-    /// one of the same source (its line), images built from that stay. Returns the IDs written.
+    /// Downloads a recipe, checking every file's size and SHA-256 (what it is made of – modules, key bindings, its
+    /// look – the caller installs: `RecipeParts`). A recipe whose content is here already (any source) is not
+    /// downloaded again; a new version replaces the older one of the same source (its line), images built from that
+    /// stay. Returns the IDs written.
     pub fn install(&self, id: &str, catalog: &RecipeCatalog, client: &SourceClient) -> Result<Vec<String>> {
-        fn collect<'a>(
-            r: &str,
-            catalog: &'a RecipeCatalog,
-            client: &SourceClient,
-            visiting: &mut HashSet<String>,
-            order: &mut Vec<&'a CatalogRecipe>,
-        ) -> Result<()> {
-            let Some(rid) = RecipeRef::id(RecipeId::base(r)) else {
-                return Err(vm_err!(codes::NOT_FOUND, "Not a recipe: {r}"));
-            };
-            if !visiting.insert(rid.clone()) {
-                return Ok(());
-            }
-            let Some(found) = catalog.recipes.iter().find(|c| c.id == rid) else {
-                return Err(vm_err!(codes::NOT_FOUND, "{r} is not in {}", client.source.display_name()));
-            };
-            for req in found.requires.iter().flatten() {
-                collect(req, catalog, client, visiting, order)?;
-            }
-            order.push(found);
-            Ok(())
-        }
-        let mut order = Vec::new();
-        collect(id, catalog, client, &mut HashSet::new(), &mut order)?;
+        let Some(rid) = RecipeRef::id(RecipeId::base(id)) else {
+            return Err(vm_err!(codes::NOT_FOUND, "Not a recipe: {id}"));
+        };
+        let Some(r) = catalog.recipes.iter().find(|c| c.id == rid) else {
+            return Err(vm_err!(codes::NOT_FOUND, "{id} is not in {}", client.source.display_name()));
+        };
         let mut manifest = self.installed();
-        let mut written = Vec::new();
         let here: HashSet<String> = self.available(&Settings::load(&self.paths)).into_iter().map(|a| a.id).collect();
-        for r in order {
-            let hash = r.content_hash();
-            let full = RecipeId::make_with_hash(&r.id, &hash, OmaflakeId::LENGTH);
-            if here.contains(&full) || manifest.contains_key(&full) {
-                continue;
-            }
-            let Some(target) = self.folder(&full) else { continue };
-            self.download(r, client, &target)?;
-            if Self::content_hash(&target).ok().as_deref() != Some(hash.as_str()) {
-                let _ = Disposal::delete(&[&target]);
-                return Err(vm_err!("{} does not match the catalog – nothing was installed", r.id));
-            }
-            let requires = r.requires.as_ref().map(|list| list.iter().filter_map(|x| RecipeRef::id(x)).collect());
-            manifest.insert(
-                full.clone(),
-                Installed {
-                    source: client.source.id(),
-                    version: r.version.clone(),
-                    requires,
-                    installed: Self::install_time(&manifest),
-                },
-            );
-            self.save_manifest(&manifest)?;
-            written.push(full);
+        let hash = r.content_hash();
+        let full = RecipeId::make_with_hash(&r.id, &hash, OmaflakeId::LENGTH);
+        if here.contains(&full) || manifest.contains_key(&full) {
+            return Ok(Vec::new());
         }
-        if !written.is_empty() {
-            self.prune_versions(); // an older version of this line goes, unless kept (plan B111)
+        let Some(target) = self.folder(&full) else { return Ok(Vec::new()) };
+        self.download(r, client, &target)?;
+        if Self::content_hash(&target).ok().as_deref() != Some(hash.as_str()) {
+            let _ = Disposal::delete(&[&target]);
+            return Err(vm_err!("{} does not match the catalog – nothing was installed", r.id));
         }
-        Ok(written)
+        manifest.insert(
+            full.clone(),
+            Installed {
+                source: client.source.id(),
+                version: r.version.clone(),
+                installed: Self::install_time(&manifest),
+            },
+        );
+        self.save_manifest(&manifest)?;
+        self.prune_versions(); // an older version of this line goes, unless kept (plan B111)
+        Ok(vec![full])
     }
 
     /// One recipe into `target` via a `.download-<uuid>` work folder; the catalog entry is checked first (path, sizes,
-    /// recipe.toml and default.nix present, file paths inside the folder)
+    /// recipe.toml its only file)
     pub(crate) fn download(&self, r: &CatalogRecipe, client: &SourceClient, target: &Path) -> Result<()> {
         // The catalog is untrusted: its path must be the recipe's own folder, file paths stay inside it
         let well_formed = match RecipeRef::parts(&r.id) {
@@ -993,8 +971,8 @@ impl RecipeLibrary {
         if r.files.iter().map(|f| f.size).sum::<u64>() > Self::MAX_RECIPE {
             return Err(vm_err!("{} is larger than 5 MiB", r.id));
         }
-        if !r.files.iter().any(|f| f.path == "recipe.toml") || !r.files.iter().any(|f| f.path == "default.nix") {
-            return Err(vm_err!("{} has no recipe.toml or default.nix", r.id));
+        if !r.files.iter().any(|f| f.path == "recipe.toml") || r.files.iter().any(|f| f.path != "recipe.toml") {
+            return Err(vm_err!("{} is not a recipe: recipe.toml is its only file (Nix belongs in a module)", r.id));
         }
         let recipes = self.paths.recipes();
         fs::create_dir_all(&recipes).with_path(&recipes)?;
@@ -1122,26 +1100,12 @@ impl RecipeLibrary {
         removed
     }
 
-    /// Keeps the version an image is built from (plan B111): a recipe from a local folder – and those it requires – is
-    /// copied to `recipes/<id>/`, so it stays when the folder changes. Downloaded and imported ones are kept already.
+    /// Keeps the version an image is built from (plan B111): a recipe from a local folder is copied to
+    /// `recipes/<id>/`, so it stays when the folder changes. Downloaded and imported ones are kept already.
     pub fn keep(&self, id: &str, settings: &Settings) {
         let available = self.available(settings);
-        let before = self.installed();
-        let mut manifest = before.clone();
+        let mut manifest = self.installed();
         let Some(entry) = available.iter().find(|a| a.id == id) else { return };
-        self.keep_copy(entry, &available, &mut manifest);
-        if manifest != before {
-            let _ = self.save_manifest(&manifest);
-        }
-    }
-
-    /// `keep`'s copy of one recipe and, recursively, those it requires
-    fn keep_copy(
-        &self,
-        entry: &AvailableRecipe,
-        available: &[AvailableRecipe],
-        manifest: &mut BTreeMap<String, Installed>,
-    ) {
         if manifest.contains_key(&entry.id) {
             return;
         }
@@ -1172,19 +1136,14 @@ impl RecipeLibrary {
             Installed {
                 source: entry.source.clone(),
                 version: RecipeId::words(&entry.id).unwrap_or("").to_string(),
-                requires: Some(Self::requires_of(&target)),
-                installed: Self::install_time(manifest),
+                installed: Self::install_time(&manifest),
             },
         );
-        for req in Self::requires_of(&entry.folder) {
-            if let Some(r) = self.requirement(&req, &entry.source, available) {
-                self.keep_copy(r, available, manifest);
-            }
-        }
+        let _ = self.save_manifest(&manifest);
     }
 
-    /// Removes every version of a line that can go (not a local folder's recipe, no image built from it, not required
-    /// by another recipe); returns the removed ones and why the others stay
+    /// Removes every version of a line that can go (not a local folder's recipe, no image built from it); returns the
+    /// removed ones and why the others stay
     pub fn remove_line(&self, line: &str) -> (Vec<String>, Vec<String>) {
         let mut removed = Vec::new();
         let mut kept = Vec::new();
@@ -1199,46 +1158,18 @@ impl RecipeLibrary {
     }
 
     /// Removes one version of a recipe (downloaded, imported or kept). Refused while an image is built from it (it is
-    /// kept for that image), for a local folder's recipe as it is now, and while another recipe requires it and no other
-    /// version of it is left; images built from it stay.
+    /// kept for that image) and for a local folder's recipe as it is now; images built from it stay.
     pub fn remove(&self, id: &str) -> Result<()> {
         let mut manifest = self.installed();
-        let Some(source) = manifest.get(id).map(|i| i.source.clone()) else {
+        if !manifest.contains_key(id) {
             return Err(vm_err!("{} lives in a local folder – change or remove it there", OmaflakeId::recipe(id, 2)));
-        };
+        }
         let used = ImageStore::new(self.paths.clone()).list().iter().any(|i| i.recipe() == id);
         if used {
             return Err(vm_err!(
                 codes::IN_USE,
                 "Images are built from {} – it is kept while they are there",
                 OmaflakeId::recipe(id, 2)
-            ));
-        }
-        // Required by another recipe of the same source, and no other recipe of that base left for it
-        let base = RecipeId::base(id);
-        let others_left =
-            self.available(&Settings::load(&self.paths)).iter().any(|a| a.id != id && RecipeId::base(&a.id) == base);
-        let mut users: Vec<&String> = if others_left {
-            Vec::new()
-        } else {
-            manifest
-                .iter()
-                .filter(|(k, v)| {
-                    k.as_str() != id
-                        && v.source == source
-                        && v.requires.as_ref().is_some_and(|r| r.iter().any(|x| x == base))
-                })
-                .map(|(k, _)| k)
-                .collect()
-        };
-        users.sort();
-        if !users.is_empty() {
-            let names: Vec<String> = users.iter().map(|u| RecipeId::qualified(u)).collect();
-            return Err(vm_err!(
-                codes::IN_USE,
-                "{} is required by {} – remove those first",
-                RecipeId::qualified(id),
-                names.join(", ")
             ));
         }
         if let Some(folder) = self.folder(id) {
@@ -1347,51 +1278,13 @@ impl RecipeLibrary {
             .collect()
     }
 
-    /// `requires = ["author/kind/name", …]` of a recipe.toml → recipe IDs
-    pub fn requires_of(folder: &Path) -> Vec<String> {
-        let Ok(toml) = fs::read_to_string(folder.join("recipe.toml")) else { return Vec::new() };
-        let Some(line) = toml.split('\n').find(|l| l.trim_matches(is_blank).starts_with("requires")) else {
-            return Vec::new();
-        };
-        let (Some(open), Some(close)) = (line.find('['), line.rfind(']')) else { return Vec::new() };
-        if open >= close {
-            return Vec::new();
-        }
-        line[open + 1..close]
-            .split(',')
-            .filter(|s| !s.is_empty())
-            .filter_map(|s| RecipeRef::id(s.trim_matches(|c| c == ' ' || c == '"' || c == '\'')))
-            .collect()
-    }
-
-    /// Recipes and the ones they require → `<folder>/<base>.omaflake-recipe` (`recipes/<author>/<kind>/<name>/` +
-    /// manifest.json) – what people share
+    /// A recipe → `<folder>/<base>.omaflake-recipe` (`recipes/<author>/<kind>/<name>/recipe.toml` + manifest.json) –
+    /// what people share. Its modules and key bindings are not in it: they come from the receiver's sources.
     pub fn export_recipe(&self, id: &str, folder: &Path, settings: &Settings) -> Result<PathBuf> {
         let available = self.available(settings);
         let Some(top) = available.iter().find(|a| a.id == id) else {
             return Err(vm_err!(codes::NOT_FOUND, "{} is not available here", RecipeId::qualified(id)));
         };
-        // The recipe and what it requires, as its build would see them (same source first)
-        fn collect(
-            lib: &RecipeLibrary,
-            entry: &AvailableRecipe,
-            available: &[AvailableRecipe],
-            order: &mut Vec<(String, PathBuf)>,
-        ) -> Result<()> {
-            if order.iter().any(|(i, _)| RecipeId::base(i) == RecipeId::base(&entry.id)) {
-                return Ok(());
-            }
-            order.push((entry.id.clone(), entry.folder.clone()));
-            for req in RecipeLibrary::requires_of(&entry.folder) {
-                let Some(r) = lib.requirement(&req, &entry.source, available) else {
-                    return Err(vm_err!(codes::NOT_FOUND, "{} is not available here", RecipeId::qualified(&req)));
-                };
-                collect(lib, r, available, order)?;
-            }
-            Ok(())
-        }
-        let mut order = Vec::new();
-        collect(self, top, &available, &mut order)?;
         let base = RecipeId::base(id);
         let dest = folder.join(format!("{base}.{}", Package::RECIPE));
         if dest.exists() {
@@ -1400,16 +1293,16 @@ impl RecipeLibrary {
         let partial = folder.join(format!(".{base}.{}.partial", Package::RECIPE));
         Disposal::delete(&[&partial])?;
         let result = (|| -> Result<()> {
-            for (rid, source) in &order {
-                let Some((author, kind, name)) = RecipeRef::parts(RecipeId::base(rid)) else { continue };
-                let target = partial.join(format!("recipes/{author}/{}/{name}", kind.as_str()));
-                for rel in Self::recipe_files(source)? {
-                    let file = target.join(&rel);
-                    if let Some(parent) = file.parent() {
-                        fs::create_dir_all(parent).with_path(parent)?;
-                    }
-                    fs::copy(source.join(&rel), &file).with_path(&file)?;
+            let Some((author, kind, name)) = RecipeRef::parts(base) else {
+                return Err(vm_err!("Not a recipe: {id}"));
+            };
+            let target = partial.join(format!("recipes/{author}/{}/{name}", kind.as_str()));
+            for rel in Self::recipe_files(&top.folder)? {
+                let file = target.join(&rel);
+                if let Some(parent) = file.parent() {
+                    fs::create_dir_all(parent).with_path(parent)?;
                 }
+                fs::copy(top.folder.join(&rel), &file).with_path(&file)?;
             }
             fs::create_dir_all(&partial).with_path(&partial)?;
             Manifest::new(PackageKind::Recipe, base, None, Some(id.to_string()), None, None).write(&partial)?;
@@ -1449,26 +1342,15 @@ impl RecipeLibrary {
     }
 
     /// Recipes from a package, a checkout or a folder of recipe folders (`<author>/<kind>/<name>/recipe.toml`), or
-    /// one recipe folder → the downloaded recipes (source "import"). Same limits as a download; a recipe it requires
-    /// must come along or be available already. A recipe whose content is here already is skipped; other content is a
-    /// recipe of its own next to the ones there are (plan B110) – nothing is replaced. Returns the IDs written.
+    /// one recipe folder → the downloaded recipes (source "import"). Same limits as a download; each must be a recipe
+    /// this omaflake reads (recipe v2). A recipe whose content is here already is skipped; other content is a recipe of
+    /// its own next to the ones there are (plan B110) – nothing is replaced. Returns the IDs written.
     pub fn import_recipes(&self, from: &Path) -> Result<Vec<String>> {
         let found = self.recipes_in(from)?;
         let available = self.available(&Settings::load(&self.paths));
-        let mut known: HashSet<String> = available.iter().map(|a| RecipeId::base(&a.id).to_string()).collect();
-        known.extend(found.iter().map(|(id, _)| id.clone()));
         for (base, folder) in &found {
-            if !folder.join("default.nix").exists() {
-                return Err(vm_err!("{} has no default.nix", RecipeId::qualified(base)));
-            }
-            if let Some(missing) = Self::requires_of(folder).into_iter().find(|r| !known.contains(r)) {
-                return Err(vm_err!(
-                    codes::NOT_FOUND,
-                    "{} requires {}, which is not here – nothing was imported",
-                    RecipeId::qualified(base),
-                    RecipeId::qualified(&missing)
-                ));
-            }
+            crate::composition::RecipeSpec::read(folder)
+                .map_err(|e| vm_err!("{}: {} – nothing was imported", RecipeId::qualified(base), e.message()))?;
         }
         let here: HashSet<String> = available.into_iter().map(|a| a.id).collect();
         let mut manifest = self.installed();
@@ -1502,7 +1384,6 @@ impl RecipeLibrary {
                 Installed {
                     source: Self::IMPORTED_SOURCE.into(),
                     version: RecipeId::words(&id).unwrap_or("").to_string(),
-                    requires: Some(Self::requires_of(&target)),
                     installed: Self::install_time(&manifest),
                 },
             );
@@ -1517,46 +1398,52 @@ impl RecipeLibrary {
 
     // MARK: Staging
 
-    /// Puts every available recipe into one folder for the image flake's input `omaflake-recipes` (plan B110):
-    /// `<cache>/recipes/<hash of the content>/<id>/<author>/<kind>/<name>/`, each recipe in a tree of its own with the
-    /// recipes it requires next to it (same source first) – recipes import those by relative paths (`../minimal`), so
-    /// each sees its own. `recipes.json` tells the flake which folder is which recipe (ID → path). The same content
-    /// gives the same folder, so a change in a local folder is picked up by the next Nix call and nothing is copied
-    /// twice. Symbolic links and Finder files are left out. Keeps the 8 most recently used staged folders.
+    /// Puts every available recipe into one folder for the image flake's input `omaflake-catalog` (plan B110, B142):
+    /// `<cache>/recipes/<hash of the content>/<id>/` is a tree laid out as a catalog for each recipe – its recipe.toml
+    /// under `recipes/<author>/<kind>/<name>/`, the modules and key binding sets it uses (in a version it allows) under
+    /// `modules/` and `keymaps/`. `recipes.json` tells the flake which tree is which recipe (ID → `{tree, recipe}`). The
+    /// same content gives the same folder, so a change in a local folder is picked up by the next Nix call and nothing
+    /// is copied twice. Symbolic links and Finder files are left out. Keeps the 8 most recently used staged folders.
     pub fn stage(&self, settings: &Settings) -> Result<PathBuf> {
         // Only recipes of a version this omaflake builds (`unreadable` names the others)
         let available: Vec<AvailableRecipe> =
             self.available(settings).into_iter().filter(|a| Self::readable(Self::version_of(&a.folder))).collect();
+        let modules = crate::modules::ModuleStore::new(self.paths.clone()).list(settings);
+        let keymaps = crate::keymaps::KeymapStore::new(self.paths.clone()).list(settings);
         let mut files: Vec<(String, PathBuf)> = Vec::new();
-        let mut mapping: BTreeMap<String, String> = BTreeMap::new();
-        fn place(
-            lib: &RecipeLibrary,
-            entry: &AvailableRecipe,
-            tree: &str,
-            available: &[AvailableRecipe],
-            placed: &mut HashSet<String>,
-            files: &mut Vec<(String, PathBuf)>,
-        ) {
-            let base = RecipeId::base(&entry.id);
-            if !placed.insert(base.to_string()) {
-                return;
+        let mut mapping: BTreeMap<String, Value> = BTreeMap::new();
+        let add_folder = |prefix: String, folder: &Path, files: &mut Vec<(String, PathBuf)>| {
+            for rel in RecipeLibrary::recipe_files(folder).unwrap_or_default() {
+                files.push((format!("{prefix}/{rel}"), folder.join(&rel)));
             }
-            let Some((author, kind, name)) = RecipeRef::parts(base) else { return };
-            let prefix = format!("{tree}/{author}/{}/{name}", kind.as_str());
-            for rel in RecipeLibrary::recipe_files(&entry.folder).unwrap_or_default() {
-                files.push((format!("{prefix}/{rel}"), entry.folder.join(&rel)));
-            }
-            for req in RecipeLibrary::requires_of(&entry.folder) {
-                if let Some(r) = lib.requirement(&req, &entry.source, available) {
-                    place(lib, r, tree, available, placed, files);
-                }
-            }
-        }
+        };
         for entry in &available {
             let Some((author, kind, name)) = RecipeRef::parts(RecipeId::base(&entry.id)) else { continue };
-            let mut placed = HashSet::new();
-            place(self, entry, &entry.id, &available, &mut placed, &mut files);
-            mapping.insert(entry.id.clone(), format!("{}/{author}/{}/{name}", entry.id, kind.as_str()));
+            let recipe = format!("{author}/{}/{name}", kind.as_str());
+            let tree = &entry.id;
+            add_folder(format!("{tree}/recipes/{recipe}"), &entry.folder, &mut files);
+            // The parts it uses, as `Composition` finds them – a missing one stays missing (the build page says so)
+            if let Ok(spec) = crate::composition::RecipeSpec::read(&entry.folder) {
+                for r in &spec.modules {
+                    if let Some(m) = modules.iter().find(|m| m.platform == spec.platform && m.reference() == r.id) {
+                        if r.allows(&m.version) {
+                            add_folder(
+                                format!("{tree}/modules/{}/{}/{}", m.author, kind.as_str(), m.name),
+                                &m.folder,
+                                &mut files,
+                            );
+                        }
+                    }
+                }
+                for r in &spec.keymaps {
+                    if let Some(k) = keymaps.iter().find(|k| k.reference() == r.id) {
+                        if r.allows(&k.version) {
+                            add_folder(format!("{tree}/keymaps/{}/{}", k.author, k.name), &k.folder, &mut files);
+                        }
+                    }
+                }
+            }
+            mapping.insert(entry.id.clone(), serde_json::json!({"tree": tree, "recipe": recipe}));
         }
         // Swift's JSONEncoder [.prettyPrinted, .sortedKeys] (slashes escaped) – the same bytes, the same hash
         let mapping_data = crate::json::to_pretty(&mapping, true)?;
@@ -1635,7 +1522,7 @@ mod tests {
     }
 
     /// A catalog entry for `id` whose files are written under `src` (Swift test `entry`)
-    fn entry(src: &Path, id: &str, requires: &[&str], files: &[(&str, &str)]) -> Value {
+    fn entry(src: &Path, id: &str, files: &[(&str, &str)]) -> Value {
         let (author, kind, name) = RecipeRef::parts(id).unwrap();
         let path = format!("recipes/{author}/{}/{name}", kind.as_str());
         let mut sorted = files.to_vec();
@@ -1648,33 +1535,24 @@ mod tests {
             })
             .collect();
         json!({"id": id, "author": author, "kind": kind.as_str(), "name": name, "path": path, "description": "d",
-               "systems": ["aarch64-linux"], "requires": requires, "version": format!("v1-{name}"), "files": list})
+               "systems": ["aarch64-linux"], "version": format!("v1-{name}"), "files": list})
     }
 
     fn catalog(recipes: &[Value]) -> RecipeCatalog {
-        let json = json!({"$schema": "https://omaflake.dev/schema/catalog/v2.json", "source": {"name": "test"},
+        let json = json!({"$schema": "https://omaflake.dev/schema/catalog/v4.json", "source": {"name": "test"},
                           "recipes": recipes});
         RecipeCatalog::decode(&serde_json::to_vec(&json).unwrap()).unwrap()
     }
 
-    const V1: &str = "\"$schema\" = \"https://omaflake.dev/schema/recipe/v1.json\"\n";
+    const V2: &str = "\"$schema\" = \"https://omaflake.dev/schema/recipe/v2.json\"\nplatform = \"nixos\"\n";
 
     fn two_recipes(src: &Path) -> Vec<Value> {
         vec![
-            entry(
-                src,
-                "omaflake.nixos.minimal",
-                &[],
-                &[("recipe.toml", &format!("{V1}cpus = 1")), ("default.nix", "{ }")],
-            ),
+            entry(src, "omaflake.nixos.minimal", &[("recipe.toml", &format!("{V2}modules = [\"omaflake/shell\"]\n"))]),
             entry(
                 src,
                 "someone.nixos.rust",
-                &["omaflake/nixos/minimal"],
-                &[
-                    ("recipe.toml", &format!("{V1}cpus = 2\nrequires = [\"omaflake/nixos/minimal\"]\n")),
-                    ("default.nix", "{ imports = [ ../../../omaflake/nixos/minimal ]; }"),
-                ],
+                &[("recipe.toml", &format!("{V2}modules = [\"omaflake/shell\", \"someone/rust\"]\n"))],
             ),
         ]
     }
@@ -1777,7 +1655,7 @@ mod tests {
     fn content_hash_of_a_folder() {
         let (_t, p) = temp_paths();
         let f = p.root.join("r");
-        put(&f, "recipe.toml", &format!("{V1}cpus = 1"));
+        put(&f, "recipe.toml", &format!("{V2}cpus = 1"));
         put(&f, "default.nix", "{ }");
         put(&f, "sub/x.nix", "x");
         put(&f, ".DS_Store", "finder");
@@ -1786,11 +1664,11 @@ mod tests {
         std::os::unix::fs::symlink(f.join("default.nix"), f.join("link.nix")).unwrap();
         assert_eq!(RecipeLibrary::recipe_files(&f).unwrap(), vec!["default.nix", "recipe.toml", "sub/x.nix"]);
         // computed with Swift's algorithm (sorted paths, path + NUL + SHA-256 of the file)
-        let expected = "560177c420ae6e45fda27de95933c73f56b56ed8edde219857ec0239a8cb6fff";
+        let expected = "1f3bf733ea909e60f159ed76e9f863d4fdf263483aafa62a08d67a3fda7f36a8";
         assert_eq!(RecipeLibrary::content_hash(&f).unwrap(), expected);
         // the catalog's file list gives the same
         let files =
-            [("recipe.toml", format!("{V1}cpus = 1")), ("default.nix", "{ }".into()), ("sub/x.nix", "x".into())];
+            [("recipe.toml", format!("{V2}cpus = 1")), ("default.nix", "{ }".into()), ("sub/x.nix", "x".into())];
         let r = CatalogRecipe {
             id: "a.nixos.b".into(),
             author: "a".into(),
@@ -1803,8 +1681,13 @@ mod tests {
             license: None,
             lab: None,
             systems: vec![],
-            requires: None,
             homepage: None,
+            modules: vec![],
+            look: None,
+            keymaps: vec![],
+            requirements: Default::default(),
+            vm: BTreeMap::new(),
+            locales: Default::default(),
             version: "v".into(),
             files: files
                 .iter()
@@ -1828,10 +1711,7 @@ mod tests {
     }
 
     #[test]
-    fn requires_and_descriptions() {
-        let (_t, p) = temp_paths();
-        put(&p.root, "recipe.toml", "cpus = 1\n  requires = [ \"omaflake/nixos/minimal\", 'a.nixos.b', \"bad\" ]\n");
-        assert_eq!(RecipeLibrary::requires_of(&p.root), vec!["omaflake.nixos.minimal", "a.nixos.b"]);
+    fn descriptions() {
         let mut c = catalog(&[json!({"id": "a.nixos.b", "author": "a", "kind": "nixos", "name": "b",
             "path": "recipes/a/nixos/b", "description": "en", "descriptions": {"de": "de"}, "systems": ["aarch64-linux"],
             "version": "v", "files": []})]);
@@ -1842,9 +1722,9 @@ mod tests {
         assert_eq!(r.runs_here(), Platform::host_system(GuestKind::Nixos) == Some("aarch64-linux"));
     }
 
-    /// A local catalog folder as source: installing checks every file, rejects paths outside the recipe, brings
-    /// what a recipe requires; staging puts local folders first and gives the same folder for the same content.
-    /// (Swift `installStageRemove` without the removals and with kept versions – see the ignored test below.)
+    /// A local catalog folder as source: installing checks every file and refuses anything but recipe.toml; staging
+    /// puts local folders first, gives each recipe a tree with the modules and key bindings it uses, and the same folder
+    /// for the same content. (Swift `installStageRemove` without the removals and with kept versions.)
     #[test]
     fn install_and_stage() {
         let (_t, paths) = temp_paths();
@@ -1854,15 +1734,13 @@ mod tests {
         let source = RecipeSource::new(RecipeSourceKind::Folder, &src.to_string_lossy(), None, None, None);
         let lib = RecipeLibrary::new(paths.clone());
         let client = SourceClient::new(source, None);
-        let installed = lib.install("someone/nixos/rust", &catalog(&recipes), &client).unwrap();
-        let bases: Vec<&str> = installed.iter().map(|i| RecipeId::base(i)).collect();
-        assert_eq!(bases, ["omaflake.nixos.minimal", "someone.nixos.rust"]);
-        let (minimal, rust) = (installed[0].clone(), installed[1].clone());
+        let minimal = lib.install("omaflake/nixos/minimal", &catalog(&recipes), &client).unwrap()[0].clone();
+        let rust = lib.install("someone/nixos/rust", &catalog(&recipes), &client).unwrap()[0].clone();
+        assert_eq!(RecipeId::base(&rust), "someone.nixos.rust");
         // the ID's words are the catalog's content hash, the same as the downloaded folder's
         let hash = catalog(&recipes).recipes[1].content_hash();
         assert_eq!(rust, RecipeId::make_with_hash("someone.nixos.rust", &hash, OmaflakeId::LENGTH));
-        assert!(paths.recipes().join(&rust).join("default.nix").exists());
-        assert_eq!(lib.installed()[&rust].requires.as_deref(), Some(&["omaflake.nixos.minimal".to_string()][..]));
+        assert!(paths.recipes().join(&rust).join("recipe.toml").exists());
         assert!(lib.install("someone/nixos/rust", &catalog(&recipes), &client).unwrap().is_empty()); // same content
         assert_eq!(
             lib.install("someone/nixos/nothing", &catalog(&recipes), &client).unwrap_err().code(),
@@ -1870,20 +1748,19 @@ mod tests {
         );
 
         // a new version whose served file does not match the catalog: nothing is written
-        put(&src, "recipes/someone/nixos/rust/default.nix", "{ evil = true; }");
+        put(&src, "recipes/someone/nixos/rust/recipe.toml", "evil = true");
         recipes[1]["version"] = json!("v2");
-        recipes[1]["files"][0]["sha256"] = json!(sha256_hex(b"{ v2 }")); // default.nix (sorted first)
+        recipes[1]["files"][0]["sha256"] = json!(sha256_hex(b"{ v2 }"));
         recipes[1]["files"][0]["size"] = json!(6);
         let e = lib.install("someone/nixos/rust", &catalog(&recipes), &client).unwrap_err();
         assert!(e.message().contains("does not match the catalog"), "{e}");
-        let kept = fs::read_to_string(paths.recipes().join(&rust).join("default.nix")).unwrap();
-        assert!(kept.contains("imports"));
-        // a path leaving the recipe's folder is refused
-        // (an extra file: with default.nix renamed the entry would already fail for lacking it)
+        let kept = fs::read_to_string(paths.recipes().join(&rust).join("recipe.toml")).unwrap();
+        assert!(kept.contains("someone/rust"));
+        // anything but recipe.toml is refused – a path leaving the folder too
         let escape = json!({"path": "../../../../escape", "size": 1, "sha256": sha256_hex(b"x")});
         recipes[1]["files"].as_array_mut().unwrap().insert(0, escape);
         let e = lib.install("someone/nixos/rust", &catalog(&recipes), &client).unwrap_err();
-        assert!(e.message().contains("leaves the recipe's folder"), "{e}");
+        assert!(e.message().contains("recipe.toml is its only file"), "{e}");
         // no work folders are left behind
         let left: Vec<String> = fs::read_dir(paths.recipes())
             .unwrap()
@@ -1896,37 +1773,43 @@ mod tests {
         // staging: the downloaded recipes, a local folder's first; the same content, the same folder
         let mut settings = Settings { sources: Some(vec![]), ..Default::default() };
         let staged = lib.stage(&settings).unwrap();
-        // rust's tree has the minimal it requires next to it
-        assert!(staged.join(&rust).join("omaflake/nixos/minimal/recipe.toml").exists());
-        assert!(staged.join(&minimal).join("omaflake/nixos/minimal/recipe.toml").exists());
-        let mapping: BTreeMap<String, String> =
+        assert!(staged.join(&rust).join("recipes/someone/nixos/rust/recipe.toml").exists());
+        assert!(!staged.join(&rust).join("recipes/omaflake/nixos/minimal").exists(), "a tree has its own recipe only");
+        let mapping: BTreeMap<String, Value> =
             serde_json::from_slice(&fs::read(staged.join("recipes.json")).unwrap()).unwrap();
-        assert_eq!(mapping[&rust], format!("{rust}/someone/nixos/rust"));
+        assert_eq!(mapping[&rust], json!({"tree": rust, "recipe": "someone/nixos/rust"}));
         assert_eq!(lib.stage(&settings).unwrap(), staged);
-        let local = paths.root.join("local-recipes/omaflake/nixos/minimal");
-        put(&local, "recipe.toml", &format!("{V1}cpus = 7"));
-        put(&local, "default.nix", "{ }");
-        let local_source = RecipeSource::new(
-            RecipeSourceKind::Folder,
-            &paths.root.join("local-recipes").to_string_lossy(),
-            None,
-            None,
-            None,
+        // a local folder with another minimal, its modules and key bindings
+        let local_root = paths.root.join("local");
+        let local = local_root.join("recipes/omaflake/nixos/minimal");
+        put(&local, "recipe.toml", &format!("{V2}modules = [\"omaflake/shell\", {{ id = \"omaflake/old\", min = \"2.0.0\" }}]\nkeymaps = [\"omaflake/default\"]\n"));
+        let module = |name: &str| {
+            format!("\"$schema\" = \"https://omaflake.dev/schema/module/v1.json\"\nversion = \"1.0.0\"\ntitle = \"{name}\"\n")
+        };
+        put(&local_root, "modules/omaflake/nixos/shell/module.toml", &module("shell"));
+        put(&local_root, "modules/omaflake/nixos/shell/default.nix", "{ ... }: { }");
+        put(&local_root, "modules/omaflake/nixos/old/module.toml", &module("old"));
+        put(&local_root, "modules/omaflake/nixos/old/default.nix", "{ ... }: { }");
+        put(
+            &local_root,
+            "keymaps/omaflake/default/keymap.toml",
+            "\"$schema\" = \"https://omaflake.dev/schema/keymap/v1.json\"\nversion = \"1.0.0\"\n",
         );
+        let local_source = RecipeSource::new(RecipeSourceKind::Folder, &local_root.to_string_lossy(), None, None, None);
         settings.sources = Some(vec![local_source.clone()]);
         let with_local = lib.stage(&settings).unwrap();
         assert_ne!(with_local, staged);
-        // another minimal (other content, other source) next to the downloaded one; rust still gets its own source's
         let available = lib.available(&settings);
         let local_minimal = available.iter().find(|a| a.source == local_source.id()).unwrap().id.clone();
         assert!(RecipeId::base(&local_minimal) == "omaflake.nixos.minimal" && local_minimal != minimal);
         assert_eq!(available.len(), 3);
-        let read = |p: PathBuf| fs::read_to_string(p).unwrap();
-        assert_eq!(
-            read(with_local.join(&local_minimal).join("omaflake/nixos/minimal/recipe.toml")),
-            format!("{V1}cpus = 7")
-        );
-        assert_eq!(read(with_local.join(&rust).join("omaflake/nixos/minimal/recipe.toml")), format!("{V1}cpus = 1"));
+        let tree = with_local.join(&local_minimal);
+        assert!(tree.join("modules/omaflake/nixos/shell/default.nix").exists());
+        assert!(!tree.join("modules/omaflake/nixos/old").exists(), "1.0.0 is not a version the recipe allows");
+        assert!(tree.join("keymaps/omaflake/default/keymap.toml").exists());
+        // rust's tree gets the shell module too (any source's); its own someone/rust is nowhere
+        assert!(with_local.join(&rust).join("modules/omaflake/nixos/shell/module.toml").exists());
+        assert!(!with_local.join(&rust).join("modules/someone").exists());
         let d = lib.distinctions(&settings);
         assert!(d.contains_key(&local_minimal) && !d.contains_key(&rust));
         assert_eq!(d[&minimal], client.source.id()); // a source no longer in the settings: its ID
@@ -1938,9 +1821,8 @@ mod tests {
         put(&local, "recipe.toml", "\"$schema\" = \"https://omaflake.dev/schema/recipe/v9.json\"\n");
         let unreadable = lib.unreadable(&settings);
         assert_eq!(unreadable.len(), 1);
-        assert_eq!(unreadable[0].reason, "recipe.toml has version 9 – this omaflake reads up to 1; update omaflake");
-        let staged_again = lib.stage(&settings).unwrap();
-        assert_eq!(staged_again, staged);
+        assert_eq!(unreadable[0].reason, "recipe.toml has version 9 – this omaflake reads up to 2; update omaflake");
+        assert!(!lib.stage(&settings).unwrap().join(&local_minimal).exists());
     }
 
     /// The full Swift `installStageRemove` (removals need `ImageStore::list`, F1) – run after the merge
@@ -1952,9 +1834,8 @@ mod tests {
         let source = RecipeSource::new(RecipeSourceKind::Folder, &src.to_string_lossy(), None, None, None);
         let lib = RecipeLibrary::new(paths.clone());
         let client = SourceClient::new(source, None);
-        let installed = lib.install("someone/nixos/rust", &catalog(&recipes), &client).unwrap();
-        let (minimal, rust) = (installed[0].clone(), installed[1].clone());
-        assert!(lib.remove(&minimal).is_err()); // still required
+        let minimal = lib.install("omaflake/nixos/minimal", &catalog(&recipes), &client).unwrap()[0].clone();
+        let rust = lib.install("someone/nixos/rust", &catalog(&recipes), &client).unwrap()[0].clone();
         let settings = Settings { sources: Some(vec![]), ..Default::default() };
         lib.stage(&settings).unwrap();
         lib.remove(&rust).unwrap();
@@ -1962,7 +1843,7 @@ mod tests {
         assert!(lib.installed().is_empty());
     }
 
-    /// Export (with what it requires) and import into another data folder
+    /// Export and import into another data folder
     #[test]
     fn export_and_import() {
         let (_t, paths) = temp_paths();
@@ -1971,13 +1852,16 @@ mod tests {
         let recipes = two_recipes(&src);
         let source = RecipeSource::new(RecipeSourceKind::Folder, &src.to_string_lossy(), None, None, None);
         let lib = RecipeLibrary::new(paths.clone());
-        let ids = lib.install("someone/nixos/rust", &catalog(&recipes), &SourceClient::new(source, None)).unwrap();
+        let client = SourceClient::new(source, None);
+        let mut ids = lib.install("omaflake/nixos/minimal", &catalog(&recipes), &client).unwrap();
+        ids.extend(lib.install("someone/nixos/rust", &catalog(&recipes), &client).unwrap());
         let out = paths.root.join("out");
         fs::create_dir_all(&out).unwrap();
         let settings = Settings::load(&paths);
         let package = lib.export_recipe(&ids[1], &out, &settings).unwrap();
         assert_eq!(package, out.join("someone.nixos.rust.omaflake-recipe"));
-        assert!(package.join("recipes/omaflake/nixos/minimal/default.nix").exists());
+        assert!(package.join("recipes/someone/nixos/rust/recipe.toml").exists());
+        assert!(!package.join("recipes/omaflake").exists(), "only the recipe: its modules come from sources");
         assert_eq!(Manifest::read(&package).unwrap().recipe.as_deref(), Some(ids[1].as_str()));
         assert_eq!(lib.export_recipe(&ids[1], &out, &settings).unwrap_err().code(), Some(codes::EXISTS));
         assert_eq!(lib.export_recipe("a.nixos.b@x", &out, &settings).unwrap_err().code(), Some(codes::NOT_FOUND));
@@ -1985,20 +1869,18 @@ mod tests {
         let (_t2, other) = temp_paths();
         keeping(&other);
         let lib2 = RecipeLibrary::new(other.clone());
-        let mut imported = lib2.import_recipes(&package).unwrap();
-        imported.sort();
-        let mut expected = ids.clone();
-        expected.sort();
-        assert_eq!(imported, expected); // the same content, the same IDs
+        let imported = lib2.import_recipes(&package).unwrap();
+        assert_eq!(imported, [ids[1].clone()]); // the same content, the same ID
         assert!(lib2.import_recipes(&package).unwrap().is_empty());
-        assert_eq!(lib2.installed()[&ids[0]].source, RecipeLibrary::IMPORTED_SOURCE);
-        // one recipe folder: its place says who it is; what it requires must be here
+        assert_eq!(lib2.installed()[&ids[1]].source, RecipeLibrary::IMPORTED_SOURCE);
+        // one recipe folder: its place says who it is; it must be a recipe this omaflake reads
         let (_t3, third) = temp_paths();
         keeping(&third);
         let one = package.join("recipes/someone/nixos/rust");
         assert_eq!(RecipeLibrary::new(third.clone()).recipes_in(&one).unwrap()[0].0, "someone.nixos.rust");
+        put(&one, "recipe.toml", "\"$schema\" = \"https://omaflake.dev/schema/recipe/v1.json\"\n");
         let e = RecipeLibrary::new(third).import_recipes(&one).unwrap_err();
-        assert!(e.message().contains("requires omaflake/nixos/minimal, which is not here"), "{e}");
+        assert!(e.message().contains("nothing was imported"), "{e}");
         assert_eq!(lib2.recipes_in(&other.root).unwrap_err().code(), Some(codes::NOT_FOUND));
     }
 
@@ -2020,7 +1902,7 @@ mod tests {
         assert_eq!(no_token.verify().unwrap_err().code(), Some(codes::AUTH));
     }
 
-    /// The public omaflake/recipes catalog: read over the network, and – with a ../recipes checkout next to this one
+    /// The public omaflake/catalog: read over the network, and – with a ../catalog checkout next to this one
     /// – each recipe's catalog hash equals its folder's
     #[test]
     #[ignore = "network"]
@@ -2029,7 +1911,7 @@ mod tests {
         let c = client.catalog().unwrap();
         assert!(!c.recipes.is_empty());
         assert!(client.verify().unwrap().starts_with(&format!("{}: ", c.source.name)));
-        let checkout = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../recipes");
+        let checkout = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../catalog");
         let local = fs::read(checkout.join("catalog.json")).ok().map(|d| RecipeCatalog::decode(&d).unwrap());
         for r in local.map(|l| l.recipes).unwrap_or_default() {
             assert_eq!(RecipeLibrary::content_hash(&checkout.join(&r.path)).unwrap(), r.content_hash(), "{}", r.id);
@@ -2040,8 +1922,7 @@ mod tests {
 
     fn recipe(root: &Path, text: &str) {
         let d = root.join("me/nixos/desk");
-        put(&d, "recipe.toml", &format!("{V1}description = \"x\"\n"));
-        put(&d, "default.nix", text);
+        put(&d, "recipe.toml", &format!("{V2}description = \"{text}\"\n"));
     }
 
     fn image(p: &Paths, recipe: &str, source: &str, store: &str) -> PathBuf {
@@ -2112,7 +1993,7 @@ mod tests {
         let v1 = lib.available(&s)[0].id.clone();
         assert!(lib.versions(&s).values().next().unwrap()[0].is_live);
         lib.keep(&v1, &s);
-        assert!(p.recipes().join(&v1).join("default.nix").exists());
+        assert!(p.recipes().join(&v1).join("recipe.toml").exists());
         let img = image(&p, &v1, &source.id(), "/nix/store/b");
         recipe(&folder, "{ v = 2; }");
         let list = lib.versions(&s).values().next().unwrap().clone();
@@ -2125,7 +2006,7 @@ mod tests {
         assert!(lib.remove(&list[0].id).is_err()); // the folder's own recipe is changed there
     }
 
-    /// `keep` copies a local folder's recipe and what it requires (without `ImageStore`)
+    /// `keep` copies a local folder's recipe (without `ImageStore`)
     #[test]
     fn keep_copies_a_local_folder_recipe() {
         let (_t, p) = temp_paths();
@@ -2139,7 +2020,7 @@ mod tests {
         let rust = available.iter().find(|a| RecipeId::base(&a.id) == "someone.nixos.rust").unwrap().id.clone();
         lib.keep(&rust, &s);
         let installed = lib.installed();
-        assert_eq!(installed.len(), 2);
+        assert_eq!(installed.len(), 1);
         assert!(installed.values().all(|i| i.source == source.id()));
         assert_eq!(installed[&rust].version, RecipeId::words(&rust).unwrap());
         assert!(p.recipes().join(&rust).join("recipe.toml").exists());
@@ -2182,13 +2063,15 @@ mod tests {
             crate::mac_vm::MacVmConfig::FILE_FORMAT,
             Manifest::FILE_FORMAT,
             crate::source_tokens::TokenFile::FILE_FORMAT,
-            crate::looks::LookStore::FILE_FORMAT,
+            crate::parts::PartStore::FILE_FORMAT,
         ];
         let mut urls: Vec<String> =
             formats.iter().flat_map(|f| (1..=f.current()).map(|v| FileFormat::schema_for(f.type_, v))).collect();
         urls.extend((2..=RecipeCatalog::VERSION).map(|v| FileFormat::schema_for("catalog", v)));
         urls.extend((1..=RecipeLibrary::RECIPE_VERSION).map(|v| FileFormat::schema_for("recipe", v)));
         urls.extend((1..=crate::looks::LookStore::LOOK_VERSION).map(|v| FileFormat::schema_for("look", v)));
+        urls.extend((1..=crate::modules::ModuleStore::MODULE_VERSION).map(|v| FileFormat::schema_for("module", v)));
+        urls.extend((1..=crate::keymaps::KeymapStore::KEYMAP_VERSION).map(|v| FileFormat::schema_for("keymap", v)));
         urls.push(FileFormat::schema_for("base", 1));
         for url in urls {
             assert_eq!(schema(&url)["$id"].as_str(), Some(url.as_str()));
@@ -2225,12 +2108,19 @@ mod tests {
                 keyboards: vec!["de".into(), "ru".into()],
             }]),
             default_locale: Some("l-1".into()),
+            profiles: Some(vec![crate::profiles::Profile {
+                id: "p-1".into(),
+                name: "Small".into(),
+                cpus: 2,
+                memory_gb: 4,
+            }]),
+            default_profile: Some("p-1".into()),
             default_credential: Some("c-1".into()),
             default_look: Some("omaflake.look.omaflake".into()),
             ..Default::default()
         };
         matches(&Settings::FILE_FORMAT.encode(&s).unwrap());
-        matches(&crate::looks::sample_file());
+        matches(&crate::parts::sample_file());
         let mac = crate::mac_vm::MacVmConfig::new(4, 8192, 80, "02:00:00:00:00:01", Some("26A434".into()));
         matches(&crate::mac_vm::MacVmConfig::FILE_FORMAT.encode(&mac).unwrap());
         let m = Manifest::new(PackageKind::Vm, "a", Some(GuestKind::Nixos), None, None, None);
@@ -2238,7 +2128,7 @@ mod tests {
         let installed = InstalledFile {
             recipes: BTreeMap::from([(
                 "x".to_string(),
-                Installed { source: "s".into(), version: "v".into(), requires: None, installed: Utc::now() },
+                Installed { source: "s".into(), version: "v".into(), installed: Utc::now() },
             )]),
         };
         matches(&RecipeLibrary::FILE_FORMAT.encode(&installed).unwrap());
@@ -2271,33 +2161,35 @@ mod tests {
         put(
             &folder,
             "recipe.toml",
-            "# \"$schema\" = \"https://omaflake.dev/schema/recipe/v7.json\"\n\"$schema\" = \"https://omaflake.dev/schema/recipe/v1.json\"   # the version\ncpus = 1\n",
+            "# \"$schema\" = \"https://omaflake.dev/schema/recipe/v7.json\"\n\"$schema\" = \"https://omaflake.dev/schema/recipe/v2.json\"   # the version\ncpus = 1\n",
         );
-        assert_eq!(RecipeLibrary::version_of(&folder), 1);
-        // Recipes: version 0 (no $schema) is still built, a newer one is not
-        assert!(RecipeLibrary::readable(0) && RecipeLibrary::readable(1) && !RecipeLibrary::readable(2));
+        assert_eq!(RecipeLibrary::version_of(&folder), 2);
+        // Recipes: only version 2 is built – v1 recipes were Nix (plan B142)
+        assert!(!RecipeLibrary::readable(0) && !RecipeLibrary::readable(1) && RecipeLibrary::readable(2));
     }
 
     #[test]
-    fn catalog_version_one_is_read() {
-        let v1 = br#"{"schema":1,"source":{"name":"old"},"recipes":[{"id":"a.macos.m","author":"a","kind":"macos","name":"m","path":"recipes/a/macos/m","description":"d","version":"v","files":[]}]}"#;
-        let catalog = RecipeCatalog::decode(v1).unwrap();
-        assert_eq!(catalog.recipes[0].systems, vec!["aarch64-darwin"]);
-        let v4 = br#"{"$schema":"https://omaflake.dev/schema/catalog/v4.json","source":{"name":"x"},"recipes":[]}"#;
-        assert_eq!(RecipeCatalog::decode(v4).unwrap_err().code(), Some(codes::NEWER_FILE));
-        // v3: looks next to recipes (plan B140); v2 has none
-        let v3 = br#"{"$schema":"https://omaflake.dev/schema/catalog/v3.json","source":{"name":"x"},"recipes":[],"looks":[{"id":"a.look.l","author":"a","name":"l","path":"looks/a/l","title":"L","description":"d","appearance":"dark","version":"v","files":[]}]}"#;
-        assert_eq!(RecipeCatalog::decode(v3).unwrap().looks[0].title, "L");
+    fn catalog_versions() {
+        let v4 = br#"{"$schema":"https://omaflake.dev/schema/catalog/v4.json","source":{"name":"x"},"recipes":[],
+            "modules":[{"id":"a.nixos.m","author":"a","platform":"nixos","name":"m","path":"modules/a/nixos/m","version":"1.0.0",
+            "title":"M","description":"d","provides":["editor"],"hash":"h","files":[]}],
+            "capabilities":{"editor":{"exclusive":false,"description":"e"}}}"#;
+        let c = RecipeCatalog::decode(v4).unwrap();
+        assert_eq!((c.modules[0].reference().as_str(), c.capabilities.len()), ("a/m", 1));
+        // older catalogs are not read: their recipes are Nix (plan B142); newer ones neither
+        for old in [
+            &br#"{"schema":1,"source":{"name":"old"},"recipes":[]}"#[..],
+            br#"{"$schema":"https://omaflake.dev/schema/catalog/v3.json","source":{"name":"x"},"recipes":[]}"#,
+        ] {
+            assert_eq!(RecipeCatalog::decode(old).unwrap_err().code(), Some(codes::UNREADABLE_FILE));
+        }
+        let v5 = br#"{"$schema":"https://omaflake.dev/schema/catalog/v5.json","source":{"name":"x"},"recipes":[]}"#;
+        assert_eq!(RecipeCatalog::decode(v5).unwrap_err().code(), Some(codes::NEWER_FILE));
         let foreign = br#"{"$schema":"https://omaflake.dev/schema/image/v1.json","source":{"name":"x"},"recipes":[]}"#;
         assert!(RecipeCatalog::decode(foreign)
             .unwrap_err()
             .message()
             .starts_with("Not a recipe catalog (catalog.json): "));
         assert_eq!(RecipeCatalog::decode(b"[").unwrap_err().message(), "Not a recipe catalog (catalog.json): not JSON");
-        // version 0 (no schema at all) is too old
-        assert_eq!(
-            RecipeCatalog::decode(br#"{"source":{"name":"x"},"recipes":[]}"#).unwrap_err().code(),
-            Some(codes::UNREADABLE_FILE)
-        );
     }
 }

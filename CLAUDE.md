@@ -15,16 +15,17 @@ any work and keep them up to date.
 - **Language:** everything in this repository is English (code, comments, docs, UI, commits).
   Talk to the maintainer in German.
 - **Licence header:** every new own source file (Swift, Rust, Nix, shell, Python) starts with
-  `SPDX-License-Identifier: AGPL-3.0-or-later` (after a shebang or `swift-tools-version` line); recipes are MIT and
-  live in `omaflake/recipes`.
+  `SPDX-License-Identifier: AGPL-3.0-or-later` (after a shebang or `swift-tools-version` line); recipes, modules, key
+  bindings and looks are MIT and live in `omaflake/catalog`.
 - **Public from day one:** no personal data in tracked files – no names, initials, user names,
   home paths, SSH keys, hostnames. Personal settings belong in `nix/local/`.
-- **Repositories:** app work happens only in this checkout (`omaflake/omaflake`). The recipes live in
-  `omaflake/recipes` (checked out next to this one as `../recipes`; its own CLAUDE.md) – this repository holds none
-  (plan B107). The website is a separate repo, `omaflake/website` (static GitHub Pages site), as `../website`.
-- **Developing with recipes:** the data folder's config.json has the local checkout `../recipes` as its recipe
-  source (`omaf sources add <path> --first`), not the remote omaflake/recipes – a recipe changed there is built as
-  it is on disk. Change a recipe in `../recipes`, run its `tools/catalog.py`, commit there.
+- **Repositories:** app work happens only in this checkout (`omaflake/omaflake`). Recipes, modules, key bindings and
+  looks live in `omaflake/catalog` (checked out next to this one as `../catalog`; its own CLAUDE.md) – this
+  repository holds none (plan B107, B140, B142; `omaflake/recipes` is archived). The website is a separate repo,
+  `omaflake/website` (static GitHub Pages site), as `../website`.
+- **Developing with the catalog:** the data folder's config.json has the local checkout `../catalog` as its source
+  (`omaf sources add <path> --first`), not the remote omaflake/catalog – a recipe or module changed there is built as
+  it is on disk. Change it in `../catalog`, run its `tools/catalog.py`, commit there.
 - **`nix/local/` is personal:** each developer's user, keys and extras (git-ignored; template
   `nix/local.example/`). Claude may read and edit it when asked, but never copies anything from it
   into tracked files and never commits it. Use the image flake as `path:` (see nix/README.md).
@@ -38,7 +39,8 @@ any work and keep them up to date.
 - **After every change:** `swift build` and `swift test`; `cargo fmt --all --check`, `cargo clippy --all-targets` and
   `cargo test`; after runner changes `scripts/sign-runner.sh`;
   after Nix changes `nix flake check`, `nix flake check "path:$PWD/nix"` and, with the recipes,
-  `nix flake check "path:$PWD/nix" --override-input omaflake-recipes "path:$PWD/../recipes/recipes"`. Commit only
+  `nix flake check "path:$PWD/nix" --override-input omaflake-catalog "path:$PWD/../catalog"`; after catalog changes
+  `python3 tools/catalog.py --check` there. Commit only
   when green.
 - **Small steps:** one milestone (spec §7) at a time; check the acceptance criterion explicitly and
   tick it in the docs. Findings get ids `B…` (NixOS/general) and `BM…` (macOS).
@@ -73,8 +75,9 @@ nix/modules/vm-guest.nix   guest module (root flake output nixosModules.vm-guest
 docs/                      spec, plan, cli, app, macos-base, linux-builder
 brand/                     omaflake brand set (icons, favicon, banner, Sources/OmaflakeKit/Brand/BrandAssets.swift);
                            edit brand/generate.py and brand/tokens.toml (design tokens: brand/tokens.py), not exports
-nix/                       image flake: builds images from the recipes of the sources (input omaflake-recipes),
-                           guest modules, the omaflake agent, Linux builder host; use as path:, shipped in the app
+nix/                       image flake: builds images from the recipes of the sources with their modules (input
+                           omaflake-catalog), the platforms (NixOS, macOS), the omaflake agent, Linux builder host;
+                           use as path:, shipped in the app
 nix/local.example/         template for personal settings → nix/local/ (git-ignored)
 ```
 

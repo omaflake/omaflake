@@ -119,6 +119,19 @@ pub fn new(a: &cli::New) -> Outcome {
     if let Some(v) = cli::inverted(a.share, a.no_share) {
         settings.share = v;
     }
+    // A profile's CPU cores and RAM (plan B142): the one named, else the default; --cpus and --memory win
+    let profiles = omaflake_core::profiles::Profiles::new(env.paths.clone());
+    let profile = match &a.profile {
+        Some(p) => {
+            Some(profiles.find(p).ok_or_else(|| usage(&["new"], format!("No profile {p} – see omaf profiles")))?)
+        }
+        None => profiles.default_profile(),
+    };
+    let needs = (settings.cpus, settings.memory_gb);
+    if let Some(p) = &profile {
+        settings.cpus = p.cpus;
+        settings.memory_gb = p.memory_gb;
+    }
     if let Some(cpus) = a.cpus {
         settings.cpus = cpus;
     }
@@ -130,6 +143,12 @@ pub fn new(a: &cli::New) -> Outcome {
     }
     if let Some(disk) = a.disk {
         settings.disk_gb = disk;
+    }
+    if settings.cpus < needs.0 || settings.memory_gb < needs.1 {
+        eprintln!(
+            "Note: the recipe needs at least {} CPU cores and {} GB RAM – this VM gets {} and {} GB.",
+            needs.0, needs.1, settings.cpus, settings.memory_gb
+        );
     }
     if let Some(network) = &a.network {
         let Some(mode) = NetworkMode::ALL.into_iter().find(|m| m.as_str() == network) else {

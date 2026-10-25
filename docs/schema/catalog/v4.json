@@ -1,0 +1,740 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://omaflake.dev/schema/catalog/v4.json",
+  "title": "omaflake recipe catalog",
+  "description": "catalog.json of a source, written by tools/catalog.py. v4 (plan B142): recipes are data (recipe v2) and name modules, a look and key binding sets; modules, key binding sets and the capabilities come next to looks.",
+  "type": "object",
+  "properties": {
+    "$schema": {
+      "const": "https://omaflake.dev/schema/catalog/v4.json"
+    },
+    "source": {
+      "type": "object",
+      "required": [
+        "name"
+      ],
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        },
+        "homepage": {
+          "type": "string"
+        }
+      }
+    },
+    "recipes": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "author",
+          "kind",
+          "name",
+          "path",
+          "description",
+          "systems",
+          "version",
+          "files"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "<author>.<kind>.<name>"
+          },
+          "author": {
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "nixos",
+              "macos"
+            ],
+            "description": "Guest kind"
+          },
+          "name": {
+            "type": "string"
+          },
+          "path": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "descriptions": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            }
+          },
+          "tags": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "license": {
+            "type": "string"
+          },
+          "lab": {
+            "type": "boolean"
+          },
+          "systems": {
+            "type": "array",
+            "items": {
+              "enum": [
+                "aarch64-linux",
+                "x86_64-linux",
+                "aarch64-darwin"
+              ],
+              "description": "Architecture as Nix names a system"
+            },
+            "minItems": 1,
+            "uniqueItems": true,
+            "description": "What it can be built for: aarch64-linux, x86_64-linux (nixos) or aarch64-darwin (macos)"
+          },
+          "homepage": {
+            "type": "string"
+          },
+          "defaults": {
+            "type": "object",
+            "properties": {
+              "user": {
+                "type": "string",
+                "description": "Login user inside the guest"
+              },
+              "cpus": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "memory_gb": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "disk_gb": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "network": {
+                "enum": [
+                  "shared",
+                  "isolated",
+                  "none"
+                ]
+              },
+              "share": {
+                "type": "boolean"
+              },
+              "ephemeral": {
+                "type": "boolean"
+              },
+              "display": {
+                "enum": [
+                  "none",
+                  "window",
+                  "gpu"
+                ],
+                "description": "How a plain start shows the VM: headless, a window, a window with 3D"
+              },
+              "audio": {
+                "type": "boolean"
+              },
+              "microphone": {
+                "type": "boolean"
+              },
+              "clipboard": {
+                "type": "boolean"
+              },
+              "camera": {
+                "type": "boolean"
+              }
+            }
+          },
+          "version": {
+            "type": "string",
+            "description": "Changes with any file of the recipe"
+          },
+          "files": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "path",
+                "size",
+                "sha256"
+              ],
+              "properties": {
+                "path": {
+                  "type": "string"
+                },
+                "size": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "sha256": {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{64}$"
+                }
+              }
+            }
+          },
+          "modules": {
+            "type": "array",
+            "items": {
+              "$ref": "#/$defs/refObject"
+            }
+          },
+          "look": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/$defs/refObject"
+              }
+            ]
+          },
+          "keymaps": {
+            "type": "array",
+            "items": {
+              "$ref": "#/$defs/refObject"
+            }
+          },
+          "requirements": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "cpus",
+              "memory_gb",
+              "disk_gb"
+            ],
+            "properties": {
+              "cpus": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "memory_gb": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "disk_gb": {
+                "type": "integer",
+                "minimum": 1
+              }
+            },
+            "description": "The least a VM from it needs; a smaller profile gets a warning"
+          },
+          "vm": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "display": {
+                "enum": [
+                  "none",
+                  "window",
+                  "gpu"
+                ]
+              },
+              "network": {
+                "enum": [
+                  "shared",
+                  "isolated",
+                  "none"
+                ]
+              },
+              "share": {
+                "type": "boolean"
+              },
+              "ephemeral": {
+                "type": "boolean"
+              },
+              "audio": {
+                "type": "boolean"
+              },
+              "microphone": {
+                "type": "boolean"
+              },
+              "clipboard": {
+                "type": "boolean"
+              },
+              "camera": {
+                "type": "boolean"
+              }
+            },
+            "description": "How a VM from it runs"
+          },
+          "locales": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "rtl": {
+                "type": "boolean",
+                "description": "false: not made for right-to-left languages"
+              },
+              "languages": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "pattern": "^[a-z]{2,3}$"
+                },
+                "description": "Made for these languages only"
+              }
+            },
+            "description": "Which locales it works with – a locale outside gets a warning at the build"
+          }
+        }
+      }
+    },
+    "looks": {
+      "description": "The looks of this source (looks/<author>/<name>/look.toml), checked by tools/catalog.py",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "id",
+          "author",
+          "name",
+          "path",
+          "title",
+          "description",
+          "tags",
+          "license",
+          "version",
+          "files",
+          "hash"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[a-z0-9][a-z0-9-]*\\.look\\.[a-z0-9][a-z0-9-]*$"
+          },
+          "author": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "path": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "descriptions": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            }
+          },
+          "tags": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "license": {
+            "type": "string"
+          },
+          "appearance": {
+            "enum": [
+              "dark",
+              "light",
+              null
+            ]
+          },
+          "homepage": {
+            "type": "string"
+          },
+          "swatches": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "description": "The main colours, for a preview without downloading; null for a plain look",
+            "properties": {
+              "background": {
+                "type": "string",
+                "pattern": "^#[0-9a-fA-F]{6}$"
+              },
+              "surface": {
+                "type": "string",
+                "pattern": "^#[0-9a-fA-F]{6}$"
+              },
+              "text": {
+                "type": "string",
+                "pattern": "^#[0-9a-fA-F]{6}$"
+              },
+              "accent": {
+                "type": "string",
+                "pattern": "^#[0-9a-fA-F]{6}$"
+              },
+              "urgent": {
+                "type": "string",
+                "pattern": "^#[0-9a-fA-F]{6}$"
+              },
+              "terminal": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "pattern": "^#[0-9a-fA-F]{6}$"
+                },
+                "minItems": 16,
+                "maxItems": 16
+              }
+            }
+          },
+          "version": {
+            "type": "string",
+            "pattern": "^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)$",
+            "description": "The author's version"
+          },
+          "files": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "path",
+                "size",
+                "sha256"
+              ],
+              "properties": {
+                "path": {
+                  "type": "string"
+                },
+                "size": {
+                  "type": "integer"
+                },
+                "sha256": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "plain": {
+            "type": "boolean"
+          },
+          "hash": {
+            "type": "string",
+            "description": "The files' content hash"
+          },
+          "ref": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "modules": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "author",
+          "platform",
+          "name",
+          "path",
+          "version",
+          "title",
+          "description",
+          "hash",
+          "files"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "ref": {
+            "type": "string",
+            "description": "<author>/<name>"
+          },
+          "author": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "path": {
+            "type": "string"
+          },
+          "version": {
+            "type": "string",
+            "pattern": "^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)$"
+          },
+          "title": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "descriptions": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            }
+          },
+          "license": {
+            "type": "string"
+          },
+          "hash": {
+            "type": "string"
+          },
+          "files": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "path",
+                "size",
+                "sha256"
+              ],
+              "properties": {
+                "path": {
+                  "type": "string"
+                },
+                "size": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "sha256": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "platform": {
+            "enum": [
+              "nixos",
+              "macos"
+            ]
+          },
+          "tags": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "homepage": {
+            "type": "string"
+          },
+          "provides": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "needs": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "enhances": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "runs_in": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "desktop": {
+            "type": "boolean"
+          },
+          "own_keys": {
+            "type": "boolean"
+          },
+          "unfree": {
+            "type": "boolean"
+          },
+          "actions": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "title",
+                "key"
+              ],
+              "properties": {
+                "title": {
+                  "type": "string"
+                },
+                "key": {
+                  "type": "string",
+                  "description": "A chord – modifiers (Super, Ctrl, Alt, Shift) and a key joined by \"+\" (\"Super+Shift+Return\", \"Ctrl+g\") – or chords separated by spaces (\"Space f f\"); Digit and Arrow stand for 1–9 and the arrows"
+                },
+                "mode": {
+                  "type": "string",
+                  "description": "Only in this mode of the module"
+                },
+                "desktop": {
+                  "type": "boolean",
+                  "description": "Works everywhere on the desktop"
+                },
+                "context": {
+                  "type": "string",
+                  "description": "Bound inside another module's program (\"<author>/<name>\")"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "keymaps": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "author",
+          "name",
+          "path",
+          "version",
+          "title",
+          "description",
+          "hash",
+          "files"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "ref": {
+            "type": "string",
+            "description": "<author>/<name>"
+          },
+          "author": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "path": {
+            "type": "string"
+          },
+          "version": {
+            "type": "string",
+            "pattern": "^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)$"
+          },
+          "title": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "descriptions": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            }
+          },
+          "license": {
+            "type": "string"
+          },
+          "hash": {
+            "type": "string"
+          },
+          "files": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "path",
+                "size",
+                "sha256"
+              ],
+              "properties": {
+                "path": {
+                  "type": "string"
+                },
+                "size": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "sha256": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "keys": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "object",
+              "additionalProperties": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      }
+    },
+    "capabilities": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "exclusive",
+          "description"
+        ],
+        "properties": {
+          "exclusive": {
+            "type": "boolean"
+          },
+          "description": {
+            "type": "string"
+          }
+        }
+      }
+    }
+  },
+  "required": [
+    "$schema",
+    "source",
+    "recipes"
+  ],
+  "additionalProperties": false,
+  "$defs": {
+    "refObject": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id"
+      ],
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "version": {
+          "type": "string",
+          "pattern": "^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)$"
+        },
+        "min": {
+          "type": "string",
+          "pattern": "^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)$"
+        },
+        "max": {
+          "type": "string",
+          "pattern": "^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)$"
+        }
+      }
+    }
+  }
+}

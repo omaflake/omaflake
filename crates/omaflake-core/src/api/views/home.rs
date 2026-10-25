@@ -72,6 +72,7 @@ pub(crate) fn page(ctx: &Ctx) -> HomePage {
         doctor,
         Action::show("credentials", Text::new("Credentials"), Some("key"), "credentials", json!({})),
         Action::show("locales", Text::new("Locales"), Some("globe"), "locales", json!({})),
+        Action::show("profiles", Text::new("Profiles"), Some("gauge"), "profiles", json!({})),
         Action::show("settings", Text::new("Settings"), Some("settings"), "settings", json!({})),
         Action::call(
             "dataFolder",
@@ -121,6 +122,7 @@ pub(crate) fn page(ctx: &Ctx) -> HomePage {
                 help: Text::new("A recipe changed since its image was built"),
             }),
         },
+        Tab { id: "modules".into(), label: Text::new("Modules"), icon: "module".into(), badge: None },
         Tab {
             id: "looks".into(),
             label: Text::new("Looks"),

@@ -49,6 +49,20 @@
     },
     {
       "enabled": true,
+      "icon": "gauge",
+      "id": "profiles",
+      "label": {
+        "key": "Profiles",
+        "text": "Profiles"
+      },
+      "method": "ui.show",
+      "params": {
+        "page": "profiles",
+        "params": {}
+      }
+    },
+    {
+      "enabled": true,
       "icon": "settings",
       "id": "settings",
       "label": {
@@ -161,6 +175,14 @@
       "label": {
         "key": "Recipes",
         "text": "Recipes"
+      }
+    },
+    {
+      "icon": "module",
+      "id": "modules",
+      "label": {
+        "key": "Modules",
+        "text": "Modules"
       }
     },
     {

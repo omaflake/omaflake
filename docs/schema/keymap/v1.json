@@ -1,0 +1,61 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://omaflake.dev/schema/keymap/v1.json",
+  "title": "omaflake key binding set (keymap.toml)",
+  "description": "keymap.toml (plan B142): keys for the actions of modules – [keys.\"<author>/<name>\"] tables of action → key.",
+  "type": "object",
+  "additionalProperties": false,
+  "patternProperties": {
+    "^description_[a-z]{2,3}$": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "$schema",
+    "version",
+    "author",
+    "license",
+    "title",
+    "description"
+  ],
+  "properties": {
+    "$schema": {
+      "const": "https://omaflake.dev/schema/keymap/v1.json"
+    },
+    "version": {
+      "type": "string",
+      "pattern": "^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)$"
+    },
+    "author": {
+      "type": "string"
+    },
+    "license": {
+      "type": "string"
+    },
+    "title": {
+      "type": "string"
+    },
+    "description": {
+      "type": "string"
+    },
+    "tags": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "homepage": {
+      "type": "string"
+    },
+    "keys": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": {
+          "type": "string",
+          "description": "A chord – modifiers (Super, Ctrl, Alt, Shift) and a key joined by \"+\" (\"Super+Shift+Return\", \"Ctrl+g\") – or chords separated by spaces (\"Space f f\"); Digit and Arrow stand for 1–9 and the arrows"
+        }
+      }
+    }
+  }
+}

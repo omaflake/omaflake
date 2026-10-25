@@ -11,21 +11,21 @@
           "path": "recipe.toml",
           "sha256": "9f86d081884c7d65",
           "size": 412
-        },
-        {
-          "path": "configuration.nix",
-          "sha256": "60303ae22b998861",
-          "size": 2048
         }
       ],
       "id": "omaflake.nixos.minimal",
+      "keymaps": [
+        "omaflake/default"
+      ],
       "kind": "nixos",
       "lab": false,
       "license": "MIT",
-      "name": "minimal",
-      "requires": [
-        "omaflake.nixos.base"
+      "look": "omaflake/omaflake",
+      "modules": [
+        "omaflake/hyprland",
+        "omaflake/neovim ≥ 1.0.0"
       ],
+      "name": "minimal",
       "runsHere": true,
       "source": "github:omaflake/recipes@main",
       "systems": [
@@ -44,18 +44,14 @@
           "path": "recipe.toml",
           "sha256": "9f86d081884c7d65",
           "size": 412
-        },
-        {
-          "path": "configuration.nix",
-          "sha256": "60303ae22b998861",
-          "size": 2048
         }
       ],
       "id": "lab.nixos.try",
+      "keymaps": [],
       "kind": "nixos",
       "lab": true,
+      "modules": [],
       "name": "try",
-      "requires": [],
       "runsHere": true,
       "source": "github:omaflake/recipes@main",
       "systems": [
@@ -76,21 +72,21 @@
           "path": "recipe.toml",
           "sha256": "9f86d081884c7d65",
           "size": 412
-        },
-        {
-          "path": "configuration.nix",
-          "sha256": "60303ae22b998861",
-          "size": 2048
         }
       ],
       "id": "omaflake.nixos.minimal",
+      "keymaps": [
+        "omaflake/default"
+      ],
       "kind": "nixos",
       "lab": false,
       "license": "MIT",
-      "name": "minimal",
-      "requires": [
-        "omaflake.nixos.base"
+      "look": "omaflake/omaflake",
+      "modules": [
+        "omaflake/hyprland",
+        "omaflake/neovim ≥ 1.0.0"
       ],
+      "name": "minimal",
       "runsHere": true,
       "source": "github:omaflake/recipes@main",
       "systems": [
@@ -113,21 +109,21 @@
             "path": "recipe.toml",
             "sha256": "9f86d081884c7d65",
             "size": 412
-          },
-          {
-            "path": "configuration.nix",
-            "sha256": "60303ae22b998861",
-            "size": 2048
           }
         ],
         "id": "omaflake.nixos.dev",
+        "keymaps": [
+          "omaflake/default"
+        ],
         "kind": "nixos",
         "lab": false,
         "license": "MIT",
-        "name": "dev",
-        "requires": [
-          "omaflake.nixos.base"
+        "look": "omaflake/omaflake",
+        "modules": [
+          "omaflake/hyprland",
+          "omaflake/neovim ≥ 1.0.0"
         ],
+        "name": "dev",
         "runsHere": true,
         "source": "github:omaflake/recipes@main",
         "systems": [

@@ -374,10 +374,10 @@ impl BuildChoice {
 
 impl ImageStore {
     /// Arguments for a `nix` call on the image flake: the guest values as its `omaflake-guest` input and the recipes
-    /// of the sources as `omaflake-recipes` (RecipeLibrary::stage), without writing the lock file (it would get the
+    /// with their modules and key bindings as `omaflake-catalog` (RecipeLibrary::stage), without writing the lock file (it would get the
     /// data folder's paths). For a local folder an input is passed only when its flake.nix declares it; the `nix/`
     /// folder of an omaflake checkout also gets the checkout as its `omaflake` input (`omaflake_checkout_arguments`).
-    /// `["--override-input", "omaflake-guest", "path:<dir>", "--override-input", "omaflake-recipes", "path:<dir>",
+    /// `["--override-input", "omaflake-guest", "path:<dir>", "--override-input", "omaflake-catalog", "path:<dir>",
     /// "--no-write-lock-file"]`, or nothing.
     /// `guest_arguments_for` with the settings' defaults
     pub fn guest_arguments(&self, flake: &str) -> Vec<String> {
@@ -390,7 +390,7 @@ impl ImageStore {
         if flake.starts_with('/') {
             let nix = std::fs::read_to_string(Path::new(flake).join("flake.nix")).unwrap_or_default();
             guest = nix.contains("omaflake-guest");
-            recipes = nix.contains("omaflake-recipes");
+            recipes = nix.contains("omaflake-catalog");
         }
         let mut args = Self::omaflake_checkout_arguments(flake);
         if guest {
@@ -400,7 +400,7 @@ impl ImageStore {
         }
         if recipes {
             if let Ok(dir) = RecipeLibrary::new(self.paths.clone()).stage(&Settings::load(&self.paths)) {
-                args.extend(["--override-input".into(), "omaflake-recipes".into(), format!("path:{}", dir.display())]);
+                args.extend(["--override-input".into(), "omaflake-catalog".into(), format!("path:{}", dir.display())]);
             }
         }
         if args.is_empty() {
@@ -609,7 +609,7 @@ mod tests {
         std::fs::create_dir_all(&bundled).unwrap();
         std::fs::copy(nix.join("flake.nix"), bundled.join("flake.nix")).unwrap();
         assert!(args(&bundled).is_empty());
-        std::fs::write(nix.join("flake.nix"), "{ inputs.omaflake-recipes.url = \"path:./no-recipes\"; }").unwrap();
+        std::fs::write(nix.join("flake.nix"), "{ inputs.omaflake-catalog.url = \"path:./no-catalog\"; }").unwrap();
         assert!(args(&nix).is_empty());
         assert!(ImageStore::omaflake_checkout_arguments("github:omaflake/omaflake?dir=nix").is_empty());
     }

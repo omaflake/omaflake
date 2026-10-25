@@ -1,0 +1,205 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://omaflake.dev/schema/recipe/v2.json",
+  "title": "omaflake recipe (recipe.toml)",
+  "description": "recipe.toml v2 (plan B142): a recipe is data – a platform, the modules in it, a suggested look, key binding sets, what a VM from it needs and how it runs. Nix belongs in modules.",
+  "type": "object",
+  "additionalProperties": false,
+  "patternProperties": {
+    "^description_[a-z]{2,3}$": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "$schema",
+    "author",
+    "license",
+    "description",
+    "tags",
+    "platform",
+    "systems",
+    "modules",
+    "requirements",
+    "vm"
+  ],
+  "properties": {
+    "$schema": {
+      "const": "https://omaflake.dev/schema/recipe/v2.json"
+    },
+    "author": {
+      "type": "string"
+    },
+    "license": {
+      "type": "string"
+    },
+    "description": {
+      "type": "string"
+    },
+    "tags": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "homepage": {
+      "type": "string"
+    },
+    "lab": {
+      "type": "boolean",
+      "description": "A development recipe, shown only in developer mode"
+    },
+    "platform": {
+      "enum": [
+        "nixos",
+        "macos"
+      ]
+    },
+    "systems": {
+      "type": "array",
+      "items": {
+        "enum": [
+          "aarch64-linux",
+          "x86_64-linux",
+          "aarch64-darwin"
+        ]
+      },
+      "minItems": 1
+    },
+    "modules": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/ref"
+      },
+      "minItems": 1
+    },
+    "look": {
+      "$ref": "#/$defs/ref"
+    },
+    "keymaps": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/ref"
+      },
+      "description": "Key binding sets in order: a later one wins for the same action"
+    },
+    "requirements": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "cpus",
+        "memory_gb",
+        "disk_gb"
+      ],
+      "properties": {
+        "cpus": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "memory_gb": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "disk_gb": {
+          "type": "integer",
+          "minimum": 1
+        }
+      },
+      "description": "The least a VM from it needs; a smaller profile gets a warning"
+    },
+    "vm": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "display": {
+          "enum": [
+            "none",
+            "window",
+            "gpu"
+          ]
+        },
+        "network": {
+          "enum": [
+            "shared",
+            "isolated",
+            "none"
+          ]
+        },
+        "share": {
+          "type": "boolean"
+        },
+        "ephemeral": {
+          "type": "boolean"
+        },
+        "audio": {
+          "type": "boolean"
+        },
+        "microphone": {
+          "type": "boolean"
+        },
+        "clipboard": {
+          "type": "boolean"
+        },
+        "camera": {
+          "type": "boolean"
+        }
+      },
+      "description": "How a VM from it runs"
+    },
+    "locales": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "rtl": {
+          "type": "boolean",
+          "description": "false: not made for right-to-left languages"
+        },
+        "languages": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^[a-z]{2,3}$"
+          },
+          "description": "Made for these languages only"
+        }
+      },
+      "description": "Which locales it works with – a locale outside gets a warning at the build"
+    }
+  },
+  "$defs": {
+    "ref": {
+      "oneOf": [
+        {
+          "type": "string",
+          "pattern": "^[a-z0-9][a-z0-9-]*/[a-z0-9][a-z0-9-]*$"
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "id"
+          ],
+          "properties": {
+            "id": {
+              "type": "string",
+              "pattern": "^[a-z0-9][a-z0-9-]*/[a-z0-9][a-z0-9-]*$"
+            },
+            "version": {
+              "$ref": "#/$defs/version"
+            },
+            "min": {
+              "$ref": "#/$defs/version"
+            },
+            "max": {
+              "$ref": "#/$defs/version"
+            }
+          }
+        }
+      ],
+      "description": "A module, look or key binding set: \"<author>/<name>\" (the newest), or { id, version } (exactly that one), or { id, min and/or max } (both included)"
+    },
+    "version": {
+      "type": "string",
+      "pattern": "^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)$"
+    }
+  }
+}

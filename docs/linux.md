@@ -141,7 +141,7 @@ ssh-keygen -t ed25519                     # if there is none
 # 2. a clean data folder, the image flake and the recipes
 export VM_HOME=$HOME/omaflake-test
 omaf config --flake $PWD/nix
-omaf sources add https://github.com/omaflake/recipes   # or a local checkout
+omaf sources add https://github.com/omaflake/catalog   # or a local checkout
 omaf doctor                               # host Linux x86_64, kvm ok, QEMU (3D) – UEFI …/edk2-x86_64-code.fd
 # 3. an x86_64 image: the recipe must list it – systems = ["aarch64-linux", "x86_64-linux"] in its recipe.toml
 #    (a local recipes checkout: change it there, then omaf sources add <checkout>)

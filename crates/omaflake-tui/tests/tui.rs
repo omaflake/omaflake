@@ -149,10 +149,9 @@ fn draws_the_vms_tab() {
         // home's short labels; the letters come from what is written
         "D Doctor 3",
         "C Credentials",
-        "S Settings",
-        "L Locales",
         // what does not fit next to the tabs: key and symbol
-        "A ▤  q ⏻",
+        "L ◍  P ◔  S ⚙  A ▤  q ⏻",
+        "▦ Modules",
         "/ Filter",
         "i ⇩ Import",
         "r ↗ Run from There",
@@ -251,10 +250,19 @@ fn draws_every_page() {
             ],
         ),
         ("settings", "settings.linux", vec!["‹ Esc  Settings", "Recipe Sources", "on this computer"]),
-        ("newVm", "newVm", vec!["‹ Esc  New VM", "CPU cores: 4", "‹ 4 ›", "Create", "Cancel"]),
+        ("newVm", "newVm", vec!["‹ Esc  New VM", "CPU cores: 2", "‹ 4 ›", "Create", "Cancel"]),
         ("macBase", "macBase", vec!["‹ Esc  Create macOS Base", "Create Base", "differs from macUser", "Full Log"]),
         ("vm", "vm", vec!["‹ Esc  research", "Runs from", "Remove …"]),
         ("image", "image", vec!["‹ Esc  omaflake.macos.dev@stone-lamp", "Remove …"]),
+        // Plan B142: modules in the looks' shape, profiles and the recipe editor in the credentials'
+        ("modules", "modules", vec!["Modules", "Hyprland", "omaflake/hyprland · 1.0.0 · NixOS module", "VS Code"]),
+        ("profiles", "profiles", vec!["Profiles", "Small", "2 CPU · 4 GB RAM", "New Profile …"]),
+        ("profile", "profile", vec!["New Profile", "CPU cores: 8", "Create"]),
+        (
+            "recipeEditor",
+            "recipeEditor",
+            vec!["Copy to My Recipes", "Hyprland (desktop)", "Key bindings 1", "Check", "Save"],
+        ),
     ];
     for (page, file, wants) in pages {
         let mut h = Harness::new(none);
@@ -535,7 +543,8 @@ fn form_fields_go_into_the_page_values_or_are_set() {
     h.show("newVm", json!({"image": "img"}), fixture("newVm"));
     // To the CPU field and one up
     let page = h.app.page();
-    let cpus = page.items.iter().position(|i| i.key == "newVm:field:cpus").unwrap();
+    // (CPU cores and RAM come from the default profile: the disk is a field of its own)
+    let cpus = page.items.iter().position(|i| i.key == "newVm:field:diskGB").unwrap();
     let first = h.app.selected_index(&page).unwrap();
     let steps = page.items[first..cpus].iter().filter(|i| i.selectable).count();
     for _ in 0..steps {
@@ -543,7 +552,7 @@ fn form_fields_go_into_the_page_values_or_are_set() {
     }
     h.key(KeyCode::Right);
     let last = h.calls("views.subscribe").pop().unwrap();
-    assert_eq!(last["pages"][3], json!({"page": "newVm", "params": {"image": "img", "values": {"cpus": 5}}}));
+    assert_eq!(last["pages"][3], json!({"page": "newVm", "params": {"image": "img", "values": {"diskGB": 74}}}));
     // Settings store at once
     let mut h = Harness::new(none);
     h.show("settings", json!({}), fixture("settings"));

@@ -88,8 +88,9 @@ while omaflake is not in front (menu window closed, app window hidden or in the 
   lives in the Recipes tab; after a build only the current, the previous and used images of a recipe are kept (plan B52)
 - "New VM" is opened from an image row and creates from that image (no picker); "Build Image" is opened from a recipe
   row or a build row and builds that recipe (no picker); there is no default image (plan B100)
-- Main window: header with icons (Doctor with an orange dot when something needs attention, Settings, data
-  folder in Finder, Quit – asks first while VMs are running), then four tabs, each one list that scrolls on its own (plan B91);
+- Main window: header with icons (Doctor with an orange dot when something needs attention, Credentials, Locales,
+  Profiles, Settings, data folder in Finder, Quit – asks first while VMs are running), then six tabs (VMs, Images,
+  Recipes, Modules, Looks, Activity), each one list that scrolls on its own (plan B91);
   the app remembers the last tab, the very first time (no VM yet) it opens on Recipes:
   - **VMs** (badge: running VMs); a VM is created from an image row (plan B100)
   - **Images** (Vorlagen; badge: spinner while a build runs, red ✕ after a failed one): every built image on its own
@@ -99,10 +100,16 @@ while omaflake is not in front (menu window closed, app window hidden or in the 
     author, lab flask, tags (the description when the row is open), whether its image is up to date, "build image" (package with a hammer); the folder icon
     shows the recipe's folder in the Finder (plan B103). Below the installed ones, what the remote sources offer
     (fetched when the tab opens or with the refresh button – never in the background): grey lamp, a seal on official
-    recipes (by omaflake from omaflake/recipes), a download button; details with source, license, requires, files and,
+    recipes (by omaflake from omaflake/catalog), a download button; details with source, license, modules, files and,
     for unreviewed sources, a warning. Installed recipes show their source and, when downloaded, "Update" (a newer
     catalog version) and "Remove …" (red) in their details. With nothing installed, "Install suggested" brings the
-    official recipes (plan B107)
+    official recipes (plan B107). Since plan B142 a recipe's details say what it is made of – its modules, look, key
+    bindings, what a VM needs at least, every key –, what is missing ("Install Missing Parts"; the lamp is orange) and
+    what is wrong (warnings); "New Recipe …" and "Copy to My Recipes …" (on one of yours: "Edit …") open the recipe
+    editor: a platform, a switch per module, a look, up to two key binding sets, the requirements and how a VM runs,
+    with its warnings as you choose – saved in My Recipes, a source in the data folder
+  - **Modules** (plan B142): the modules and key binding sets here, with the recipes made of them, and what the
+    sources offer – the same rows as Looks (install, update, remove)
   - **Activity** (badge: dot for unread messages): what happened in the core service, newest first (the same list in
     every interface, worded by the core), "Clear History"
 - The newest message also shows for 6 s at the bottom of the main window (a click opens Activity)
@@ -197,7 +204,9 @@ while omaflake is not in front (menu window closed, app window hidden or in the 
   is created from one, an older base gets one assigned (plan B139); no password is typed anywhere after a credential's
   creation; looks are a tab of their own next to Recipes – installed from the sources, a strip of their colours, the
   default, update and remove (plan B141) – and the default credential, look and locale are set on their own pages,
-  not in the settings;
+  not in the settings; Profiles (the gauge in the header, plan B142): CPU cores and RAM of a new VM, drawn like the
+  credentials – the New VM page offers them (the default preset, "Custom values" to set them by hand) and warns when a
+  VM gets less than its recipe needs;
   SSH keys from ~/.ssh; macOS VMs use the base's user), language (System, English, Deutsch – stored as `AppleLanguages` in the app's defaults, restart button);
   data folder (default `~/.omaflake`, move it elsewhere or back; `DataFolder.move`)
 

@@ -8,7 +8,7 @@ permalink: /contributing/
 
 omaflake is a Rust workspace (`crates/`: the core, the `omaf` CLI, the Linux app) and a Swift package (the macOS menu
 bar app and `omaf-runner`), plus the image flake in `nix/` and the QEMU build in `qemu/`. It runs on macOS (Apple
-silicon) and on Linux hosts ([Linux](linux.md)). Recipes are not here: they live in [omaflake/recipes](https://github.com/omaflake/recipes).
+silicon) and on Linux hosts ([Linux](linux.md)). Recipes are not here: they live in [omaflake/catalog](https://github.com/omaflake/catalog).
 
 ## Build and test
 
@@ -25,10 +25,10 @@ After changes to Nix:
 ```sh
 nix flake check
 nix flake check "path:$PWD/nix"
-nix flake check "path:$PWD/nix" --override-input omaflake-recipes "path:$PWD/../recipes/recipes"
+nix flake check "path:$PWD/nix" --override-input omaflake-catalog "path:$PWD/../catalog"
 ```
 
-To build images from recipes you are working on, add your checkout of omaflake/recipes as the first recipe source
+To build images from recipes you are working on, add your checkout of omaflake/catalog as the first source
 (`omaf sources add <path> --first`) and point omaflake at the image flake of your checkout
 (`omaf config --flake "$PWD/nix"`). Personal Nix settings for your guests go into `nix/local/` (git-ignored; template
 `nix/local.example/`).

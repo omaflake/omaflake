@@ -26,12 +26,12 @@
           "audio": true,
           "camera": false,
           "clipboard": true,
-          "cpus": 4,
+          "cpus": 2,
           "diskGB": 64,
           "display": "gpu",
           "ephemeral": false,
           "kind": "nixos",
-          "memoryGB": 8,
+          "memoryGB": 4,
           "microphone": false,
           "network": "shared",
           "share": true,
@@ -123,39 +123,83 @@
     {
       "fields": [
         {
+          "choices": [
+            {
+              "label": {
+                "text": "Small – 2 CPU · 4 GB"
+              },
+              "value": "p-1"
+            },
+            {
+              "label": {
+                "key": "Custom values",
+                "text": "Custom values"
+              },
+              "value": ""
+            }
+          ],
           "enabled": true,
+          "help": {
+            "key": "CPU cores and RAM (Profiles, at the top)",
+            "text": "CPU cores and RAM (Profiles, at the top)"
+          },
+          "id": "profile",
+          "kind": "choice",
+          "label": {
+            "key": "Profile",
+            "text": "Profile"
+          },
+          "value": "p-1",
+          "valueParam": "profile"
+        },
+        {
+          "enabled": false,
           "id": "cpus",
+          "kind": "number",
+          "label": {
+            "args": [
+              2
+            ],
+            "key": "CPU cores: %lld",
+            "text": "CPU cores: 2"
+          },
+          "max": 10,
+          "min": 1,
+          "param": "settings.cpus",
+          "reason": {
+            "args": [
+              "Small"
+            ],
+            "key": "From the profile %@ – choose custom values to change it",
+            "text": "From the profile Small – choose custom values to change it"
+          },
+          "step": 1,
+          "value": 2,
+          "valueParam": "cpus"
+        },
+        {
+          "enabled": false,
+          "id": "memoryGB",
           "kind": "number",
           "label": {
             "args": [
               4
             ],
-            "key": "CPU cores: %lld",
-            "text": "CPU cores: 4"
-          },
-          "max": 10,
-          "min": 1,
-          "param": "settings.cpus",
-          "step": 1,
-          "value": 4,
-          "valueParam": "cpus"
-        },
-        {
-          "enabled": true,
-          "id": "memoryGB",
-          "kind": "number",
-          "label": {
-            "args": [
-              8
-            ],
             "key": "RAM: %lld GB",
-            "text": "RAM: 8 GB"
+            "text": "RAM: 4 GB"
           },
           "max": 48,
           "min": 1,
           "param": "settings.memoryGB",
+          "reason": {
+            "args": [
+              "Small"
+            ],
+            "key": "From the profile %@ – choose custom values to change it",
+            "text": "From the profile Small – choose custom values to change it"
+          },
           "step": 1,
-          "value": 8,
+          "value": 4,
           "valueParam": "memoryGB"
         },
         {
@@ -346,5 +390,15 @@
     "text": "New VM"
   },
   "valid": true,
-  "warnings": []
+  "warnings": [
+    {
+      "args": [
+        4,
+        8,
+        40
+      ],
+      "key": "Its recipe needs at least %lld CPU cores, %lld GB RAM and a %lld GB disk – this VM gets less and may be slow or run out of space.",
+      "text": "Its recipe needs at least 4 CPU cores, 8 GB RAM and a 40 GB disk – this VM gets less and may be slow or run out of space."
+    }
+  ]
 }

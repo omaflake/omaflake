@@ -22,7 +22,7 @@ use crate::text::{arr, b, fill, s, set_path, t, tr, trf};
 use crate::theme::{Theme, Tone};
 
 /// The tabs before `home` arrives
-const TABS: [&str; 5] = ["vms", "images", "recipes", "looks", "activity"];
+const TABS: [&str; 6] = ["vms", "images", "recipes", "modules", "looks", "activity"];
 
 /// Keys every page has; a page's tools get the other lowercase letters, `home`'s actions uppercase ones
 pub const RESERVED: &[char] = &['q', 'j', 'k', 'g', 'h', 'l', 'a', 'G'];
@@ -347,7 +347,7 @@ impl App {
                 self.home = Some(model.clone());
             }
             "activity" => self.notify_activity(model),
-            "looks" if !b(model, "catalogsLoaded") && !b(model, "loading") && !self.looks_asked => {
+            "looks" | "modules" if !b(model, "catalogsLoaded") && !b(model, "loading") && !self.looks_asked => {
                 self.looks_asked = true;
                 if let Some(refresh) = arr(model, "actions").iter().find(|a| s(a, "id") == "refresh").cloned() {
                     self.run_action(&refresh);

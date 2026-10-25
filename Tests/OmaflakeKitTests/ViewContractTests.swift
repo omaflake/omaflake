@@ -23,20 +23,20 @@ extension APIContractTests {
         [
             "home": {
                 guard case .home(let h) = try page("home", as: "home") else { throw Unexpected() }
-                #expect(h.actions.map(\.id) == ["doctor", "credentials", "locales", "settings", "dataFolder", "quit"] && h.actions[0].badge == 3)
-                #expect(h.actions[5].confirm?.text.args == [.string("research")] && h.firstTab == "vms")
+                #expect(h.actions.map(\.id) == ["doctor", "credentials", "locales", "profiles", "settings", "dataFolder", "quit"] && h.actions[0].badge == 3)
+                #expect(h.actions[6].confirm?.text.args == [.string("research")] && h.firstTab == "vms")
                 #expect(h.actions[1].icon == "key")
-                #expect(h.tabs.map(\.id) == ["vms", "images", "recipes", "looks", "activity"] && h.tabs[0].badge?.count == 1)
+                #expect(h.tabs.map(\.id) == ["vms", "images", "recipes", "modules", "looks", "activity"] && h.tabs[0].badge?.count == 1)
                 #expect(h.tabs[1].badge?.kind == "working" && h.tabs[2].badge?.tone == .warning && h.tabs[3].badge == nil)
                 // The window's title is data; the header's short labels
                 #expect(h.title == ViewText(verbatim: "omaflake"))
-                #expect(h.actions.map { $0.shortLabel?.key } == ["Doctor", nil, nil, nil, "Data Folder", "Quit"])
-                #expect(h.actions[4].label.key == "Show Data Folder in Finder" && !h.actions.contains { $0.primary })
+                #expect(h.actions.map { $0.shortLabel?.key } == ["Doctor", nil, nil, nil, nil, "Data Folder", "Quit"])
+                #expect(h.actions[5].label.key == "Show Data Folder in Finder" && !h.actions.contains { $0.primary })
             },
             "home.linux": {
                 // Host wording is the core's: the host-neutral variant on Linux
                 guard case .home(let h) = try page("home.linux", as: "home") else { throw Unexpected() }
-                #expect(h.actions[4].label.key == "Show Data Folder" && h.actions[4].shortLabel?.key == "Data Folder")
+                #expect(h.actions[5].label.key == "Show Data Folder" && h.actions[5].shortLabel?.key == "Data Folder")
             },
             "vms": {
                 guard case .vms(let p) = try page("vms", as: "vms") else { throw Unexpected() }
@@ -92,11 +92,13 @@ extension APIContractTests {
             "recipes": {
                 guard case .recipes(let p) = try page("recipes", as: "recipes") else { throw Unexpected() }
                 #expect(p.catalogsLoaded && !p.loading && p.errors.count == 1 && p.unreadable.count == 1)
-                #expect(p.head.actions.map(\.id) == ["refresh", "import"] && !p.rows.isEmpty && !p.offered.isEmpty)
+                #expect(p.head.actions.map(\.id) == ["refresh", "import", "newRecipe"] && !p.rows.isEmpty && !p.offered.isEmpty)
                 #expect(p.updates?.rows.isEmpty == false)
                 let r = try #require(p.rows.first { $0.recipe.id == "omaflake.nixos.dev@velvet-tiger-orbit" })
                 #expect(r.lamp.state == .working || r.lamp.state == .attention)
                 #expect(!r.detail.versions.isEmpty && r.detail.versions[0].actions.map(\.id) == ["export", "remove"])
+                // What it is made of (plan B142): a missing module with its install action, its keys
+                #expect(r.detail.notes?.first?.action?.method == "recipes.installParts" && r.detail.keys?.isEmpty == false)
                 #expect(p.head.filter?.groups.contains { $0.kind == .toggle && $0.id == "otherSystems" } == true)
                 #expect(p.offeredTitle?.key == "More recipes in your sources" && p.loadingText == nil && p.labHint == nil)
                 #expect(p.offered.allSatisfy { $0.actions.primary?.id == "install" })
@@ -114,7 +116,7 @@ extension APIContractTests {
                 #expect(p.title.key == "New VM" && p.valid && p.actions.map(\.id) == ["cancel", "create"])
                 let fields = p.sections.flatMap(\.fields)
                 let cpus = try #require(fields.first { $0.id == "cpus" })
-                #expect(cpus.kind == .number && cpus.min == 1 && cpus.max == 10 && cpus.label.args == [.int(4)])
+                #expect(cpus.kind == .number && cpus.min == 1 && cpus.max == 10 && cpus.label.args == [.int(2)])
                 #expect(cpus.param == "settings.cpus" && p.actions[1].then == .back && p.actions[1].method == "vms.create")
                 #expect(fields.first { $0.id == "network" }?.choices.count == 3)
                 // Form values are kept by `valueParam`; create is the page's primary, cancel not
@@ -213,6 +215,24 @@ extension APIContractTests {
                 #expect(p.rows.map(\.name) == ["Rosé Pine Dawn", "omaflake"] && p.rows[0].swatches.count == 11)
                 #expect(p.rows[0].badges.map(\.id) == ["default", "official"] && p.rows[0].actions.isEmpty)
                 #expect(p.offered.first?.actions.first?.method == "looks.install" && p.catalogsLoaded)
+            },
+            "modules": {
+                guard case .looks(let p) = try page("modules", as: "modules") else { throw Unexpected() }
+                #expect(p.head.title.key == "Modules" && p.rows.first?.swatches.isEmpty == true)
+                #expect(p.offered.first?.actions.first?.method == "modules.install")
+            },
+            "profiles": {
+                guard case .credentials(let p) = try page("profiles", as: "profiles") else { throw Unexpected() }
+                #expect(p.title.key == "Profiles" && p.rows.first?.subtitle.text == "2 CPU · 4 GB RAM")
+            },
+            "profile": {
+                guard case .credential(let p) = try page("profile", as: "profile") else { throw Unexpected() }
+                #expect(p.fields.map(\.id) == ["name", "cpus", "memoryGB"] && p.actions.last?.method == "profiles.add")
+            },
+            "recipeEditor": {
+                guard case .credential(let p) = try page("recipeEditor", as: "recipeEditor") else { throw Unexpected() }
+                #expect(p.fields.contains { $0.id == "module:omaflake/hyprland" && $0.kind == .toggle })
+                #expect(p.fields.contains { $0.id == "check" && $0.kind == .info } && p.actions.last?.method == "recipes.save")
             },
             "locales": {
                 guard case .credentials(let p) = try page("locales", as: "locales") else { throw Unexpected() }

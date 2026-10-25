@@ -766,7 +766,7 @@ maintainer's decisions after discussing a themes repository:
   the four looks as data, the image flake reads them, (4) catalog v3 and the "Looks" tab in core, CLI and the three UIs,
   (5) settings migration to the new official source, docs and website, (6) the maintainer archives `omaflake/recipes`.
 
-**B141 (2026-10-25, decided, not built): recipes as building blocks – a recipe is data: base + modules + look + key
+**B141 (2026-10-25, decided; built in B142): recipes as building blocks – a recipe is data: base + modules + look + key
 bindings.** The maintainer's decisions (the German draft with every current recipe mapped: the private workspace's
 Entwurf-Baukasten.md):
 - **Guiding rule: the abstraction must not sprawl** – otherwise the building blocks are not worth it and one writes
@@ -881,6 +881,62 @@ Entwurf-Baukasten.md):
   three keyboards (layout "de,ru,gr", options with the toggle, time zone and language), the CLI in a scratch data
   folder. OPEN: several keyboards in a macOS guest (BM24), a recipe's locale restriction (with recipe.toml v2), images
   built with a locale and looked at.
+
+**B142 (2026-10-25, built): the building blocks of B141 – modules, key bindings, recipes v2, profiles, the recipe
+editor.**
+- **Catalog** (omaflake/catalog, catalog v4): `modules/<author>/<platform>/<name>/` (module.toml – schema module/v1:
+  version, title, provides, needs, enhances, runs_in, desktop, own_keys, unfree, `[actions.<name>]` with title, key,
+  mode?, desktop?, context? – and default.nix), `keymaps/<author>/<name>/keymap.toml` (keymap/v1), `capabilities.toml`
+  (desktop, terminal, multiplexer, shell, editor, default-editor, pdf-viewer; exclusive or not), looks with a `version`,
+  recipes v2 (recipe.toml only). First-party modules cut from the image flake and the old recipes: NixOS hyprland,
+  shell, wezterm, zellij (its "Unlock First" preset), neovim (with nvim-lspconfig: other modules enable their language
+  servers), emacs, zathura (also the default for PDFs), latex, typst, python-data, pandoc, omaflake-dev; macOS desktop,
+  shell, wezterm (its wezterm.lua with the session key), zellij, neovim, latex, typst, vscode, homebrew, pandoc,
+  lazygit, omaflake-dev; key bindings `omaflake/default` (the defaults written down). `tools/catalog.py` checks
+  everything – references with versions against what the catalog has, needs and exclusive capabilities (warnings),
+  overlapping keys and the key rule (errors) – and writes catalog.json v4.
+- **Key notation:** a chord ("Super+Shift+Return", "Ctrl+g"; Super, Ctrl, Alt, Shift; lowercase letters, named keys,
+  `Digit`/`Arrow` placeholders) or a sequence for editors ("Space f f"). Overlap: the same context and mode; a desktop
+  one with any key without a mode; a program's key with one of a program running inside it (`runs_in` names a
+  capability the outer one provides); prefixes count. Key rule: without a mode one chord starting with Super or Ctrl,
+  except an editor's own keys (`own_keys`).
+- **Image flake:** input `omaflake-catalog` (was `omaflake-recipes`): a catalog checkout, or the trees omaflake stages
+  (`recipes.json`: id → `{tree, recipe}`). It reads recipe v2 (`lib.recipeDefaults` flattens `[requirements]` and
+  `[vm]` as before), imports the recipe's modules with an `omaflake` argument (`id`, `keys`, `allKeys`, `has`,
+  `keyLib` = `nix/lib/keys.nix`, `recipe`) and the platforms: NixOS `modules/platform.nix` (host name =
+  recipe name, `omaflake.terminal`, `omaflake.launchers`), macOS `modules/darwin-platform.nix` (`homeFiles`,
+  `homeLinks`, written once as the user), `look.nix` with `lookParts`; `home/` keeps only the user and git. Gone from
+  the flake: hyprland.nix, editor.nix, home/look.nix, neovim.nix, emacs.nix, the Zellij preset.
+- **Core:** `parts::PartStore` – one store for looks, modules and key bindings (`<data>/<kind>/`, `.installed.json`
+  schema installed-parts v1: source, version, content hash; files checked like recipes; local folder sources live);
+  `looks` on top of it, `modules` (ModuleStore, capabilities kept from catalogs and read from local folders),
+  `keymaps`; `composition` (RecipeSpec = recipe.toml v2, PartRef with version/min/max, Composition: missing parts
+  block, needs/incompatible/overlaps/key rule warn, LocaleRules); `parts::install_recipe_parts` (from the first catalog
+  that has a part in an allowed version, the official last); RecipeLibrary: recipe v2 only (RECIPE_MINIMUM 2), catalog
+  v4 only, `requires` gone, staging with modules and key bindings; `profiles` (settings v5 `profiles`,
+  `defaultProfile`); `my_recipes` (`<data>/my-recipes/`, a local folder source first in the order, author `my`).
+- **API and pages:** `recipes.installParts`, `recipes.save`, `recipes.delete`, `modules.list/install/remove` (job
+  `module-install`), `profiles.*`; `Recipe.parts`; `images.build` refuses missing parts and takes the recipe's look;
+  pages `modules` (the looks' shape), `profiles`/`profile` (the credentials'), `recipeEditor` (the credential form's:
+  a toggle per module, look, two key binding sets, requirements, VM, live check), recipe details with modules, look,
+  key bindings, requirements, `notes` and `keys`, the build page's `notes`, New VM's profile field and requirement
+  warning, home tab `modules` and action `profiles`. CLI `omaf modules`, `omaf profiles`, `omaf recipes show
+  [--install]`, `omaf new --profile`; `omaf recipes install` brings the parts.
+- **Checked:** every recipe's system evaluated before and after (aarch64 and x86_64 NixOS, macOS): the derivations differ
+  only as expected – Hyprland's binds as literal strings instead of `mod .. " + …"`, Neovim's `<Space>ff` for
+  `<leader>ff` (leader is Space), Waybar's style order, comments, package order, the Dock order (WezTerm first, fixed
+  with `mkOrder`), macOS research's init.lua and files written by the platform; `nix flake check` (root, image flake,
+  with the catalog); a second key binding set overriding a default (Hyprland `SUPER + T`, Zellij `Ctrl Shift g`);
+  without a look and with Vanilla; the core's staged tree evaluated to a NixOS system; catalog.py's checks fire on a
+  broken copy (overlap, key rule, missing capability, Neovim + Emacs, a version not allowed); the catalog and every
+  recipe, module, key binding set and look validate against the JSON Schemas; parts installed from the catalog
+  checkout (`parts::tests`); `cargo test` (416 core tests), `swift test`, TUI and iced tests (the new pages drawn);
+  the CLI in a scratch data folder (recipes from the local catalog, `recipes show`, `modules`, `profiles`).
+- **OPEN:** images built from the new recipes and looked at (NixOS on the Mac and the x86_64 PC, macOS research and
+  minimal); the new pages clicked through in the three UIs; installing from the public catalog (needs the catalog
+  commit pushed – the public one is still v3, which this omaflake refuses); a kept version of a local folder's recipe
+  does not keep its modules; the website's catalog page; recipes' locale restrictions in the catalog (none of
+  omaflake's recipes restricts locales yet).
 
 **Found on the way:** environment variables of the CLI (`VM_FLAKE`, …) do not reach the core service – a build that
 runs there uses config.json's flake (OPEN).

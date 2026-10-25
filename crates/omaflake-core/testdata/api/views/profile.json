@@ -1,0 +1,93 @@
+{
+  "actions": [
+    {
+      "enabled": true,
+      "id": "cancel",
+      "label": {
+        "key": "Cancel",
+        "text": "Cancel"
+      },
+      "method": "ui.back",
+      "params": {}
+    },
+    {
+      "enabled": true,
+      "icon": "create",
+      "id": "create",
+      "label": {
+        "key": "Create",
+        "text": "Create"
+      },
+      "method": "profiles.add",
+      "params": {
+        "cpus": 8,
+        "memoryGB": 32,
+        "name": "Big"
+      },
+      "primary": true,
+      "then": "back"
+    }
+  ],
+  "fields": [
+    {
+      "enabled": true,
+      "help": {
+        "key": "Only for you – to tell your profiles apart when creating a VM.",
+        "text": "Only for you – to tell your profiles apart when creating a VM."
+      },
+      "id": "name",
+      "kind": "text",
+      "label": {
+        "key": "Name",
+        "text": "Name"
+      },
+      "param": "name",
+      "value": "Big",
+      "valueParam": "name"
+    },
+    {
+      "enabled": true,
+      "id": "cpus",
+      "kind": "number",
+      "label": {
+        "args": [
+          8
+        ],
+        "key": "CPU cores: %lld",
+        "text": "CPU cores: 8"
+      },
+      "max": 64,
+      "min": 1,
+      "param": "cpus",
+      "step": 1,
+      "value": 8,
+      "valueParam": "cpus"
+    },
+    {
+      "enabled": true,
+      "id": "memoryGB",
+      "kind": "number",
+      "label": {
+        "args": [
+          32
+        ],
+        "key": "RAM: %lld GB",
+        "text": "RAM: 32 GB"
+      },
+      "max": 512,
+      "min": 1,
+      "param": "memoryGB",
+      "step": 1,
+      "value": 32,
+      "valueParam": "memoryGB"
+    }
+  ],
+  "intro": {
+    "key": "CPU cores and RAM for new VMs. VMs created with it keep their size when it changes.",
+    "text": "CPU cores and RAM for new VMs. VMs created with it keep their size when it changes."
+  },
+  "title": {
+    "key": "New Profile",
+    "text": "New Profile"
+  }
+}

@@ -257,7 +257,10 @@ public struct CatalogRecipe: Decodable, Sendable, Equatable, Identifiable {
     public var license: String?
     public var lab: Bool
     public var systems: [String]
-    public var requires: [String]
+    /// What it is made of (catalog v4, plan B142): modules, its look and key bindings with the versions they allow
+    public var modules: [String]
+    public var look: String?
+    public var keymaps: [String]
     public var homepage: String?
     public var version: String
     public var files: [File]

@@ -407,6 +407,7 @@ pub(crate) fn recipe_list() -> RecipeList {
         image: Some("omaflake.nixos.dev@cedar-mango-lift".into()),
         outdated: true,
         versions: versions.clone(),
+        parts: Some(recipe_parts()),
     };
     // Only what is always there
     let lab = RecipeDto {
@@ -445,6 +446,7 @@ pub(crate) fn recipe_list() -> RecipeList {
         image: None,
         outdated: false,
         versions: vec![],
+        parts: None,
     };
     RecipeList {
         recipes: vec![lab, full],
@@ -453,6 +455,54 @@ pub(crate) fn recipe_list() -> RecipeList {
         qemu_gl: true,
         unreadable: vec![Unreadable { name: "acme.nixos.x".into(), reason: "recipe.toml: unknown key".into() }],
         lab_hidden: false,
+    }
+}
+
+/// What the dev recipe is made of: Hyprland and WezTerm here, Neovim missing; a key that breaks the rule
+pub(crate) fn recipe_parts() -> RecipePartsDto {
+    use crate::composition::{Binding, Issue, LocaleRules, Requirements};
+    let binding = |module: &str, action: &str, title: &str, key: &str| Binding {
+        module: module.into(),
+        action: action.into(),
+        title: title.into(),
+        key: key.into(),
+        context: "desktop".into(),
+        mode: None,
+        from: None,
+    };
+    RecipePartsDto {
+        modules: vec![
+            ModuleUseDto {
+                reference: "omaflake/hyprland".into(),
+                title: Some("Hyprland".into()),
+                version: Some("1.0.0".into()),
+                provides: vec!["desktop".into()],
+            },
+            ModuleUseDto {
+                reference: "omaflake/wezterm".into(),
+                title: Some("WezTerm".into()),
+                version: Some("1.0.0".into()),
+                provides: vec!["terminal".into()],
+            },
+            ModuleUseDto {
+                reference: "omaflake/neovim ≥ 1.0.0".into(), title: None, version: None, provides: vec![]
+            },
+        ],
+        look: Some("omaflake/omaflake".into()),
+        look_id: Some("omaflake.look.omaflake".into()),
+        keymaps: vec!["omaflake/default".into()],
+        bindings: vec![
+            binding("omaflake/hyprland", "terminal", "Open a terminal", "Super+Return"),
+            Binding { mode: Some("normal".into()), ..binding("omaflake/zellij", "quit", "Quit Zellij", "Ctrl+q") },
+            binding("omaflake/hyprland", "float", "Float the window", "t"),
+        ],
+        issues: vec![
+            Issue::MissingModule { reference: "omaflake/neovim ≥ 1.0.0".into(), have: None },
+            Issue::KeyRule { binding: binding("omaflake/hyprland", "float", "Float the window", "t") },
+        ],
+        unfree: vec![],
+        requirements: Requirements { cpus: 4, memory_gb: 8, disk_gb: 40 },
+        locales: LocaleRules { rtl: Some(false), languages: vec![] },
     }
 }
 
@@ -468,13 +518,12 @@ pub(crate) fn catalog(id: &str, lab: bool) -> CatalogRecipeDto {
         license: (!lab).then(|| "MIT".into()),
         lab,
         systems: vec!["aarch64-linux".into()],
-        requires: if lab { vec![] } else { vec!["omaflake.nixos.base".into()] },
+        modules: if lab { vec![] } else { vec!["omaflake/hyprland".into(), "omaflake/neovim ≥ 1.0.0".into()] },
+        look: (!lab).then(|| "omaflake/omaflake".into()),
+        keymaps: if lab { vec![] } else { vec!["omaflake/default".into()] },
         homepage: None,
         version: "2".into(),
-        files: vec![
-            CatalogFileDto { path: "recipe.toml".into(), size: 412, sha256: "9f86d081884c7d65".into() },
-            CatalogFileDto { path: "configuration.nix".into(), size: 2048, sha256: "60303ae22b998861".into() },
-        ],
+        files: vec![CatalogFileDto { path: "recipe.toml".into(), size: 412, sha256: "9f86d081884c7d65".into() }],
         source: "github:omaflake/recipes@main".into(),
         runs_here: true,
     }
@@ -799,6 +848,10 @@ fn view_goldens() -> Vec<(&'static str, Value)> {
         ("looks", page("looks", json!({}))),
         ("locales", page("locales", json!({}))),
         ("locale", page("locale", json!({"values": {"name": "Russian", "keyboard": "ru", "keyboard2": "de"}}))),
+        ("modules", page("modules", json!({}))),
+        ("profiles", page("profiles", json!({}))),
+        ("profile", page("profile", json!({"values": {"name": "Big", "cpus": 8, "memoryGB": 32}}))),
+        ("recipeEditor", page("recipeEditor", json!({"id": "omaflake.nixos.dev@velvet-tiger-orbit"}))),
         ("credential", page("credential", json!({}))),
         ("credential.edit", page("credential", json!({"id": "c-1"}))),
         ("credentials.linux", build(&linux, &PageRef { page: "credentials".into(), params: json!({}) }).unwrap()),

@@ -2,8 +2,8 @@
 # The look of a guest (plan B135; data since B141) – NixOS and macOS: an installed look's data (look.toml as read),
 # which omaflake hands over at the build (`settings.look`); none: every program keeps its own colours. looks/adapter.nix
 # makes each program's part of it. Here: the per-program files under
-# /etc/omaflake/look/, which the guest's own configuration loads – home-manager's on NixOS (home/look.nix, home/neovim.nix, home/emacs.nix), the files a macOS
-# recipe writes once into the home folder. A changed look comes with the rebuilt image; the user's files stay.
+# /etc/omaflake/look/, which the guest's own configuration loads – the modules' on NixOS, the files a macOS module writes once
+# into the home folder. A changed look comes with the rebuilt image; the user's files stay.
 #
 #   /etc/omaflake/look/name           the look's name
 #   /etc/omaflake/look/wezterm.lua    returns { config = <merged over WezTerm's>, zellij = <options for a new session> }
@@ -25,14 +25,24 @@ in
     description = "The guest's look: an installed look's data (look.toml, schema look/v1) – omaflake sets it from the build's choice; null: every program keeps its own colours.";
   };
 
-  # For recipes that colour a program of their own (neovim-research: zathura): the look's desktop colours as
+  # For modules that colour a program of their own (zathura): the look's desktop colours as
   # "RRGGBB" (base, surface, text, subtext, muted, accent, urgent, …, `dark`), null for vanilla
   options.omaflake.lookColors = lib.mkOption {
     type = lib.types.nullOr (lib.types.attrsOf lib.types.anything);
     readOnly = true;
     default = look.desktop;
     defaultText = lib.literalMD "the `desktop` colours of the look (nix/looks/)";
-    description = "The guest look's colours, for recipes (read only).";
+    description = "The guest look's colours, for modules (read only).";
+  };
+
+  # Each program's part of the look (looks/default.nix: desktop, macos, wezterm, zellij, nvim, emacs), for modules
+  # (plan B142)
+  options.omaflake.lookParts = lib.mkOption {
+    type = lib.types.attrsOf lib.types.anything;
+    readOnly = true;
+    default = look;
+    defaultText = lib.literalMD "what nix/looks/ makes of the look";
+    description = "Each program's part of the guest look, for modules (read only).";
   };
 
   # The macOS desktop's part of the look (plan B141): { dark; accent; icons; folders; wallpaper }, null for none
@@ -41,11 +51,11 @@ in
     readOnly = true;
     default = look.macos;
     defaultText = lib.literalMD "the `macos` part of the look (nix/looks/adapter.nix)";
-    description = "The guest look's macOS system settings, for the macOS desktop recipe (read only).";
+    description = "The guest look's macOS system settings, for the macOS desktop module (read only).";
   };
 
   config = {
-    # Priority 40: above a recipe's plain value (100) and even its lib.mkForce (50)
+    # Priority 40: above a module's plain value (100) and even its lib.mkForce (50)
     omaflake.look = lib.mkIf ((settings.look or null) != null) (lib.mkOverride 40 settings.look);
 
     environment.etc = {

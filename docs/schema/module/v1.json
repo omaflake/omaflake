@@ -1,0 +1,122 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://omaflake.dev/schema/module/v1.json",
+  "title": "omaflake module (module.toml)",
+  "description": "module.toml (plan B142): what a module is – its version, the capabilities it provides and needs, the modules it enhances, and the actions people can bind keys to. Its Nix is default.nix next to it.",
+  "type": "object",
+  "additionalProperties": false,
+  "patternProperties": {
+    "^description_[a-z]{2,3}$": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "$schema",
+    "version",
+    "author",
+    "license",
+    "title",
+    "description"
+  ],
+  "properties": {
+    "$schema": {
+      "const": "https://omaflake.dev/schema/module/v1.json"
+    },
+    "version": {
+      "type": "string",
+      "pattern": "^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)$"
+    },
+    "author": {
+      "type": "string"
+    },
+    "license": {
+      "type": "string"
+    },
+    "title": {
+      "type": "string"
+    },
+    "description": {
+      "type": "string"
+    },
+    "tags": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "homepage": {
+      "type": "string"
+    },
+    "provides": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "Capabilities (capabilities.toml)"
+    },
+    "needs": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "enhances": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "\"<author>/<name>\" of modules it adds to when they are in the recipe"
+    },
+    "runs_in": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "Capabilities whose programs it runs inside (key overlaps)"
+    },
+    "desktop": {
+      "type": "boolean",
+      "description": "All its keys work on the whole desktop"
+    },
+    "own_keys": {
+      "type": "boolean",
+      "description": "An editor's keys: the key rule does not apply"
+    },
+    "unfree": {
+      "type": "boolean",
+      "description": "Not free software"
+    },
+    "actions": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "title",
+          "key"
+        ],
+        "properties": {
+          "title": {
+            "type": "string"
+          },
+          "key": {
+            "type": "string",
+            "description": "A chord – modifiers (Super, Ctrl, Alt, Shift) and a key joined by \"+\" (\"Super+Shift+Return\", \"Ctrl+g\") – or chords separated by spaces (\"Space f f\"); Digit and Arrow stand for 1–9 and the arrows"
+          },
+          "mode": {
+            "type": "string",
+            "description": "Only in this mode of the module"
+          },
+          "desktop": {
+            "type": "boolean",
+            "description": "Works everywhere on the desktop"
+          },
+          "context": {
+            "type": "string",
+            "description": "Bound inside another module's program (\"<author>/<name>\")"
+          }
+        }
+      }
+    }
+  }
+}

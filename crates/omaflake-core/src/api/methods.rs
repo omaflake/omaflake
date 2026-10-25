@@ -78,6 +78,30 @@ impl Server {
             // Credentials (plan B137)
             "credentials.list" => Answer::of(credential_dtos(&self.paths())),
             "locales.list" => Answer::of(locale_dtos(&self.paths())),
+            "profiles.list" => Answer::of(profile_dtos(&self.paths())),
+            "profiles.add" | "profiles.update" => {
+                let p: ProfileParamsIn = params(p)?;
+                let profiles = crate::profiles::Profiles::new(self.paths());
+                let change = crate::profiles::ProfileChange { name: p.name, cpus: p.cpus, memory_gb: p.memory_gb };
+                let x = if method == "profiles.update" {
+                    let id = p.id.ok_or_else(|| RpcError::invalid_params("id is needed"))?;
+                    profiles.update(&id, change).map_err(err)?
+                } else {
+                    profiles.add(change).map_err(err)?
+                };
+                self.poke();
+                Answer::of(json!({"id": x.id}))
+            }
+            "profiles.remove" => {
+                crate::profiles::Profiles::new(self.paths()).remove(&params::<Id>(p)?.id).map_err(err)?;
+                self.poke();
+                Answer::of(Value::Null)
+            }
+            "profiles.setDefault" => {
+                crate::profiles::Profiles::new(self.paths()).set_default(&params::<Id>(p)?.id).map_err(err)?;
+                self.poke();
+                Answer::of(Value::Null)
+            }
             "locales.add" | "locales.update" => {
                 let p: LocaleParamsIn = params(p)?;
                 let locales = crate::locales::Locales::new(self.paths());
@@ -185,6 +209,46 @@ impl Server {
             "recipes.list" => self.recipes_list(params(p)?),
             "recipes.available" => Answer::of(self.recipes_available(true)?),
             "recipes.install" => self.recipes_install(params(p)?),
+            "recipes.installParts" => self.recipes_install_parts(&params::<Id>(p)?.id),
+            "recipes.save" => {
+                let p: SaveRecipeParams = params(p)?;
+                let previous = p.previous.as_deref().and_then(|b| {
+                    let mut parts = b.split('.');
+                    let (_, kind, name) = (parts.next()?, parts.next()?, parts.next()?);
+                    Some((GuestKind::parse(kind)?, name.to_string()))
+                });
+                let draft = crate::my_recipes::RecipeDraft {
+                    name: p.name,
+                    platform: GuestKind::parse(&p.platform),
+                    description: p.description,
+                    modules: p.modules.iter().map(|m| crate::composition::PartRef::new(m)).collect(),
+                    look: p.look.filter(|l| !l.is_empty()).map(|l| crate::composition::PartRef::new(&l)),
+                    keymaps: p
+                        .keymaps
+                        .iter()
+                        .filter(|k| !k.is_empty())
+                        .map(|k| crate::composition::PartRef::new(k))
+                        .collect(),
+                    requirements: p.requirements,
+                    vm: p.vm,
+                    locales: Default::default(),
+                };
+                let base = crate::my_recipes::MyRecipes::new(self.paths()).save(&draft, previous).map_err(err)?;
+                lock(&self.inner.catalogs).fetched = false;
+                self.reload_recipes().map_err(err)?;
+                Answer::of(json!({"base": base}))
+            }
+            "recipes.delete" => {
+                let base = params::<BaseParams>(p)?.base;
+                let mut parts = base.split('.');
+                let (kind, name) = match (parts.next(), parts.next().and_then(GuestKind::parse), parts.next()) {
+                    (Some(crate::my_recipes::MyRecipes::AUTHOR), Some(k), Some(n)) => (k, n.to_string()),
+                    _ => return Err(RpcError::invalid_params("base is one of your recipes: my.<platform>.<name>")),
+                };
+                crate::my_recipes::MyRecipes::new(self.paths()).delete(kind, &name).map_err(err)?;
+                self.reload_recipes().map_err(err)?;
+                Answer::of(Value::Null)
+            }
             "looks.list" => {
                 let fetch = p.get("fetch").and_then(Value::as_bool).unwrap_or(false);
                 if fetch || !lock(&self.inner.catalogs).fetched {
@@ -193,6 +257,15 @@ impl Server {
                 Answer::of(self.looks_answer(self.language().as_deref()))
             }
             "looks.install" => self.looks_install(params(p)?),
+            "modules.list" => {
+                let fetch = p.get("fetch").and_then(Value::as_bool).unwrap_or(false);
+                if fetch || !lock(&self.inner.catalogs).fetched {
+                    self.fetch_catalogs();
+                }
+                Answer::of(self.modules_answer(self.language().as_deref()))
+            }
+            "modules.install" => self.modules_install(params(p)?),
+            "modules.remove" => self.modules_remove(&params::<Id>(p)?.id),
             "looks.installRecommended" => self.looks_install_recommended(),
             "looks.remove" => self.looks_remove(&params::<Id>(p)?.id),
             "looks.setDefault" => {
@@ -860,9 +933,34 @@ impl Server {
         if !d.runs_here() {
             return Err(err(Platform::not_here(&RecipeId::qualified(&p.recipe), &d.systems.join(", "))));
         }
+        // What it is made of must be here: the image flake would not find a missing module (plan B142)
+        let parts = recipes.parts.get(&p.recipe);
+        let missing: Vec<String> = parts
+            .map(|x| {
+                x.issues
+                    .iter()
+                    .filter_map(|i| match i {
+                        crate::composition::Issue::MissingModule { reference, .. }
+                        | crate::composition::Issue::MissingKeymap { reference, .. } => Some(reference.clone()),
+                        _ => None,
+                    })
+                    .collect()
+            })
+            .unwrap_or_default();
+        if !missing.is_empty() {
+            return Err(RpcError::from(vm_err!(
+                codes::PREREQUISITE,
+                "{} is made of parts that are not here: {} – install them first (the recipe's \"Install Missing Parts\", omaf recipes show {} --install)",
+                RecipeId::qualified(&p.recipe),
+                missing.join(", "),
+                RecipeId::qualified(&p.recipe)
+            )));
+        }
         let kind = d.kind;
         let paths = self.paths();
-        let mut choice = build_choice(&paths, p.credential.as_deref(), p.look.as_deref(), p.locale.as_deref())?;
+        // The look: the one chosen, else the recipe's when it is here, else the default (plan B142)
+        let look = p.look.clone().filter(|l| !l.is_empty()).or_else(|| parts.and_then(|x| x.look_id.clone()));
+        let mut choice = build_choice(&paths, p.credential.as_deref(), look.as_deref(), p.locale.as_deref())?;
         // macOS: the base's credential and its stored password – nobody types one (plan B139)
         let mut password = None;
         if kind == GuestKind::Macos {
@@ -1145,8 +1243,8 @@ impl Server {
             |id: &str, author: &str| author == "omaflake" && sources.iter().any(|s| s.id() == id && s.is_official());
         let images = ImageStore::new(paths.clone()).list();
         let c = lock(&self.inner.catalogs);
-        let offered_version = |l: &crate::looks::Look| {
-            c.catalogs.get(&l.source).and_then(|cat| cat.looks.iter().find(|x| x.id == l.id)).map(|x| x.version.clone())
+        let offered_hash = |l: &crate::looks::Look| {
+            c.catalogs.get(&l.source).and_then(|cat| cat.looks.iter().find(|x| x.id == l.id)).map(|x| x.hash.clone())
         };
         let dtos: Vec<LookDto> = looks
             .iter()
@@ -1163,7 +1261,7 @@ impl Server {
                 source_name: source_name(&l.source),
                 official: official(&l.source, &l.author),
                 installed: installed.contains_key(&l.id),
-                update: l.version.is_some() && offered_version(l).is_some_and(|v| Some(v) != l.version),
+                update: l.hash.is_some() && offered_hash(l).is_some_and(|h| Some(h) != l.hash),
                 is_default: default.as_deref() == Some(l.id.as_str()),
                 images: images
                     .iter()
@@ -1199,6 +1297,207 @@ impl Server {
             }
         }
         LooksAnswer { looks: dtos, offered, unreadable, fetched: c.fetched }
+    }
+
+    /// The modules and key binding sets here (with the recipes made of them and updates) and what the catalogs fetched
+    /// last offer besides (plan B142)
+    pub(crate) fn modules_answer(&self, language: Option<&str>) -> ModulesAnswer {
+        let paths = self.paths();
+        let settings = Settings::load(&paths);
+        let sources = settings.recipe_sources();
+        let source_name = |id: &str| {
+            sources.iter().find(|s| s.id() == id).map(RecipeSource::display_name).unwrap_or_else(|| id.to_string())
+        };
+        let official =
+            |id: &str, author: &str| author == "omaflake" && sources.iter().any(|s| s.id() == id && s.is_official());
+        let (modules, mut unreadable) = crate::modules::ModuleStore::new(paths.clone()).list_with_errors(&settings);
+        let (keymaps, more) = crate::keymaps::KeymapStore::new(paths.clone()).list_with_errors(&settings);
+        unreadable.extend(more);
+        let installed_modules = crate::modules::ModuleStore::new(paths.clone()).installed();
+        let installed_keymaps = crate::keymaps::KeymapStore::new(paths.clone()).installed();
+        // The recipes here made of each (by their names), from what the recipe list read
+        let recipes = self.recipes().unwrap_or_default();
+        let users = |kind: &str, reference: &str, platform: Option<GuestKind>| -> Vec<String> {
+            let mut out: Vec<String> = recipes
+                .parts
+                .iter()
+                .filter(|(id, p)| {
+                    let kind_ok = platform.is_none_or(|k| recipes.defaults.get(*id).is_some_and(|d| d.kind == k));
+                    let refs: Vec<&String> = if kind == "module" {
+                        p.modules.iter().map(|m| &m.reference).collect()
+                    } else {
+                        p.keymaps.iter().collect()
+                    };
+                    kind_ok && refs.iter().any(|r| r.split(' ').next() == Some(reference))
+                })
+                .map(|(id, _)| RecipeId::display_name(id, recipes.defaults.get(id)))
+                .collect();
+            out.sort();
+            out.dedup();
+            out
+        };
+        let c = lock(&self.inner.catalogs);
+        let mut parts: Vec<PartDto> = Vec::new();
+        for m in &modules {
+            let hash =
+                c.catalogs.get(&m.source).and_then(|cat| cat.modules.iter().find(|x| x.id == m.id)).map(|x| &x.hash);
+            parts.push(PartDto {
+                id: m.id.clone(),
+                reference: m.reference(),
+                kind: "module".into(),
+                platform: Some(m.platform),
+                title: m.title.clone(),
+                description: m.description_in(language).to_string(),
+                version: m.version.clone(),
+                tags: m.tags.clone(),
+                provides: m.provides.clone(),
+                needs: m.needs.clone(),
+                enhances: m.enhances.clone(),
+                keys: m.actions.iter().map(|(a, x)| (a.clone(), x.key.clone())).collect(),
+                unfree: m.unfree,
+                source: m.source.clone(),
+                source_name: source_name(&m.source),
+                official: official(&m.source, &m.author),
+                installed: installed_modules.contains_key(&m.id),
+                update: m.hash.is_some() && hash.is_some_and(|h| Some(h) != m.hash.as_ref()),
+                recipes: users("module", &m.reference(), Some(m.platform)),
+            });
+        }
+        for k in &keymaps {
+            let hash =
+                c.catalogs.get(&k.source).and_then(|cat| cat.keymaps.iter().find(|x| x.id == k.id)).map(|x| &x.hash);
+            parts.push(PartDto {
+                id: k.id.clone(),
+                reference: k.reference(),
+                kind: "keymap".into(),
+                platform: None,
+                title: k.title.clone(),
+                description: k.description_in(language).to_string(),
+                version: k.version.clone(),
+                tags: vec![],
+                provides: vec![],
+                needs: vec![],
+                enhances: vec![],
+                keys: keys_of(&k.keys),
+                unfree: false,
+                source: k.source.clone(),
+                source_name: source_name(&k.source),
+                official: official(&k.source, &k.author),
+                installed: installed_keymaps.contains_key(&k.id),
+                update: k.hash.is_some() && hash.is_some_and(|h| Some(h) != k.hash.as_ref()),
+                recipes: users("keymap", &k.reference(), None),
+            });
+        }
+        let mut offered: Vec<PartDto> = Vec::new();
+        for s in &sources {
+            let Some(cat) = c.catalogs.get(&s.id()) else { continue };
+            for m in &cat.modules {
+                if parts.iter().chain(offered.iter()).any(|p| p.id == m.id) {
+                    continue;
+                }
+                offered.push(PartDto {
+                    id: m.id.clone(),
+                    reference: m.reference(),
+                    kind: "module".into(),
+                    platform: Some(m.platform),
+                    title: m.title.clone(),
+                    description: m.description_in(language).to_string(),
+                    version: m.version.clone(),
+                    tags: m.tags.clone(),
+                    provides: m.provides.clone(),
+                    needs: m.needs.clone(),
+                    enhances: m.enhances.clone(),
+                    keys: BTreeMap::new(),
+                    unfree: m.unfree,
+                    source: s.id(),
+                    source_name: s.display_name(),
+                    official: m.author == "omaflake" && s.is_official(),
+                    installed: false,
+                    update: false,
+                    recipes: vec![],
+                });
+            }
+            for k in &cat.keymaps {
+                if parts.iter().chain(offered.iter()).any(|p| p.id == k.id) {
+                    continue;
+                }
+                offered.push(PartDto {
+                    id: k.id.clone(),
+                    reference: format!("{}/{}", k.author, k.name),
+                    kind: "keymap".into(),
+                    platform: None,
+                    title: k.title.clone(),
+                    description: k.description_in(language).to_string(),
+                    version: k.version.clone(),
+                    tags: vec![],
+                    provides: vec![],
+                    needs: vec![],
+                    enhances: vec![],
+                    keys: keys_of(&k.keys),
+                    unfree: false,
+                    source: s.id(),
+                    source_name: s.display_name(),
+                    official: k.author == "omaflake" && s.is_official(),
+                    installed: false,
+                    update: false,
+                    recipes: vec![],
+                });
+            }
+        }
+        ModulesAnswer { parts, offered, unreadable, fetched: c.fetched }
+    }
+
+    fn modules_install(&self, p: InstallParams) -> Reply {
+        if let Some(job) = self.inner.jobs.active(JobKind::ModuleInstall, Some(&p.id)) {
+            return Ok(Answer::Job(job));
+        }
+        let source =
+            Settings::load(&self.paths()).recipe_sources().into_iter().find(|s| s.id() == p.source).ok_or_else(
+                || RpcError::from(vm_err!(codes::NOT_FOUND, "Source \"{}\" is not one of yours", p.source)),
+            )?;
+        let s = self.clone();
+        let id = p.id.clone();
+        let mut spec = JobSpec::new(
+            JobKind::ModuleInstall,
+            format!("Install {}", p.id),
+            Box::new(move |ctx: &JobCtx| {
+                let client = SourceClient::new(source.clone(), None);
+                let cached = lock(&s.inner.catalogs).catalogs.get(&source.id()).cloned();
+                let catalog = match cached {
+                    Some(c) => c,
+                    None => client.catalog()?,
+                };
+                let title = if crate::parts::PartKind::Keymap.parse_id(&id).is_some() {
+                    crate::keymaps::KeymapStore::new(s.paths()).install(&id, &catalog, &client)?.title
+                } else {
+                    crate::modules::ModuleStore::new(s.paths()).install(&id, &catalog, &client)?.title
+                };
+                ctx.log(&format!("Installed {title} ({id})"));
+                result(InstallResult { installed: vec![id.clone()] })
+            }),
+        );
+        spec.recipe = Some(p.id.clone());
+        spec.cancellable = false;
+        spec.log_file = Some(self.paths().logs().join("module-install.log"));
+        let s = self.clone();
+        spec.on_end = Some(Box::new(move |_| {
+            s.reload_recipes_later();
+            s.poke();
+        }));
+        Ok(Answer::Job(self.inner.jobs.submit(spec)))
+    }
+
+    /// Removes an installed module or key binding set; recipes made of it cannot be built until it is back
+    fn modules_remove(&self, id: &str) -> Reply {
+        if crate::parts::PartKind::Keymap.parse_id(id).is_some() {
+            crate::keymaps::KeymapStore::new(self.paths()).remove(id).map_err(err)?;
+        } else {
+            crate::modules::ModuleStore::new(self.paths()).remove(id).map_err(err)?;
+        }
+        self.events().message_text(Level::Info, super::views::text::tf!("%@ removed", id));
+        self.reload_recipes_later();
+        self.poke();
+        Answer::of(Value::Null)
     }
 
     fn looks_install(&self, p: InstallParams) -> Reply {
@@ -1311,9 +1610,19 @@ impl Server {
                     Some(c) => c,
                     None => client.catalog()?,
                 };
-                let written = RecipeLibrary::new(s.paths()).install(&recipe, &catalog, &client)?;
+                let library = RecipeLibrary::new(s.paths());
+                let written = library.install(&recipe, &catalog, &client)?;
                 for w in &written {
                     ctx.log(&format!("Installed {}", RecipeId::qualified(w)));
+                }
+                // What it is made of comes along: its modules, key bindings and look (plan B142)
+                let folder = written.first().and_then(|w| library.folder(w)).or_else(|| {
+                    let settings = Settings::load(&s.paths());
+                    let base = RecipeId::base(&recipe).to_string();
+                    library.available(&settings).into_iter().find(|a| RecipeId::base(&a.id) == base).map(|a| a.folder)
+                });
+                if let Some(spec) = folder.and_then(|f| crate::composition::RecipeSpec::read(&f).ok()) {
+                    s.install_parts(&spec, ctx)?;
                 }
                 result(InstallResult { installed: written })
             }),
@@ -1324,6 +1633,68 @@ impl Server {
         let s = self.clone();
         spec.on_end = Some(Box::new(move |_| s.reload_recipes_later()));
         spec
+    }
+
+    /// Installs what a recipe here is made of and is missing – its modules, key bindings and look (the build page's
+    /// "Install Missing Parts")
+    fn recipes_install_parts(&self, id: &str) -> Reply {
+        if let Some(job) = self.inner.jobs.active(JobKind::RecipeInstall, Some(id)) {
+            return Ok(Answer::Job(job));
+        }
+        let folder = self
+            .recipes()
+            .ok()
+            .and_then(|r| r.folders.get(id).cloned())
+            .ok_or_else(|| RpcError::from(vm_err!(codes::NOT_FOUND, "{} is not here", RecipeId::qualified(id))))?;
+        let spec = crate::composition::RecipeSpec::read(&folder).map_err(err)?;
+        let s = self.clone();
+        let mut spec_job = JobSpec::new(
+            JobKind::RecipeInstall,
+            format!("Install what {} is made of", RecipeId::qualified(id)),
+            Box::new(move |ctx: &JobCtx| result(InstallResult { installed: s.install_parts(&spec, ctx)? })),
+        );
+        spec_job.recipe = Some(id.to_string());
+        spec_job.cancellable = false;
+        spec_job.log_file = Some(self.paths().logs().join(format!("recipe-install-{}.log", file_safe(id))));
+        let s = self.clone();
+        spec_job.on_end = Some(Box::new(move |_| {
+            s.check_doctor_later();
+            s.reload_recipes_later();
+        }));
+        Ok(Answer::Job(self.inner.jobs.submit(spec_job)))
+    }
+
+    /// The remote sources with their catalogs for installing parts, in their order: the catalog fetched last, or fetched
+    /// now; the official catalog last when it is not one of them – a reference always falls back to it (plan B141)
+    fn part_catalogs(&self) -> Vec<(RecipeSource, crate::recipe_sources::RecipeCatalog)> {
+        let mut sources: Vec<RecipeSource> = Settings::load(&self.paths())
+            .recipe_sources()
+            .into_iter()
+            .filter(|s| s.is_enabled() && s.kind != crate::recipe_sources::RecipeSourceKind::Folder)
+            .collect();
+        if !sources.iter().any(RecipeSource::is_official) {
+            sources.push(RecipeSource::official());
+        }
+        sources
+            .into_iter()
+            .filter_map(|source| {
+                let cached = lock(&self.inner.catalogs).catalogs.get(&source.id()).cloned();
+                let catalog = match cached {
+                    Some(c) => c,
+                    None => SourceClient::new(source.clone(), None).catalog().ok()?,
+                };
+                Some((source, catalog))
+            })
+            .collect()
+    }
+
+    /// Installs the parts `spec` needs that are not here from the sources' catalogs (`parts::install_recipe_parts`)
+    pub(crate) fn install_parts(
+        &self,
+        spec: &crate::composition::RecipeSpec,
+        ctx: &JobCtx,
+    ) -> crate::Result<Vec<String>> {
+        crate::parts::install_recipe_parts(&self.paths(), spec, &self.part_catalogs(), &mut |line| ctx.log(line))
     }
 
     fn recipes_install_suggested(&self) -> Reply {
@@ -2185,6 +2556,60 @@ pub(crate) fn locale_dtos(paths: &Paths) -> Vec<LocaleDto> {
         .collect()
 }
 
+pub(crate) fn profile_dtos(paths: &Paths) -> Vec<ProfileDto> {
+    let profiles = crate::profiles::Profiles::new(paths.clone());
+    let default = profiles.default_profile().map(|p| p.id);
+    profiles
+        .list()
+        .into_iter()
+        .map(|p| ProfileDto {
+            is_default: default.as_deref() == Some(p.id.as_str()),
+            id: p.id,
+            name: p.name,
+            cpus: p.cpus,
+            memory_gb: p.memory_gb,
+        })
+        .collect()
+}
+
+#[derive(Deserialize)]
+struct SaveRecipeParams {
+    name: String,
+    platform: String,
+    #[serde(default)]
+    description: String,
+    #[serde(default)]
+    modules: Vec<String>,
+    #[serde(default)]
+    look: Option<String>,
+    #[serde(default)]
+    keymaps: Vec<String>,
+    #[serde(default)]
+    requirements: crate::composition::Requirements,
+    #[serde(default)]
+    vm: BTreeMap<String, Value>,
+    /// The recipe edited ("my.nixos.work"): renamed, its old folder goes
+    #[serde(default)]
+    previous: Option<String>,
+}
+
+#[derive(Deserialize)]
+struct BaseParams {
+    base: String,
+}
+
+#[derive(Deserialize)]
+struct ProfileParamsIn {
+    #[serde(default)]
+    id: Option<String>,
+    #[serde(default)]
+    name: Option<String>,
+    #[serde(default)]
+    cpus: Option<u32>,
+    #[serde(default, rename = "memoryGB")]
+    memory_gb: Option<u32>,
+}
+
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct LocaleParamsIn {
@@ -2378,6 +2803,11 @@ struct AssignParams {
     name: String,
     /// The credential's ID or name
     credential: String,
+}
+
+/// A key binding set's keys as one list: "<module> <action>" → key
+fn keys_of(keys: &crate::keymaps::Keys) -> BTreeMap<String, String> {
+    keys.iter().flat_map(|(m, a)| a.iter().map(move |(action, key)| (format!("{m} {action}"), key.clone()))).collect()
 }
 
 #[cfg(test)]

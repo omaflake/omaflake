@@ -101,8 +101,9 @@ struct APIContractTests {
             "recipes.available": {
                 let a: AvailableRecipes = try load("recipes.available")
                 let first = try #require(a.offered.first)
-                #expect(first.qualified == "omaflake/nixos/minimal" && first.license == "MIT" && first.requires.count == 1)
-                #expect(first.files.count == 2 && first.files.reduce(0) { $0 + $1.size } == 2460 && first.runsHere)
+                #expect(first.qualified == "omaflake/nixos/minimal" && first.license == "MIT" && first.modules.count == 2)
+                #expect(first.look == "omaflake/omaflake" && first.keymaps == ["omaflake/default"])
+                #expect(first.files.count == 1 && first.files.reduce(0) { $0 + $1.size } == 412 && first.runsHere)
                 #expect(a.offered.last?.lab == true && a.offered.last?.license == nil)
                 #expect(a.updates.first?.id == "omaflake.nixos.dev@velvet-tiger-orbit" && a.updates.first?.recipe.name == "dev")
                 #expect(a.suggested.count == 1 && a.errors["url:https://example.org/catalog.json"] == "HTTP 404")

@@ -205,6 +205,10 @@ def rust(t):
 
 # --- Nix -------------------------------------------------------------------------------------------------------------
 
+# The omaflake look's version in the catalog (look.toml `version`, plan B142): raise it with every change to [look]
+LOOK_VERSION = "1.0.0"
+
+
 def nix(t):
     """The omaflake look as look data (look.toml, schema look/v1, plan B141): black, high contrast, white text; red and
     cyan – the hero's split – as fine accents: the active window's border, the active workspace, the cursor, matches.
@@ -217,10 +221,12 @@ def nix(t):
         c[k] = f'"#{round(r * 255):02X}{round(g * 255):02X}{round(b * 255):02X}"'
     terminal = lambda keys: "[" + ", ".join(c[k] for k in keys) + "]"
     return "".join([
-        "# " + HEADER.format(c="#"),
+        # MIT like everything in the catalog (look.toml's license below)
+        "# " + HEADER.replace("AGPL-3.0-or-later", "MIT").format(c="#"),
         "# The omaflake look ([look] in brand/tokens.toml) as look data – omaflake/catalog has it as\n",
         "# looks/omaflake/omaflake/look.toml; the image flake turns it into each program's configuration.\n",
         '"$schema" = "https://omaflake.dev/schema/look/v1.json"\n',
+        f'version = "{LOOK_VERSION}"\n',
         'author = "omaflake"\n',
         'license = "MIT"\n',
         'title = "omaflake"\n',

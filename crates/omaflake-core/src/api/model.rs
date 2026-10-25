@@ -43,6 +43,8 @@ pub(crate) struct RecipeCache {
     /// Line → versions
     pub versions: HashMap<String, Vec<Version>>,
     pub unreadable: Vec<UnreadableFile>,
+    /// What each recipe is made of (plan B142)
+    pub parts: HashMap<String, RecipePartsDto>,
 }
 
 impl RecipeCache {
@@ -59,6 +61,7 @@ impl RecipeCache {
             origins.entry(a.id.clone()).or_insert(a.source);
             folders.entry(a.id).or_insert(a.folder);
         }
+        let parts = recipe_parts(paths, &settings, &folders);
         Ok(RecipeCache {
             loaded: true,
             defaults: ImageStore::new(paths.clone()).recipe_defaults(&flake)?,
@@ -69,7 +72,66 @@ impl RecipeCache {
             distinctions: library.distinctions(&settings),
             versions: library.versions(&settings),
             unreadable: library.unreadable(&settings),
+            parts,
         })
+    }
+}
+
+/// What each recipe (id → its folder) is made of, with the modules, key bindings and looks here (plan B142)
+pub(crate) fn recipe_parts(
+    paths: &Paths,
+    settings: &Settings,
+    folders: &HashMap<String, PathBuf>,
+) -> HashMap<String, RecipePartsDto> {
+    let modules = crate::modules::ModuleStore::new(paths.clone());
+    let capabilities = modules.capabilities(settings);
+    let modules = modules.list(settings);
+    let keymaps = crate::keymaps::KeymapStore::new(paths.clone()).list(settings);
+    let looks = crate::looks::LookStore::new(paths.clone()).list(settings);
+    folders
+        .iter()
+        .filter_map(|(id, folder)| {
+            let spec = crate::composition::RecipeSpec::read(folder).ok()?;
+            Some((id.clone(), parts_dto(&spec, &modules, &keymaps, &looks, &capabilities)))
+        })
+        .collect()
+}
+
+pub(crate) fn parts_dto(
+    spec: &crate::composition::RecipeSpec,
+    modules: &[crate::modules::Module],
+    keymaps: &[crate::keymaps::Keymap],
+    looks: &[crate::looks::Look],
+    capabilities: &BTreeMap<String, crate::modules::Capability>,
+) -> RecipePartsDto {
+    let c = crate::composition::Composition::of(spec, modules, keymaps, capabilities);
+    let look_id = spec
+        .look
+        .as_ref()
+        .and_then(|r| looks.iter().find(|l| l.reference() == r.id && r.allows(&l.version)))
+        .map(|l| l.id.clone());
+    RecipePartsDto {
+        modules: spec
+            .modules
+            .iter()
+            .map(|r| {
+                let here = c.modules.iter().find(|m| m.reference() == r.id);
+                ModuleUseDto {
+                    reference: r.label(),
+                    title: here.map(|m| m.title.clone()),
+                    version: here.map(|m| m.version.clone()),
+                    provides: here.map(|m| m.provides.clone()).unwrap_or_default(),
+                }
+            })
+            .collect(),
+        look: spec.look.as_ref().map(crate::composition::PartRef::label),
+        look_id,
+        keymaps: spec.keymaps.iter().map(crate::composition::PartRef::label).collect(),
+        bindings: c.bindings,
+        issues: c.issues,
+        unfree: c.unfree,
+        requirements: spec.requirements,
+        locales: spec.locales.clone(),
     }
 }
 
@@ -125,6 +187,10 @@ pub(crate) fn watched_folders(paths: &Paths) -> Vec<PathBuf> {
     }
     folders.push(paths.guest());
     folders.push(paths.recipes());
+    // Parts a recipe is made of: an installed or removed module changes what its recipes have (plan B142)
+    for kind in ["modules", "keymaps", "looks"] {
+        folders.push(paths.root.join(kind));
+    }
     for s in settings.recipe_sources() {
         if s.is_enabled() && s.kind == crate::recipe_sources::RecipeSourceKind::Folder {
             folders.push(PathBuf::from(&s.location));
@@ -560,7 +626,9 @@ pub(crate) fn catalog_dto(r: &CatalogRecipe, s: &RecipeSource, language: Option<
         license: r.license.clone(),
         lab: r.lab.unwrap_or(false),
         systems: r.systems.clone(),
-        requires: r.requires.clone().unwrap_or_default(),
+        modules: r.modules.iter().map(crate::composition::PartRef::label).collect(),
+        look: r.look.as_ref().map(crate::composition::PartRef::label),
+        keymaps: r.keymaps.iter().map(crate::composition::PartRef::label).collect(),
         homepage: r.homepage.clone(),
         version: r.version.clone(),
         files: r
@@ -762,6 +830,7 @@ impl View<'_> {
                 .get(&line)
                 .map(|v| v.iter().map(|v| version_dto(v, self.snap.lengths.recipe)).collect())
                 .unwrap_or_default(),
+            parts: self.recipes.parts.get(id).cloned(),
             line,
         }
     }
@@ -816,7 +885,7 @@ mod tests {
     use crate::json::parse_date;
     use crate::models::tests::{config, dev_defaults};
     use crate::models::NetworkMode;
-    use crate::recipe_sources::{CatalogSource, RecipeSourceKind};
+    use crate::recipe_sources::RecipeSourceKind;
 
     fn image(recipe: &str, source: Option<&str>, name: &str, created: &str, store: &str) -> Image {
         let info = ImageInfo::new(
@@ -1042,19 +1111,20 @@ mod tests {
             license: None,
             lab: Some(lab),
             systems: vec!["aarch64-linux".into()],
-            requires: None,
             homepage: None,
+            modules: vec![],
+            look: None,
+            keymaps: vec![],
+            requirements: Default::default(),
+            vm: Default::default(),
+            locales: Default::default(),
             version: version.into(),
             files: vec![],
         }
     }
 
     fn catalog(recipes: Vec<CatalogRecipe>) -> RecipeCatalog {
-        RecipeCatalog {
-            source: CatalogSource { name: "x".into(), description: None, homepage: None },
-            recipes,
-            looks: vec![],
-        }
+        RecipeCatalog { recipes, ..RecipeCatalog::empty("x") }
     }
 
     fn hash(r: &CatalogRecipe) -> String {
@@ -1088,7 +1158,7 @@ mod tests {
         recipes.origins.insert(installed_id.clone(), official.id());
         recipes.installed.insert(
             installed_id.clone(),
-            Installed { source: official.id(), version: "1".into(), requires: None, installed: crate::json::now() },
+            Installed { source: official.id(), version: "1".into(), installed: crate::json::now() },
         );
         let offers = offered(&sources, &catalogs, &recipes, false, &hash);
         // dev: its line is here (an update instead); lab: hidden; minimal: once (the first source wins)

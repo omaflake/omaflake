@@ -557,6 +557,9 @@ public struct RecipeRow: Decodable, Sendable, Equatable, Identifiable {
     public struct Detail: Decodable, Sendable, Equatable {
         public var description: String?
         public var info: [InfoLine]
+        /// What is missing or wrong, its keys (plan B142)
+        public var notes: [Hint]?
+        public var keys: [InfoLine]?
         public var versions: [VersionRow]
         public var actions: [ViewAction]
     }
@@ -656,6 +659,8 @@ public struct BuildPage: Decodable, Sendable, Equatable {
     public var actions: [ViewAction]
     public var blockers: Blockers?
     public var macBase: Hint?
+    /// What the recipe is made of and what is wrong (plan B142)
+    public var notes: [Hint]?
     public var status: ViewText?
     public var progress: Progress?
     public var outcome: Outcome?
@@ -943,6 +948,10 @@ public enum PageModel: Sendable, Equatable {
         // Locales (plan B141): the same page and form as credentials
         case "locales": self = .credentials(try CredentialsPage(from: decoder))
         case "locale": self = .credential(try CredentialPage(from: decoder))
+        // Plan B142: profiles as credentials, the recipe editor as a credential's form, modules as looks
+        case "profiles": self = .credentials(try CredentialsPage(from: decoder))
+        case "profile", "recipeEditor": self = .credential(try CredentialPage(from: decoder))
+        case "modules": self = .looks(try LooksPage(from: decoder))
         // The credential of a macOS base from before bases kept theirs: the same form (plan B139)
         case "baseCredential": self = .credential(try CredentialPage(from: decoder))
         case "activity": self = .activity(try ActivityPage(from: decoder))

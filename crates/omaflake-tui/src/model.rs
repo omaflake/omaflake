@@ -13,7 +13,7 @@ use ratatui::text::{Line, Span};
 use serde_json::Value;
 
 use crate::icons::IconSet;
-use crate::text::{arr, b, bytes_text, date_text, duration_text, parse_date, s, t};
+use crate::text::{arr, b, bytes_text, date_text, duration_text, parse_date, s, t, tr};
 use crate::theme::{Theme, Tone};
 
 /// What the drawing needs besides the model
@@ -339,6 +339,14 @@ fn list_row(ctx: &Ctx, prefix: &str, row: &Value, out: &mut Vec<Item>) {
             for info in arr(d, "info") {
                 lines.push(info_line(ctx, info, 4));
             }
+            // A recipe's keys (plan B142)
+            let keys = arr(d, "keys");
+            if !keys.is_empty() {
+                lines.push(secondary_line(ctx, tr("Keys"), 4));
+                for k in keys {
+                    lines.push(info_line(ctx, k, 6));
+                }
+            }
             let detail_actions = arr(d, "actions");
             if !detail_actions.is_empty() {
                 // Numbered as in the footer (the row's actions, the switches, then these)
@@ -352,6 +360,10 @@ fn list_row(ctx: &Ctx, prefix: &str, row: &Value, out: &mut Vec<Item>) {
                     spans.push(Span::raw("   "));
                 }
                 lines.push(Line::from(spans));
+            }
+            // What is missing or wrong (plan B142): hints, each with its action
+            for (i, n) in arr(d, "notes").iter().enumerate() {
+                sub_items.push(hint(ctx, format!("{key}/note{i}"), n));
             }
             for v in arr(d, "versions") {
                 let vkey = format!("{key}/{}", s(v, "id"));
@@ -484,7 +496,8 @@ pub fn page(ctx: &Ctx, name: &str, model: &Value) -> Page {
         "images" => images(ctx, model, &mut p),
         "recipes" => recipes(ctx, model, &mut p),
         "activity" => activity(ctx, model, &mut p),
-        "looks" => looks(ctx, model, &mut p),
+        // Modules in the looks' shape (plan B142)
+        "looks" | "modules" => looks(ctx, model, &mut p),
         "vm" | "image" => {
             let mut open = ctx.expanded.clone();
             let key = format!("{name}:{}", s(&model["row"], "name"));
@@ -497,8 +510,11 @@ pub fn page(ctx: &Ctx, name: &str, model: &Value) -> Page {
         "macBase" => mac_base(ctx, model, &mut p),
         "newVm" => new_vm(ctx, model, &mut p),
         "settings" => settings(ctx, model, &mut p),
-        "credentials" | "locales" => credentials(ctx, model, &mut p),
+        "credentials" | "locales" | "profiles" => credentials(ctx, model, &mut p),
         "locale" => credential(ctx, "locale", model, &mut p),
+        "profile" => credential(ctx, "profile", model, &mut p),
+        // The recipe editor in the credential form's shape (plan B142)
+        "recipeEditor" => credential(ctx, "recipeEditor", model, &mut p),
         "credential" => credential(ctx, "credential", model, &mut p),
         // The credential of a macOS base from before bases kept theirs: the same form (plan B139)
         "baseCredential" => credential(ctx, "baseCredential", model, &mut p),
@@ -685,6 +701,10 @@ fn build(ctx: &Ctx, model: &Value, p: &mut Page) {
     }
     if let Some(h) = model.get("macBase") {
         p.items.push(hint(ctx, "build:macBase".into(), h));
+    }
+    // What the recipe is made of and what is wrong (plan B142)
+    for (i, n) in arr(model, "notes").iter().enumerate() {
+        p.items.push(hint(ctx, format!("build:note{i}"), n));
     }
     if let Some(st) = model.get("status") {
         p.items.push(Item::line("", secondary_line(ctx, t(st), 2)));

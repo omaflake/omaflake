@@ -63,6 +63,24 @@
           "expect": "recipe"
         }
       }
+    },
+    {
+      "enabled": true,
+      "help": {
+        "key": "Put a recipe together from modules, a look and key bindings",
+        "text": "Put a recipe together from modules, a look and key bindings"
+      },
+      "icon": "add",
+      "id": "newRecipe",
+      "label": {
+        "key": "New Recipe …",
+        "text": "New Recipe …"
+      },
+      "method": "ui.show",
+      "params": {
+        "page": "recipeEditor",
+        "params": {}
+      }
     }
   ],
   "catalogsLoaded": true,
@@ -298,11 +316,11 @@
           },
           {
             "label": {
-              "key": "Requires",
-              "text": "Requires"
+              "key": "Modules",
+              "text": "Modules"
             },
             "value": {
-              "text": "omaflake.nixos.base"
+              "text": "omaflake/hyprland, omaflake/neovim ≥ 1.0.0"
             }
           },
           {
@@ -312,13 +330,13 @@
             },
             "value": {
               "args": [
-                2,
+                1,
                 {
-                  "bytes": 2460
+                  "bytes": 412
                 }
               ],
               "key": "%lld files, %@",
-              "text": "2 files, 2.5 KB"
+              "text": "1 files, 412 bytes"
             }
           }
         ]
@@ -349,21 +367,21 @@
             "path": "recipe.toml",
             "sha256": "9f86d081884c7d65",
             "size": 412
-          },
-          {
-            "path": "configuration.nix",
-            "sha256": "60303ae22b998861",
-            "size": 2048
           }
         ],
         "id": "omaflake.nixos.minimal",
+        "keymaps": [
+          "omaflake/default"
+        ],
         "kind": "nixos",
         "lab": false,
         "license": "MIT",
-        "name": "minimal",
-        "requires": [
-          "omaflake.nixos.base"
+        "look": "omaflake/omaflake",
+        "modules": [
+          "omaflake/hyprland",
+          "omaflake/neovim ≥ 1.0.0"
         ],
+        "name": "minimal",
         "runsHere": true,
         "source": "github:omaflake/recipes@main",
         "systems": [
@@ -448,13 +466,13 @@
             },
             "value": {
               "args": [
-                2,
+                1,
                 {
-                  "bytes": 2460
+                  "bytes": 412
                 }
               ],
               "key": "%lld files, %@",
-              "text": "2 files, 2.5 KB"
+              "text": "1 files, 412 bytes"
             }
           }
         ],
@@ -489,18 +507,14 @@
             "path": "recipe.toml",
             "sha256": "9f86d081884c7d65",
             "size": 412
-          },
-          {
-            "path": "configuration.nix",
-            "sha256": "60303ae22b998861",
-            "size": 2048
           }
         ],
         "id": "lab.nixos.try",
+        "keymaps": [],
         "kind": "nixos",
         "lab": true,
+        "modules": [],
         "name": "try",
-        "requires": [],
         "runsHere": true,
         "source": "github:omaflake/recipes@main",
         "systems": [
@@ -583,6 +597,22 @@
             "params": {
               "id": "omaflake.nixos.dev",
               "source": "github:omaflake/recipes@main"
+            }
+          },
+          {
+            "enabled": true,
+            "icon": "copy",
+            "id": "copy",
+            "label": {
+              "key": "Copy to My Recipes …",
+              "text": "Copy to My Recipes …"
+            },
+            "method": "ui.show",
+            "params": {
+              "page": "recipeEditor",
+              "params": {
+                "id": "omaflake.nixos.dev@velvet-tiger-orbit"
+              }
             }
           },
           {
@@ -705,6 +735,126 @@
             "value": {
               "text": "MIT"
             }
+          },
+          {
+            "full": "omaflake/hyprland, omaflake/wezterm, omaflake/neovim ≥ 1.0.0",
+            "label": {
+              "key": "Modules",
+              "text": "Modules"
+            },
+            "value": {
+              "text": "Hyprland 1.0.0, WezTerm 1.0.0, omaflake/neovim ≥ 1.0.0"
+            }
+          },
+          {
+            "label": {
+              "key": "Look",
+              "text": "Look"
+            },
+            "value": {
+              "text": "omaflake/omaflake"
+            }
+          },
+          {
+            "label": {
+              "key": "Key bindings",
+              "text": "Key bindings"
+            },
+            "value": {
+              "text": "omaflake/default"
+            }
+          },
+          {
+            "label": {
+              "key": "Needs at least",
+              "text": "Needs at least"
+            },
+            "value": {
+              "text": "4 CPU · 8 GB RAM · 40 GB"
+            }
+          }
+        ],
+        "keys": [
+          {
+            "label": {
+              "text": "Open a terminal"
+            },
+            "note": {
+              "text": "omaflake/hyprland"
+            },
+            "tone": "normal",
+            "value": {
+              "text": "Super+Return"
+            }
+          },
+          {
+            "label": {
+              "text": "Quit Zellij"
+            },
+            "note": {
+              "args": [
+                "omaflake/zellij",
+                "normal"
+              ],
+              "key": "%@, in its %@ mode",
+              "text": "omaflake/zellij, in its normal mode"
+            },
+            "tone": "normal",
+            "value": {
+              "text": "Ctrl+q"
+            }
+          },
+          {
+            "label": {
+              "text": "Float the window"
+            },
+            "note": {
+              "text": "omaflake/hyprland"
+            },
+            "tone": "normal",
+            "value": {
+              "text": "t"
+            }
+          }
+        ],
+        "notes": [
+          {
+            "action": {
+              "enabled": true,
+              "icon": "download",
+              "id": "installParts",
+              "label": {
+                "key": "Install Missing Parts",
+                "text": "Install Missing Parts"
+              },
+              "method": "recipes.installParts",
+              "params": {
+                "id": "omaflake.nixos.dev@velvet-tiger-orbit"
+              },
+              "primary": true
+            },
+            "icon": "warning",
+            "text": {
+              "args": [
+                "omaflake/neovim ≥ 1.0.0"
+              ],
+              "key": "Not here yet: %@ – the recipe is made of them",
+              "text": "Not here yet: omaflake/neovim ≥ 1.0.0 – the recipe is made of them"
+            },
+            "tone": "warning"
+          },
+          {
+            "icon": "warning",
+            "text": {
+              "args": [
+                "Float the window",
+                "omaflake/hyprland",
+                "t"
+              ],
+              "key": "%@ (%@, %@): without a mode a key starts with Super or Ctrl",
+              "text": "Float the window (omaflake/hyprland, t): without a mode a key starts with Super or Ctrl"
+            },
+            "tone": "warning"
           }
         ],
         "versions": [
@@ -960,6 +1110,84 @@
         "name": "dev",
         "network": "shared",
         "outdated": true,
+        "parts": {
+          "bindings": [
+            {
+              "action": "terminal",
+              "context": "desktop",
+              "key": "Super+Return",
+              "module": "omaflake/hyprland",
+              "title": "Open a terminal"
+            },
+            {
+              "action": "quit",
+              "context": "desktop",
+              "key": "Ctrl+q",
+              "mode": "normal",
+              "module": "omaflake/zellij",
+              "title": "Quit Zellij"
+            },
+            {
+              "action": "float",
+              "context": "desktop",
+              "key": "t",
+              "module": "omaflake/hyprland",
+              "title": "Float the window"
+            }
+          ],
+          "issues": [
+            {
+              "have": null,
+              "kind": "missingModule",
+              "reference": "omaflake/neovim ≥ 1.0.0"
+            },
+            {
+              "binding": {
+                "action": "float",
+                "context": "desktop",
+                "key": "t",
+                "module": "omaflake/hyprland",
+                "title": "Float the window"
+              },
+              "kind": "keyRule"
+            }
+          ],
+          "keymaps": [
+            "omaflake/default"
+          ],
+          "locales": {
+            "rtl": false
+          },
+          "look": "omaflake/omaflake",
+          "lookId": "omaflake.look.omaflake",
+          "modules": [
+            {
+              "provides": [
+                "desktop"
+              ],
+              "reference": "omaflake/hyprland",
+              "title": "Hyprland",
+              "version": "1.0.0"
+            },
+            {
+              "provides": [
+                "terminal"
+              ],
+              "reference": "omaflake/wezterm",
+              "title": "WezTerm",
+              "version": "1.0.0"
+            },
+            {
+              "reference": "omaflake/neovim ≥ 1.0.0"
+            }
+          ],
+          "requirements": {
+            "cpus": 4,
+            "disk_gb": 40,
+            "memory_gb": 8
+          },
+          "unfree": []
+        },
         "qualified": "omaflake/nixos/dev",
         "runsHere": true,
         "share": true,

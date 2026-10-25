@@ -7,7 +7,9 @@ pub mod instances;
 pub mod locales;
 pub mod looks;
 pub mod macos;
+pub mod modules;
 pub mod packages;
+pub mod profiles;
 pub mod recipes;
 pub mod service;
 pub mod sources;
@@ -28,6 +30,7 @@ pub fn run(command: Command) -> Outcome {
             Some(RecipesCommand::Versions(a)) => recipes::versions(&a),
             Some(RecipesCommand::Available(a)) => recipes::available(&a),
             Some(RecipesCommand::Install(a)) => recipes::install(&a),
+            Some(RecipesCommand::Show(a)) => recipes::show(&a),
             Some(RecipesCommand::Remove(a)) => recipes::remove(&a),
         },
         Command::Sources(s) => match s.command {
@@ -60,6 +63,19 @@ pub fn run(command: Command) -> Outcome {
             Some(LooksCommand::Install(a)) => looks::install(&a.look),
             Some(LooksCommand::Remove(a)) => looks::remove(&a.look),
             Some(LooksCommand::Default(a)) => looks::set_default(&a.look),
+        },
+        Command::Modules(m) => match m.command {
+            None | Some(ModulesCommand::List) => modules::list(),
+            Some(ModulesCommand::Available) => modules::available(),
+            Some(ModulesCommand::Install(a)) => modules::install(&a.module),
+            Some(ModulesCommand::Remove(a)) => modules::remove(&a.module),
+        },
+        Command::Profiles(p) => match p.command {
+            None | Some(ProfilesCommand::List) => profiles::list(),
+            Some(ProfilesCommand::Add(a)) => profiles::add(&a),
+            Some(ProfilesCommand::Edit(a)) => profiles::edit(&a),
+            Some(ProfilesCommand::Remove(a)) => profiles::remove(&a.profile),
+            Some(ProfilesCommand::Default(a)) => profiles::set_default(&a.profile),
         },
         Command::MacOs { command: MacOsCommand::Install(a) } => macos::install(&a),
         Command::MacOs { command: MacOsCommand::Assign(a) } => macos::assign(&a),

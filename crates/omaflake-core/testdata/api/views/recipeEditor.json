@@ -1,0 +1,400 @@
+{
+  "actions": [
+    {
+      "enabled": true,
+      "id": "cancel",
+      "label": {
+        "key": "Cancel",
+        "text": "Cancel"
+      },
+      "method": "ui.back",
+      "params": {}
+    },
+    {
+      "enabled": true,
+      "icon": "apply",
+      "id": "save",
+      "label": {
+        "key": "Save",
+        "text": "Save"
+      },
+      "method": "recipes.save",
+      "params": {
+        "description": "Entwicklungsumgebung",
+        "keymaps": [
+          "omaflake/default"
+        ],
+        "look": "omaflake/omaflake",
+        "modules": [
+          "omaflake/hyprland"
+        ],
+        "name": "dev",
+        "platform": "nixos",
+        "requirements": {
+          "cpus": 4,
+          "disk_gb": 40,
+          "memory_gb": 8
+        },
+        "vm": {
+          "display": "gpu",
+          "ephemeral": false,
+          "network": "shared",
+          "share": true
+        }
+      },
+      "primary": true,
+      "then": "back"
+    }
+  ],
+  "fields": [
+    {
+      "enabled": true,
+      "help": {
+        "key": "lowercase letters, digits and - – it is the guest's host name too",
+        "text": "lowercase letters, digits and - – it is the guest's host name too"
+      },
+      "id": "name",
+      "kind": "text",
+      "label": {
+        "key": "Name",
+        "text": "Name"
+      },
+      "param": "name",
+      "value": "dev",
+      "valueParam": "name"
+    },
+    {
+      "choices": [
+        {
+          "label": {
+            "text": "NixOS"
+          },
+          "value": "nixos"
+        },
+        {
+          "label": {
+            "text": "macOS"
+          },
+          "value": "macos"
+        }
+      ],
+      "enabled": true,
+      "help": {
+        "key": "What the guest is: NixOS, or macOS on a macOS base",
+        "text": "What the guest is: NixOS, or macOS on a macOS base"
+      },
+      "id": "platform",
+      "kind": "choice",
+      "label": {
+        "key": "Platform",
+        "text": "Platform"
+      },
+      "param": "platform",
+      "value": "nixos",
+      "valueParam": "platform"
+    },
+    {
+      "enabled": true,
+      "id": "description",
+      "kind": "text",
+      "label": {
+        "key": "Description",
+        "text": "Description"
+      },
+      "param": "description",
+      "value": "Entwicklungsumgebung",
+      "valueParam": "description"
+    },
+    {
+      "enabled": true,
+      "help": {
+        "text": "Hyprland."
+      },
+      "id": "module:omaflake/hyprland",
+      "kind": "toggle",
+      "label": {
+        "text": "Hyprland (desktop)"
+      },
+      "value": true,
+      "valueParam": "module:omaflake/hyprland"
+    },
+    {
+      "choices": [
+        {
+          "label": {
+            "key": "none",
+            "text": "none"
+          },
+          "value": ""
+        },
+        {
+          "label": {
+            "text": "Rosé Pine Dawn"
+          },
+          "value": "omaflake/rose-pine-dawn"
+        },
+        {
+          "label": {
+            "text": "omaflake"
+          },
+          "value": "omaflake/omaflake"
+        },
+        {
+          "label": {
+            "text": "Catppuccin Mocha"
+          },
+          "value": "omaflake/catppuccin"
+        }
+      ],
+      "enabled": true,
+      "help": {
+        "key": "Suggested – the build may choose another",
+        "text": "Suggested – the build may choose another"
+      },
+      "id": "look",
+      "kind": "choice",
+      "label": {
+        "key": "Look",
+        "text": "Look"
+      },
+      "param": "look",
+      "value": "omaflake/omaflake",
+      "valueParam": "look"
+    },
+    {
+      "choices": [
+        {
+          "label": {
+            "key": "none",
+            "text": "none"
+          },
+          "value": ""
+        },
+        {
+          "label": {
+            "text": "omaflake – omaflake/default"
+          },
+          "value": "omaflake/default"
+        }
+      ],
+      "enabled": true,
+      "help": {
+        "key": "Without any, every module has its own default keys",
+        "text": "Without any, every module has its own default keys"
+      },
+      "id": "keymap1",
+      "kind": "choice",
+      "label": {
+        "args": [
+          1
+        ],
+        "key": "Key bindings %lld",
+        "text": "Key bindings 1"
+      },
+      "param": "keymap1",
+      "value": "omaflake/default",
+      "valueParam": "keymap1"
+    },
+    {
+      "choices": [
+        {
+          "label": {
+            "key": "none",
+            "text": "none"
+          },
+          "value": ""
+        },
+        {
+          "label": {
+            "text": "omaflake – omaflake/default"
+          },
+          "value": "omaflake/default"
+        }
+      ],
+      "enabled": true,
+      "help": {
+        "key": "Wins over the first for the same action",
+        "text": "Wins over the first for the same action"
+      },
+      "id": "keymap2",
+      "kind": "choice",
+      "label": {
+        "args": [
+          2
+        ],
+        "key": "Key bindings %lld",
+        "text": "Key bindings 2"
+      },
+      "param": "keymap2",
+      "value": "",
+      "valueParam": "keymap2"
+    },
+    {
+      "enabled": true,
+      "id": "cpus",
+      "kind": "number",
+      "label": {
+        "args": [
+          4
+        ],
+        "key": "At least %lld CPU cores",
+        "text": "At least 4 CPU cores"
+      },
+      "max": 16,
+      "min": 1,
+      "param": "cpus",
+      "step": 1,
+      "value": 4,
+      "valueParam": "cpus"
+    },
+    {
+      "enabled": true,
+      "id": "memoryGB",
+      "kind": "number",
+      "label": {
+        "args": [
+          8
+        ],
+        "key": "At least %lld GB RAM",
+        "text": "At least 8 GB RAM"
+      },
+      "max": 64,
+      "min": 1,
+      "param": "memoryGB",
+      "step": 1,
+      "value": 8,
+      "valueParam": "memoryGB"
+    },
+    {
+      "enabled": true,
+      "id": "diskGB",
+      "kind": "number",
+      "label": {
+        "args": [
+          40
+        ],
+        "key": "At least a %lld GB disk",
+        "text": "At least a 40 GB disk"
+      },
+      "max": 500,
+      "min": 10,
+      "param": "diskGB",
+      "step": 10,
+      "value": 40,
+      "valueParam": "diskGB"
+    },
+    {
+      "choices": [
+        {
+          "label": {
+            "text": "gpu"
+          },
+          "value": "gpu"
+        },
+        {
+          "label": {
+            "text": "window"
+          },
+          "value": "window"
+        },
+        {
+          "label": {
+            "text": "none"
+          },
+          "value": "none"
+        }
+      ],
+      "enabled": true,
+      "id": "display",
+      "kind": "choice",
+      "label": {
+        "key": "Display",
+        "text": "Display"
+      },
+      "param": "display",
+      "value": "gpu",
+      "valueParam": "display"
+    },
+    {
+      "choices": [
+        {
+          "label": {
+            "text": "shared"
+          },
+          "value": "shared"
+        },
+        {
+          "label": {
+            "text": "isolated"
+          },
+          "value": "isolated"
+        },
+        {
+          "label": {
+            "text": "none"
+          },
+          "value": "none"
+        }
+      ],
+      "enabled": true,
+      "id": "network",
+      "kind": "choice",
+      "label": {
+        "key": "Network",
+        "text": "Network"
+      },
+      "param": "network",
+      "value": "shared",
+      "valueParam": "network"
+    },
+    {
+      "enabled": true,
+      "id": "share",
+      "kind": "toggle",
+      "label": {
+        "key": "Share a folder",
+        "text": "Share a folder"
+      },
+      "param": "share",
+      "value": true,
+      "valueParam": "share"
+    },
+    {
+      "enabled": true,
+      "id": "ephemeral",
+      "kind": "toggle",
+      "label": {
+        "key": "Ephemeral (changes are discarded on shutdown)",
+        "text": "Ephemeral (changes are discarded on shutdown)"
+      },
+      "param": "ephemeral",
+      "value": false,
+      "valueParam": "ephemeral"
+    },
+    {
+      "enabled": true,
+      "help": {
+        "key": "Warnings only – the recipe can be saved and built",
+        "text": "Warnings only – the recipe can be saved and built"
+      },
+      "id": "check",
+      "kind": "info",
+      "label": {
+        "key": "Check",
+        "text": "Check"
+      },
+      "value": {
+        "key": "Nothing to warn about",
+        "text": "Nothing to warn about"
+      }
+    }
+  ],
+  "intro": {
+    "key": "A recipe of your own: what is in it (modules), how it looks, which keys it uses, what a VM from it needs. It is saved in My Recipes – a folder in the data folder that is one of your sources – and built like any other recipe.",
+    "text": "A recipe of your own: what is in it (modules), how it looks, which keys it uses, what a VM from it needs. It is saved in My Recipes – a folder in the data folder that is one of your sources – and built like any other recipe."
+  },
+  "title": {
+    "key": "Copy to My Recipes",
+    "text": "Copy to My Recipes"
+  }
+}

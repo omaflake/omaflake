@@ -328,6 +328,11 @@
           ]
         }
       }
+    },
+    "version": {
+      "type": "string",
+      "pattern": "^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)$",
+      "description": "The author's version – raised with every change; recipes may ask for one (plan B142)"
     }
   },
   "patternProperties": {
@@ -337,6 +342,7 @@
   },
   "required": [
     "$schema",
+    "version",
     "author",
     "license",
     "title",

@@ -39,6 +39,11 @@ pub struct BuildPage {
     /// macOS without a base: the way to create it
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub mac_base: Option<Hint>,
+    /// What the recipe is made of and what is wrong with it (plan B142): missing parts (with "Install Missing Parts …"
+    /// – they block the build), warnings (a need no module provides, incompatible modules, keys that overlap or break
+    /// the key rule, a locale the recipe is not made for), unfree software
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub notes: Vec<Hint>,
     /// "Waiting in the queue"
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub status: Option<Text>,
@@ -141,6 +146,7 @@ fn choice_fields(
     ctx: &Ctx,
     v: &BuildValues,
     base: Option<&crate::api::types::BaseDto>,
+    suggested_look: Option<&str>,
 ) -> (Vec<Field>, String, String, String) {
     let default_credential = ctx.settings.default_credential.clone().unwrap_or_default();
     let credential =
@@ -150,11 +156,13 @@ fn choice_fields(
         Some(b) => b.credential.clone().unwrap_or_default(),
         None => credential,
     };
-    // An installed look (plan B141): the chosen one while it is here, else the default
+    // An installed look (plan B141): the chosen one while it is here, else the recipe's when it is here (B142), else
+    // the default
     let look = v
         .look
         .clone()
         .filter(|id| ctx.looks.looks.iter().any(|l| &l.id == id))
+        .or_else(|| suggested_look.map(str::to_string))
         .or_else(|| ctx.settings.default_look.clone())
         .unwrap_or_default();
     let mut c = Field::new("credential", FieldKind::Choice, Text::new("Credential"), json!(credential))
@@ -250,7 +258,26 @@ pub(crate) fn page(ctx: &Ctx, p: &BuildParams) -> BuildPage {
 
     // macOS images are built on the newest base, with its credential (plan B139)
     let base = if mac { ctx.bases.iter().find(|b| b.newest) } else { None };
-    let (fields, credential, look, locale) = choice_fields(ctx, &p.values, base);
+    let parts = r.and_then(|r| r.parts.as_ref());
+    let (fields, credential, look, locale) =
+        choice_fields(ctx, &p.values, base, parts.and_then(|x| x.look_id.as_deref()));
+    let missing = parts.is_some_and(|x| x.issues.iter().any(crate::composition::Issue::blocks));
+    let mut notes = parts.map(|x| super::recipes::notes(ctx, &p.recipe, x)).unwrap_or_default();
+    // A locale the recipe is not made for: a warning, the build stays possible (plan B141)
+    if let (Some(x), Some(l)) = (parts, ctx.locales.iter().find(|l| l.id == locale)) {
+        let text = match x.locales.outside(&l.locale) {
+            Some(crate::composition::Outside::Languages(langs)) => {
+                Some(tf!("This recipe is made for %@ – not for the locale %@", langs.join(", "), &l.name))
+            }
+            Some(crate::composition::Outside::RightToLeft) => {
+                Some(tf!("This recipe is not made for right-to-left languages like the locale %@", &l.name))
+            }
+            None => None,
+        };
+        if let Some(text) = text {
+            notes.push(Hint::new("warning", text, Tone::Warning));
+        }
+    }
     let no_credential = ctx.credentials.is_empty();
     let base_without = base.filter(|b| b.credential.is_none());
     let mut actions = Vec::new();
@@ -276,6 +303,7 @@ pub(crate) fn page(ctx: &Ctx, p: &BuildParams) -> BuildPage {
                 .enabled_if(r.is_some(), None)
                 .enabled_if(r.is_none_or(|r| r.runs_here), r.map(|r| super::recipes::not_here(ctx, &r.systems)))
                 .enabled_if(blockers.is_empty(), Some(tf!("Open the Doctor first: %@", blocker_titles(&blockers))))
+                .enabled_if(!missing, Some(Text::new("Install what the recipe is made of first")))
                 .enabled_if(
                     !mac || has_base,
                     Some(Text::new(
@@ -340,6 +368,7 @@ pub(crate) fn page(ctx: &Ctx, p: &BuildParams) -> BuildPage {
                 ))
             })
         },
+        notes: if active { vec![] } else { notes },
         status,
         progress: progress_view,
         outcome,

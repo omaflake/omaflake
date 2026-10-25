@@ -778,22 +778,19 @@ mod tests {
     }
 
     #[test]
-    fn recipes_travel_with_what_they_require() {
+    fn recipes_travel_as_packages() {
         let (_t, p) = temp_paths();
         let src = p.root.join("src/recipes/me/nixos");
-        for (name, req) in [("base", ""), ("desk", "requires = [\"me/nixos/base\"]")] {
+        for (name, modules) in [("base", "[\"me/shell\"]"), ("desk", "[\"me/shell\", \"me/desktop\"]")] {
             let d = src.join(name);
             fs::create_dir_all(&d).unwrap();
             fs::write(
                 d.join("recipe.toml"),
-                format!("\"$schema\" = \"https://omaflake.dev/schema/recipe/v1.json\"\ndescription = \"x\"\n{req}\n"),
+                format!("\"$schema\" = \"https://omaflake.dev/schema/recipe/v2.json\"\nplatform = \"nixos\"\nmodules = {modules}\n"),
             )
             .unwrap();
-            fs::write(d.join("default.nix"), "{ ... }: { }\n").unwrap();
         }
         let library = RecipeLibrary::new(p.clone());
-        // one recipe folder without the one it requires is refused
-        assert!(library.import_recipes(&src.join("desk")).is_err());
         let mut ids = library.import_recipes(&p.root.join("src")).unwrap();
         ids.sort();
         assert_eq!(
@@ -802,7 +799,6 @@ mod tests {
         );
         assert!(ids.iter().all(|i| crate::models::RecipeId::words(i).is_some_and(|w| OmaflakeId::is_words(w, true))));
         let desk = ids[1].clone();
-        assert_eq!(library.installed()[&desk].requires, Some(vec!["me.nixos.base".to_string()]));
         assert_eq!(library.installed()[&desk].source, RecipeLibrary::IMPORTED_SOURCE);
         assert!(p.recipes().join(format!("{desk}/recipe.toml")).exists());
         let out = p.root.join("stick");
@@ -810,23 +806,24 @@ mod tests {
         let pkg = library.export_recipe(&desk, &out, &Settings::load(&p)).unwrap();
         assert_eq!(pkg.file_name().unwrap(), "me.nixos.desk.omaflake-recipe");
         let folders: Vec<String> = RecipeLibrary::recipe_folders(&pkg).into_iter().map(|f| f.0).collect();
-        assert_eq!(folders, ["me.nixos.base", "me.nixos.desk"]);
+        assert_eq!(folders, ["me.nixos.desk"]);
         // into another data folder: the same content gives the same IDs
         let (_t2, q) = temp_paths();
         let tq = Transfer::new(q.clone(), "/usr/bin/false", None);
         assert_eq!(tq.conflict(&pkg).unwrap(), Conflict::None);
         let r = tq.import_package(&pkg, None, false, quiet()).unwrap();
-        let mut got = r.names.clone();
-        got.sort();
-        assert!(r.kind == PackageKind::Recipe && got == ids);
+        assert!(r.kind == PackageKind::Recipe && r.names == [desk.clone()]);
         // a second time, identical: nothing written
         assert!(tq.import_package(&pkg, None, false, quiet()).unwrap().names.is_empty());
         // changed: a recipe of its own next to the first (plan B110) – kept with the setting (B111)
         let mut keep = Settings::load(&q);
         keep.keep_recipe_versions = Some(true);
         keep.save(&q).unwrap();
-        fs::write(pkg.join("recipes/me/nixos/desk/default.nix"), "{ ... }: { networking.hostName = \"x\"; }\n")
-            .unwrap();
+        fs::write(
+            pkg.join("recipes/me/nixos/desk/recipe.toml"),
+            "\"$schema\" = \"https://omaflake.dev/schema/recipe/v2.json\"\nplatform = \"nixos\"\nmodules = [\"me/x\"]\n",
+        )
+        .unwrap();
         assert_eq!(tq.conflict(&pkg).unwrap(), Conflict::None);
         let second = tq.import_package(&pkg, None, false, quiet()).unwrap().names;
         assert!(second.len() == 1 && crate::models::RecipeId::base(&second[0]) == "me.nixos.desk" && second[0] != desk);
@@ -835,11 +832,11 @@ mod tests {
         assert_eq!(available.iter().filter(|i| crate::models::RecipeId::base(i) == "me.nixos.desk").count(), 2);
         assert!(lq.distinctions(&Settings::load(&q)).is_empty());
         let staged = lq.stage(&Settings::load(&q)).unwrap();
-        let mapping: std::collections::HashMap<String, String> =
+        let mapping: std::collections::HashMap<String, serde_json::Value> =
             serde_json::from_slice(&fs::read(staged.join("recipes.json")).unwrap()).unwrap();
         let keys: std::collections::HashSet<&String> = mapping.keys().collect();
         assert_eq!(keys, available.iter().collect());
-        assert_eq!(mapping[&second[0]], format!("{}/me/nixos/desk", second[0]));
-        assert!(staged.join(format!("{}/me/nixos/base/default.nix", second[0])).exists());
+        assert_eq!(mapping[&second[0]]["recipe"], "me/nixos/desk");
+        assert!(staged.join(format!("{}/recipes/me/nixos/desk/recipe.toml", second[0])).exists());
     }
 }

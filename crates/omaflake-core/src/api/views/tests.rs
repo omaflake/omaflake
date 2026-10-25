@@ -81,6 +81,57 @@ pub(crate) fn looks_fixture() -> crate::api::types::LooksAnswer {
     }
 }
 
+/// A module here (used by the dev recipe), key bindings, and a module a catalog offers
+pub(crate) fn modules_fixture() -> crate::api::types::ModulesAnswer {
+    use crate::api::types::PartDto;
+    let part = |id: &str, kind: &str, title: &str| PartDto {
+        id: id.into(),
+        reference: crate::parts::PartKind::Module.reference(id),
+        kind: kind.into(),
+        platform: (kind == "module").then_some(GuestKind::Nixos),
+        title: title.into(),
+        description: format!("{title}."),
+        version: "1.0.0".into(),
+        tags: vec![],
+        provides: vec![],
+        needs: vec![],
+        enhances: vec![],
+        keys: BTreeMap::new(),
+        unfree: false,
+        source: "github:omaflake/recipes@main".into(),
+        source_name: "omaflake/recipes".into(),
+        official: true,
+        installed: true,
+        update: false,
+        recipes: vec![],
+    };
+    crate::api::types::ModulesAnswer {
+        parts: vec![
+            PartDto {
+                provides: vec!["desktop".into()],
+                needs: vec!["terminal".into()],
+                keys: BTreeMap::from([("terminal".to_string(), "Super+Return".to_string())]),
+                recipes: vec!["dev".into()],
+                update: true,
+                ..part("omaflake.nixos.hyprland", "module", "Hyprland")
+            },
+            PartDto {
+                reference: "omaflake/default".into(),
+                keys: BTreeMap::from([("omaflake/hyprland terminal".to_string(), "Super+Return".to_string())]),
+                ..part("omaflake.keymap.default", "keymap", "omaflake")
+            },
+        ],
+        offered: vec![PartDto {
+            installed: false,
+            unfree: true,
+            platform: Some(GuestKind::Macos),
+            ..part("omaflake.macos.vscode", "module", "VS Code")
+        }],
+        unreadable: vec![],
+        fetched: true,
+    }
+}
+
 pub(crate) fn ctx() -> Ctx {
     let answer = fx::settings_answer();
     Ctx {
@@ -109,6 +160,14 @@ pub(crate) fn ctx() -> Ctx {
             is_default: true,
         }],
         looks: looks_fixture(),
+        modules: modules_fixture(),
+        profiles: vec![crate::api::types::ProfileDto {
+            id: "p-1".into(),
+            name: "Small".into(),
+            cpus: 2,
+            memory_gb: 4,
+            is_default: true,
+        }],
         locales: vec![crate::api::types::LocaleDto {
             id: "l-1".into(),
             name: "German".into(),
@@ -401,7 +460,17 @@ fn recipe_rows_by_line_with_offers_and_updates() {
     let d = &dev["detail"];
     assert_eq!(d["info"][3]["value"]["text"], "Clipboard · Sound · Share folder");
     assert_eq!(d["info"][4]["value"]["key"], "%lld built, the newest %@");
-    assert_eq!(ids(&d["actions"]), ["update", "removeAll"]);
+    assert_eq!(ids(&d["actions"]), ["update", "copy", "removeAll"]);
+    // What it is made of (plan B142): its modules, look, key bindings, keys and what is wrong
+    let info: Vec<&str> = d["info"].as_array().unwrap().iter().filter_map(|l| l["label"]["key"].as_str()).collect();
+    assert!(info.contains(&"Modules") && info.contains(&"Look") && info.contains(&"Key bindings"), "{info:?}");
+    assert_eq!(d["notes"][0]["action"]["method"], "recipes.installParts");
+    assert_eq!(d["notes"][1]["text"]["key"], "%@ (%@, %@): without a mode a key starts with Super or Ctrl");
+    assert_eq!(
+        (d["keys"][0]["label"]["text"].clone(), d["keys"][0]["value"]["text"].clone()),
+        (json!("Open a terminal"), json!("Super+Return"))
+    );
+    assert_eq!(dev["lamp"]["state"], "working");
     assert_eq!(action(&d["actions"], "removeAll")["enabled"], true, "the older version has no image");
     let versions = d["versions"].as_array().unwrap();
     assert_eq!(versions[0]["words"], "velvet");
@@ -460,7 +529,18 @@ fn new_vm_defaults_and_validation() {
     assert_eq!(create["enabled"], true);
     assert_eq!(create["then"], "back");
     assert_eq!(create["params"]["name"], "dev", "the next free name");
-    assert_eq!(create["params"]["settings"]["cpus"], 4);
+    // The default profile (plan B142): its CPU cores and RAM, fixed; less than the recipe needs is said
+    assert_eq!(
+        (create["params"]["settings"]["cpus"].clone(), create["params"]["settings"]["memoryGB"].clone()),
+        (json!(2), json!(4))
+    );
+    assert_eq!(
+        page["warnings"][0]["key"].as_str().unwrap().split(' ').take(3).collect::<Vec<_>>(),
+        ["Its", "recipe", "needs"]
+    );
+    let custom =
+        get(&c, "newVm", json!({"image": "omaflake.nixos.dev@cedar-mango-lift", "values": {"profile": "", "cpus": 6}}));
+    assert_eq!(action(&custom["actions"], "create")["params"]["settings"]["cpus"], 6, "custom values: the form's");
     assert_eq!(create["params"]["settings"]["display"], "gpu");
     assert_eq!(page["subtitle"]["text"], "recipe dev (velvet)");
     assert_eq!(page["blockers"]["items"][0]["title"]["key"], "QEMU (NixOS guests)");
@@ -475,6 +555,7 @@ fn new_vm_defaults_and_validation() {
         [
             "name",
             "ephemeral",
+            "profile",
             "cpus",
             "memoryGB",
             "diskGB",
@@ -502,7 +583,9 @@ fn new_vm_defaults_and_validation() {
     let create = action(&page["actions"], "create");
     assert_eq!(create["enabled"], false);
     assert_eq!(create["params"]["settings"]["microphone"], false, "no microphone without sound");
-    assert_eq!(page["sections"][1]["fields"][0]["label"]["text"], "CPU cores: 2");
+    assert_eq!(page["sections"][1]["fields"][0]["id"], "profile");
+    assert_eq!(page["sections"][1]["fields"][1]["label"]["text"], "CPU cores: 2");
+    assert_eq!(page["sections"][1]["fields"][1]["enabled"], false, "the profile's");
     let bad = get(&c, "newVm", json!({"image": "omaflake.nixos.dev@cedar-mango-lift", "values": {"name": "Bad Name"}}));
     assert!(bad["sections"][0]["fields"][0]["error"]["text"].as_str().unwrap().starts_with("Invalid name"));
 
@@ -959,7 +1042,7 @@ fn primary_actions_and_short_labels() {
     let home = get(&c, "home", json!({}));
     let short: Vec<Option<&str>> =
         home["actions"].as_array().unwrap().iter().map(|a| a["shortLabel"]["key"].as_str()).collect();
-    assert_eq!(short, [Some("Doctor"), None, None, None, Some("Data Folder"), Some("Quit")]);
+    assert_eq!(short, [Some("Doctor"), None, None, None, None, Some("Data Folder"), Some("Quit")]);
     // Locales next to the credentials (plan B141)
     assert_eq!(
         (home["actions"][2]["icon"].clone(), home["actions"][2]["params"]["page"].clone()),
@@ -1321,7 +1404,7 @@ fn looks_are_a_tab_with_their_colours_usage_and_offers() {
     let mut c = ctx();
     let home = get(&c, "home", json!({}));
     let tabs: Vec<&str> = home["tabs"].as_array().unwrap().iter().map(|t| t["id"].as_str().unwrap()).collect();
-    assert_eq!(tabs, ["vms", "images", "recipes", "looks", "activity"]);
+    assert_eq!(tabs, ["vms", "images", "recipes", "modules", "looks", "activity"]);
     let page = get(&c, "looks", json!({}));
     assert_eq!(page["title"]["key"], "Looks");
     let rose = &page["rows"][0];
@@ -1350,7 +1433,7 @@ fn looks_are_a_tab_with_their_colours_usage_and_offers() {
     let page = get(&c, "looks", json!({}));
     assert_eq!(page["empty"]["action"]["method"], "looks.installRecommended");
     let home = get(&c, "home", json!({}));
-    assert_eq!(home["tabs"][3]["badge"]["tone"], "warning");
+    assert_eq!(home["tabs"][4]["badge"]["tone"], "warning");
     // The build page can't build without a look
     c.jobs.clear();
     let build = get(&c, "build", json!({"recipe": "omaflake.nixos.dev@velvet-tiger-orbit"}));
@@ -1389,4 +1472,39 @@ fn locales_are_rows_and_a_form_like_credentials() {
         (locale["value"].clone(), locale["choices"][0]["label"]["text"].clone()),
         (json!("l-1"), json!("German – de + ru"))
     );
+}
+
+// MARK: Building blocks (plan B142)
+
+#[test]
+fn modules_tab_profiles_and_the_recipe_editor() {
+    let c = ctx();
+    // The Modules tab: the shape of the Looks tab
+    let page = get(&c, "modules", json!({}));
+    assert_eq!(page["title"]["key"], "Modules");
+    let rows = page["rows"].as_array().unwrap();
+    assert_eq!(rows.iter().map(|r| r["name"].as_str().unwrap()).collect::<Vec<_>>(), ["Hyprland", "omaflake"]);
+    assert_eq!(rows[0]["subtitle"]["text"], "omaflake/hyprland · 1.0.0 · NixOS module · 1 recipe");
+    assert_eq!(ids(&rows[0]["actions"]), ["update"]);
+    let remove = action(&rows[0]["detail"]["actions"], "remove");
+    assert_eq!(remove["confirm"]["text"]["key"], "Recipes made of it cannot be built until it is back: %@");
+    assert_eq!(page["offered"][0]["actions"][0]["method"], "modules.install");
+    assert!(page["offered"][0]["badges"].as_array().unwrap().iter().any(|b| b["id"] == "unfree"));
+    // Profiles: the shape of the credentials; the form checks its name
+    let profiles = get(&c, "profiles", json!({}));
+    assert_eq!(profiles["rows"][0]["subtitle"]["text"], "2 CPU · 4 GB RAM");
+    let form = get(&c, "profile", json!({"values": {"name": "small"}}));
+    assert_eq!(action(&form["actions"], "create")["enabled"], false, "the name is taken (any case)");
+    let form = get(&c, "profile", json!({"values": {"name": "Big", "cpus": 8, "memoryGB": 32}}));
+    assert_eq!(action(&form["actions"], "create")["params"], json!({"name": "Big", "cpus": 8, "memoryGB": 32}));
+    // The recipe editor: a copy of dev, one switch per module of its platform
+    let editor = get(&c, "recipeEditor", json!({"id": "omaflake.nixos.dev@velvet-tiger-orbit"}));
+    assert_eq!(editor["title"]["key"], "Copy to My Recipes");
+    let fields: Vec<&str> = editor["fields"].as_array().unwrap().iter().map(|f| f["id"].as_str().unwrap()).collect();
+    assert!(fields.contains(&"module:omaflake/hyprland") && !fields.contains(&"module:omaflake/vscode"), "{fields:?}");
+    let save = action(&editor["actions"], "save");
+    assert_eq!(save["params"]["modules"], json!(["omaflake/hyprland"]), "only modules offered here are switches");
+    assert_eq!(save["params"]["keymaps"], json!(["omaflake/default"]));
+    let none = get(&c, "recipeEditor", json!({"values": {"name": "x"}}));
+    assert_eq!(action(&none["actions"], "save")["reason"]["key"], "Choose at least one module");
 }

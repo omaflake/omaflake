@@ -9,7 +9,7 @@ use iced::widget::{button, column, container, pick_list, progress_bar, row, spac
 use iced::{Alignment, Color, Length};
 use omaflake_core::api::views::activity::ActivityPage;
 use omaflake_core::api::views::build::{BuildPage, LogRef, Outcome};
-use omaflake_core::api::views::common::{Action, Blockers, Field, FieldKind, Filter, FilterKind, ListHead, Tone};
+use omaflake_core::api::views::common::{Action, Blockers, Field, FieldKind, Filter, FilterKind, Hint, ListHead, Tone};
 use omaflake_core::api::views::credentials::{CredentialPage, CredentialRow, CredentialsPage};
 use omaflake_core::api::views::doctor::{DoctorItem, DoctorPage, Download, MacBasePage};
 use omaflake_core::api::views::images::{BuildJobRow, ImageRowView, ImagesPage};
@@ -530,6 +530,14 @@ pub fn recipe_row<'a>(app: &'a App, r: &'a RecipeRowView) -> El<'a> {
             c = c.push(text(desc.clone()).size(text_size::CAPTION));
         }
         c = c.push(Column::with_children(d.info.iter().map(info_line)).spacing(spacing::S));
+        // What is missing or wrong, and its keys (plan B142)
+        if !d.notes.is_empty() {
+            c = c.push(notes(app, &d.notes));
+        }
+        if !d.keys.is_empty() {
+            c = c.push(caption(tr("Keys")).color(style::SECONDARY));
+            c = c.push(Column::with_children(d.keys.iter().map(info_line)).spacing(spacing::XS));
+        }
         if !d.versions.is_empty() {
             let mut v = column![].spacing(spacing::XS);
             for ver in &d.versions {
@@ -550,6 +558,19 @@ pub fn recipe_row<'a>(app: &'a App, r: &'a RecipeRowView) -> El<'a> {
         }
         detail_box(c)
     })
+}
+
+/// Hints in a column: a warning on its tone's notice, others plain
+fn notes<'a>(app: &'a App, hints: &'a [Hint]) -> El<'a> {
+    Column::with_children(hints.iter().map(|h| {
+        let c = container(hint(h, app.pulse));
+        match h.tone {
+            Tone::Warning | Tone::Danger => c.style(style::notice(style::tone(h.tone))).into(),
+            _ => c.into(),
+        }
+    }))
+    .spacing(spacing::S)
+    .into()
 }
 
 fn offered_row<'a>(app: &'a App, r: &'a OfferedRow) -> El<'a> {
@@ -759,6 +780,10 @@ fn build<'a>(app: &'a App, page: &str, b: &'a BuildPage) -> El<'a> {
     }
     if let Some(h) = &b.mac_base {
         c = c.push(container(hint(h, app.pulse)).style(style::notice(style::WARNING)));
+    }
+    // What the recipe is made of and what is wrong (plan B142)
+    if !b.notes.is_empty() {
+        c = c.push(notes(app, &b.notes));
     }
     // The credential and look of the image (plan B137): their values go into the build action
     if !b.fields.is_empty() {
@@ -1327,6 +1352,10 @@ pub mod tests {
             "images" => "images",
             "recipes" => "recipes",
             "looks" => "looks",
+            "modules" => "modules",
+            "profiles" => "profiles",
+            "profile" => "profile",
+            "recipeEditor" => "recipeEditor",
             "newVm" => "newVm",
             "build" => "build",
             "doctor" => "doctor",
@@ -1557,7 +1586,7 @@ pub mod tests {
         let n: NewVmPage = golden("newVm");
         let mut app = app_with("newVm", serde_json::json!({"image": n.image}), Model::NewVm(Box::new(n.clone())), true);
         let cpus = n.sections.iter().flat_map(|s| &s.fields).find(|f| f.id == "cpus").unwrap().clone();
-        assert_eq!(field_value(&app, "newVm", &cpus), serde_json::json!(4));
+        assert_eq!(field_value(&app, "newVm", &cpus), serde_json::json!(2), "the default profile's");
         app.forms.entry("newVm".into()).or_default().insert("cpus".into(), serde_json::json!(6));
         assert_eq!(field_value(&app, "newVm", &cpus), serde_json::json!(6));
         // The page is asked again with the values

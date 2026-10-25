@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 //! Looks (plan B140, B141): how a guest looks – colours and a few choices, as data (`look.toml`, schema look/v1). They
-//! come from the sources' catalogs (`looks/<author>/<name>/look.toml`, catalog v3) like recipes and are installed
-//! into `<data>/looks/<author>.<name>/`; a local folder source's looks are used as they are on disk. Nothing is built
+//! come from the sources' catalogs (`looks/<author>/<name>/look.toml`) and are installed into
+//! `<data>/looks/<author>.<name>/` (`parts::PartStore`); a local folder source's looks are used as they are on disk. Nothing is built
 //! in: the image flake only turns a look's data into each program's configuration (nix/looks/adapter.nix), and
 //! omaflake hands it the chosen look's data at the build (`GuestSettings::look`).
 //!
@@ -12,15 +12,14 @@ use std::collections::BTreeMap;
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
 use crate::error::{codes, IoContext, Result};
-use crate::file_format::{write_atomic, FileFormat, Step};
+use crate::file_format::FileFormat;
+use crate::parts::{CatalogPart, PartKind, PartStore};
 use crate::paths::{Paths, Settings};
-use crate::recipe_sources::{CatalogFile, RecipeCatalog, RecipeRef, RecipeSourceKind, SourceClient};
-use crate::trash::Disposal;
+use crate::recipe_sources::{CatalogFile, RecipeCatalog, SourceClient};
 use crate::vm_err;
 
 /// The main colours of a look in the catalog, for a preview without downloading it
@@ -41,7 +40,7 @@ pub struct Swatches {
     pub terminal: Vec<String>,
 }
 
-/// One look in catalog.json (catalog v3)
+/// One look in catalog.json (catalog v4)
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct CatalogLook {
     /// "<author>.look.<name>"
@@ -66,11 +65,18 @@ pub struct CatalogLook {
     pub homepage: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub swatches: Option<Swatches>,
+    /// The author's version ("1.0.0")
     pub version: String,
+    /// The files' content hash: an installed look with another has an update
+    pub hash: String,
     pub files: Vec<CatalogFile>,
 }
 
 impl CatalogLook {
+    pub fn part(&self) -> CatalogPart<'_> {
+        CatalogPart { id: &self.id, path: &self.path, version: &self.version, hash: &self.hash, files: &self.files }
+    }
+
     pub fn description_in(&self, language: Option<&str>) -> &str {
         language.and_then(|l| self.descriptions.as_ref()?.get(l)).map(String::as_str).unwrap_or(&self.description)
     }
@@ -93,8 +99,10 @@ pub struct Look {
     pub homepage: Option<String>,
     /// `RecipeSource::id` it came from (a local folder's id for its live looks)
     pub source: String,
-    /// The catalog's version it was installed at; None for a local folder's look
-    pub version: Option<String>,
+    /// The author's version (look.toml's `version`)
+    pub version: String,
+    /// The catalog's content hash it was installed at; None for a local folder's look
+    pub hash: Option<String>,
     pub folder: PathBuf,
     /// look.toml as data – what the image flake gets
     pub data: Value,
@@ -111,22 +119,6 @@ impl Look {
     }
 }
 
-/// An installed look in `looks/.installed.json`
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct InstalledLook {
-    pub source: String,
-    pub version: String,
-    #[serde(with = "crate::json::iso8601")]
-    pub installed: DateTime<Utc>,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize)]
-struct InstalledLooksFile {
-    looks: BTreeMap<String, InstalledLook>,
-}
-
-static INSTALLED_LOOKS_STEPS: [Step; 1] = [|_| Ok(())];
-
 /// The looks omaflake can use: installed from remote sources (`<data>/looks/`) and those in enabled local folders
 #[derive(Debug, Clone)]
 pub struct LookStore {
@@ -136,58 +128,33 @@ pub struct LookStore {
 impl LookStore {
     /// look.toml's version this omaflake reads (`"$schema" = "https://omaflake.dev/schema/look/v1.json"`)
     pub const LOOK_VERSION: usize = 1;
-    /// `looks/.installed.json`, schema `installed-looks`
-    pub const FILE_FORMAT: FileFormat =
-        FileFormat::new("installed-looks", "looks/.installed.json", 1, &INSTALLED_LOOKS_STEPS);
     /// What the Doctor recommends when no look is installed: omaflake's own and Catppuccin (plan B141)
     pub const RECOMMENDED: [&'static str; 2] = ["omaflake.look.omaflake", "omaflake.look.catppuccin"];
-    /// Files a look may have (tools/catalog.py checks the same)
-    const FILES: [&'static str; 2] = ["look.toml", "preview.png"];
-    const MAX_FILE: u64 = 1024 * 1024;
 
     pub fn new(paths: Paths) -> Self {
         LookStore { paths }
     }
 
-    pub fn dir(&self) -> PathBuf {
-        self.paths.root.join("looks")
+    fn parts(&self) -> PartStore {
+        PartStore::new(self.paths.clone(), PartKind::Look)
     }
 
-    fn manifest_file(&self) -> PathBuf {
-        self.dir().join(".installed.json")
+    pub fn dir(&self) -> PathBuf {
+        self.parts().dir()
     }
 
     /// "<author>.look.<name>" from "<author>/<name>" or the id itself
     pub fn id_of(reference: &str) -> Option<String> {
-        if let Some((author, name)) = reference.split_once(".look.") {
-            return (RecipeRef::valid_name(author) && RecipeRef::valid_name(name)).then(|| reference.to_string());
-        }
-        let (author, name) = reference.split_once('/')?;
-        (RecipeRef::valid_name(author) && RecipeRef::valid_name(name)).then(|| format!("{author}.look.{name}"))
+        PartKind::Look.id_of(reference, None)
     }
 
-    pub fn installed(&self) -> BTreeMap<String, InstalledLook> {
-        let Ok(data) = fs::read(self.manifest_file()) else { return BTreeMap::new() };
-        Self::FILE_FORMAT.decode::<InstalledLooksFile>(&data).map(|(f, _)| f.looks).unwrap_or_default()
-    }
-
-    fn save(&self, looks: &BTreeMap<String, InstalledLook>) -> Result<()> {
-        let dir = self.dir();
-        fs::create_dir_all(&dir).with_path(&dir)?;
-        let file = self.manifest_file();
-        Self::FILE_FORMAT.check_writable(&file)?;
-        write_atomic(&file, &Self::FILE_FORMAT.encode(&InstalledLooksFile { looks: looks.clone() })?)
-    }
-
-    /// A look's folder in the data folder: `<data>/looks/<author>.<name>/`
-    fn folder(&self, id: &str) -> Option<PathBuf> {
-        let (author, name) = id.split_once(".look.")?;
-        (RecipeRef::valid_name(author) && RecipeRef::valid_name(name))
-            .then(|| self.dir().join(format!("{author}.{name}")))
+    /// Installed looks: id → (source, version, hash, when)
+    pub fn installed(&self) -> BTreeMap<String, crate::parts::InstalledPart> {
+        self.parts().installed()
     }
 
     /// Reads a look's folder: look.toml as data, checked to be a look this omaflake reads
-    pub fn read(id: &str, folder: &Path, source: String, version: Option<String>) -> Result<Look> {
+    pub fn read(id: &str, folder: &Path, source: String, hash: Option<String>) -> Result<Look> {
         let file = folder.join("look.toml");
         let text = fs::read_to_string(&file).with_path(&file)?;
         let table: toml::Table =
@@ -248,35 +215,11 @@ impl LookStore {
             }),
             homepage: s("homepage"),
             source,
-            version,
+            version: s("version").unwrap_or_default(),
+            hash,
             folder: folder.to_path_buf(),
             data,
         })
-    }
-
-    /// `looks/<author>/<name>/` folders with a look.toml under a local source's folder: (id, folder)
-    pub fn look_folders(root: &Path) -> Vec<(String, PathBuf)> {
-        let base = root.join("looks");
-        let dirs = |u: &Path| -> Vec<String> {
-            let Ok(entries) = fs::read_dir(u) else { return Vec::new() };
-            let mut names: Vec<String> = entries
-                .flatten()
-                .map(|e| e.file_name().to_string_lossy().into_owned())
-                .filter(|n| !n.starts_with('.') && RecipeRef::valid_name(n) && u.join(n).is_dir())
-                .collect();
-            names.sort();
-            names
-        };
-        let mut out = Vec::new();
-        for author in dirs(&base) {
-            for name in dirs(&base.join(&author)) {
-                let folder = base.join(&author).join(&name);
-                if folder.join("look.toml").exists() {
-                    out.push((format!("{author}.look.{name}"), folder));
-                }
-            }
-        }
-        out
     }
 
     /// Every look omaflake can use: the enabled local folders' first (in their order), then the installed ones; the
@@ -294,16 +237,8 @@ impl LookStore {
             Ok(_) => {}
             Err(e) => errors.push((id.to_string(), e.to_string())),
         };
-        for s in settings.recipe_sources() {
-            if s.is_enabled() && s.kind == RecipeSourceKind::Folder {
-                for (id, folder) in Self::look_folders(Path::new(&s.location)) {
-                    add(Self::read(&id, &folder, s.id(), None), &id);
-                }
-            }
-        }
-        for (id, entry) in self.installed() {
-            let Some(folder) = self.folder(&id) else { continue };
-            add(Self::read(&id, &folder, entry.source, Some(entry.version)), &id);
+        for e in self.parts().entries(settings) {
+            add(Self::read(&e.id, &e.folder, e.source, e.installed.map(|i| i.hash)), &e.id);
         }
         (out, errors)
     }
@@ -340,60 +275,17 @@ impl LookStore {
         s.save(&self.paths)
     }
 
-    /// Downloads a look from a catalog (its files checked by size and SHA-256) and keeps it; a newer version replaces
-    /// the installed one. The first look installed becomes the default.
+    /// Downloads a look from a catalog (its files checked by size and SHA-256, `parts`) and keeps it; a newer version
+    /// replaces the installed one. The first look installed becomes the default.
     pub fn install(&self, id: &str, catalog: &RecipeCatalog, client: &SourceClient) -> Result<Look> {
         let Some(entry) = catalog.looks.iter().find(|l| l.id == id) else {
             return Err(vm_err!(codes::NOT_FOUND, "{} is not in {}", id, client.source.display_name()));
         };
-        // The catalog is untrusted: the entry must be the look's own folder, with known files only
-        let well_formed = Self::id_of(id).as_deref() == Some(id)
-            && entry.id == format!("{}.look.{}", entry.author, entry.name)
-            && entry.path == format!("looks/{}/{}", entry.author, entry.name)
-            && entry.files.iter().any(|f| f.path == "look.toml")
-            && entry.files.iter().all(|f| Self::FILES.contains(&f.path.as_str()) && f.size <= Self::MAX_FILE);
-        if !well_formed {
-            return Err(vm_err!("The catalog's entry for {} is not well formed", id));
-        }
-        let Some(target) = self.folder(id) else {
-            return Err(vm_err!("The catalog's entry for {} is not well formed", id));
-        };
-        let dir = self.dir();
-        fs::create_dir_all(&dir).with_path(&dir)?;
-        let work = dir.join(format!(".download-{}", std::process::id()));
-        let _ = Disposal::delete(&[&work]);
-        let result = (|| -> Result<Look> {
-            fs::create_dir_all(&work).with_path(&work)?;
-            for f in &entry.files {
-                let data = client.fetch(&format!("{}/{}", entry.path, f.path))?;
-                let sha = {
-                    use sha2::{Digest, Sha256};
-                    hex::encode(Sha256::digest(&data))
-                };
-                if data.len() as u64 != f.size || sha != f.sha256.to_lowercase() {
-                    return Err(vm_err!(
-                        "{}/{} does not match the catalog (size or SHA-256) – nothing was installed",
-                        id,
-                        f.path
-                    ));
-                }
-                let dest = work.join(&f.path);
-                fs::write(&dest, &data).with_path(&dest)?;
-            }
-            // Readable before it is kept
-            Self::read(id, &work, client.source.id(), Some(entry.version.clone()))?;
-            Disposal::delete(&[&target])?;
-            fs::rename(&work, &target).with_path(&target)?;
-            let mut installed = self.installed();
-            installed.insert(
-                id.to_string(),
-                InstalledLook { source: client.source.id(), version: entry.version.clone(), installed: Utc::now() },
-            );
-            self.save(&installed)?;
-            Self::read(id, &target, client.source.id(), Some(entry.version.clone()))
-        })();
-        let _ = Disposal::delete(&[&work]);
-        let look = result?;
+        let source = client.source.id();
+        let folder = self
+            .parts()
+            .install(&entry.part(), client, |work| Self::read(id, work, source.clone(), None).map(|_| ()))?;
+        let look = Self::read(id, &folder, source, Some(entry.hash.clone()))?;
         let s = Settings::load(&self.paths);
         if s.default_look.as_ref().is_none_or(|d| !self.list(&s).iter().any(|l| &l.id == d)) {
             self.set_default(&look.id)?;
@@ -403,14 +295,7 @@ impl LookStore {
 
     /// Removes an installed look; when it was the default, another one becomes it
     pub fn remove(&self, id: &str) -> Result<()> {
-        let mut installed = self.installed();
-        if installed.remove(id).is_none() {
-            return Err(vm_err!(codes::NOT_FOUND, "{} is not installed (a local folder's look stays there)", id));
-        }
-        if let Some(folder) = self.folder(id) {
-            Disposal::delete(&[&folder])?;
-        }
-        self.save(&installed)?;
+        self.parts().remove(id)?;
         let mut s = Settings::load(&self.paths);
         if s.default_look.as_deref() == Some(id) {
             s.default_look = self.list(&s).first().map(|l| l.id.clone());
@@ -420,21 +305,11 @@ impl LookStore {
     }
 }
 
-/// An `.installed.json` of looks (tests: what omaflake writes matches its schema)
-#[cfg(test)]
-pub(crate) fn sample_file() -> Vec<u8> {
-    let looks = BTreeMap::from([(
-        "omaflake.look.omaflake".to_string(),
-        InstalledLook { source: "github:omaflake/catalog@main".into(), version: "v".into(), installed: Utc::now() },
-    )]);
-    LookStore::FILE_FORMAT.encode(&InstalledLooksFile { looks }).unwrap()
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::paths::tests::temp_paths;
-    use crate::recipe_sources::RecipeSource;
+    use crate::recipe_sources::{RecipeSource, RecipeSourceKind};
 
     const LOOK: &str = r##""$schema" = "https://omaflake.dev/schema/look/v1.json"
 author = "alice"
@@ -510,15 +385,12 @@ bright = ["#4c566a", "#bf616a", "#a3be8c", "#ebcb8b", "#81a1c1", "#b48ead", "#8f
             plain: false,
             homepage: None,
             swatches: None,
-            version: "v1".into(),
+            version: "1.0.0".into(),
+            hash: "h1".into(),
             files,
         };
         let file = CatalogFile { path: "look.toml".into(), size: data.len() as u64, sha256: sha.clone() };
-        let catalog = |l: CatalogLook| RecipeCatalog {
-            source: crate::recipe_sources::CatalogSource { name: "x".into(), description: None, homepage: None },
-            recipes: vec![],
-            looks: vec![l],
-        };
+        let catalog = |l: CatalogLook| RecipeCatalog { looks: vec![l], ..RecipeCatalog::empty("x") };
         let client = SourceClient::new(folder.clone(), None);
         // Untrusted entries are refused: a path outside its folder, an unknown file, a wrong hash
         assert!(store.install("alice.look.nord", &catalog(entry("recipes/x", vec![file.clone()])), &client).is_err());
@@ -530,7 +402,7 @@ bright = ["#4c566a", "#bf616a", "#a3be8c", "#ebcb8b", "#81a1c1", "#b48ead", "#8f
         assert!(store.install("alice.look.nord", &catalog(entry("looks/alice/nord", vec![wrong])), &client).is_err());
         assert!(store.installed().is_empty());
         let look = store.install("alice.look.nord", &catalog(entry("looks/alice/nord", vec![file])), &client).unwrap();
-        assert_eq!((look.version.as_deref(), look.folder.clone()), (Some("v1"), paths.root.join("looks/alice.nord")));
+        assert_eq!((look.hash.as_deref(), look.folder.clone()), (Some("h1"), paths.root.join("looks/alice.nord")));
         assert_eq!(
             Settings::load(&paths).default_look.as_deref(),
             Some("alice.look.nord"),

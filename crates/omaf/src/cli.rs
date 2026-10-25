@@ -48,6 +48,16 @@ pub enum Command {
         args_conflicts_with_subcommands = true
     )]
     Locales(Locales),
+    #[command(
+        about = "Modules and key bindings: what recipes are made of – install them from your sources, remove them.",
+        args_conflicts_with_subcommands = true
+    )]
+    Modules(Modules),
+    #[command(
+        about = "Profiles: CPU cores and RAM a new VM gets – create them, choose the default.",
+        args_conflicts_with_subcommands = true
+    )]
+    Profiles(Profiles),
     #[command(name = "macos", about = "macOS bases: install from Apple's IPSW with a credential, or assign one.")]
     #[command(subcommand_required = true, arg_required_else_help = true)]
     MacOs {
@@ -213,8 +223,15 @@ pub enum RecipesCommand {
         about = "What the remote sources offer (fetches their catalogs), and what is installed or has an update."
     )]
     Available(RecipesAvailable),
-    #[command(about = "Download a recipe (and those it requires) from the first source that has it; also updates it.")]
+    #[command(
+        about = "Download a recipe from the first source that has it, with the modules, key bindings and look it is \
+                 made of; also updates it."
+    )]
     Install(RecipesInstall),
+    #[command(
+        about = "What a recipe is made of: its modules, look, key bindings, keys, and what is wrong or missing."
+    )]
+    Show(RecipesShow),
     #[command(
         about = "Remove a version of a downloaded, imported or kept recipe, or with --all every version of its line.",
         long_about = "Remove a version of a downloaded, imported or kept recipe, or with --all every version of its \
@@ -254,6 +271,80 @@ pub struct RecipesAvailable {
 pub struct RecipesInstall {
     #[arg(value_name = "recipe", help = "<author>/<kind>/<name>, e.g. omaflake/nixos/neovim-minimal")]
     pub recipe: String,
+}
+
+#[derive(Debug, Args)]
+pub struct RecipesShow {
+    #[arg(value_name = "recipe", help = "<name>, <kind>/<name>, <author>/<kind>/<name> or its omaflake ID")]
+    pub recipe: String,
+    #[arg(long, help = "Install what is missing (modules, key bindings, its look) from your sources")]
+    pub install: bool,
+}
+
+#[derive(Debug, Args)]
+pub struct Modules {
+    #[command(subcommand)]
+    pub command: Option<ModulesCommand>,
+}
+
+#[derive(Debug, Subcommand)]
+pub enum ModulesCommand {
+    #[command(about = "The modules and key bindings here, with the recipes made of them.")]
+    List,
+    #[command(about = "What your sources offer besides (looks into their catalogs).")]
+    Available,
+    #[command(about = "Install a module (<author>/<platform>/<name>, e.g. omaflake/nixos/zathura) or key bindings \
+                 (<author>/<name>) from your sources.")]
+    Install(ModuleRef),
+    #[command(
+        name = "rm",
+        about = "Remove an installed module or key bindings (recipes made of it cannot be built then)."
+    )]
+    Remove(ModuleRef),
+}
+
+#[derive(Debug, Args)]
+pub struct ModuleRef {
+    #[arg(value_name = "module", help = "<author>/<platform>/<name> (a module) or <author>/<name> (key bindings)")]
+    pub module: String,
+}
+
+#[derive(Debug, Args)]
+pub struct Profiles {
+    #[command(subcommand)]
+    pub command: Option<ProfilesCommand>,
+}
+
+#[derive(Debug, Subcommand)]
+pub enum ProfilesCommand {
+    #[command(about = "The profiles (* = the default).")]
+    List,
+    #[command(about = "Create a profile (the first one becomes the default).")]
+    Add(ProfileArgs),
+    #[command(about = "Change a profile: only the values given (VMs created with it keep theirs).")]
+    Edit(ProfileArgs),
+    #[command(name = "rm", about = "Delete a profile.")]
+    Remove(ProfileRef),
+    #[command(about = "Make a profile the default for new VMs.")]
+    Default(ProfileRef),
+}
+
+#[derive(Debug, Args)]
+pub struct ProfileArgs {
+    #[arg(value_name = "name", help = "The profile's name (edit: its name or ID)")]
+    pub name: String,
+    #[arg(long, value_name = "name", help = "edit: a new name")]
+    pub rename: Option<String>,
+    #[arg(long, value_name = "cpus", help = "CPU cores (add: 4 by default)")]
+    pub cpus: Option<u32>,
+    #[arg(long, value_name = "memory", help = "RAM in GiB (add: 8 by default)")]
+    pub memory: Option<u32>,
+}
+
+#[derive(Debug, Args)]
+pub struct ProfileRef {
+    #[arg(value_name = "profile", help = "Its name or ID")]
+    pub profile: String,
 }
 
 #[derive(Debug, Args)]
@@ -558,6 +649,12 @@ pub struct New {
     pub camera: bool,
     #[arg(long, overrides_with = "camera", help = "Without this computer's camera")]
     pub no_camera: bool,
+    #[arg(
+        long,
+        value_name = "profile",
+        help = "CPU cores and RAM from a profile (default: the default profile; omaf profiles); --cpus and --memory win"
+    )]
+    pub profile: Option<String>,
     #[arg(long, value_name = "cpus", help = "CPU cores")]
     pub cpus: Option<u32>,
     #[arg(long, value_name = "memory", help = "RAM in GiB")]

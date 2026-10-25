@@ -159,6 +159,43 @@
     "hostKeyboard": {
       "type": "string",
       "description": "This computer's keyboard (XKB name) – preset for new locales"
+    },
+    "profiles": {
+      "type": "array",
+      "description": "Profiles – CPU cores and RAM a new VM gets (plan B142)",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "name",
+          "cpus",
+          "memoryGB"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^p-"
+          },
+          "name": {
+            "type": "string"
+          },
+          "cpus": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 64
+          },
+          "memoryGB": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 512
+          }
+        }
+      }
+    },
+    "defaultProfile": {
+      "type": "string",
+      "description": "The profile new VMs get unless another is chosen"
     }
   },
   "required": [

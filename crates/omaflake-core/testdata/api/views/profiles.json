@@ -1,0 +1,160 @@
+{
+  "add": {
+    "enabled": true,
+    "icon": "add",
+    "id": "add",
+    "label": {
+      "key": "New Profile …",
+      "text": "New Profile …"
+    },
+    "method": "ui.show",
+    "params": {
+      "page": "profile",
+      "params": {}
+    },
+    "primary": true
+  },
+  "footer": {
+    "key": "Profiles stay on this computer – they are never in a catalog. A VM's disk is its own: the recipe's size, changed on the New VM page.",
+    "text": "Profiles stay on this computer – they are never in a catalog. A VM's disk is its own: the recipe's size, changed on the New VM page."
+  },
+  "intro": {
+    "key": "How big a new VM is: its CPU cores and RAM. A new VM gets the default profile unless you choose another; without any, it gets what its recipe asks for. A recipe says what it needs at least – a smaller profile gets a warning.",
+    "text": "How big a new VM is: its CPU cores and RAM. A new VM gets the default profile unless you choose another; without any, it gets what its recipe asks for. A recipe says what it needs at least – a smaller profile gets a warning."
+  },
+  "rows": [
+    {
+      "actions": [],
+      "badges": [
+        {
+          "help": {
+            "key": "New VMs get this profile unless another is chosen",
+            "text": "New VMs get this profile unless another is chosen"
+          },
+          "icon": "ok",
+          "id": "default",
+          "label": {
+            "key": "default",
+            "text": "default"
+          },
+          "tone": "accent"
+        }
+      ],
+      "detail": {
+        "actions": [
+          {
+            "enabled": true,
+            "id": "edit",
+            "label": {
+              "key": "Edit …",
+              "text": "Edit …"
+            },
+            "method": "ui.show",
+            "params": {
+              "page": "profile",
+              "params": {
+                "id": "p-1"
+              }
+            },
+            "primary": true
+          },
+          {
+            "enabled": false,
+            "icon": "ok",
+            "id": "default",
+            "label": {
+              "key": "Make Default",
+              "text": "Make Default"
+            },
+            "method": "profiles.setDefault",
+            "params": {
+              "id": "p-1"
+            },
+            "reason": {
+              "key": "Already the default",
+              "text": "Already the default"
+            }
+          },
+          {
+            "confirm": {
+              "button": {
+                "key": "Remove",
+                "text": "Remove"
+              },
+              "destructive": true,
+              "text": {
+                "key": "VMs created with it keep their size.",
+                "text": "VMs created with it keep their size."
+              },
+              "title": {
+                "args": [
+                  "Small"
+                ],
+                "key": "Remove the profile “%@”?",
+                "text": "Remove the profile “Small”?"
+              }
+            },
+            "destructive": true,
+            "enabled": true,
+            "icon": "trash",
+            "id": "remove",
+            "label": {
+              "key": "Remove …",
+              "text": "Remove …"
+            },
+            "method": "profiles.remove",
+            "params": {
+              "id": "p-1"
+            }
+          }
+        ],
+        "info": [
+          {
+            "label": {
+              "key": "CPU cores",
+              "text": "CPU cores"
+            },
+            "value": {
+              "text": "2"
+            }
+          },
+          {
+            "label": {
+              "key": "RAM",
+              "text": "RAM"
+            },
+            "value": {
+              "args": [
+                4
+              ],
+              "key": "%lld GB",
+              "text": "4 GB"
+            }
+          }
+        ]
+      },
+      "id": "p-1",
+      "lamp": {
+        "help": {
+          "key": "The default profile",
+          "text": "The default profile"
+        },
+        "state": "on"
+      },
+      "name": "Small",
+      "subtitle": {
+        "args": [
+          2,
+          4
+        ],
+        "key": "%lld CPU · %lld GB RAM",
+        "text": "2 CPU · 4 GB RAM"
+      },
+      "usedBy": []
+    }
+  ],
+  "title": {
+    "key": "Profiles",
+    "text": "Profiles"
+  }
+}

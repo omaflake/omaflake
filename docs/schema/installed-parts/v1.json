@@ -1,0 +1,47 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://omaflake.dev/schema/installed-parts/v1.json",
+  "title": "omaflake installed parts",
+  "description": "<data>/looks/.installed.json, <data>/modules/.installed.json, <data>/keymaps/.installed.json (plan B142): what was installed from which source.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "$schema",
+    "parts"
+  ],
+  "properties": {
+    "$schema": {
+      "const": "https://omaflake.dev/schema/installed-parts/v1.json"
+    },
+    "parts": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "source",
+          "version",
+          "hash",
+          "installed"
+        ],
+        "properties": {
+          "source": {
+            "type": "string"
+          },
+          "version": {
+            "type": "string",
+            "description": "The author's version"
+          },
+          "hash": {
+            "type": "string",
+            "description": "The catalog's content hash"
+          },
+          "installed": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      }
+    }
+  }
+}

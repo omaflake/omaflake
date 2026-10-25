@@ -49,7 +49,7 @@ The app/CLI only takes care of **operations**.
   content), `recipe.toml` (metadata and runtime defaults) and its own files. Identity `<author>/<kind>/<name>`; as an
   ID `<author>.<kind>.<name>` (flake outputs, images, instances, `current/` links). Users see the name with the guest
   kind; the CLI takes the name, `<kind>/<name>` or the full form and asks when several match.
-- **Recipe source** – where recipes come from (§11.3): omaflake/recipes on GitHub by default, other GitHub
+- **Recipe source** – where recipes come from (§11.3): omaflake/catalog on GitHub by default, other GitHub
   repositories (also private), an HTTPS folder with a `catalog.json`, or a local folder.
 - **Base** (macOS only) – VM freshly installed with `omaf-runner` from an Apple IPSW and prepared by hand
   (`mac-base-<os-build>`), built automatically by `omaf macos install`; background in `docs/macos-base.md`.
@@ -68,8 +68,8 @@ The app/CLI only takes care of **operations**.
 ## 4. Architecture
 
 ```
-recipe sources (§11.3) → <author>/<kind>/<name>/{recipe.toml,default.nix} (downloaded or a local folder)
-        │  staged into one folder → input omaflake-recipes of the image flake nix/ (+ modules/*.nix, nixosModules.vm-guest)
+catalogs (§11.3) → recipes/<author>/<platform>/<name>/recipe.toml + the modules/ and keymaps/ they use (downloaded or a local folder)
+        │  staged into one folder → input omaflake-catalog of the image flake nix/ (+ the platforms, nixosModules.vm-guest)
         │
         ├── kind = nixos ─────────────────────────────┐
         │  nix build <image flake>#images.<recipe>     │  (Linux builder via nix-darwin)
@@ -182,19 +182,22 @@ The image flake `nix/` (this repo, shipped in the app – nix/README.md):
 
 - `modules/vm-guest.nix` (root flake output `nixosModules.vm-guest`) – guest hardware (UEFI, virtio, labels
   `nixos`/`ESP`, 9p share, option `vm.shareFolder.enable`) and the omaflake agent (§11.9)
-- `modules/base.nix` – guest user, locale, SSH (your public SSH keys), Nix settings; `modules/hyprland.nix` +
-  `home/` – desktop and styling of every NixOS image; `modules/look.nix` + `looks/` – the look (plan B135): the
-  recipe's `omaflake.look`, the user's guest setting over it, one file per program under `/etc/omaflake/look/` for
-  NixOS and macOS guests. Every key omaflake binds in a guest starts with Cmd/SUPER or Ctrl, optionally with Shift;
-  plain keys only inside a mode
-- **macOS:** `modules/darwin-guest.nix` (guest user as `system.primaryUser`, Nix, SSH, widgets off)
-- inputs `omaflake-guest` (who you are) and `omaflake-recipes` (the recipes of the sources, staged by omaflake);
-  outputs `images.<system>.<id>`, `nixosConfigurations.vm-<system>-<id>`, `darwinConfigurations.<id>`, `lib.recipeDefaults`
+- **the NixOS platform:** `modules/base.nix` (guest user, locale and keyboards, SSH with your public keys, Nix
+  settings), `modules/platform.nix` (the options modules share, the host name), `home/` (the user's home-manager:
+  git's identity); `modules/look.nix` + `looks/` – the look (plan B135, B141): the installed look chosen at the build,
+  one file per program under `/etc/omaflake/look/` and its parts for modules, NixOS and macOS guests
+- **the macOS platform:** `modules/darwin-guest.nix` (guest user as `system.primaryUser`, Nix, SSH, widgets off),
+  `modules/darwin-platform.nix` (files written once into the home folder, the host name)
+- inputs `omaflake-guest` (who you are, where the guest lives, its look) and `omaflake-catalog` (the recipes of the
+  sources with their modules and key bindings, staged by omaflake); outputs `images.<system>.<id>`,
+  `nixosConfigurations.vm-<system>-<id>`, `darwinConfigurations.<id>`, `lib.recipeDefaults`
 
-The recipes (omaflake/recipes and other sources, §11.3): `default.nix` per recipe on top of these modules (apps via
-packages or, for macOS, `homebrew.casks`; Dock via `system.defaults.dock.persistent-apps`, settings via
-`system.defaults.*`), `recipe.toml` – CPU, RAM, disk, network mode, share, ephemeral, display, switches, tags,
-license, optional `user`; a recipe may build on another of its kind (`requires`, `imports = [ ../minimal ]`).
+The recipes (omaflake/catalog and other sources, §11.3, plan B142) are data: a platform, **modules** (Nix, each with
+`module.toml`: version, capabilities it provides and needs, the modules it enhances, actions with default keys), a
+suggested look, **key binding sets**, what a VM needs at least (`[requirements]`) and how it runs (`[vm]`), and which
+locales it is made for. The image flake imports the recipe's modules and gives each its keys (module.toml's defaults,
+the recipe's sets over them). Every key omaflake binds in a guest starts with Cmd/SUPER or Ctrl, optionally with
+Shift; plain keys only inside a mode; an editor's own keys stay as they are.
 
 ### 6.2 Core library + CLI `omaf`
 
@@ -392,12 +395,15 @@ for NixOS and macOS guests. Order: first finish the core feature set (M11), then
 
 ### 11.1 Recipe interface (DECIDED 2026-10-18, plan B105/B107)
 
-A recipe is not a flake but a module with its metadata: a folder `<author>/<kind>/<name>/` with `recipe.toml` and
-`default.nix` (format: omaflake/recipes, CONTRIBUTING.md; `recipe.toml` (`"$schema"` recipe/v1, §5.1) names the architectures it
-is built for in `systems`, a `<system>.nix` next to `default.nix` is its variant for one of them; `catalog.json` schema 2 lists a
-source's recipes). omaflake
-builds them with its own **image flake** (`nix/`, shipped in the app), which takes the recipes as its input
-`omaflake-recipes` and gives
+A recipe is data, put together from building blocks (plan B141, B142): `recipes/<author>/<platform>/<name>/recipe.toml`
+(`"$schema"` recipe/v2, format: omaflake/catalog, CONTRIBUTING.md) names its platform (`nixos` | `macos`), the
+architectures it is built for (`systems`), its modules and key binding sets by `<author>/<name>` – the newest, an exact
+version, or a minimum and/or maximum –, a suggested look, `[requirements]`, `[vm]` and `[locales]`. Modules are the Nix
+(`modules/<author>/<platform>/<name>/`), reviewed in their catalog; capabilities (`capabilities.toml`: desktop,
+terminal, multiplexer, shell, editor, default-editor, pdf-viewer) say what a module needs and what is exclusive –
+warnings, never refusals. `catalog.json` (v4) lists a source's recipes, modules, key binding sets and looks. omaflake
+builds them with its own **image flake** (`nix/`, shipped in the app), which takes them as its input
+`omaflake-catalog` and gives
 
 ```nix
 images.<system>."<author>.<kind>.<name>@<words>"       # kind nixos: the UEFI qcow2 (aarch64-linux, x86_64-linux)
@@ -405,10 +411,10 @@ darwinConfigurations."<author>.<kind>.<name>@<words>"  # kind macos: activated o
 lib.recipeDefaults."<author>.<kind>.<name>@<words>"    # each recipe.toml plus author, kind, name
 ```
 
-(Staged by omaflake with `recipes.json`, §11.11; a plain folder of `<author>/<kind>/<name>/` recipes – a checkout for
-`nix flake check` – gives the IDs without `@<words>`.)
+(Staged by omaflake with `recipes.json`, §11.11 – one tree per recipe with the modules and key bindings it uses; a
+catalog checkout for `nix flake check` gives the IDs without `@<words>`.)
 
-Another image flake (`omaf config --flake …`) works if it has the same inputs (`omaflake-guest`, `omaflake-recipes`)
+Another image flake (`omaf config --flake …`) works if it has the same inputs (`omaflake-guest`, `omaflake-catalog`)
 and outputs.
 
 **Person-specific values never live in a recipe (DECIDED and implemented 2026-10-17).** User, full name, e-mail, time
@@ -455,7 +461,7 @@ omaflake ships **no recipes**. It reads them from recipe sources:
 - **Kinds:** a GitHub repository (`https://github.com/owner/repo`, `owner/repo`, `…/tree/<branch>`; default branch
   `main`), the HTTPS URL of a `catalog.json` (any static host), or a **local folder** (a checkout with
   `recipes/<author>/<kind>/<name>/`, or a folder of such folders). Kept in config.json (`sources`, in order); none set
-  = omaflake/recipes on GitHub. Settings → Recipe Sources and `omaf sources` add, remove, reorder and switch them.
+  = omaflake/catalog on GitHub. Settings → Recipe Sources and `omaf sources` add, remove, reorder and switch them.
 - **Private GitHub repositories:** "Private repository" next to the GitHub address shows a token field – a fine-grained
   token with Contents: Read-only on that repository. omaflake checks it (the repository over the GitHub API, then the
   catalog) before it keeps the source, stores it in the login Keychain (service `app.omaflake.recipe-source`, never in
@@ -463,25 +469,29 @@ omaflake ships **no recipes**. It reads them from recipe sources:
   raw.githubusercontent.com without a token. Other private hosts: OPEN.
 - **Remote sources** are read only when asked – opening the Recipes tab, its refresh button, `omaf recipes
   available`/`install` – never in the background (the daily update check stays the only network access omaflake makes
-  on its own, §11.6). Their `catalog.json` lists every recipe with metadata, a `version` and each file with size and
-  SHA-256. **Installing** downloads a recipe and those it `requires` into `<data folder>/recipes/<author>/<kind>/<name>/`
-  (`.installed.json`: source, version, requires), checking every file's size and SHA-256 and treating the catalog as
-  untrusted (paths must stay inside the recipe's folder; at most 1 MiB per file, 5 MiB per recipe); a mismatch installs
-  nothing. A newer `version` in the catalog shows as an update. **Removing** deletes the folder (refused while another
-  installed recipe requires it); images built from it stay.
+  on its own, §11.6). Their `catalog.json` (v4) lists every recipe, module, key binding set and look with metadata, a
+  version and each file with size and SHA-256. **Installing** a recipe downloads its recipe.toml into
+  `<data folder>/recipes/<id>/` (`.installed.json`: source, version) and what it is made of that is not here yet – its
+  modules into `<data>/modules/`, key binding sets into `<data>/keymaps/`, its look into `<data>/looks/`
+  (`.installed.json` there: source, version, content hash; plan B142) – from the first source that has each in a
+  version the recipe allows (the official catalog last). Every file's size and SHA-256 is checked and the catalog
+  treated as untrusted (paths must stay inside the part's folder; at most 1 MiB per file, 5 MiB per part); a mismatch
+  installs nothing. Another content hash in the catalog shows as an update. **Removing** deletes the folder; images
+  built from it stay (a recipe whose module is removed cannot be built until it is back).
 - **Local folders** need no catalog: omaflake uses their recipes as they are on disk, so a changed file is built the
   next time – how recipes are written and tested. During omaflake's own development the data folder's source is the
-  local checkout of omaflake/recipes (CLAUDE.md), not the remote repository.
+  local checkout of omaflake/catalog (CLAUDE.md), not the remote repository.
 - **Into the build:** before every `nix` call omaflake puts the recipes together – the enabled local folders first (in
   their order), then the downloaded ones; the first with an ID wins – into `<data folder>/cache/recipes/<content
-  hash>/` and passes it as `--override-input omaflake-recipes path:…` (the same content gives the same folder; the
+  hash>/` – each recipe in a tree of its own with the modules and key binding sets it uses, in a version it allows –
+  and passes it as `--override-input omaflake-catalog path:…` (the same content gives the same folder; the
   last 8 are kept). An image's revision is its recipe's: git revision of a local folder (`-dirty` with changes in the
   recipe's folder), the catalog version of a downloaded one.
-- **Presets and the first start:** omaflake's recipes live in [omaflake/recipes](https://github.com/omaflake/recipes)
+- **Presets and the first start:** omaflake's recipes live in [omaflake/catalog](https://github.com/omaflake/catalog)
   (also `lab`). With nothing installed, the Recipes tab offers "Install suggested": the official ones (no lab recipes).
-  **Official** means by `omaflake` *and* from omaflake/recipes on GitHub – a fork's copy or an author name alone is not;
+  **Official** means by `omaflake` *and* from omaflake/catalog on GitHub (omaflake/recipes, archived, until 1.0) – a fork's copy or an author name alone is not;
   recipes from other sources carry a note that the omaflake team has not reviewed them.
-- **Marketplace:** omaflake/recipes is the curated catalog: other developers submit recipes by pull request; the core
+- **Marketplace:** omaflake/catalog is the curated catalog: other developers submit recipes, modules, key bindings and looks by pull request; the core
   team reviews them for security, fitness and added value (REVIEW.md there), CI checks the format (`tools/catalog.py
   --check`); evaluating and building each submitted recipe in CI: OPEN (needs omaflake/omaflake public or a token).
   Tags come from one list (`tags.toml`), so the Recipes tab can filter by them. Anyone can run a source of their own
@@ -542,7 +552,7 @@ Everyday work (QEMU from Nix, macOS base, images, VMs) does not.
 | Pinned nix-installer binary + checksum | setup by click without a moving target (B54) | same bucket; source: NixOS/nix-installer releases |
 | Website, docs, appcast | – | GitHub Pages (omaflake/website), domain via any registrar (e.g. INWX, Hetzner), DNS e.g. Cloudflare |
 | Homebrew tap (cask) | `brew install --cask omaflake` | GitHub repository `omaflake/homebrew-tap` |
-| Recipe source omaflake/recipes (§11.3) | presets and the curated catalog | GitHub repository; optional mirror on Codeberg (a source can be any HTTPS host) |
+| Source omaflake/catalog (§11.3) | presets and the curated catalog | GitHub repository; optional mirror on Codeberg (a source can be any HTTPS host) |
 | CI builders | build and sign releases, fill the cache | GitHub Actions: macOS arm64 runners (app, QEMU), Linux arm64 runners (guest parts) – free for public repositories (check) |
 
 **Not to mirror:** Apple's IPSW restore images (Apple's licence – the app downloads them from Apple), nixpkgs
@@ -706,8 +716,8 @@ stay sparse (an 80 GB macOS disk takes on an external disk what it uses).
   what people share**. Export dialogs say so.
 - **Export** (`omaf export vm|image|recipe`, app: Export … in the details): a VM only when stopped (a snapshot). A NixOS
   VM always carries its image (`image.omaflake-image/` inside, the overlay rebased onto it), a macOS VM only when it
-  needs it to start (ephemeral) or with `--with-image` (for a reset elsewhere). A recipe goes with the recipes it
-  `requires` (`recipes/<author>/<kind>/<name>/`).
+  needs it to start (ephemeral) or with `--with-image` (for a reset elsewhere). A recipe goes alone
+  (`recipes/<author>/<kind>/<name>/recipe.toml`): its modules come from the receiver's sources.
 - **Import is always a copy into the data folder** (plan B109; `omaf import`, app: the Import button of each tab,
   double-click, drop on the app). Nothing is moved, the source is never changed; everything is assembled in a hidden
   `.partial` folder and moved into place at the end. By extension; a plain folder with recipes
@@ -764,8 +774,8 @@ not part of the ID but of the recipe's **line** – source + author/kind/name: i
 recipe source. **Versions (B111):** a line's versions are kept by the setting "Keep older recipe versions" (Settings,
 `omaf config --keep-recipe-versions on|off`, default off): off, only the newest stays when a newer one comes (a catalog
 update, an import, a changed local folder) – and **every version an image is built from, as long as that image is
-there**. So that this holds for local folders too, a build keeps a copy of the version it used (and of what it
-requires) in `<data>/recipes/<id>/` – a few KB; the folder can change afterwards. Versions are removed one by one or all
+there**. So that this holds for local folders too, a build keeps a copy of the version it used in
+`<data>/recipes/<id>/` – a few bytes; the folder can change afterwards (its modules are not kept: OPEN). Versions are removed one by one or all
 of a line at once (what images use and a local folder's own recipe stay). Content hash: SHA-256 over the recipe's sorted file paths and
 each file's SHA-256 – the same from a catalog's file list (`RecipeCatalog.Recipe.contentHash`), so an offered recipe
 that is here already (from any source) is recognised before it is downloaded.
@@ -776,9 +786,9 @@ the words, export and remove always sit in the same place. Local folders count b
 (`<data>/recipes`). The details show each object's omaflake ID; `omaf list --long`, `omaf images`,
 `omaf recipes --long` print them; recipe arguments accept the omaflake ID or `<…>@<words>`.
 
-**Staging.** Every recipe gets a tree of its own, `<id>/<author>/<kind>/<name>/`, with the recipes it `requires` next to
-it (same source first, else the first there is) – recipes import those by relative paths (`../minimal`), so each sees
-its own; `recipes.json` maps ID → folder for the image flake. Downloaded and imported recipes live in
+**Staging.** Every recipe gets a tree of its own, `<id>/`, laid out like a catalog: `recipes/<author>/<kind>/<name>/`
+and the modules and key binding sets it uses in a version it allows (`modules/…`, `keymaps/…`, plan B142);
+`recipes.json` maps ID → `{tree, recipe}` for the image flake. Downloaded and imported recipes live in
 `<data>/recipes/<id>/`.
 
 **Migration** (first start): downloaded recipes move to `recipes/<id>/`; images, `current/` links and VMs of old IDs
@@ -790,10 +800,10 @@ paths as before.
 
 - **Repository:** `omaflake/omaflake` on GitHub (currently private; switch to public: OPEN) holds the public part: app, `OmaflakeCore`, CLI, `omaf-runner`,
   QEMU build script, flake module (`nixosModules.vm-guest`), the image flake `nix/` (used as `path:`, shipped in the
-  app). The recipes live in `omaflake/recipes` (§11.3); SSH keys and user settings for development in each
+  app). The recipes, modules and looks live in `omaflake/catalog` (§11.3); SSH keys and user settings for development in each
   developer's git-ignored `nix/local/` (template `nix/local.example/`).
 - **License (DECIDED 2026-10-19, plan B112):** **AGPL-3.0-or-later** for omaflake's own code (app, CLI, runner, agent,
-  image flake, scripts – SPDX header in each source file); the recipes (`omaflake/recipes`) stay **MIT**, so recipes can
+  image flake, scripts – SPDX header in each source file); the catalog (`omaflake/catalog`) stays **MIT**, so recipes can
   be copied and adapted into any source; QEMU patches GPL-2.0-or-later like QEMU; try-omarchy and startergo patches
   MIT; the BIP-39 word list MIT. No App Store distribution (its terms conflict with the AGPL; the sandbox would not
   allow omaflake anyway). Images built by omaflake contain the guest agent (AGPL) – whoever passes images on passes
