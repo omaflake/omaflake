@@ -265,6 +265,9 @@ impl Server {
                 Answer::of(self.modules_answer(self.language().as_deref()))
             }
             "modules.install" => self.modules_install(params(p)?),
+            "modules.installAll" => self.modules_install_all(params(p)?),
+            "looks.installAll" => self.looks_install_all(params(p)?),
+            "recipes.installAll" => self.recipes_install_all(params(p)?),
             "modules.remove" => self.modules_remove(&params::<Id>(p)?.id),
             "looks.installRecommended" => self.looks_install_recommended(),
             "looks.remove" => self.looks_remove(&params::<Id>(p)?.id),
@@ -1487,6 +1490,73 @@ impl Server {
         Ok(Answer::Job(self.inner.jobs.submit(spec)))
     }
 
+    /// The modules and key binding sets the Modules tab offers, one after the other in one job ("Install All")
+    fn modules_install_all(&self, p: InstallAllParams) -> Reply {
+        if let Some(job) = self.inner.jobs.active(JobKind::ModuleInstall, None) {
+            return Ok(Answer::Job(job));
+        }
+        let sources = Settings::load(&self.paths()).recipe_sources();
+        let items: Vec<(String, RecipeSource)> = p
+            .items
+            .into_iter()
+            .filter_map(|i| sources.iter().find(|s| s.id() == i.source).map(|s| (i.id, s.clone())))
+            .collect();
+        let s = self.clone();
+        let mut spec = JobSpec::new(
+            JobKind::ModuleInstall,
+            "Install modules".to_string(),
+            Box::new(move |ctx: &JobCtx| {
+                // Each on its own: one that fails does not keep the others out
+                let mut installed = Vec::new();
+                let mut first_error = None;
+                let mut catalogs: BTreeMap<String, crate::recipe_sources::RecipeCatalog> = BTreeMap::new();
+                for (id, source) in &items {
+                    let client = SourceClient::new(source.clone(), None);
+                    let done = (|| -> crate::Result<String> {
+                        let catalog = match catalogs.entry(source.id()) {
+                            std::collections::btree_map::Entry::Occupied(e) => e.into_mut(),
+                            std::collections::btree_map::Entry::Vacant(e) => {
+                                let cached = lock(&s.inner.catalogs).catalogs.get(&source.id()).cloned();
+                                e.insert(match cached {
+                                    Some(c) => c,
+                                    None => client.catalog()?,
+                                })
+                            }
+                        };
+                        let catalog = &*catalog;
+                        Ok(if crate::parts::PartKind::Keymap.parse_id(id).is_some() {
+                            crate::keymaps::KeymapStore::new(s.paths()).install(id, catalog, &client)?.title
+                        } else {
+                            crate::modules::ModuleStore::new(s.paths()).install(id, catalog, &client)?.title
+                        })
+                    })();
+                    match done {
+                        Ok(title) => {
+                            ctx.log(&format!("Installed {title} ({id})"));
+                            installed.push(id.clone());
+                        }
+                        Err(e) => {
+                            ctx.log(&format!("{id}: {}", e.message()));
+                            first_error.get_or_insert(e);
+                        }
+                    }
+                }
+                match first_error {
+                    Some(e) if installed.is_empty() => Err(e),
+                    _ => result(InstallResult { installed }),
+                }
+            }),
+        );
+        spec.cancellable = false;
+        spec.log_file = Some(self.paths().logs().join("module-install.log"));
+        let s = self.clone();
+        spec.on_end = Some(Box::new(move |_| {
+            s.reload_recipes_later();
+            s.poke();
+        }));
+        Ok(Answer::Job(self.inner.jobs.submit(spec)))
+    }
+
     /// Removes an installed module or key binding set; recipes made of it cannot be built until it is back
     fn modules_remove(&self, id: &str) -> Reply {
         if crate::parts::PartKind::Keymap.parse_id(id).is_some() {
@@ -1506,6 +1576,23 @@ impl Server {
                 || RpcError::from(vm_err!(codes::NOT_FOUND, "Source \"{}\" is not one of yours", p.source)),
             )?;
         Ok(Answer::Job(self.inner.jobs.submit(self.look_install_spec(vec![p.id], source))))
+    }
+
+    /// The looks the Looks tab offers ("Install All"): one job per source
+    fn looks_install_all(&self, p: InstallAllParams) -> Reply {
+        if let Some(job) = self.inner.jobs.active(JobKind::LookInstall, None) {
+            return Ok(Answer::Job(job));
+        }
+        let mut by_source: Vec<(RecipeSource, Vec<String>)> = Vec::new();
+        for source in Settings::load(&self.paths()).recipe_sources() {
+            let ids: Vec<String> = p.items.iter().filter(|i| i.source == source.id()).map(|i| i.id.clone()).collect();
+            if !ids.is_empty() {
+                by_source.push((source, ids));
+            }
+        }
+        let jobs =
+            by_source.into_iter().map(|(s, ids)| self.inner.jobs.submit(self.look_install_spec(ids, s))).collect();
+        Ok(Answer::Jobs(jobs))
     }
 
     /// What the Doctor offers without a look: omaflake's own and Catppuccin from the official catalog (plan B141)
@@ -1706,6 +1793,20 @@ impl Server {
                 jobs.push(job);
             } else if let Some(source) = sources.iter().find(|s| s.id() == r.source) {
                 jobs.push(self.inner.jobs.submit(self.install_spec(r.id.clone(), source.clone())));
+            }
+        }
+        Ok(Answer::Jobs(jobs))
+    }
+
+    /// The recipes the Recipes tab offers ("Install All"), each with what it is made of
+    fn recipes_install_all(&self, p: InstallAllParams) -> Reply {
+        let sources = Settings::load(&self.paths()).recipe_sources();
+        let mut jobs = Vec::new();
+        for i in p.items {
+            if let Some(job) = self.inner.jobs.active(JobKind::RecipeInstall, Some(&i.id)) {
+                jobs.push(job);
+            } else if let Some(source) = sources.iter().find(|s| s.id() == i.source) {
+                jobs.push(self.inner.jobs.submit(self.install_spec(i.id, source.clone())));
             }
         }
         Ok(Answer::Jobs(jobs))
@@ -2721,6 +2822,12 @@ struct ListParams {
 struct InstallParams {
     id: String,
     source: String,
+}
+
+/// What a list offers and its "Install All" brings: the rows it shows (its filter applied)
+#[derive(Deserialize)]
+struct InstallAllParams {
+    items: Vec<InstallParams>,
 }
 
 #[derive(Deserialize)]

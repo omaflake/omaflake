@@ -13,6 +13,20 @@ are collected under *Unreleased*. Releases: [GitHub](https://github.com/omaflake
 
 ## [Unreleased]
 
+### Fixed
+
+- Installed modules could hold another module's files when several recipes were installed at once (all of them
+  shared one download folder), so builds failed with errors such as "attribute 'session' missing" or "The option
+  `omaflake.homeLinks' does not exist". Each install has its own folder now. Modules installed with 0.6.0 should be
+  removed and installed again.
+- The Modules tab drew an empty dashed frame before every module.
+- Without a macOS base, the app showed "Create macOS Base …" twice.
+
+### Added
+
+- A macOS base being created shows its progress under macOS Bases (also after leaving its page); a click opens it.
+- "Install All" in the Recipes, Modules and Looks tabs installs everything the list offers, as filtered.
+
 ## [0.6.0] – 2026-10-25
 
 **Recipes are put together from building blocks now.** A recipe is data – a platform, the **modules** in it, a

@@ -81,6 +81,53 @@
         "page": "recipeEditor",
         "params": {}
       }
+    },
+    {
+      "confirm": {
+        "button": {
+          "key": "Install All",
+          "text": "Install All"
+        },
+        "destructive": false,
+        "text": {
+          "key": "Some are not reviewed by the omaflake team – their Nix code runs on this computer when an image is built with them.",
+          "text": "Some are not reviewed by the omaflake team – their Nix code runs on this computer when an image is built with them."
+        },
+        "title": {
+          "args": [
+            2
+          ],
+          "key": "Install all %lld?",
+          "text": "Install all 2?"
+        }
+      },
+      "enabled": true,
+      "help": {
+        "args": [
+          2
+        ],
+        "key": "Install all %lld shown here",
+        "text": "Install all 2 shown here"
+      },
+      "icon": "download",
+      "id": "installAll",
+      "label": {
+        "key": "Install All",
+        "text": "Install All"
+      },
+      "method": "recipes.installAll",
+      "params": {
+        "items": [
+          {
+            "id": "omaflake.nixos.minimal",
+            "source": "github:omaflake/recipes@main"
+          },
+          {
+            "id": "lab.nixos.try",
+            "source": "github:omaflake/recipes@main"
+          }
+        ]
+      }
     }
   ],
   "catalogsLoaded": true,

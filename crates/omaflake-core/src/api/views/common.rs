@@ -629,6 +629,43 @@ impl ListHead {
     }
 }
 
+/// "Install All" in a list's head (Recipes, Modules, Looks): the offered rows it shows – each as its own Install
+/// action has it (`{id, source}`), the filter applied – to `method` (`<kind>.installAll`). Asks first when one is not
+/// official (code from a source the omaflake team did not review); None while nothing is offered.
+pub fn install_all<'a>(
+    method: &str,
+    offered: impl IntoIterator<Item = (&'a [Action], bool)>,
+    busy: bool,
+) -> Option<Action> {
+    let mut items = Vec::new();
+    let mut unreviewed = false;
+    for (actions, official) in offered {
+        if let Some(install) = actions.iter().find(|a| a.id == "install" && a.enabled) {
+            items.push(install.params.clone());
+            unreviewed |= !official;
+        }
+    }
+    if items.is_empty() {
+        return None;
+    }
+    let n = items.len();
+    let action =
+        Action::call("installAll", Text::new("Install All"), Some("download"), method, json!({"items": items}))
+            .help(tf!("Install all %lld shown here", n))
+            .enabled_if(!busy, None);
+    Some(if unreviewed {
+        action.confirm(
+            Confirm::new(
+                tf!("Install all %lld?", n),
+                Text::new("Some are not reviewed by the omaflake team – their Nix code runs on this computer when an image is built with them."),
+            )
+            .button("Install All"),
+        )
+    } else {
+        action
+    })
+}
+
 /// "Nothing matches the filter." with a way back
 pub fn filtered_out(page: &str) -> Hint {
     Hint::new("filter", Text::new("Nothing matches the filter."), Tone::Normal).action(Action::call(

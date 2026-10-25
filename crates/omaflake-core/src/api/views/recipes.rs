@@ -239,6 +239,9 @@ pub(crate) fn page(ctx: &Ctx, p: &RecipesParams) -> RecipesPage {
         Action::show("newRecipe", Text::new("New Recipe …"), Some("add"), "recipeEditor", json!({}))
             .help(Text::new("Put a recipe together from modules, a look and key bindings")),
     ];
+    // Recipes being downloaded are left out (their Install is greyed out)
+    let shown = offered.iter().map(|r| (r.actions.as_slice(), r.badges.iter().any(|b| b.id == "official")));
+    head.actions.extend(install_all("recipes.installAll", shown, false));
     head.empty = if all.is_empty() && offered.is_empty() {
         Some(Hint::new(
             "recipe",

@@ -961,6 +961,39 @@ omaflake/recipes" in "login", removed with the source; with the keyring still lo
 dialog appeared, but omaflake fell back to `tokens.json` after 60 s (password typed too late or the unlock not seen –
 OPEN); mpv shows the camera's test pattern (B130).
 
+**B143 (2026-10-25, fixed after 0.6.0): installed modules held other modules' files.** Found by the maintainer with a
+fresh data folder and the released 0.6.0: `neovim-minimal` failed with "attribute 'session' missing" in
+`modules/omaflake/nixos/wezterm/default.nix`, a recipe of their own with "The option `omaflake.homeLinks' does not
+exist" in `nixos/typst`. The folders under `<data>/modules/` held the wrong module (`omaflake.nixos.wezterm` the
+NixOS zellij module, `omaflake.nixos.typst` the macOS latex one, …). Cause: `PartStore::install` downloaded into
+`.download-<pid>` – one work folder for the whole `omaf serve`, so recipes installed at the same time (the app installs
+the suggested recipes at once, each with its parts) wrote into and renamed each other's folder; the manifest's
+read-modify-write could lose entries the same way. Fixed: a work folder per install (`.download-<uuid>`, as recipes
+have), the swap into the part's folder and `.installed.json` under a lock; `parts::tests::parallel_installs_keep_each_
+part_in_its_folder` installs four recipes' parts in parallel and compares every module with the catalog (fails 3 of 3
+runs with the old work folder). Data folders installed with 0.6.0 must reinstall their modules (remove them in the
+Modules tab, or move `<data>/modules/` aside – OPEN: a check that finds a module whose files differ from its manifest hash).
+Asked with it and done: the Modules tab drew the dashed frame of a plain look before every module (its rows are the
+looks' shape: `swatches` is optional now, absent for modules); "Create macOS Base …" twice without a base in the
+SwiftUI app (the button only without `empty`, as the TUI and iced did); the base being created as a job row in the
+macOS bases section (IPSW download or install, its progress, a click opens its page; the create action greyed out
+meanwhile) – before, leaving its page looked as if no base were coming; "Install All" (download icon) in the heads of
+Recipes, Modules and Looks: what the list offers as filtered (`recipes.installAll`, `modules.installAll` – one job,
+one after the other –, `looks.installAll`; a confirmation when one is not official). OPEN: clicked in the app.
+
+**B144 (2026-10-25, ideas of the maintainer – noted, not decided, not built).**
+- **First-run wizard:** a newcomer finds many tabs and choices at once. On the first start (no data folder, or another
+  sign of a first run) a short series of questions: minimal or complete (all standard recipes, modules and looks at
+  once, or by hand later); what it is for (suggests recipes and modules); NixOS VMs, macOS VMs or both (is a macOS
+  base needed – then start creating it); the first credential, locale and profile; lab (developer mode); the shared
+  folder; … OPEN: what counts as a first run besides a missing data folder; whether the Doctor's steps become its pages.
+- **Structure and navigation:** there are many tabs now. Perhaps the catalog (recipes, modules, looks, key bindings)
+  apart from the running side (VMs, images, bases, activity) – a second top-level menu. An opened VM, image or recipe
+  with many key bindings gets long and hard to read: key bindings in a window or page of their own instead of inline.
+- **Putting a recipe together from the catalog:** not a toggle for every module (does not scale to 100+ modules) but
+  picking from the catalog with search and filters (capability, platform, tags, author) – what is picked is the
+  recipe, with its needs and conflicts shown as now.
+
 **B129 (2026-10-24): clipboard on a GNOME host.** Mutter has no data-control protocol: `wl-paste --watch` ends at once.
 `Wayland::start` now treats an end within 500 ms as refused, and `detect` falls back to xclip through Xwayland, which
 Mutter keeps in sync (`X11::through_xwayland`, Mutter's `.mutter-Xwaylandauth.*` cookie when XAUTHORITY is unset; its

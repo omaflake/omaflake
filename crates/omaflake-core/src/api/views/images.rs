@@ -38,7 +38,11 @@ pub struct BasesSection {
     /// No base yet: what it is for, with "Create macOS Base …"
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub empty: Option<Hint>,
-    /// "Create macOS Base …" (another one, from a newer macOS)
+    /// The base being created (its IPSW downloaded, then installed): state, progress; a click opens its page
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub job: Option<BuildJobRow>,
+    /// "Create macOS Base …" (another one, from a newer macOS); clients show it only without `empty` (whose action
+    /// it is then)
     pub create: Action,
     pub footer: Text,
 }
@@ -285,10 +289,13 @@ fn bases_section(ctx: &Ctx) -> BasesSection {
             }
         })
         .collect::<Vec<_>>();
-    let create = Action::show("macBase", Text::new("Create macOS Base …"), Some("macos"), "macBase", json!({}));
+    // While a base is created the section says so – leaving its page must not look as if none were coming
+    let job = ctx.active_job(JobKind::MacosInstall).or_else(|| ctx.active_job(JobKind::IpswDownload)).map(base_job_row);
+    let create = Action::show("macBase", Text::new("Create macOS Base …"), Some("macos"), "macBase", json!({}))
+        .enabled_if(job.is_none(), Some(Text::new("A macOS base is being created – its progress is above")));
     BasesSection {
         title: Text::new("macOS Bases"),
-        empty: rows.is_empty().then(|| {
+        empty: (rows.is_empty() && job.is_none()).then(|| {
             Hint::new(
                 "macos",
                 Text::new("No macOS base yet – it is needed for macOS images and is created from Apple's macOS once."),
@@ -297,10 +304,37 @@ fn bases_section(ctx: &Ctx) -> BasesSection {
             .action(create.clone())
         }),
         rows,
+        job,
         create,
         footer: Text::new(
             "A base is a clean macOS installed from Apple's IPSW; macOS images are built from the newest one. Removing an older base frees its space.",
         ),
+    }
+}
+
+/// The macOS base being created as a job row: downloading the IPSW or installing, its progress; a click opens the
+/// "Create macOS Base" page with its log
+fn base_job_row(j: &JobDto) -> BuildJobRow {
+    let running = matches!(j.state, JobState::Running);
+    let progress = j.progress.as_ref().filter(|_| running);
+    let title = match (j.state, progress) {
+        (JobState::Queued, _) => Text::new("Waiting to create"),
+        // Its steps name the macOS version ("Downloading macOS 27.0.1") – as they are
+        (_, Some(p)) => tf!("%lld/%lld %@", p.step, p.total, Text::verbatim(&p.title)),
+        _ if j.kind == JobKind::IpswDownload => Text::new("Downloading macOS from Apple …"),
+        _ => Text::new("Installing macOS …"),
+    };
+    BuildJobRow {
+        id: j.id.clone(),
+        name: "macOS Base".into(),
+        kind: kind_badge(GuestKind::Macos),
+        state: j.state,
+        title,
+        count: None,
+        fraction: progress.map(|p| p.fraction),
+        actions: vec![],
+        open: Action::show("open", Text::new("Show its progress and log"), None, "macBase", json!({})).primary(),
+        job: j.clone(),
     }
 }
 

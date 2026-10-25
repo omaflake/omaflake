@@ -16,6 +16,31 @@
       "params": {
         "fetch": true
       }
+    },
+    {
+      "enabled": true,
+      "help": {
+        "args": [
+          1
+        ],
+        "key": "Install all %lld shown here",
+        "text": "Install all 1 shown here"
+      },
+      "icon": "download",
+      "id": "installAll",
+      "label": {
+        "key": "Install All",
+        "text": "Install All"
+      },
+      "method": "looks.installAll",
+      "params": {
+        "items": [
+          {
+            "id": "omaflake.look.catppuccin",
+            "source": "github:omaflake/catalog@main"
+          }
+        ]
+      }
     }
   ],
   "catalogsLoaded": true,

@@ -519,8 +519,8 @@ public struct LooksPage: Decodable, Sendable, Equatable {
         public var lamp: Lamp
         public var subtitle: ViewText
         public var badges: [Badge]
-        /// "#RRGGBB" for a strip of its colours; empty for a plain look
-        public var swatches: [String]
+        /// "#RRGGBB" for a strip of its colours; empty for a plain look; nil on a module's row
+        public var swatches: [String]?
         public var actions: [ViewAction]
         public var detail: ImageRow.Detail
     }
@@ -716,6 +716,9 @@ public struct BasesSection: Decodable, Sendable, Equatable {
     public var title: ViewText
     public var rows: [Row]
     public var empty: Hint?
+    /// The base being created (IPSW download, then install): its progress; a click opens its page
+    public var job: BuildJobRow?
+    /// Shown only without `empty` – the hint has it then
     public var create: ViewAction
     public var footer: ViewText
 }

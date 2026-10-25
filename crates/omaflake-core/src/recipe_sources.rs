@@ -308,7 +308,7 @@ fn percent_encode_segment(s: &str) -> String {
 }
 
 /// A random UUID-like text (Swift `UUID().uuidString`) for work folder names
-fn uuid() -> String {
+pub(crate) fn uuid() -> String {
     let mut b = [0u8; 16];
     let filled = fs::File::open("/dev/urandom").and_then(|mut f| f.read_exact(&mut b));
     if filled.is_err() {

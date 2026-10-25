@@ -92,7 +92,7 @@ extension APIContractTests {
             "recipes": {
                 guard case .recipes(let p) = try page("recipes", as: "recipes") else { throw Unexpected() }
                 #expect(p.catalogsLoaded && !p.loading && p.errors.count == 1 && p.unreadable.count == 1)
-                #expect(p.head.actions.map(\.id) == ["refresh", "import", "newRecipe"] && !p.rows.isEmpty && !p.offered.isEmpty)
+                #expect(p.head.actions.map(\.id) == ["refresh", "import", "newRecipe", "installAll"] && !p.rows.isEmpty && !p.offered.isEmpty)
                 #expect(p.updates?.rows.isEmpty == false)
                 let r = try #require(p.rows.first { $0.recipe.id == "omaflake.nixos.dev@velvet-tiger-orbit" })
                 #expect(r.lamp.state == .working || r.lamp.state == .attention)
@@ -212,13 +212,13 @@ extension APIContractTests {
                 // The Looks tab (plan B141): rows with a colour strip and usage, the default without a quick action,
                 // offered looks with Install
                 guard case .looks(let p) = try page("looks", as: "looks") else { throw Unexpected() }
-                #expect(p.rows.map(\.name) == ["Rosé Pine Dawn", "omaflake"] && p.rows[0].swatches.count == 11)
+                #expect(p.rows.map(\.name) == ["Rosé Pine Dawn", "omaflake"] && p.rows[0].swatches?.count == 11)
                 #expect(p.rows[0].badges.map(\.id) == ["default", "official"] && p.rows[0].actions.isEmpty)
                 #expect(p.offered.first?.actions.first?.method == "looks.install" && p.catalogsLoaded)
             },
             "modules": {
                 guard case .looks(let p) = try page("modules", as: "modules") else { throw Unexpected() }
-                #expect(p.head.title.key == "Modules" && p.rows.first?.swatches.isEmpty == true)
+                #expect(p.head.title.key == "Modules" && p.rows.first != nil && p.rows.first?.swatches == nil)
                 #expect(p.offered.first?.actions.first?.method == "modules.install")
             },
             "profiles": {

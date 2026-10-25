@@ -267,6 +267,10 @@ fn images<'a>(app: &'a App, p: &'a ImagesPage) -> El<'a> {
     // The macOS bases (on a Mac only – the Linux app shows them when its core runs there, plan B137)
     if let Some(b) = &p.bases {
         rows.push(section_title(&b.title));
+        // The base being created: its progress; a click opens its page
+        if let Some(j) = &b.job {
+            rows.push(job_row(app, j));
+        }
         rows.extend(b.rows.iter().map(|r| {
             let mut line = row![
                 lamp(&r.lamp, app.pulse),
@@ -496,15 +500,17 @@ fn swatches<'a>(colors: &[String]) -> El<'a> {
 
 fn look_row<'a>(app: &'a App, r: &'a omaflake_core::api::views::looks::LookRow) -> El<'a> {
     let key = format!("look:{}", r.id);
-    let header = row![
-        lamp(&r.lamp, app.pulse),
-        swatches(&r.swatches),
-        container(name_line(r.name.clone(), r.badges.iter().map(badge).collect(), Some(s(&r.subtitle)), vec![]))
-            .width(Length::Fill),
-        row_actions(app, &r.actions),
-    ]
-    .spacing(spacing::XL)
-    .align_y(Alignment::Center);
+    let mut header = row![lamp(&r.lamp, app.pulse)].spacing(spacing::XL).align_y(Alignment::Center);
+    // A look's colours; a module's row has none
+    if let Some(colors) = &r.swatches {
+        header = header.push(swatches(colors));
+    }
+    let header = header
+        .push(
+            container(name_line(r.name.clone(), r.badges.iter().map(badge).collect(), Some(s(&r.subtitle)), vec![]))
+                .width(Length::Fill),
+        )
+        .push(row_actions(app, &r.actions));
     expandable(key.clone(), app.expanded.contains(&key), header.into(), || {
         let mut c = column![Column::with_children(r.detail.info.iter().map(info_line)).spacing(spacing::S)];
         c = c.push(wrap(r.detail.actions.iter().map(|a| action_button(a, None, app.pulse)).collect()));

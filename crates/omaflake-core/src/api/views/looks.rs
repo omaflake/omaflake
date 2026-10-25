@@ -46,8 +46,9 @@ pub struct LookRow {
     /// default, official, update, local folder
     pub badges: Vec<Badge>,
     /// Its colours as "#RRGGBB" for a strip: background, surface, text, accent, urgent, then the terminal's red,
-    /// green, yellow, blue, magenta and cyan; empty for a plain look
-    pub swatches: Vec<String>,
+    /// green, yellow, blue, magenta and cyan; empty for a plain look; none on a module's row (the modules page)
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub swatches: Option<Vec<String>>,
     /// The quick action: Install (offered), Make Default (here)
     pub actions: Vec<Action>,
     pub detail: LookDetail,
@@ -156,7 +157,7 @@ fn row(l: &LookDto) -> LookRow {
         },
         subtitle: Text::joined(vec![Text::verbatim(&l.reference), appearance(&l.appearance, l.plain), usage]),
         badges,
-        swatches: strip(&l.swatches),
+        swatches: Some(strip(&l.swatches)),
         actions: if l.is_default { vec![] } else { vec![make_default] },
         detail: LookDetail {
             info: vec![
@@ -196,7 +197,7 @@ fn offered_row(l: &OfferedLookDto) -> LookRow {
             Text::verbatim(&l.source_name),
         ]),
         badges,
-        swatches: strip(&l.swatches),
+        swatches: Some(strip(&l.swatches)),
         actions: vec![install.clone()],
         detail: LookDetail {
             info: vec![
@@ -217,6 +218,9 @@ pub(crate) fn page(ctx: &Ctx) -> LooksPage {
         vec![Action::call("refresh", Text::new("Refresh"), Some("refresh"), "looks.list", json!({"fetch": true}))
             .help(Text::new("Look into the sources for looks"))
             .busy(ctx.fetching)];
+    let installing = ctx.active_job(crate::api::types::JobKind::LookInstall).is_some();
+    let shown = offered.iter().map(|r| (r.actions.as_slice(), r.badges.iter().any(|b| b.id == "official")));
+    head.actions.extend(install_all("looks.installAll", shown, installing));
     head.empty = (rows.is_empty() && offered.is_empty()).then(|| {
         Hint::new(
             "look",

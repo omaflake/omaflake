@@ -113,7 +113,7 @@ fn row(p: &PartDto) -> LookRow {
         },
         subtitle: Text::joined(vec![Text::verbatim(&p.reference), Text::verbatim(&p.version), what(p), usage]),
         badges: badges(p),
-        swatches: vec![],
+        swatches: None,
         actions: if p.update { vec![actions[0].clone()] } else { vec![] },
         detail: LookDetail { info: lines, actions },
     }
@@ -139,7 +139,7 @@ fn offered_row(p: &PartDto) -> LookRow {
             Text::verbatim(&p.source_name),
         ]),
         badges: badges(p),
-        swatches: vec![],
+        swatches: None,
         actions: vec![install.clone()],
         detail: LookDetail { info: info(p), actions: vec![install] },
     }
@@ -168,6 +168,9 @@ pub(crate) fn page(ctx: &Ctx) -> LooksPage {
         vec![Action::call("refresh", Text::new("Refresh"), Some("refresh"), "modules.list", json!({"fetch": true}))
             .help(Text::new("Look into the sources for modules and key bindings"))
             .busy(ctx.fetching)];
+    let installing = ctx.active_job(crate::api::types::JobKind::ModuleInstall).is_some();
+    let shown = offered.iter().map(|r| (r.actions.as_slice(), r.badges.iter().any(|b| b.id == "official")));
+    head.actions.extend(install_all("modules.installAll", shown, installing));
     head.empty = (rows.is_empty() && offered.is_empty()).then(|| {
         Hint::new(
             "module",

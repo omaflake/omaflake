@@ -155,6 +155,10 @@ struct InstalledPartsFile {
 
 static INSTALLED_PARTS_STEPS: [Step; 1] = [|_| Ok(())];
 
+/// Installs run in parallel (one `omaf serve`, several recipes at once): the swap into the part's folder and the
+/// manifest's read-modify-write happen under this lock
+static INSTALL_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
 /// A part omaflake can use: in an enabled local folder source, or installed
 #[derive(Debug, Clone, PartialEq)]
 pub struct PartEntry {
@@ -291,8 +295,9 @@ impl PartStore {
         };
         let dir = self.dir();
         fs::create_dir_all(&dir).with_path(&dir)?;
-        let work = dir.join(format!(".download-{}", std::process::id()));
-        let _ = Disposal::delete(&[&work]);
+        // Its own work folder per install: parallel installs in one process must not share one (they swapped their
+        // files – a module's folder held another module's Nix)
+        let work = dir.join(format!(".download-{}", crate::recipe_sources::uuid()));
         let result = (|| -> Result<()> {
             for f in part.files {
                 let data = client.fetch(&format!("{}/{}", part.path, f.path))?;
@@ -314,6 +319,7 @@ impl PartStore {
                 fs::write(&dest, &data).with_path(&dest)?;
             }
             check(&work)?;
+            let _guard = INSTALL_LOCK.lock().unwrap_or_else(|e| e.into_inner());
             Disposal::delete(&[&target])?;
             fs::rename(&work, &target).with_path(&target)?;
             let mut installed = self.installed();
@@ -334,6 +340,7 @@ impl PartStore {
 
     /// Removes an installed part (a local folder's stays there)
     pub fn remove(&self, id: &str) -> Result<()> {
+        let _guard = INSTALL_LOCK.lock().unwrap_or_else(|e| e.into_inner());
         let mut installed = self.installed();
         if installed.remove(id).is_none() {
             return Err(vm_err!(codes::NOT_FOUND, "{} is not installed (a local folder's stays there)", id));
@@ -487,6 +494,45 @@ mod tests {
         assert!(modules.capabilities(&s)["desktop"].exclusive, "the catalog's capabilities are kept");
         // a second time: everything is here
         assert!(install_recipe_parts(&paths, &spec, &[], &mut |_| {}).unwrap().is_empty());
+    }
+
+    /// Several recipes' parts installed at the same time (the app installs all recipes at once): every module's folder
+    /// holds its own files, as in the catalog, and the manifest has them all. Skipped without the checkout.
+    #[test]
+    fn parallel_installs_keep_each_part_in_its_folder() {
+        let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../catalog");
+        let Ok(data) = fs::read(root.join("catalog.json")) else { return };
+        let catalog = crate::recipe_sources::RecipeCatalog::decode(&data).unwrap();
+        let (_t, paths) = crate::paths::tests::temp_paths();
+        let mut s = Settings::load(&paths);
+        s.sources = Some(vec![]);
+        s.save(&paths).unwrap();
+        let source = crate::recipe_sources::RecipeSource::new(
+            RecipeSourceKind::Folder,
+            &root.to_string_lossy(),
+            None,
+            None,
+            None,
+        );
+        let recipes = ["nixos/neovim-research", "nixos/emacs-minimal", "nixos/neovim-minimal", "macos/research"];
+        std::thread::scope(|scope| {
+            for r in recipes {
+                let (paths, source, catalog, root) = (&paths, &source, &catalog, &root);
+                scope.spawn(move || {
+                    let spec = crate::composition::RecipeSpec::read(&root.join("recipes/omaflake").join(r)).unwrap();
+                    install_recipe_parts(paths, &spec, &[(source.clone(), catalog.clone())], &mut |_| {}).unwrap();
+                });
+            }
+        });
+        let modules = PartStore::new(paths.clone(), PartKind::Module);
+        let installed = modules.installed();
+        assert!(installed.len() > 10, "{:?}", installed.keys());
+        for id in installed.keys() {
+            let folder = modules.folder(id).unwrap();
+            let in_catalog = root.join(PartKind::Module.catalog_path(id).unwrap());
+            let theirs = fs::read(in_catalog.join("default.nix")).unwrap();
+            assert_eq!(fs::read(folder.join("default.nix")).unwrap(), theirs, "{id} holds another module's files");
+        }
     }
 
     #[test]

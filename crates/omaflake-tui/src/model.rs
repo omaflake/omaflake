@@ -543,33 +543,38 @@ fn vms(ctx: &Ctx, model: &Value, p: &mut Page) {
     empty_and_unreadable(ctx, model, p);
 }
 
+/// A build (or the macOS base being created) that waits, runs or ended: its state, progress and buttons
+fn job_item(ctx: &Ctx, job: &Value) -> Item {
+    let th = ctx.theme;
+    let state = s(job, "state");
+    let (symbol, tone) = match state {
+        "queued" => ("◷".to_string(), Tone::Normal),
+        "failed" => (ctx.icons.get("failed").to_string(), Tone::Danger),
+        "cancelled" => (ctx.icons.get("cancelled").to_string(), Tone::Normal),
+        "finished" => (ctx.icons.get("finished").to_string(), Tone::Success),
+        _ => (spinner(ctx.tick).to_string(), Tone::Accent),
+    };
+    let mut spans = vec![Span::raw(" "), Span::styled(symbol, th.tone(tone)), Span::raw(" ")];
+    spans.extend(icon(ctx, s(&job["kind"], "icon"), th.secondary()));
+    spans.push(Span::styled(s(job, "name").to_string(), th.title()));
+    spans.push(Span::styled(format!("  {}", t(&job["title"])), th.tone(tone)));
+    if let Some(c) = job.get("count") {
+        spans.push(Span::styled(format!("  {}", t(c)), th.secondary()));
+    }
+    let mut lines = vec![Line::from(spans)];
+    if let Some(f) = job.get("fraction").and_then(Value::as_f64) {
+        lines.push(Line::from(vec![Span::raw("    "), Span::styled(gauge(f, 30), th.accent())]));
+    }
+    // `open` (the build page) first, the row's own buttons follow; Enter does the primary one
+    let mut actions: Vec<Value> = job.get("open").filter(|o| o.is_object()).into_iter().cloned().collect();
+    actions.extend(arr(job, "actions").iter().cloned());
+    Item::row(format!("job:{}", s(job, "id")), lines, actions)
+}
+
 fn images(ctx: &Ctx, model: &Value, p: &mut Page) {
     list_head(p, model);
-    let th = ctx.theme;
     for job in arr(model, "jobs") {
-        let state = s(job, "state");
-        let (symbol, tone) = match state {
-            "queued" => ("◷".to_string(), Tone::Normal),
-            "failed" => (ctx.icons.get("failed").to_string(), Tone::Danger),
-            "cancelled" => (ctx.icons.get("cancelled").to_string(), Tone::Normal),
-            "finished" => (ctx.icons.get("finished").to_string(), Tone::Success),
-            _ => (spinner(ctx.tick).to_string(), Tone::Accent),
-        };
-        let mut spans = vec![Span::raw(" "), Span::styled(symbol, th.tone(tone)), Span::raw(" ")];
-        spans.extend(icon(ctx, s(&job["kind"], "icon"), th.secondary()));
-        spans.push(Span::styled(s(job, "name").to_string(), th.title()));
-        spans.push(Span::styled(format!("  {}", t(&job["title"])), th.tone(tone)));
-        if let Some(c) = job.get("count") {
-            spans.push(Span::styled(format!("  {}", t(c)), th.secondary()));
-        }
-        let mut lines = vec![Line::from(spans)];
-        if let Some(f) = job.get("fraction").and_then(Value::as_f64) {
-            lines.push(Line::from(vec![Span::raw("    "), Span::styled(gauge(f, 30), th.accent())]));
-        }
-        // `open` (the build page) first, the row's own buttons follow; Enter does the primary one
-        let mut actions: Vec<Value> = job.get("open").filter(|o| o.is_object()).into_iter().cloned().collect();
-        actions.extend(arr(job, "actions").iter().cloned());
-        p.items.push(Item::row(format!("job:{}", s(job, "id")), lines, actions));
+        p.items.push(job_item(ctx, job));
     }
     for row in arr(model, "rows") {
         list_row(ctx, "image", row, &mut p.items);
@@ -580,6 +585,10 @@ fn images(ctx: &Ctx, model: &Value, p: &mut Page) {
     if bases.is_object() {
         p.items.push(Item::blank());
         p.items.push(heading(ctx, t(&bases["title"])));
+        // The base being created (plan B142): its progress; Enter opens its page
+        if let Some(job) = bases.get("job").filter(|j| j.is_object()) {
+            p.items.push(job_item(ctx, job));
+        }
         for row in arr(bases, "rows") {
             list_row(ctx, "base", row, &mut p.items);
         }

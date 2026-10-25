@@ -333,6 +333,7 @@ Params and results in short; the types are those of §4.
 | `settings.set` | any of `developerMode, checkForUpdates, notifications, keepRecipeVersions, hostKeyboard, defaultCredential, flake, qemu, nix, runner` (`null` or `""` = back to the default; keys not given stay; `hostKeyboard` takes a keyboard of `choices.keyboards` – the guest's language, time zone and keyboards are a locale's (`locales.*`), the default look is set with `looks.setDefault` (plan B141); `defaultCredential` takes a credential's id – there is always a default while there are credentials, plan B139) | `settings` – turning `keepRecipeVersions` off prunes older recipe versions |
 | `looks.list` | `fetch?` | `{looks, offered, unreadable, fetched}` (plan B141) – `looks`: the looks here `[{id, reference, author, name, title, description, tags, appearance?, plain, swatches?, source, sourceName, official, installed, update, isDefault, images}]` (installed from a source, or a local folder source's, used as it is there); `offered`: what the sources' catalogs offer besides (`fetch: true` – or the first call – looks into them) |
 | `looks.install` | `id, source` | Job `look-install` – downloads a look (its files checked against the catalog's SHA-256) into `<data>/looks/<author>.<name>/`; the first one becomes the default |
+| `looks.installAll` | `items: [{id, source}]` | `[Job]` – job `look-install` per source: the looks the Looks tab offers ("Install All") |
 | `looks.installRecommended` | – | Job `look-install` – omaflake's own look and Catppuccin from the official catalog (the Doctor's action) |
 | `looks.remove` | `id` | `null` – refused while images are built with it (`in-use`); another one becomes the default |
 | `looks.setDefault` | `id` | `null` – the look new images get unless the build chooses another |
@@ -353,6 +354,7 @@ Params and results in short; the types are those of §4.
 | `profiles.setDefault` | `id` | `null` – the profile new VMs get unless another is chosen |
 | `modules.list` | `fetch?` | `{parts, offered, unreadable, fetched}` (plan B142) – `parts`: the modules and key binding sets here `[{id, reference, kind: module|keymap, platform?, title, description, version, tags, provides, needs, enhances, keys (a module's actions → default key; a set's "<module> <action>" → key), unfree, source, sourceName, official, installed, update, recipes (the recipes here made of it)}]`; `offered`: what the catalogs offer besides (`fetch: true` – or the first call – looks into them) |
 | `modules.install` | `id, source` | Job `module-install` – a module (`<author>.<platform>.<name>`) or key binding set (`<author>.keymap.<name>`), every file checked against the catalog's SHA-256 |
+| `modules.installAll` | `items: [{id, source}]` | Job `module-install` – the modules and key binding sets the Modules tab offers, one after the other; one that fails does not keep the others out |
 | `modules.remove` | `id` | `null` – recipes made of it cannot be built until it is back |
 | `bases.list` | – | `[{name, path, osBuild?, user?, ready, newest, created?, sizeBytes?, credential?, credentialName?}]` – the macOS bases (`bases/mac-base-*`; plan B138), with the credential of their user (plan B139) |
 | `bases.remove` | `name` | `null` – deletes the base; refused while a macOS base is installed or a macOS image is built |
@@ -440,6 +442,7 @@ values (plan B141). A recipe whose modules or key binding sets are not here is r
 | `views.get` | `page, params?` | the page's model |
 | `views.subscribe` | `pages: [{page, params?}]` | `null` – replaces the subscription; each page comes at once as `view.changed`, then whenever its model changes; `[]` stops them |
 | `activity.clear` | – | `null` – empties the activity list |
+| `recipes.installAll` | `items: [{id, source}]` | `[Job]` – installs each recipe, with what it is made of ("Install All" of the Recipes tab) |
 | `recipes.installUpdates` | – | `[Job]` – installs every newer version the sources have of downloaded recipes ("Update All") |
 
 ### Jobs
@@ -707,8 +710,9 @@ runs ("Shut the VM down first") or is busy.
 run, failed or were cancelled: `{id, name, kind, state, title, count?, fraction?, actions: [cancel | dismiss], open,
 job}` – `open` is the row's `primary`: a click opens the build page), `bases?` (on a Mac only, plan B138: `{title,
 rows: [{name, lamp, subtitle ("macOS 26A434 · Work (alex) · date · size"), badges (newest, no-credential), actions:
-[assign (only without a credential: `baseCredential`), reveal, remove]}], empty?, create (the macOS base page),
-footer}`), `rows` (macOS before NixOS, by recipe name,
+[assign (only without a credential: `baseCredential`), reveal, remove]}], empty? (with create as its action), job?
+(the base being created – IPSW download or install – as a `jobs` row whose `open` is the macOS base page), create
+(the macOS base page; drawn only without `empty`, disabled while `job`), footer}`), `rows` (macOS before NixOS, by recipe name,
 newest first: lamp green when a VM uses it, badge `outdated`, subtitle "recipe dev · <date> · 1 VM", actions reveal and
 newVm (primary) – or the Doctor's warning (primary) –, details: info omaflake ID,
 Recipe, Built, Recipe state, Status, Look (with a note when the settings ask for another look), Used by, Size, Source,
@@ -719,7 +723,7 @@ VMs use it), `unreadable`. **image** – `{title, row}` with the size.
 Recommended"), `catalogsLoaded`, `loading`, `loadingText?`, `rows` (the looks here: `{id, name, lamp (on while images
 are built with it), subtitle ("omaflake/catppuccin · dark · 2 images"), badges (default, official, update, folder),
 swatches ("#RRGGBB" for a strip: background, surface, text, accent, urgent and six terminal colours; empty for a plain
-look), actions (Make Default unless it is the default), detail: {info (About, Source, Used by), actions: [default,
+look; absent on the modules page), actions (Make Default unless it is the default), detail: {info (About, Source, Used by), actions: [default,
 update?, remove (disabled while images use it or for a local folder's)]}}`), `offeredTitle?`, `offered` (the same rows
 with Install), `unreadable`, `footer`. The UI runs `refresh` once when the tab opens and the catalogs were not looked
 into.
@@ -846,7 +850,9 @@ default (`profiles.setDefault`), remove (destructive, confirm)]}}`; `add` ("New 
 (NixOS, then macOS) and key binding sets here, then `offered`; subtitle "omaflake/hyprland · 1.0.0 · NixOS module · 1
 recipe"; badges official, update, unfree; details: about, provides, needs, works with, keys, source, used by; actions
 update (`modules.install`), remove (`modules.remove`, confirm naming the recipes made of it; disabled for a local
-folder's). Offered rows install with `modules.install {id, source}`. List head: refresh – `modules.list {fetch: true}`.
+folder's). Offered rows install with `modules.install {id, source}`. List head: refresh – `modules.list {fetch: true}`;
+installAll – `modules.installAll {items}` (the offered rows; confirm when one is not official). **looks** and
+**recipes** have the same `installAll` (`looks.installAll`, `recipes.installAll`; the recipes as filtered).
 
 **recipeEditor** (params `id?` – a recipe to edit when it is one of yours (My Recipes), else to copy –, `values`) – the
 shape of **credential** (plan B142): `fields`: name, platform (nixos | macos), description, one toggle per module of the

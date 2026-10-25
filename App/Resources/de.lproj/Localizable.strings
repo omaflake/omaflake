@@ -1252,3 +1252,15 @@
 "unfree" = "unfrei";
 "Install what %@ is made of" = "Installieren, woraus %@ besteht";
 "%@ is made of parts that are not here: %@ – install them first (the recipe's \"Install Missing Parts\", omaf recipes show %@ --install)" = "%@ besteht aus Teilen, die nicht hier sind: %@ – installiere sie zuerst („Fehlende Teile installieren“ beim Rezept, omaf recipes show %@ --install)";
+
+/* Install All in the lists' heads; the macOS base being created (images page) */
+"Install All" = "Alle installieren";
+"Install all %lld shown here" = "Alle %lld hier gezeigten installieren";
+"Install all %lld?" = "Alle %lld installieren?";
+"Some are not reviewed by the omaflake team – their Nix code runs on this computer when an image is built with them." = "Einige sind nicht vom omaflake-Team geprüft – ihr Nix-Code läuft auf diesem Computer, wenn ein Image mit ihnen gebaut wird.";
+"A macOS base is being created – its progress is above" = "Eine macOS-Base wird gerade erstellt – der Fortschritt steht oben";
+"Show its progress and log" = "Fortschritt und Log anzeigen";
+"Waiting to create" = "Wartet auf das Erstellen";
+"Downloading macOS from Apple …" = "macOS wird von Apple geladen …";
+"Installing macOS …" = "macOS wird installiert …";
+"Install modules" = "Module installieren";

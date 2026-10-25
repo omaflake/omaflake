@@ -279,7 +279,8 @@ struct LookRowView: View {
         ExpandableRow {
             HStack(spacing: BrandTokens.Spacing.xl) {
                 StatusLamp(state: .init(row.lamp.state)).help(Text(verbatim: model.t(row.lamp.help)))
-                LookSwatches(colors: row.swatches)
+                // A look's colours; a module's row has none
+                if let swatches = row.swatches { LookSwatches(colors: swatches) }
                 VStack(alignment: .leading, spacing: BrandTokens.Spacing.xxs) {
                     HStack(spacing: BrandTokens.Spacing.m) {
                         Text(verbatim: row.name).font(.callout.weight(.medium)).lineLimit(1)
@@ -339,6 +340,8 @@ struct BasesSectionView: View {
         VStack(alignment: .leading, spacing: BrandTokens.Spacing.m) {
             Text(verbatim: model.t(section.title)).font(.caption.weight(.medium)).foregroundStyle(.secondary)
                 .frame(maxWidth: .infinity, alignment: .leading)
+            // The base being created: its progress, also after its page was left; a click opens it again
+            if let job = section.job { BuildJobRowView(row: job, model: model) }
             ForEach(section.rows) { r in
                 HStack(spacing: BrandTokens.Spacing.xl) {
                     StatusLamp(state: .init(r.lamp.state)).help(Text(verbatim: model.t(r.lamp.help)))
@@ -360,7 +363,8 @@ struct BasesSectionView: View {
                 Text(verbatim: model.t(section.footer)).font(.caption).foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
                 Spacer()
-                ActionPlainButton(action: section.create, model: model)
+                // Without a base the hint above has it – not a second button
+                if section.empty == nil { ActionPlainButton(action: section.create, model: model) }
             }
         }
         .padding(.top, BrandTokens.Spacing.xl)

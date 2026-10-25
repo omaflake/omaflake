@@ -16,6 +16,31 @@
       "params": {
         "fetch": true
       }
+    },
+    {
+      "enabled": true,
+      "help": {
+        "args": [
+          1
+        ],
+        "key": "Install all %lld shown here",
+        "text": "Install all 1 shown here"
+      },
+      "icon": "download",
+      "id": "installAll",
+      "label": {
+        "key": "Install All",
+        "text": "Install All"
+      },
+      "method": "modules.installAll",
+      "params": {
+        "items": [
+          {
+            "id": "omaflake.macos.vscode",
+            "source": "github:omaflake/recipes@main"
+          }
+        ]
+      }
     }
   ],
   "catalogsLoaded": true,
@@ -134,8 +159,7 @@
         ],
         "key": "%@ · %@ · %@ · %@",
         "text": "omaflake/vscode · 1.0.0 · macOS module · omaflake/recipes"
-      },
-      "swatches": []
+      }
     }
   ],
   "offeredTitle": {
@@ -337,8 +361,7 @@
         ],
         "key": "%@ · %@ · %@ · %@",
         "text": "omaflake/hyprland · 1.0.0 · NixOS module · 1 recipe"
-      },
-      "swatches": []
+      }
     },
     {
       "actions": [],
@@ -457,8 +480,7 @@
         ],
         "key": "%@ · %@ · %@ · %@",
         "text": "omaflake/default · 1.0.0 · key bindings · no recipe"
-      },
-      "swatches": []
+      }
     }
   ],
   "title": {

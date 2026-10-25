@@ -51,7 +51,7 @@
   ],
   "bases": {
     "create": {
-      "enabled": true,
+      "enabled": false,
       "icon": "macos",
       "id": "macBase",
       "label": {
@@ -62,11 +62,77 @@
       "params": {
         "page": "macBase",
         "params": {}
+      },
+      "reason": {
+        "key": "A macOS base is being created – its progress is above",
+        "text": "A macOS base is being created – its progress is above"
       }
     },
     "footer": {
       "key": "A base is a clean macOS installed from Apple's IPSW; macOS images are built from the newest one. Removing an older base frees its space.",
       "text": "A base is a clean macOS installed from Apple's IPSW; macOS images are built from the newest one. Removing an older base frees its space."
+    },
+    "job": {
+      "actions": [],
+      "fraction": 0.055,
+      "id": "j4",
+      "job": {
+        "cancellable": true,
+        "guestKind": "macos",
+        "hiddenLines": 0,
+        "id": "j4",
+        "kind": "ipsw-download",
+        "lastOutput": "2026-10-23T09:04:59Z",
+        "logFile": "/data/logs/j4.log",
+        "logLines": 3,
+        "progress": {
+          "done": 1000000000,
+          "fraction": 0.055,
+          "of": 18000000000,
+          "step": 0,
+          "title": "Downloading macOS 27.0.1",
+          "total": 0
+        },
+        "started": "2026-10-23T09:00:00Z",
+        "state": "running",
+        "title": "IpswDownload"
+      },
+      "kind": {
+        "help": {
+          "key": "macOS guest",
+          "text": "macOS guest"
+        },
+        "icon": "macos",
+        "id": "kind",
+        "tone": "normal"
+      },
+      "name": "macOS Base",
+      "open": {
+        "enabled": true,
+        "id": "open",
+        "label": {
+          "key": "Show its progress and log",
+          "text": "Show its progress and log"
+        },
+        "method": "ui.show",
+        "params": {
+          "page": "macBase",
+          "params": {}
+        },
+        "primary": true
+      },
+      "state": "running",
+      "title": {
+        "args": [
+          0,
+          0,
+          {
+            "text": "Downloading macOS 27.0.1"
+          }
+        ],
+        "key": "%lld/%lld %@",
+        "text": "0/0 Downloading macOS 27.0.1"
+      }
     },
     "rows": [
       {
