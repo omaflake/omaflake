@@ -16,8 +16,9 @@ are collected under *Unreleased*. Releases: [GitHub](https://github.com/omaflake
 ## [0.5.0] – 2026-10-25
 
 The guests get looks: omaflake's own – black, high contrast – is the new standard, Catppuccin Mocha (the look so
-far), Rosé Pine Dawn and each program's own colours are a setting away. Your settings file becomes version 2 (an
-older omaflake will not change it any more). Rebuild an image to get any of this inside the VM.
+far), Rosé Pine Dawn and each program's own colours are a setting away. Your settings file becomes version 2: an older
+omaflake ignores it and uses its defaults, so update every omaflake that uses this data folder. Rebuild an image to get
+any of this inside the VM.
 
 ### Added
 
