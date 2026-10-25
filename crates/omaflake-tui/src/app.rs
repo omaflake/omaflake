@@ -22,7 +22,7 @@ use crate::text::{arr, b, fill, s, set_path, t, tr, trf};
 use crate::theme::{Theme, Tone};
 
 /// The tabs before `home` arrives
-const TABS: [&str; 4] = ["vms", "images", "recipes", "activity"];
+const TABS: [&str; 5] = ["vms", "images", "recipes", "looks", "activity"];
 
 /// Keys every page has; a page's tools get the other lowercase letters, `home`'s actions uppercase ones
 pub const RESERVED: &[char] = &['q', 'j', 'k', 'g', 'h', 'l', 'a', 'G'];
@@ -149,6 +149,8 @@ pub struct App {
     subscribed: Vec<PageRef>,
     last_activity: Option<u64>,
     catalogs_asked: bool,
+    /// The Looks tab looked into the catalogs once (plan B141)
+    looks_asked: bool,
     pub tick: u64,
     /// Lines the list area showed last (page up/down)
     pub page_height: usize,
@@ -184,6 +186,7 @@ impl App {
             subscribed: vec![],
             last_activity: None,
             catalogs_asked: false,
+            looks_asked: false,
             tick: 0,
             page_height: 20,
             item_heights: vec![],
@@ -344,6 +347,12 @@ impl App {
                 self.home = Some(model.clone());
             }
             "activity" => self.notify_activity(model),
+            "looks" if !b(model, "catalogsLoaded") && !b(model, "loading") && !self.looks_asked => {
+                self.looks_asked = true;
+                if let Some(refresh) = arr(model, "actions").iter().find(|a| s(a, "id") == "refresh").cloned() {
+                    self.run_action(&refresh);
+                }
+            }
             "recipes" if !b(model, "catalogsLoaded") && !b(model, "loading") && !self.catalogs_asked => {
                 // As the app: the tab looks into the remote catalogs once when it opens (api.md §10.5)
                 self.catalogs_asked = true;

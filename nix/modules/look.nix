@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
-# The look of a guest (plan B135; data since B141) – NixOS and macOS. A recipe picks one like its editor line
-# (`omaflake.look = "catppuccin";`); the user's choice wins: a look's name, or its data (look.toml as read) once
-# omaflake hands it over. looks/adapter.nix makes each program's part of it. Here: the per-program files under
+# The look of a guest (plan B135; data since B141) – NixOS and macOS: an installed look's data (look.toml as read),
+# which omaflake hands over at the build (`settings.look`); none: every program keeps its own colours. looks/adapter.nix
+# makes each program's part of it. Here: the per-program files under
 # /etc/omaflake/look/, which the guest's own configuration loads – home-manager's on NixOS (home/look.nix, home/neovim.nix, home/emacs.nix), the files a macOS
 # recipe writes once into the home folder. A changed look comes with the rebuilt image; the user's files stay.
 #
@@ -20,9 +20,9 @@ let
 in
 {
   options.omaflake.look = lib.mkOption {
-    type = lib.types.either (lib.types.enum looks.names) (lib.types.attrsOf lib.types.anything);
-    default = "omaflake";
-    description = "The guest's look: a name – omaflake (black, high contrast), catppuccin (Catppuccin Mocha), rose-pine-dawn (light and mild) or vanilla (each program's own colours) – or a look's data (look.toml, schema look/v1).";
+    type = lib.types.nullOr (lib.types.attrsOf lib.types.anything);
+    default = null;
+    description = "The guest's look: an installed look's data (look.toml, schema look/v1) – omaflake sets it from the build's choice; null: every program keeps its own colours.";
   };
 
   # For recipes that colour a program of their own (neovim-research: zathura): the look's desktop colours as

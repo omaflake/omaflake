@@ -6,7 +6,6 @@
 use omaflake_core::credentials::{Credential, CredentialChange, Credentials};
 use omaflake_core::guest_settings::BuildChoice;
 use omaflake_core::platform::{full_user_name, user_name};
-use omaflake_core::GuestChoices;
 use omaflake_core::Paths;
 
 use crate::cli;
@@ -139,8 +138,8 @@ pub fn copy_password(reference: &str) -> Outcome {
     Ok(())
 }
 
-/// `--credential` and `--look` of `omaf build`: None = the defaults (a credential is needed – plan B139); "recipe" =
-/// the recipe's own look
+/// `--credential` and `--look` of `omaf build`: None = the defaults (a credential is needed – plan B139); a look is an
+/// installed one (plan B141)
 pub fn build_choice(paths: &Paths, credential_ref: Option<&str>, look: Option<&str>) -> Result<BuildChoice, Failure> {
     let defaults = BuildChoice::defaults(paths);
     let credential = match credential_ref.filter(|r| !r.is_empty()) {
@@ -154,14 +153,14 @@ pub fn build_choice(paths: &Paths, credential_ref: Option<&str>, look: Option<&s
                 .map_err(|_| usage(&["build"], format!("--credential: no credential {r} – see omaf credentials")))?,
         ),
     };
-    let look = match look {
+    let look = match look.filter(|l| !l.is_empty()) {
         None => defaults.look,
-        Some("recipe") | Some("") => None,
-        Some(l) if GuestChoices::LOOKS.iter().any(|(n, _)| *n == l) => Some(l.to_string()),
-        Some(l) => {
-            let names: Vec<&str> = GuestChoices::LOOKS.iter().map(|(n, _)| *n).collect();
-            return Err(usage(&["build"], format!("--look {l}: {} or recipe", names.join(", "))));
-        }
+        Some(l) => Some(
+            omaflake_core::looks::LookStore::new(paths.clone())
+                .find(&omaflake_core::Settings::load(paths), l)
+                .ok_or_else(|| usage(&["build"], format!("--look {l}: not installed – see omaf looks")))?
+                .id,
+        ),
     };
     Ok(BuildChoice { credential, look })
 }

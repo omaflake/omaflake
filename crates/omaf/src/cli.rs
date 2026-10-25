@@ -38,6 +38,11 @@ pub enum Command {
         args_conflicts_with_subcommands = true
     )]
     Credentials(Credentials),
+    #[command(
+        about = "Looks: how the guests look – install them from your sources, remove them, choose the default.",
+        args_conflicts_with_subcommands = true
+    )]
+    Looks(Looks),
     #[command(name = "macos", about = "macOS bases: install from Apple's IPSW with a credential, or assign one.")]
     #[command(subcommand_required = true, arg_required_else_help = true)]
     MacOs {
@@ -324,10 +329,37 @@ pub struct Build {
     #[arg(
         long,
         value_name = "look",
-        help = "The guest's look: omaflake, catppuccin, rose-pine-dawn, vanilla or \"recipe\" for the recipe's own \
-                (default: the default look)"
+        help = "The guest's look: an installed look's name or <author>/<name> (default: the default look; omaf \
+                looks)"
     )]
     pub look: Option<String>,
+}
+
+#[derive(Debug, Args)]
+pub struct Looks {
+    #[command(subcommand)]
+    pub command: Option<LooksCommand>,
+}
+
+#[derive(Debug, Subcommand)]
+pub enum LooksCommand {
+    #[command(about = "The installed looks (* = the default).")]
+    List,
+    #[command(about = "What your sources offer besides (looks into their catalogs).")]
+    Available,
+    #[command(about = "Install a look from your sources: <author>/<name>, or \"recommended\" for omaflake's own and \
+                 Catppuccin.")]
+    Install(LookRef),
+    #[command(name = "rm", about = "Remove an installed look (not while images are built with it).")]
+    Remove(LookRef),
+    #[command(about = "Make a look the default for new images.")]
+    Default(LookRef),
+}
+
+#[derive(Debug, Args)]
+pub struct LookRef {
+    #[arg(value_name = "look", help = "<author>/<name>, its name or its title")]
+    pub look: String,
 }
 
 #[derive(Debug, Args)]
@@ -641,13 +673,6 @@ pub struct Config {
     pub nix: Option<String>,
     #[arg(
         long,
-        value_name = "credential",
-        help = "The credential new images and macOS bases get unless another is chosen: its name or ID (omaf \
-                credentials)"
-    )]
-    pub default_credential: Option<String>,
-    #[arg(
-        long,
         value_name = "guest-locale",
         help = "Locale in the guests, e.g. de_DE.UTF-8 (default: this computer's)"
     )]
@@ -664,13 +689,6 @@ pub struct Config {
         help = "Time zone in the guests, e.g. Europe/Berlin (default: this computer's)"
     )]
     pub guest_time_zone: Option<String>,
-    #[arg(
-        long,
-        value_name = "guest-look",
-        help = "The look new images get unless another is chosen: omaflake, catppuccin, rose-pine-dawn or vanilla; \
-                empty: each recipe's own (default)"
-    )]
-    pub guest_look: Option<String>,
     #[arg(
         long,
         value_name = "keep-recipe-versions",

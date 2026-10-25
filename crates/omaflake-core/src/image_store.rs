@@ -99,9 +99,10 @@ impl ImageInfo {
     /// image.json (see `image_v0_to_v1`, `image_v1_to_v2`)
     pub const FILE_FORMAT: FileFormat = FileFormat::new("image", "image.json", 0, &IMAGE_STEPS);
 
-    /// The credential and look of a build: the look it got (`look_of`), the chosen one and the credential's ID and name
-    pub fn set_choice(&mut self, choice: &BuildChoice, look: Option<String>) {
-        self.look = look;
+    /// The credential and look of a build: the look's id (an installed look's, plan B141 – older images name a look of
+    /// omaflake's own) and the credential's ID and name
+    pub fn set_choice(&mut self, choice: &BuildChoice) {
+        self.look = choice.look.clone();
         self.look_choice = choice.look.clone();
         self.credential = choice.credential.as_ref().map(|c| c.id.clone());
         self.credential_name = choice.credential.as_ref().map(|c| c.name.clone());
@@ -273,21 +274,6 @@ impl ImageStore {
         Ok(Shell::check("nix", &args, &RunOptions::default())?.trim().to_string())
     }
 
-    /// The look a build of `recipe` gets now (`omaflake.look` of its configuration with the guest values, plan B135)
-    /// – evaluation only; None when the flake has no looks or the evaluation fails
-    pub fn look_of(&self, recipe: &str, kind: GuestKind, flake: &str, choice: &BuildChoice) -> Option<String> {
-        let attr = if kind == GuestKind::Macos {
-            format!("darwinConfigurations.\"{recipe}\"")
-        } else {
-            format!("nixosConfigurations.\"vm-{}-{recipe}\"", Platform::host_system(GuestKind::Nixos)?)
-        };
-        let mut args =
-            vec!["eval".to_string(), "--raw".into(), format!("{}#{attr}.config.omaflake.look", Self::flake_ref(flake))];
-        args.extend(self.guest_arguments_for(flake, choice));
-        let look = Shell::check("nix", &args, &RunOptions::default()).ok()?.trim().to_string();
-        (!look.is_empty()).then_some(look)
-    }
-
     /// What a build of each recipe (with an image) would give now, with the credential and look its current image was
     /// built with (plan B137) – recipes that fail to evaluate are left out, and those whose image's credential is gone
     pub fn expected_store_paths(
@@ -406,7 +392,7 @@ impl ImageStore {
                 Some(store_path.clone()),
                 json::now(),
             );
-            info.set_choice(choice, self.look_of(recipe, GuestKind::Nixos, flake, choice));
+            info.set_choice(choice);
             Self::write_info(&info, &dir)?;
         }
         self.set_current(&name)?;

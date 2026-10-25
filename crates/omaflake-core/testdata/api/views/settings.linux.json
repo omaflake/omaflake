@@ -191,75 +191,6 @@
         "choices": [
           {
             "label": {
-              "text": "Work"
-            },
-            "value": "c-1"
-          }
-        ],
-        "enabled": true,
-        "help": {
-          "key": "Credentials are created with the key at the top",
-          "text": "Credentials are created with the key at the top"
-        },
-        "id": "defaultCredential",
-        "kind": "choice",
-        "label": {
-          "key": "Default credential",
-          "text": "Default credential"
-        },
-        "set": {
-          "method": "settings.set",
-          "param": "defaultCredential",
-          "params": {}
-        },
-        "value": "c-1"
-      },
-      {
-        "choices": [
-          {
-            "label": {
-              "key": "Each recipe's own",
-              "text": "Each recipe's own"
-            },
-            "value": null
-          },
-          {
-            "label": {
-              "text": "omaflake"
-            },
-            "value": "omaflake"
-          },
-          {
-            "label": {
-              "text": "Rosé Pine Dawn"
-            },
-            "value": "rose-pine-dawn"
-          }
-        ],
-        "enabled": true,
-        "id": "look",
-        "kind": "choice",
-        "label": {
-          "key": "Default look",
-          "text": "Default look"
-        },
-        "set": {
-          "method": "settings.set",
-          "param": "guest.look",
-          "params": {
-            "guest": {
-              "keyboard": "ch",
-              "locale": "de_CH.UTF-8",
-              "look": "rose-pine-dawn"
-            }
-          }
-        },
-        "value": "rose-pine-dawn"
-      },
-      {
-        "choices": [
-          {
-            "label": {
               "args": [
                 "de_CH.UTF-8"
               ],
@@ -294,8 +225,7 @@
           "params": {
             "guest": {
               "keyboard": "ch",
-              "locale": "de_CH.UTF-8",
-              "look": "rose-pine-dawn"
+              "locale": "de_CH.UTF-8"
             }
           }
         },
@@ -339,8 +269,7 @@
           "params": {
             "guest": {
               "keyboard": "ch",
-              "locale": "de_CH.UTF-8",
-              "look": "rose-pine-dawn"
+              "locale": "de_CH.UTF-8"
             }
           }
         },
@@ -384,8 +313,7 @@
           "params": {
             "guest": {
               "keyboard": "ch",
-              "locale": "de_CH.UTF-8",
-              "look": "rose-pine-dawn"
+              "locale": "de_CH.UTF-8"
             }
           }
         },
@@ -393,8 +321,8 @@
       }
     ],
     "footer": {
-      "key": "Used when an image is built – existing images and their VMs keep what they were built with (language, keyboard …); build an image again to take a change. The credential and look are only preset: the build page lets you choose others. \"Like this computer\" uses this computer's values. The lists offer only what both NixOS and macOS VMs support. Your SSH keys from ~/.ssh are added automatically. A developer flake's local/settings.nix overrides these values.",
-      "text": "Used when an image is built – existing images and their VMs keep what they were built with (language, keyboard …); build an image again to take a change. The credential and look are only preset: the build page lets you choose others. \"Like this computer\" uses this computer's values. The lists offer only what both NixOS and macOS VMs support. Your SSH keys from ~/.ssh are added automatically. A developer flake's local/settings.nix overrides these values."
+      "key": "Used when an image is built – existing images and their VMs keep what they were built with (language, keyboard …); build an image again to take a change. The default credential is set on the Credentials page, the default look in the Looks tab. \"Like this computer\" uses this computer's values. The lists offer only what both NixOS and macOS VMs support. Your SSH keys from ~/.ssh are added automatically. A developer flake's local/settings.nix overrides these values.",
+      "text": "Used when an image is built – existing images and their VMs keep what they were built with (language, keyboard …); build an image again to take a change. The default credential is set on the Credentials page, the default look in the Looks tab. \"Like this computer\" uses this computer's values. The lists offer only what both NixOS and macOS VMs support. Your SSH keys from ~/.ssh are added automatically. A developer flake's local/settings.nix overrides these values."
     },
     "title": {
       "key": "For new images",

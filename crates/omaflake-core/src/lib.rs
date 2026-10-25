@@ -26,6 +26,7 @@ pub mod image_migration;
 pub mod image_store;
 pub mod instance_store;
 pub mod ipsw_downloader;
+pub mod looks;
 pub mod mac_base_installer;
 pub mod mac_image_builder;
 pub mod mac_vm;

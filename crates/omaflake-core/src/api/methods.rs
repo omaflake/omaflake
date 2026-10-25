@@ -145,6 +145,24 @@ impl Server {
             "recipes.list" => self.recipes_list(params(p)?),
             "recipes.available" => Answer::of(self.recipes_available(true)?),
             "recipes.install" => self.recipes_install(params(p)?),
+            "looks.list" => {
+                let fetch = p.get("fetch").and_then(Value::as_bool).unwrap_or(false);
+                if fetch || !lock(&self.inner.catalogs).fetched {
+                    self.fetch_catalogs();
+                }
+                Answer::of(self.looks_answer(self.language().as_deref()))
+            }
+            "looks.install" => self.looks_install(params(p)?),
+            "looks.installRecommended" => self.looks_install_recommended(),
+            "looks.remove" => self.looks_remove(&params::<Id>(p)?.id),
+            "looks.setDefault" => {
+                let id = params::<Id>(p)?.id;
+                crate::looks::LookStore::new(self.paths()).set_default(&id).map_err(err)?;
+                self.check_freshness();
+                self.check_doctor_later();
+                self.poke();
+                Answer::of(Value::Null)
+            }
             "recipes.installSuggested" => self.recipes_install_suggested(),
             "recipes.installUpdates" => self.recipes_install_updates(),
             "recipes.remove" => self.recipes_remove(&params::<Id>(p)?.id),
@@ -293,9 +311,11 @@ impl Server {
                     .iter()
                     .map(|(code, locale)| Keyboard { code: code.to_string(), locale: locale.to_string() })
                     .collect(),
-                looks: GuestChoices::LOOKS
-                    .iter()
-                    .map(|(name, title)| Look { name: name.to_string(), title: title.to_string() })
+                // The installed looks (plan B141): their ids and titles
+                looks: crate::looks::LookStore::new(paths.clone())
+                    .list(&Settings::load(&paths))
+                    .into_iter()
+                    .map(|l| Look { name: l.id, title: l.title })
                     .collect(),
             },
             is_default_data_folder: is_default_data_folder(&paths),
@@ -355,18 +375,12 @@ impl Server {
                 let g: GuestValues =
                     serde_json::from_value(v.clone()).map_err(|e| RpcError::invalid_params(format!("guest: {e}")))?;
                 let clean = |v: Option<String>| v.filter(|x| !x.trim().is_empty());
-                let look = clean(g.look);
-                if let Some(l) = &look {
-                    if !GuestChoices::LOOKS.iter().any(|(n, _)| n == l) {
-                        return Err(RpcError::invalid_params(format!("guest.look: no look \"{l}\"")));
-                    }
-                }
-                // user, fullName and email are a credential's since settings v3 (plan B137) – ignored here
+                // user, fullName and email are a credential's since settings v3 (plan B137), the look is an installed
+                // look's (`looks.setDefault`, settings v4, plan B141) – both ignored here
                 let o = GuestOverrides {
                     time_zone: clean(g.time_zone),
                     locale: clean(g.locale),
                     keyboard: clean(g.keyboard),
-                    look,
                 };
                 s.guest = (o != GuestOverrides::default()).then_some(o);
             }
@@ -1091,6 +1105,158 @@ impl Server {
         }
     }
 
+    /// Installed looks (with their usage and updates) and what the catalogs fetched last offer besides
+    pub(crate) fn looks_answer(&self, language: Option<&str>) -> LooksAnswer {
+        let paths = self.paths();
+        let settings = Settings::load(&paths);
+        let store = crate::looks::LookStore::new(paths.clone());
+        let (looks, unreadable) = store.list_with_errors(&settings);
+        let default = store.default_look(&settings).map(|l| l.id);
+        let installed = store.installed();
+        let sources = settings.recipe_sources();
+        let source_name = |id: &str| {
+            sources.iter().find(|s| s.id() == id).map(RecipeSource::display_name).unwrap_or_else(|| id.to_string())
+        };
+        let official =
+            |id: &str, author: &str| author == "omaflake" && sources.iter().any(|s| s.id() == id && s.is_official());
+        let images = ImageStore::new(paths.clone()).list();
+        let c = lock(&self.inner.catalogs);
+        let offered_version = |l: &crate::looks::Look| {
+            c.catalogs.get(&l.source).and_then(|cat| cat.looks.iter().find(|x| x.id == l.id)).map(|x| x.version.clone())
+        };
+        let dtos: Vec<LookDto> = looks
+            .iter()
+            .map(|l| LookDto {
+                reference: l.reference(),
+                author: l.author.clone(),
+                name: l.name.clone(),
+                title: l.title.clone(),
+                description: l.description_in(language).to_string(),
+                tags: l.tags.clone(),
+                appearance: l.appearance.clone(),
+                plain: l.plain,
+                swatches: l.swatches.clone(),
+                source_name: source_name(&l.source),
+                official: official(&l.source, &l.author),
+                installed: installed.contains_key(&l.id),
+                update: l.version.is_some() && offered_version(l).is_some_and(|v| Some(v) != l.version),
+                is_default: default.as_deref() == Some(l.id.as_str()),
+                images: images
+                    .iter()
+                    .filter(|i| i.info.look.as_deref() == Some(l.id.as_str()))
+                    .map(|i| i.name.clone())
+                    .collect(),
+                source: l.source.clone(),
+                id: l.id.clone(),
+            })
+            .collect();
+        let mut offered = Vec::new();
+        for s in sources.iter().filter(|s| s.is_enabled()) {
+            let Some(cat) = c.catalogs.get(&s.id()) else { continue };
+            for l in &cat.looks {
+                if dtos.iter().any(|d| d.id == l.id) || offered.iter().any(|o: &OfferedLookDto| o.id == l.id) {
+                    continue;
+                }
+                offered.push(OfferedLookDto {
+                    id: l.id.clone(),
+                    reference: format!("{}/{}", l.author, l.name),
+                    author: l.author.clone(),
+                    name: l.name.clone(),
+                    title: l.title.clone(),
+                    description: l.description_in(language).to_string(),
+                    tags: l.tags.clone().unwrap_or_default(),
+                    appearance: l.appearance.clone(),
+                    plain: l.plain,
+                    swatches: l.swatches.clone(),
+                    source: s.id(),
+                    source_name: s.display_name(),
+                    official: l.author == "omaflake" && s.is_official(),
+                });
+            }
+        }
+        LooksAnswer { looks: dtos, offered, unreadable, fetched: c.fetched }
+    }
+
+    fn looks_install(&self, p: InstallParams) -> Reply {
+        let source =
+            Settings::load(&self.paths()).recipe_sources().into_iter().find(|s| s.id() == p.source).ok_or_else(
+                || RpcError::from(vm_err!(codes::NOT_FOUND, "Source \"{}\" is not one of yours", p.source)),
+            )?;
+        Ok(Answer::Job(self.inner.jobs.submit(self.look_install_spec(vec![p.id], source))))
+    }
+
+    /// What the Doctor offers without a look: omaflake's own and Catppuccin from the official catalog (plan B141)
+    fn looks_install_recommended(&self) -> Reply {
+        if let Some(job) = self.inner.jobs.active(JobKind::LookInstall, None) {
+            return Ok(Answer::Job(job));
+        }
+        let ids = crate::looks::LookStore::RECOMMENDED.iter().map(|s| s.to_string()).collect();
+        Ok(Answer::Job(self.inner.jobs.submit(self.look_install_spec(ids, RecipeSource::official()))))
+    }
+
+    fn look_install_spec(&self, ids: Vec<String>, source: RecipeSource) -> JobSpec {
+        let s = self.clone();
+        let title = match ids.as_slice() {
+            [one] => format!("Install {one}"),
+            _ => "Install looks".to_string(),
+        };
+        let mut spec = JobSpec::new(
+            JobKind::LookInstall,
+            title,
+            Box::new(move |ctx: &JobCtx| {
+                let client = SourceClient::new(source.clone(), None);
+                let cached = lock(&s.inner.catalogs).catalogs.get(&source.id()).cloned();
+                let catalog = match cached {
+                    Some(c) => c,
+                    None => client.catalog()?,
+                };
+                let store = crate::looks::LookStore::new(s.paths());
+                // Each on its own: one that is missing in the catalog does not keep the others out
+                let mut installed = Vec::new();
+                let mut first_error = None;
+                for id in &ids {
+                    match store.install(id, &catalog, &client) {
+                        Ok(look) => {
+                            ctx.log(&format!("Installed the look {}", look.title));
+                            installed.push(look.id);
+                        }
+                        Err(e) => {
+                            ctx.log(&format!("{id}: {}", e.message()));
+                            first_error.get_or_insert(e);
+                        }
+                    }
+                }
+                match first_error {
+                    Some(e) if installed.is_empty() => Err(e),
+                    _ => result(InstallResult { installed }),
+                }
+            }),
+        );
+        spec.cancellable = false;
+        spec.log_file = Some(self.paths().logs().join("look-install.log"));
+        let s = self.clone();
+        spec.on_end = Some(Box::new(move |_| {
+            s.check_freshness();
+            s.check_doctor_later();
+            s.poke();
+        }));
+        spec
+    }
+
+    /// Removes an installed look – not while images are built with it (they could not be built again)
+    fn looks_remove(&self, id: &str) -> Reply {
+        let used =
+            ImageStore::new(self.paths()).list().into_iter().filter(|i| i.info.look.as_deref() == Some(id)).count();
+        if used > 0 {
+            return Err(RpcError::from(vm_err!(codes::IN_USE, "Images are built with this look – remove them first")));
+        }
+        crate::looks::LookStore::new(self.paths()).remove(id).map_err(err)?;
+        self.events().message_text(Level::Info, super::views::text::tf!("Look %@ removed", id));
+        self.check_doctor_later();
+        self.poke();
+        Answer::of(Value::Null)
+    }
+
     fn recipes_install(&self, p: InstallParams) -> Reply {
         if let Some(job) = self.inner.jobs.active(JobKind::RecipeInstall, Some(&p.id)) {
             return Ok(Answer::Job(job));
@@ -1738,13 +1904,8 @@ pub(crate) fn settings_dto(paths: &Paths) -> SettingsDto {
         notifications: s.notifications.unwrap_or(true),
         keep_recipe_versions: s.keep_recipe_versions.unwrap_or(false),
         default_credential: Credentials::new(paths.clone()).default_credential().map(|c| c.id),
-        guest: GuestValues {
-            time_zone: g.time_zone,
-            locale: g.locale,
-            keyboard: g.keyboard,
-            look: g.look,
-            ..Default::default()
-        },
+        guest: GuestValues { time_zone: g.time_zone, locale: g.locale, keyboard: g.keyboard, ..Default::default() },
+        default_look: crate::looks::LookStore::new(paths.clone()).default_look(&s).map(|l| l.id),
         flake_in_use: s.flake_path().ok(),
         flake: s.flake,
         qemu: s.qemu,
@@ -2020,7 +2181,7 @@ struct CredentialParams {
 }
 
 /// The credential and look of a build (plan B137): `credential` None = the default, "" = this computer's values, else
-/// its ID; `look` None = the default look, "" = the recipe's own, else one of `GuestChoices::LOOKS`
+/// its ID; `look` None or "" = the default look, else an installed look (id, "<author>/<name>", name or title)
 pub(crate) fn build_choice(
     paths: &Paths,
     credential: Option<&str>,
@@ -2040,11 +2201,14 @@ pub(crate) fn build_choice(
             .ok_or_else(|| RpcError::from(vm_err!(codes::NOT_FOUND, "No credential \"{id}\"")))?,
     };
     let credential = Some(credential);
-    let look = match look {
+    let look = match look.filter(|l| !l.is_empty()) {
         None => defaults.look,
-        Some("") => None,
-        Some(l) if GuestChoices::LOOKS.iter().any(|(n, _)| *n == l) => Some(l.to_string()),
-        Some(l) => return Err(RpcError::invalid_params(format!("look: no look \"{l}\""))),
+        Some(l) => Some(
+            crate::looks::LookStore::new(paths.clone())
+                .find(&Settings::load(paths), l)
+                .ok_or_else(|| RpcError::from(vm_err!(codes::NOT_FOUND, "No look \"{l}\" – install it first (Looks)")))?
+                .id,
+        ),
     };
     Ok(BuildChoice { credential, look })
 }

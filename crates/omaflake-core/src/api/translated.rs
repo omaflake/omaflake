@@ -92,6 +92,7 @@ fn every_check(host: crate::api::views::HostOs) -> Vec<crate::api::types::Prereq
         I::Flake,
         I::SshKey,
         I::Credential,
+        I::Look,
         I::Git,
         I::Cli,
         I::BuilderRunning,

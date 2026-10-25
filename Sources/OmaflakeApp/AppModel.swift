@@ -51,7 +51,7 @@ final class AppModel {
 
     /// Tabs of the main page (plan B91); the core's `home` page names them
     enum HomeTab: String, CaseIterable {
-        case vms, images, recipes, activity
+        case vms, images, recipes, looks, activity
     }
 
     var tab: HomeTab = .vms {

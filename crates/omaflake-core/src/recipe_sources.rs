@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 //! Port of RecipeSources.swift – work package F3.
 //!
-//! Recipe sources (spec §11.3, plan B107): omaflake ships no recipes. It reads them from sources – omaflake/recipes on
+//! Recipe sources (spec §11.3, plan B107): omaflake ships no recipes. It reads them from sources – omaflake/catalog on
 //! GitHub by default, other GitHub repositories (also private ones, with a fine-grained token), any HTTPS folder with a
 //! catalog.json, or a local folder. Recipes from a remote source are downloaded (every file checked against the
 //! catalog's SHA-256) into <data folder>/recipes/<id>/; a local folder is used as it is, so a recipe being written
@@ -76,9 +76,9 @@ impl RecipeSource {
         RecipeSource { kind, location: location.into(), branch, is_private, enabled }
     }
 
-    /// The default source: omaflake's own recipes
+    /// The default source: omaflake's catalog – recipes and looks (plan B140; omaflake/recipes before)
     pub fn official() -> Self {
-        Self::new(RecipeSourceKind::Github, "omaflake/recipes", None, None, None)
+        Self::new(RecipeSourceKind::Github, "omaflake/catalog", None, None, None)
     }
 
     /// "github:<owner/repo lowercased>@<branch>", "url:<location>", "folder:<path>"
@@ -110,9 +110,11 @@ impl RecipeSource {
         self.kind == RecipeSourceKind::Github && self.is_private.unwrap_or(false)
     }
 
-    /// omaflake/recipes on GitHub – its recipes by `omaflake` are marked as official (an author name alone is not enough)
+    /// omaflake/catalog on GitHub (omaflake/recipes, archived, until 1.0) – its entries by `omaflake` are marked as
+    /// official (an author name alone is not enough)
     pub fn is_official(&self) -> bool {
-        self.kind == RecipeSourceKind::Github && self.location.to_lowercase() == "omaflake/recipes"
+        self.kind == RecipeSourceKind::Github
+            && matches!(self.location.to_lowercase().as_str(), "omaflake/catalog" | "omaflake/recipes")
     }
 
     /// Short name for lists: "owner/repo (branch)", "<host><folder of catalog.json>", "~/…"
@@ -219,7 +221,7 @@ impl RecipeSource {
 }
 
 impl Settings {
-    /// The sources in their order (earlier ones win when two have the same recipe); none set = omaflake/recipes
+    /// The sources in their order (earlier ones win when two have the same recipe); none set = omaflake/catalog
     pub fn recipe_sources(&self) -> Vec<RecipeSource> {
         self.sources.clone().unwrap_or_else(|| vec![RecipeSource::official()])
     }
@@ -423,19 +425,22 @@ impl CatalogRecipe {
     }
 }
 
-/// catalog.json, version 2 (omaflake/recipes, tools/catalog.py). Everything in it comes from the source – untrusted:
+/// catalog.json, version 3 (omaflake/catalog, tools/catalog.py). Everything in it comes from the source – untrusted:
 /// paths and names are checked before anything is written.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct RecipeCatalog {
     pub source: CatalogSource,
     pub recipes: Vec<CatalogRecipe>,
+    /// Looks (catalog v3, plan B140); none in older catalogs
+    #[serde(default)]
+    pub looks: Vec<crate::looks::CatalogLook>,
 }
 
 impl RecipeCatalog {
-    /// The catalog's version this omaflake knows – `$schema` https://omaflake.dev/schema/catalog/v2.json (2: `systems`
-    /// per recipe, plan B114) – and the oldest it reads: version 1 (`"schema": 1`, before B114; its recipes ran on Apple
-    /// silicon). A catalog comes from its source and is only read, never rewritten.
-    pub const VERSION: usize = 2;
+    /// The catalog's version this omaflake knows – `$schema` https://omaflake.dev/schema/catalog/v3.json (2: `systems`
+    /// per recipe, plan B114; 3: `looks`, plan B140) – and the oldest it reads: version 1 (`"schema": 1`, before B114;
+    /// its recipes ran on Apple silicon). A catalog comes from its source and is only read, never rewritten.
+    pub const VERSION: usize = 3;
     pub const MINIMUM: usize = 1;
 
     /// Reads catalog.json: version from `$schema` (type must be "catalog") or the old `"schema": n`; checked with
@@ -742,6 +747,9 @@ impl RecipeLibrary {
     /// .installed.json, schema `installed` (plan B114). 0 → 1: the map was the whole file
     pub const FILE_FORMAT: FileFormat = FileFormat::new("installed", ".installed.json", 0, &INSTALLED_STEPS);
 
+    /// The official source's id before omaflake/catalog (plan B140)
+    const OLD_OFFICIAL: &'static str = "github:omaflake/recipes@main";
+
     /// Source name of recipes that came from a package or a folder (no catalog, no updates)
     pub const IMPORTED_SOURCE: &'static str = "import";
 
@@ -765,7 +773,16 @@ impl RecipeLibrary {
     /// Downloaded recipes by ID (dates read with or without fractions; migrated files are written back)
     pub fn installed(&self) -> BTreeMap<String, Installed> {
         let Ok(data) = fs::read(self.manifest_file()) else { return BTreeMap::new() };
-        let Ok((file, migrated)) = Self::FILE_FORMAT.decode::<InstalledFile>(&data) else { return BTreeMap::new() };
+        let Ok((mut file, mut migrated)) = Self::FILE_FORMAT.decode::<InstalledFile>(&data) else {
+            return BTreeMap::new();
+        };
+        // Recipes from omaflake/recipes come from its successor omaflake/catalog (plan B140), as the settings' source
+        for entry in file.recipes.values_mut() {
+            if entry.source == Self::OLD_OFFICIAL {
+                entry.source = RecipeSource::official().id();
+                migrated = true;
+            }
+        }
         if migrated {
             let _ = self.save_manifest(&file.recipes);
         }
@@ -1673,9 +1690,11 @@ mod tests {
     #[test]
     fn source_ids_and_tags() {
         let s = RecipeSource::official();
-        assert_eq!(s.id(), "github:omaflake/recipes@main");
+        assert_eq!(s.id(), "github:omaflake/catalog@main");
         assert_eq!(s.tag().len(), 8);
-        assert_eq!(s.tag(), RecipeSource::tag_for_key("github:omaflake/recipes@main"));
+        assert_eq!(s.tag(), RecipeSource::tag_for_key("github:omaflake/catalog@main"));
+        // The archived omaflake/recipes stays official until 1.0 (plan B140)
+        assert!(RecipeSource::new(RecipeSourceKind::Github, "omaflake/recipes", None, None, None).is_official());
         assert!(s.is_official() && s.is_enabled() && !s.is_private_repository());
         let json =
             serde_json::to_string(&RecipeSource::new(RecipeSourceKind::Github, "a/b", None, Some(true), None)).unwrap();
@@ -1734,7 +1753,7 @@ mod tests {
         );
         assert_eq!(
             client(RecipeSource::official()).url("recipes/omaflake/nixos/minimal/recipe.toml").unwrap(),
-            "https://raw.githubusercontent.com/omaflake/recipes/main/recipes/omaflake/nixos/minimal/recipe.toml"
+            "https://raw.githubusercontent.com/omaflake/catalog/main/recipes/omaflake/nixos/minimal/recipe.toml"
         );
         let private = RecipeSource::new(RecipeSourceKind::Github, "a/b", None, Some(true), None);
         assert_eq!(
@@ -2163,11 +2182,14 @@ mod tests {
             crate::mac_vm::MacVmConfig::FILE_FORMAT,
             Manifest::FILE_FORMAT,
             crate::source_tokens::TokenFile::FILE_FORMAT,
+            crate::looks::LookStore::FILE_FORMAT,
         ];
         let mut urls: Vec<String> =
             formats.iter().flat_map(|f| (1..=f.current()).map(|v| FileFormat::schema_for(f.type_, v))).collect();
         urls.extend((2..=RecipeCatalog::VERSION).map(|v| FileFormat::schema_for("catalog", v)));
         urls.extend((1..=RecipeLibrary::RECIPE_VERSION).map(|v| FileFormat::schema_for("recipe", v)));
+        urls.extend((1..=crate::looks::LookStore::LOOK_VERSION).map(|v| FileFormat::schema_for("look", v)));
+        urls.push(FileFormat::schema_for("base", 1));
         for url in urls {
             assert_eq!(schema(&url)["$id"].as_str(), Some(url.as_str()));
         }
@@ -2196,9 +2218,12 @@ mod tests {
             flake: Some("/f".into()),
             sources: Some(vec![RecipeSource::official()]),
             guest: Some(GuestOverrides { keyboard: Some("us".into()), ..Default::default() }),
+            default_credential: Some("c-1".into()),
+            default_look: Some("omaflake.look.omaflake".into()),
             ..Default::default()
         };
         matches(&Settings::FILE_FORMAT.encode(&s).unwrap());
+        matches(&crate::looks::sample_file());
         let mac = crate::mac_vm::MacVmConfig::new(4, 8192, 80, "02:00:00:00:00:01", Some("26A434".into()));
         matches(&crate::mac_vm::MacVmConfig::FILE_FORMAT.encode(&mac).unwrap());
         let m = Manifest::new(PackageKind::Vm, "a", Some(GuestKind::Nixos), None, None, None);
@@ -2251,8 +2276,11 @@ mod tests {
         let v1 = br#"{"schema":1,"source":{"name":"old"},"recipes":[{"id":"a.macos.m","author":"a","kind":"macos","name":"m","path":"recipes/a/macos/m","description":"d","version":"v","files":[]}]}"#;
         let catalog = RecipeCatalog::decode(v1).unwrap();
         assert_eq!(catalog.recipes[0].systems, vec!["aarch64-darwin"]);
-        let v3 = br#"{"$schema":"https://omaflake.dev/schema/catalog/v3.json","source":{"name":"x"},"recipes":[]}"#;
-        assert_eq!(RecipeCatalog::decode(v3).unwrap_err().code(), Some(codes::NEWER_FILE));
+        let v4 = br#"{"$schema":"https://omaflake.dev/schema/catalog/v4.json","source":{"name":"x"},"recipes":[]}"#;
+        assert_eq!(RecipeCatalog::decode(v4).unwrap_err().code(), Some(codes::NEWER_FILE));
+        // v3: looks next to recipes (plan B140); v2 has none
+        let v3 = br#"{"$schema":"https://omaflake.dev/schema/catalog/v3.json","source":{"name":"x"},"recipes":[],"looks":[{"id":"a.look.l","author":"a","name":"l","path":"looks/a/l","title":"L","description":"d","appearance":"dark","version":"v","files":[]}]}"#;
+        assert_eq!(RecipeCatalog::decode(v3).unwrap().looks[0].title, "L");
         let foreign = br#"{"$schema":"https://omaflake.dev/schema/image/v1.json","source":{"name":"x"},"recipes":[]}"#;
         assert!(RecipeCatalog::decode(foreign)
             .unwrap_err()

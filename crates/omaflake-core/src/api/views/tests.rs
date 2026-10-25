@@ -15,6 +15,72 @@ use crate::models::VmStatus;
 
 /// A context from the contract's fixtures: a running NixOS VM, a busy stopped macOS VM, two images, two recipes, the
 /// catalogs looked into, the Doctor's report, the jobs of `jobs.list`, an update check, two activity entries
+/// Rosé Pine Dawn installed (the default, an image built with it), omaflake's look in a local folder, Catppuccin offered
+pub(crate) fn looks_fixture() -> crate::api::types::LooksAnswer {
+    use crate::api::types::{LookDto, LooksAnswer, OfferedLookDto};
+    use crate::looks::Swatches;
+    let swatches = |bg: &str, accent: &str| {
+        Some(Swatches {
+            background: bg.into(),
+            surface: bg.into(),
+            text: "#575279".into(),
+            accent: accent.into(),
+            urgent: "#b4637a".into(),
+            terminal: vec!["#f2e9e1".into(); 16],
+        })
+    };
+    let look =
+        |name: &str, title: &str, appearance: &str, installed: bool, default: bool, images: Vec<String>| LookDto {
+            id: format!("omaflake.look.{name}"),
+            reference: format!("omaflake/{name}"),
+            author: "omaflake".into(),
+            name: name.into(),
+            title: title.into(),
+            description: format!("{title}."),
+            tags: vec![appearance.into()],
+            appearance: Some(appearance.into()),
+            plain: false,
+            swatches: swatches("#faf4ed", "#907aa9"),
+            source: if installed { "github:omaflake/catalog@main".into() } else { "folder:/src/catalog".into() },
+            source_name: if installed { "omaflake/catalog".into() } else { "/src/catalog".into() },
+            official: installed,
+            installed,
+            update: false,
+            is_default: default,
+            images,
+        };
+    LooksAnswer {
+        looks: vec![
+            look(
+                "rose-pine-dawn",
+                "Rosé Pine Dawn",
+                "light",
+                true,
+                true,
+                vec!["omaflake.nixos.dev@cedar-mango-lift".into()],
+            ),
+            look("omaflake", "omaflake", "dark", false, false, vec![]),
+        ],
+        offered: vec![OfferedLookDto {
+            id: "omaflake.look.catppuccin".into(),
+            reference: "omaflake/catppuccin".into(),
+            author: "omaflake".into(),
+            name: "catppuccin".into(),
+            title: "Catppuccin Mocha".into(),
+            description: "Pastel.".into(),
+            tags: vec!["dark".into()],
+            appearance: Some("dark".into()),
+            plain: false,
+            swatches: swatches("#1e1e2e", "#cba6f7"),
+            source: "github:omaflake/catalog@main".into(),
+            source_name: "omaflake/catalog".into(),
+            official: true,
+        }],
+        unreadable: vec![],
+        fetched: true,
+    }
+}
+
 pub(crate) fn ctx() -> Ctx {
     let answer = fx::settings_answer();
     Ctx {
@@ -42,6 +108,7 @@ pub(crate) fn ctx() -> Ctx {
             has_password: true,
             is_default: true,
         }],
+        looks: looks_fixture(),
         bases: vec![crate::api::types::BaseDto {
             name: "mac-base-26A434".into(),
             path: "/data/bases/mac-base-26A434".into(),
@@ -490,14 +557,17 @@ fn build_page_follows_the_job() {
     assert!(build.get("ask").is_none());
     assert_eq!(
         build["params"],
-        json!({"recipe": "lab.macos.base@ocean-maple", "credential": "c-1", "look": "rose-pine-dawn"})
+        json!({"recipe": "lab.macos.base@ocean-maple", "credential": "c-1", "look": "omaflake.look.rose-pine-dawn"})
     );
     let fields: Vec<&str> = page["fields"].as_array().unwrap().iter().map(|f| f["id"].as_str().unwrap()).collect();
     assert_eq!(fields, ["credential", "look"]);
     assert_eq!(page["fields"][0]["valueParam"], "credential");
     assert_eq!(page["fields"][0]["choices"][0]["label"]["text"], "Work – alex");
     assert_eq!(page["fields"][0]["enabled"], false, "the base's credential");
-    assert_eq!(page["fields"][1]["choices"][0]["label"]["key"], "The recipe's own");
+    // The installed looks (plan B141), the default preset; no "recipe's own" any more
+    let looks: Vec<&str> =
+        page["fields"][1]["choices"].as_array().unwrap().iter().map(|c| c["value"].as_str().unwrap()).collect();
+    assert_eq!(looks, ["omaflake.look.rose-pine-dawn", "omaflake.look.omaflake"]);
     assert_eq!(build["enabled"], true);
     assert_eq!(page["state"], "idle");
     // A base from before credentials: assign one first – still no password asked
@@ -735,24 +805,13 @@ fn settings_fields_store_themselves() {
     assert_eq!(dev["value"], true);
     let locale = action(&page["guest"]["fields"], "locale");
     assert_eq!(locale["set"]["param"], "guest.locale");
-    assert_eq!(
-        locale["set"]["params"],
-        json!({"guest": {"locale": "de_CH.UTF-8", "keyboard": "ch", "look": "rose-pine-dawn"}})
-    );
+    assert_eq!(locale["set"]["params"], json!({"guest": {"locale": "de_CH.UTF-8", "keyboard": "ch"}}));
     assert_eq!(locale["choices"][0]["label"]["text"], "Like this Mac – de_CH.UTF-8");
-    // The defaults of new images (plan B137): the credential (always one – the host has none, plan B139) and the
-    // look (null = the recipe's own); user, full name and e-mail are a credential's
-    let credential = action(&page["guest"]["fields"], "defaultCredential");
-    assert_eq!(credential["set"], json!({"method": "settings.set", "params": {}, "param": "defaultCredential"}));
-    assert_eq!(credential["value"], "c-1");
-    assert_eq!(credential["choices"][0]["label"]["text"], "Work");
-    assert!(page["guest"]["fields"].as_array().unwrap().iter().all(|f| f["id"] != "user"));
-    let look = action(&page["guest"]["fields"], "look");
-    assert_eq!(look["value"], "rose-pine-dawn");
-    assert_eq!(look["set"]["param"], "guest.look");
-    assert_eq!(look["choices"][0]["value"], Value::Null);
-    assert_eq!(look["choices"][0]["label"]["key"], "Each recipe's own");
-    assert_eq!(look["choices"][2]["label"]["text"], "Rosé Pine Dawn");
+    // "For new images" keeps language, keyboard and time zone: the default credential is set on the Credentials page,
+    // the default look in the Looks tab (plan B141); user, full name and e-mail are a credential's
+    let ids: Vec<&str> =
+        page["guest"]["fields"].as_array().unwrap().iter().map(|f| f["id"].as_str().unwrap()).collect();
+    assert_eq!(ids, ["locale", "keyboard", "timeZone"]);
     // A VM runs: the data folder stays
     let df = &page["dataFolder"];
     assert_eq!(action(&df["actions"], "move")["reason"]["key"], "Stop all VMs before moving the data folder.");
@@ -1239,4 +1298,47 @@ fn macos_bases_are_a_section_of_the_images_on_a_mac() {
     assert_eq!(get(&c, "images", json!({}))["bases"]["empty"]["action"]["id"], "macBase");
     c.host = HostOs::Linux;
     assert!(get(&c, "images", json!({})).get("bases").is_none());
+}
+
+// MARK: Looks (plan B141)
+
+#[test]
+fn looks_are_a_tab_with_their_colours_usage_and_offers() {
+    let mut c = ctx();
+    let home = get(&c, "home", json!({}));
+    let tabs: Vec<&str> = home["tabs"].as_array().unwrap().iter().map(|t| t["id"].as_str().unwrap()).collect();
+    assert_eq!(tabs, ["vms", "images", "recipes", "looks", "activity"]);
+    let page = get(&c, "looks", json!({}));
+    assert_eq!(page["title"]["key"], "Looks");
+    let rose = &page["rows"][0];
+    assert_eq!(rose["name"], "Rosé Pine Dawn");
+    assert_eq!(rose["subtitle"]["text"], "omaflake/rose-pine-dawn · light · 1 image");
+    assert_eq!(ids(&rose["badges"]), ["default", "official"]);
+    assert_eq!(rose["swatches"].as_array().unwrap().len(), 11);
+    assert!(rose["actions"].as_array().unwrap().is_empty(), "the default needs no quick action");
+    let remove = action(&rose["detail"]["actions"], "remove");
+    assert_eq!(
+        (remove["enabled"].clone(), remove["reason"]["key"].clone()),
+        (json!(false), json!("Images are built with it – remove them first"))
+    );
+    // A local folder's look: Make Default as its quick action, removed there
+    let local = &page["rows"][1];
+    assert_eq!(ids(&local["actions"]), ["default"]);
+    assert!(ids(&local["badges"]).iter().any(|b| b == "folder"));
+    assert_eq!(action(&local["detail"]["actions"], "remove")["enabled"], false);
+    // Offered: Install from its source
+    assert_eq!(page["offeredTitle"]["key"], "In your sources");
+    let install = action(&page["offered"][0]["actions"], "install");
+    assert_eq!(install["params"], json!({"id": "omaflake.look.catppuccin", "source": "github:omaflake/catalog@main"}));
+    // None installed: the tab says so, offers the recommended ones, and its badge warns
+    c.looks.looks.clear();
+    c.looks.offered.clear();
+    let page = get(&c, "looks", json!({}));
+    assert_eq!(page["empty"]["action"]["method"], "looks.installRecommended");
+    let home = get(&c, "home", json!({}));
+    assert_eq!(home["tabs"][3]["badge"]["tone"], "warning");
+    // The build page can't build without a look
+    c.jobs.clear();
+    let build = get(&c, "build", json!({"recipe": "omaflake.nixos.dev@velvet-tiger-orbit"}));
+    assert_eq!(action(&build["actions"], "build")["enabled"], false);
 }

@@ -327,7 +327,33 @@ fn settings_v2_to_v3(o: &mut Map<String, Value>) -> Result<()> {
     Ok(())
 }
 
-static SETTINGS_STEPS: [Step; 3] = [settings_v0_to_v1, settings_v1_to_v2, settings_v2_to_v3];
+/// Settings 3 → 4 (plan B141): looks are installed things, not names – the guest look becomes the default look's id
+/// (`defaultLook`, the look may still have to be installed: the Doctor says so); the official source is
+/// omaflake/catalog instead of omaflake/recipes (plan B140)
+fn settings_v3_to_v4(o: &mut Map<String, Value>) -> Result<()> {
+    if let Some(Value::Object(guest)) = o.get_mut("guest") {
+        let look = guest.remove("look");
+        if guest.is_empty() {
+            o.remove("guest");
+        }
+        if let Some(Value::String(name)) = look.filter(|v| v.as_str().is_some_and(|s| !s.is_empty())) {
+            o.insert("defaultLook".into(), Value::String(format!("omaflake.look.{name}")));
+        }
+    }
+    if let Some(Value::Array(sources)) = o.get_mut("sources") {
+        for s in sources.iter_mut() {
+            let github = s.get("kind").and_then(Value::as_str) == Some("github");
+            let old =
+                s.get("location").and_then(Value::as_str).is_some_and(|l| l.eq_ignore_ascii_case("omaflake/recipes"));
+            if github && old {
+                s["location"] = Value::String("omaflake/catalog".into());
+            }
+        }
+    }
+    Ok(())
+}
+
+static SETTINGS_STEPS: [Step; 4] = [settings_v0_to_v1, settings_v1_to_v2, settings_v2_to_v3, settings_v3_to_v4];
 
 /// Settings in ~/.omaflake/config.json (optional). Keys as Swift writes them (`externalVMs`, `developerMode`, …);
 /// fields that are None are left out.
@@ -361,6 +387,9 @@ pub struct Settings {
     /// The credential a new image gets unless another one is chosen; None: this computer's values
     #[serde(rename = "defaultCredential", default, skip_serializing_if = "Option::is_none")]
     pub default_credential: Option<String>,
+    /// The look new images get unless another is chosen (plan B141): an installed look's id
+    #[serde(rename = "defaultLook", default, skip_serializing_if = "Option::is_none")]
+    pub default_look: Option<String>,
     /// Data folder; None = ~/.omaflake. Only read from ~/.omaflake/config.json; change it with `DataFolder::move_to`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub home: Option<String>,
@@ -562,19 +591,19 @@ pub(crate) mod tests {
         assert_eq!(Settings::load(&p), Settings::default());
     }
 
-    /// config.json as the Swift version wrote it, now v3 with a look and a credential (testdata/config-v3.json)
+    /// config.json as the Swift version wrote it, now v4 with a default look and a credential (testdata/config-v4.json)
     #[test]
     fn swift_settings_fixture_round_trips() {
-        let data = include_bytes!("../testdata/config-v3.json");
+        let data = include_bytes!("../testdata/config-v4.json");
         let (s, migrated) = Settings::FILE_FORMAT.decode::<Settings>(data).unwrap();
         assert!(!migrated);
         assert_eq!(s.default_credential.as_deref(), Some("c-1"));
         assert_eq!(s.credentials.as_ref().unwrap()[0].full_name.as_deref(), Some("Jane Doe"));
-        assert_eq!(s.guest.as_ref().and_then(|g| g.look.clone()), Some("rose-pine-dawn".into()));
+        assert_eq!(s.default_look.as_deref(), Some("omaflake.look.rose-pine-dawn"));
         assert_eq!(s.external_vms.as_deref(), Some(&["/Volumes/stick/research.omaflake-vm".to_string()][..]));
         assert_eq!(s.developer_mode, Some(true));
         assert_eq!(s.guest.as_ref().and_then(|g| g.time_zone.clone()), Some("Europe/Berlin".into()));
-        assert_eq!(s.sources.as_ref().unwrap()[1].is_private, Some(true));
+        assert_eq!(s.sources.as_ref().unwrap()[2].is_private, Some(true));
         let written = Settings::FILE_FORMAT.encode(&s).unwrap();
         assert_eq!(String::from_utf8(written).unwrap(), String::from_utf8_lossy(data).trim_end());
     }
@@ -582,7 +611,7 @@ pub(crate) mod tests {
     /// A v1 file (before looks) and a v2 file (before credentials) are read as they are and written as v3: the
     /// guest's user and full name become the default credential
     #[test]
-    fn older_settings_become_version_three() {
+    fn older_settings_become_version_four() {
         for data in
             [&include_bytes!("../testdata/config-v1.json")[..], &include_bytes!("../testdata/config-v2.json")[..]]
         {
@@ -595,9 +624,22 @@ pub(crate) mod tests {
             assert_eq!(s.default_credential.as_deref(), Some(c.id.as_str()));
             assert_eq!(s.guest.as_ref().and_then(|g| g.time_zone.clone()), Some("Europe/Berlin".into()));
             let written = String::from_utf8(Settings::FILE_FORMAT.encode(&s).unwrap()).unwrap();
-            assert!(written.starts_with("{\n  \"$schema\" : \"https://omaflake.dev/schema/settings/v3.json\""));
+            assert!(written.starts_with("{\n  \"$schema\" : \"https://omaflake.dev/schema/settings/v4.json\""));
             assert!(!written.contains("\"user\" : \"jane\",\n    \"look\""));
         }
+        // 3 → 4 (plan B141): the guest look becomes the default look's id, omaflake/recipes becomes omaflake/catalog
+        let (s, migrated) =
+            Settings::FILE_FORMAT.decode::<Settings>(include_bytes!("../testdata/config-v3.json")).unwrap();
+        assert!(migrated);
+        assert_eq!(s.default_look.as_deref(), Some("omaflake.look.rose-pine-dawn"));
+        assert_eq!(s.guest.as_ref().and_then(|g| g.time_zone.clone()), Some("Europe/Berlin".into()));
+        let (s, _) = Settings::FILE_FORMAT
+            .decode::<Settings>(
+                br#"{"$schema":"https://omaflake.dev/schema/settings/v3.json","guest":{"look":"vanilla"},"sources":[{"kind":"github","location":"omaflake/recipes"}]}"#,
+            )
+            .unwrap();
+        assert!(s.guest.is_none() && s.default_look.as_deref() == Some("omaflake.look.vanilla"));
+        assert_eq!(s.sources.unwrap()[0].location, "omaflake/catalog");
         // Without a user of its own: no credential, this computer's values stay the default
         let (s, _) = Settings::FILE_FORMAT
             .decode::<Settings>(
@@ -614,7 +656,7 @@ pub(crate) mod tests {
         let s = Settings::load(&p);
         assert_eq!(s.flake.as_deref(), Some("/f"));
         let text = fs::read_to_string(&p.config_file).unwrap();
-        assert!(text.starts_with("{\n  \"$schema\" : \"https://omaflake.dev/schema/settings/v3.json\""));
+        assert!(text.starts_with("{\n  \"$schema\" : \"https://omaflake.dev/schema/settings/v4.json\""));
     }
 
     #[test]

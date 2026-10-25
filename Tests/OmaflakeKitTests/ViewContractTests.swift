@@ -26,7 +26,7 @@ extension APIContractTests {
                 #expect(h.actions.map(\.id) == ["doctor", "credentials", "settings", "dataFolder", "quit"] && h.actions[0].badge == 3)
                 #expect(h.actions[4].confirm?.text.args == [.string("research")] && h.firstTab == "vms")
                 #expect(h.actions[1].icon == "key")
-                #expect(h.tabs.map(\.id) == ["vms", "images", "recipes", "activity"] && h.tabs[0].badge?.count == 1)
+                #expect(h.tabs.map(\.id) == ["vms", "images", "recipes", "looks", "activity"] && h.tabs[0].badge?.count == 1)
                 #expect(h.tabs[1].badge?.kind == "working" && h.tabs[2].badge?.tone == .warning && h.tabs[3].badge == nil)
                 // The window's title is data; the header's short labels
                 #expect(h.title == ViewText(verbatim: "omaflake"))
@@ -205,6 +205,14 @@ extension APIContractTests {
                 guard case .credential(let p) = try page("credential.edit", as: "credential") else { throw Unexpected() }
                 #expect(p.id == "c-1" && p.locked != nil && p.fields.filter(\.enabled).map(\.id) == ["name"])
                 #expect(p.actions.last?.method == "credentials.update" && p.actions.last?.params["id"] == .string("c-1"))
+            },
+            "looks": {
+                // The Looks tab (plan B141): rows with a colour strip and usage, the default without a quick action,
+                // offered looks with Install
+                guard case .looks(let p) = try page("looks", as: "looks") else { throw Unexpected() }
+                #expect(p.rows.map(\.name) == ["Rosé Pine Dawn", "omaflake"] && p.rows[0].swatches.count == 11)
+                #expect(p.rows[0].badges.map(\.id) == ["default", "official"] && p.rows[0].actions.isEmpty)
+                #expect(p.offered.first?.actions.first?.method == "looks.install" && p.catalogsLoaded)
             },
             "credentials.linux": {
                 guard case .credentials(let p) = try page("credentials.linux", as: "credentials") else { throw Unexpected() }

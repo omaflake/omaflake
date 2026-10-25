@@ -320,7 +320,7 @@ fn detail(ctx: &Ctx, v: &Vm) -> VmDetail {
     // The credential and the look come with the image (plan B135, B137)
     if let Some(image) = ctx.images.iter().find(|i| i.name == v.image) {
         info.push(super::images::credential_line(ctx, image));
-        info.push(super::images::look_line(image.look.as_deref()));
+        info.push(super::images::look_line(ctx, image.look.as_deref()));
     }
     info.push(InfoLine::new(
         "Resources",

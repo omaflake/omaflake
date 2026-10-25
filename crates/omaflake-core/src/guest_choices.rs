@@ -206,8 +206,8 @@ impl GuestChoices {
         ("cz", "cs_CZ"),
     ];
 
-    /// The guests' looks (plan B135), in the image flake's order (nix/looks/default.nix): (name, display name). NixOS
-    /// guests take the whole desktop from it, macOS guests their terminal's and editor's colours.
+    /// omaflake's own looks before they became installable (plan B135 → B141): (name, display name) – the titles of
+    /// what older images name; looks now come from the sources (`looks::LookStore`).
     pub const LOOKS: [(&'static str, &'static str); 4] = [
         ("omaflake", "omaflake"),
         ("catppuccin", "Catppuccin Mocha"),
@@ -465,13 +465,9 @@ mod tests {
         }
     }
 
-    /// The looks offered are the image flake's, in its order
+    /// Older images name one of omaflake's own looks (before installable looks, plan B141)
     #[test]
-    fn every_look_is_the_image_flakes() {
-        let looks = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../nix/looks/default.nix");
-        let text = std::fs::read_to_string(looks).unwrap();
-        let names: Vec<String> = GuestChoices::LOOKS.iter().map(|(n, _)| format!("\"{n}\"")).collect();
-        assert!(text.contains(&format!("names = [ {} ];", names.join(" "))), "nix/looks/default.nix `names`");
+    fn older_look_names_have_titles() {
         assert_eq!(GuestChoices::look_name("rose-pine-dawn"), "Rosé Pine Dawn");
     }
 

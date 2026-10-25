@@ -13,7 +13,17 @@ are collected under *Unreleased*. Releases: [GitHub](https://github.com/omaflake
 
 ## [Unreleased]
 
+Looks are installable now, like recipes: the new **Looks** tab lists the looks here with their colours, which images
+use them and the default one, and what your sources offer besides. No look is built in any more. The official source
+is the new **omaflake/catalog** – recipes and looks; omaflake/recipes is archived. Your settings file becomes version
+4: the look you had chosen becomes the default look, and the official source switches over.
+
 ### Added
+
+- **The Looks tab:** install looks from your sources (omaflake's own, Catppuccin, Rosé Pine Dawn, Vanilla in the
+  official catalog), see a strip of their colours and which images use them, make one the default, update and remove
+  them (not while images are built with one). `omaf looks [available|install|rm|default]`.
+- **The Doctor wants a look:** without one it offers "Install Recommended" – omaflake's own and Catppuccin.
 
 - **The Doctor requires a credential:** images and macOS bases are made with one, so "Credential" is a requirement
   now – with "New Credential …" while there is none.
@@ -23,6 +33,13 @@ are collected under *Unreleased*. Releases: [GitHub](https://github.com/omaflake
 
 ### Changed
 
+- **Defaults live in their tabs:** the default credential is set on the Credentials page, the default look in the
+  Looks tab; the settings' "For new images" keeps language, keyboard and time zone. `omaf config` loses
+  `--default-credential` and `--guest-look`.
+- **Building asks for an installed look:** the build page offers the looks here, preset with the default; "The
+  recipe's own" is gone – a look is chosen for every image (`omaf build --look <author>/<name>`).
+- **The official source is omaflake/catalog** (recipes and looks, catalog version 3); recipes installed from
+  omaflake/recipes count as from it.
 - **No password is ever typed after a credential's creation:** creating a macOS base and building a macOS image take
   the credential's stored password; the build page shows the base's credential and asks for nothing.
   `omaf macos install --credential` replaces `--user`, `--full-name` and the password prompt; `omaf build` no longer

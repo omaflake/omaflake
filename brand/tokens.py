@@ -4,7 +4,8 @@
 
     Sources/OmaflakeApp/BrandTokens.swift   SwiftUI (Color, CGFloat, Font)
     crates/omaflake-brand/src/tokens.rs     Rust, no dependencies (colours as [u8; 4] and [f32; 4], lengths as f32)
-    nix/looks/omaflake.toml                 the omaflake look of the guests ([look]) as look data (schema look/v1)
+    brand/omaflake-look.toml                the guests' omaflake look ([look]) as look data (schema look/v1) – copied
+                                            into omaflake/catalog as looks/omaflake/omaflake/look.toml
 
 Needs Python 3.11+ (tomllib), nothing else. Run from anywhere:
     python3 tokens.py            write the generated files
@@ -18,7 +19,7 @@ ROOT = os.path.dirname(HERE)
 SOURCE = os.path.join(HERE, "tokens.toml")
 SWIFT = os.path.join(ROOT, "Sources", "OmaflakeApp", "BrandTokens.swift")
 RUST = os.path.join(ROOT, "crates", "omaflake-brand", "src", "tokens.rs")
-NIX = os.path.join(ROOT, "nix", "looks", "omaflake.toml")
+NIX = os.path.join(HERE, "omaflake-look.toml")
 
 WEIGHTS = ("regular", "medium", "semibold", "bold", "heavy")
 LENGTH_GROUPS = ("spacing", "radius", "glow", "size", "icon")
@@ -217,8 +218,8 @@ def nix(t):
     terminal = lambda keys: "[" + ", ".join(c[k] for k in keys) + "]"
     return "".join([
         "# " + HEADER.format(c="#"),
-        "# The omaflake look ([look] in brand/tokens.toml) as look data – the image flake turns it into each program's\n",
-        "# configuration (nix/looks/adapter.nix).\n",
+        "# The omaflake look ([look] in brand/tokens.toml) as look data – omaflake/catalog has it as\n",
+        "# looks/omaflake/omaflake/look.toml; the image flake turns it into each program's configuration.\n",
         '"$schema" = "https://omaflake.dev/schema/look/v1.json"\n',
         'author = "omaflake"\n',
         'license = "MIT"\n',

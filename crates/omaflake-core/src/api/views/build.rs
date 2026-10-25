@@ -149,7 +149,13 @@ fn choice_fields(
         Some(b) => b.credential.clone().unwrap_or_default(),
         None => credential,
     };
-    let look = v.look.clone().unwrap_or_else(|| ctx.settings.guest.look.clone().unwrap_or_default());
+    // An installed look (plan B141): the chosen one while it is here, else the default
+    let look = v
+        .look
+        .clone()
+        .filter(|id| ctx.looks.looks.iter().any(|l| &l.id == id))
+        .or_else(|| ctx.settings.default_look.clone())
+        .unwrap_or_default();
     let mut c = Field::new("credential", FieldKind::Choice, Text::new("Credential"), json!(credential))
         .param("credential")
         .value_param("credential");
@@ -166,11 +172,12 @@ fn choice_fields(
         }
         c = c.enabled_if(false, Some(tf!("The credential of %@", &b.name)));
     }
-    let mut l = Field::new("look", FieldKind::Choice, Text::new("Look"), json!(look)).param("look").value_param("look");
-    l.choices = vec![Choice::new(json!(""), Text::new("The recipe's own"))];
-    l.choices.extend(
-        crate::guest_choices::GuestChoices::LOOKS.iter().map(|(n, t)| Choice::new(json!(n), Text::verbatim(*t))),
-    );
+    let mut l = Field::new("look", FieldKind::Choice, Text::new("Look"), json!(look))
+        .param("look")
+        .value_param("look")
+        .enabled_if(!ctx.looks.looks.is_empty(), Some(Text::new("Install a look first – the Looks tab")));
+    l.choices = ctx.looks.looks.iter().map(|x| Choice::new(json!(x.id), Text::verbatim(&x.title))).collect();
+    l.help = Some(Text::new("How the guest looks: colours, terminal, editors (the Looks tab)"));
     (vec![c, l], credential, look)
 }
 
@@ -244,6 +251,7 @@ pub(crate) fn page(ctx: &Ctx, p: &BuildParams) -> BuildPage {
             // No password is asked: NixOS needs none, macOS takes the base credential's (plan B139)
             build = build
                 .enabled_if(!no_credential, Some(Text::new("Create a credential first – the key at the top")))
+                .enabled_if(!ctx.looks.looks.is_empty(), Some(Text::new("Install a look first – the Looks tab")))
                 .enabled_if(base_without.is_none(), Some(Text::new("Assign a credential to the macOS base first")))
                 .enabled_if(r.is_some(), None)
                 .enabled_if(r.is_none_or(|r| r.runs_here), r.map(|r| super::recipes::not_here(ctx, &r.systems)))

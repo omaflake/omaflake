@@ -1,0 +1,455 @@
+{
+  "actions": [
+    {
+      "enabled": true,
+      "help": {
+        "key": "Look into the sources for looks",
+        "text": "Look into the sources for looks"
+      },
+      "icon": "refresh",
+      "id": "refresh",
+      "label": {
+        "key": "Refresh",
+        "text": "Refresh"
+      },
+      "method": "looks.list",
+      "params": {
+        "fetch": true
+      }
+    }
+  ],
+  "catalogsLoaded": true,
+  "count": 2,
+  "footer": {
+    "key": "A look is how a guest looks – colours, the terminal's palette, the editors' theme, the desktop's borders. It is data, not code: omaflake's image flake turns it into each program's configuration. New images get the default look unless the build page chooses another; a changed look makes its images outdated.",
+    "text": "A look is how a guest looks – colours, the terminal's palette, the editors' theme, the desktop's borders. It is data, not code: omaflake's image flake turns it into each program's configuration. New images get the default look unless the build page chooses another; a changed look makes its images outdated."
+  },
+  "loading": false,
+  "offered": [
+    {
+      "actions": [
+        {
+          "enabled": true,
+          "icon": "download",
+          "id": "install",
+          "label": {
+            "key": "Install",
+            "text": "Install"
+          },
+          "method": "looks.install",
+          "params": {
+            "id": "omaflake.look.catppuccin",
+            "source": "github:omaflake/catalog@main"
+          },
+          "primary": true
+        }
+      ],
+      "badges": [
+        {
+          "help": {
+            "key": "By omaflake, from its catalog",
+            "text": "By omaflake, from its catalog"
+          },
+          "icon": "official",
+          "id": "official",
+          "tone": "accent"
+        }
+      ],
+      "detail": {
+        "actions": [
+          {
+            "enabled": true,
+            "icon": "download",
+            "id": "install",
+            "label": {
+              "key": "Install",
+              "text": "Install"
+            },
+            "method": "looks.install",
+            "params": {
+              "id": "omaflake.look.catppuccin",
+              "source": "github:omaflake/catalog@main"
+            },
+            "primary": true
+          }
+        ],
+        "info": [
+          {
+            "label": {
+              "key": "About",
+              "text": "About"
+            },
+            "value": {
+              "text": "Pastel."
+            }
+          },
+          {
+            "label": {
+              "key": "Source",
+              "text": "Source"
+            },
+            "value": {
+              "text": "omaflake/catalog"
+            }
+          }
+        ]
+      },
+      "id": "omaflake.look.catppuccin",
+      "lamp": {
+        "help": {
+          "key": "Not installed",
+          "text": "Not installed"
+        },
+        "state": "off"
+      },
+      "name": "Catppuccin Mocha",
+      "subtitle": {
+        "args": [
+          {
+            "text": "omaflake/catppuccin"
+          },
+          {
+            "key": "dark",
+            "text": "dark"
+          },
+          {
+            "text": "omaflake/catalog"
+          }
+        ],
+        "key": "%@ · %@ · %@",
+        "text": "omaflake/catppuccin · dark · omaflake/catalog"
+      },
+      "swatches": [
+        "#1e1e2e",
+        "#1e1e2e",
+        "#575279",
+        "#cba6f7",
+        "#b4637a",
+        "#f2e9e1",
+        "#f2e9e1",
+        "#f2e9e1",
+        "#f2e9e1",
+        "#f2e9e1",
+        "#f2e9e1"
+      ]
+    }
+  ],
+  "offeredTitle": {
+    "key": "In your sources",
+    "text": "In your sources"
+  },
+  "rows": [
+    {
+      "actions": [],
+      "badges": [
+        {
+          "help": {
+            "key": "New images get this look unless the build chooses another",
+            "text": "New images get this look unless the build chooses another"
+          },
+          "icon": "ok",
+          "id": "default",
+          "label": {
+            "key": "default",
+            "text": "default"
+          },
+          "tone": "accent"
+        },
+        {
+          "help": {
+            "key": "By omaflake, from its catalog",
+            "text": "By omaflake, from its catalog"
+          },
+          "icon": "official",
+          "id": "official",
+          "tone": "accent"
+        }
+      ],
+      "detail": {
+        "actions": [
+          {
+            "enabled": false,
+            "icon": "ok",
+            "id": "default",
+            "label": {
+              "key": "Make Default",
+              "text": "Make Default"
+            },
+            "method": "looks.setDefault",
+            "params": {
+              "id": "omaflake.look.rose-pine-dawn"
+            },
+            "reason": {
+              "key": "Already the default",
+              "text": "Already the default"
+            }
+          },
+          {
+            "confirm": {
+              "button": {
+                "key": "Remove",
+                "text": "Remove"
+              },
+              "destructive": true,
+              "text": {
+                "key": "Install it again from its source any time.",
+                "text": "Install it again from its source any time."
+              },
+              "title": {
+                "args": [
+                  "Rosé Pine Dawn"
+                ],
+                "key": "Remove the look “%@”?",
+                "text": "Remove the look “Rosé Pine Dawn”?"
+              }
+            },
+            "destructive": true,
+            "enabled": false,
+            "icon": "trash",
+            "id": "remove",
+            "label": {
+              "key": "Remove …",
+              "text": "Remove …"
+            },
+            "method": "looks.remove",
+            "params": {
+              "id": "omaflake.look.rose-pine-dawn"
+            },
+            "reason": {
+              "key": "Images are built with it – remove them first",
+              "text": "Images are built with it – remove them first"
+            }
+          }
+        ],
+        "info": [
+          {
+            "label": {
+              "key": "About",
+              "text": "About"
+            },
+            "value": {
+              "text": "Rosé Pine Dawn."
+            }
+          },
+          {
+            "label": {
+              "key": "Source",
+              "text": "Source"
+            },
+            "value": {
+              "text": "omaflake/catalog"
+            }
+          },
+          {
+            "full": "omaflake.nixos.dev@cedar-mango-lift",
+            "label": {
+              "key": "Used by",
+              "text": "Used by"
+            },
+            "value": {
+              "text": "omaflake.nixos.dev@cedar-mango-lift"
+            }
+          }
+        ]
+      },
+      "id": "omaflake.look.rose-pine-dawn",
+      "lamp": {
+        "help": {
+          "key": "Images are built with it",
+          "text": "Images are built with it"
+        },
+        "state": "on"
+      },
+      "name": "Rosé Pine Dawn",
+      "subtitle": {
+        "args": [
+          {
+            "text": "omaflake/rose-pine-dawn"
+          },
+          {
+            "key": "light",
+            "text": "light"
+          },
+          {
+            "key": "1 image",
+            "text": "1 image"
+          }
+        ],
+        "key": "%@ · %@ · %@",
+        "text": "omaflake/rose-pine-dawn · light · 1 image"
+      },
+      "swatches": [
+        "#faf4ed",
+        "#faf4ed",
+        "#575279",
+        "#907aa9",
+        "#b4637a",
+        "#f2e9e1",
+        "#f2e9e1",
+        "#f2e9e1",
+        "#f2e9e1",
+        "#f2e9e1",
+        "#f2e9e1"
+      ]
+    },
+    {
+      "actions": [
+        {
+          "enabled": true,
+          "icon": "ok",
+          "id": "default",
+          "label": {
+            "key": "Make Default",
+            "text": "Make Default"
+          },
+          "method": "looks.setDefault",
+          "params": {
+            "id": "omaflake.look.omaflake"
+          }
+        }
+      ],
+      "badges": [
+        {
+          "help": {
+            "args": [
+              "/src/catalog"
+            ],
+            "key": "From the folder %@, used as it is there",
+            "text": "From the folder /src/catalog, used as it is there"
+          },
+          "icon": "folder",
+          "id": "folder",
+          "tone": "normal"
+        }
+      ],
+      "detail": {
+        "actions": [
+          {
+            "enabled": true,
+            "icon": "ok",
+            "id": "default",
+            "label": {
+              "key": "Make Default",
+              "text": "Make Default"
+            },
+            "method": "looks.setDefault",
+            "params": {
+              "id": "omaflake.look.omaflake"
+            }
+          },
+          {
+            "confirm": {
+              "button": {
+                "key": "Remove",
+                "text": "Remove"
+              },
+              "destructive": true,
+              "text": {
+                "key": "Install it again from its source any time.",
+                "text": "Install it again from its source any time."
+              },
+              "title": {
+                "args": [
+                  "omaflake"
+                ],
+                "key": "Remove the look “%@”?",
+                "text": "Remove the look “omaflake”?"
+              }
+            },
+            "destructive": true,
+            "enabled": false,
+            "icon": "trash",
+            "id": "remove",
+            "label": {
+              "key": "Remove …",
+              "text": "Remove …"
+            },
+            "method": "looks.remove",
+            "params": {
+              "id": "omaflake.look.omaflake"
+            },
+            "reason": {
+              "key": "A local folder's look – remove it there",
+              "text": "A local folder's look – remove it there"
+            }
+          }
+        ],
+        "info": [
+          {
+            "label": {
+              "key": "About",
+              "text": "About"
+            },
+            "value": {
+              "text": "omaflake."
+            }
+          },
+          {
+            "label": {
+              "key": "Source",
+              "text": "Source"
+            },
+            "value": {
+              "text": "/src/catalog"
+            }
+          },
+          {
+            "full": "",
+            "label": {
+              "key": "Used by",
+              "text": "Used by"
+            },
+            "value": {
+              "key": "no image",
+              "text": "no image"
+            }
+          }
+        ]
+      },
+      "id": "omaflake.look.omaflake",
+      "lamp": {
+        "help": {
+          "key": "No image is built with this look",
+          "text": "No image is built with this look"
+        },
+        "state": "off"
+      },
+      "name": "omaflake",
+      "subtitle": {
+        "args": [
+          {
+            "text": "omaflake/omaflake"
+          },
+          {
+            "key": "dark",
+            "text": "dark"
+          },
+          {
+            "key": "no image",
+            "text": "no image"
+          }
+        ],
+        "key": "%@ · %@ · %@",
+        "text": "omaflake/omaflake · dark · no image"
+      },
+      "swatches": [
+        "#faf4ed",
+        "#faf4ed",
+        "#575279",
+        "#907aa9",
+        "#b4637a",
+        "#f2e9e1",
+        "#f2e9e1",
+        "#f2e9e1",
+        "#f2e9e1",
+        "#f2e9e1",
+        "#f2e9e1"
+      ]
+    }
+  ],
+  "title": {
+    "key": "Looks",
+    "text": "Looks"
+  },
+  "unreadable": []
+}

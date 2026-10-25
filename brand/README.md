@@ -55,9 +55,9 @@ too). It writes
   them,
 - `crates/omaflake-brand/src/tokens.rs` – modules `palette`, `color` (`Color { rgba8, rgba }`), `opacity`, `spacing`,
   `radius`, `glow`, `size`, `icon`, `font`, `text` (`FontStyle`), plain values with no UI toolkit, and `ALL`.
-- `nix/looks/omaflake.toml` – the guests' omaflake look (plan B135) as look data (schema look/v1, plan B141), its
-  colours from `[look]`; the image flake cannot read `brand/`, so it gets them generated. The copy in
-  `omaflake/catalog` (`looks/omaflake/omaflake/look.toml`) is the same file.
+- `brand/omaflake-look.toml` – the guests' omaflake look (plan B135) as look data (schema look/v1, plan B141), its
+  colours from `[look]`; copy it into `omaflake/catalog` as `looks/omaflake/omaflake/look.toml` (no look is built
+  into the image flake).
 
 Never edit the generated files. `python3 tokens.py --check` (CI) and the crate's test `cargo test -p omaflake-brand`
 fail when they are out of date. Colours with `system = "…"` stay the system colour in the macOS app (it follows the

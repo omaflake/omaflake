@@ -120,6 +120,17 @@ pub(crate) fn page(ctx: &Ctx) -> HomePage {
                 help: Text::new("A recipe changed since its image was built"),
             }),
         },
+        Tab {
+            id: "looks".into(),
+            label: Text::new("Looks"),
+            icon: "look".into(),
+            badge: ctx.looks.looks.is_empty().then(|| TabBadge {
+                kind: "dot".into(),
+                count: None,
+                tone: Tone::Warning,
+                help: Text::new("No look installed – images are built with one"),
+            }),
+        },
         Tab { id: "activity".into(), label: Text::new("Activity"), icon: "activity".into(), badge: None },
     ];
     HomePage {

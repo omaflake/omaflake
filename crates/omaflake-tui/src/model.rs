@@ -8,7 +8,7 @@
 use std::collections::{HashMap, HashSet};
 
 use chrono::{DateTime, Utc};
-use ratatui::style::{Modifier, Style};
+use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::{Line, Span};
 use serde_json::Value;
 
@@ -299,6 +299,18 @@ fn list_row(ctx: &Ctx, prefix: &str, row: &Value, out: &mut Vec<Item>) {
     if let Some(sub) = row.get("subtitle") {
         lines.push(secondary_line(ctx, t(sub), 4));
     }
+    // A look's colours (plan B141): a strip of blocks in its own colours
+    let swatches = arr(row, "swatches");
+    if !swatches.is_empty() {
+        let mut spans = vec![Span::raw("    ")];
+        for c in swatches {
+            let hex = c.as_str().unwrap_or("").trim_start_matches('#');
+            let v = u32::from_str_radix(hex, 16).unwrap_or(0x808080);
+            let color = Color::Rgb((v >> 16) as u8, (v >> 8) as u8, v as u8);
+            spans.push(Span::styled("██", Style::default().fg(color)));
+        }
+        lines.push(Line::from(spans));
+    }
     let mut actions: Vec<Value> = arr(row, "actions").to_vec();
     let main = actions.len();
     let mut sub_items = Vec::new();
@@ -472,6 +484,7 @@ pub fn page(ctx: &Ctx, name: &str, model: &Value) -> Page {
         "images" => images(ctx, model, &mut p),
         "recipes" => recipes(ctx, model, &mut p),
         "activity" => activity(ctx, model, &mut p),
+        "looks" => looks(ctx, model, &mut p),
         "vm" | "image" => {
             let mut open = ctx.expanded.clone();
             let key = format!("{name}:{}", s(&model["row"], "name"));
@@ -920,6 +933,34 @@ fn new_vm(ctx: &Ctx, model: &Value, p: &mut Page) {
 }
 
 /// The Credentials page (plan B137): what they are, one row each with its actions, "New Credential …", the footer
+/// The Looks tab (plan B141): the looks here with a strip of their colours, what the sources offer besides
+fn looks(ctx: &Ctx, model: &Value, p: &mut Page) {
+    list_head(p, model);
+    if b(model, "loading") {
+        let mut spans = vec![Span::raw("  "), Span::styled(spinner(ctx.tick), ctx.theme.accent())];
+        if let Some(text) = model.get("loadingText") {
+            spans.push(Span::styled(format!(" {}", t(text)), ctx.theme.secondary()));
+        }
+        p.items.push(Item::line("", Line::from(spans)));
+    }
+    for row in arr(model, "rows") {
+        list_row(ctx, "look", row, &mut p.items);
+    }
+    if let Some(title) = model.get("offeredTitle") {
+        p.items.push(heading(ctx, t(title)));
+        for row in arr(model, "offered") {
+            list_row(ctx, "offered-look", row, &mut p.items);
+        }
+    }
+    for (i, h) in arr(model, "unreadable").iter().enumerate() {
+        p.items.push(hint(ctx, format!("unreadable-look:{i}"), h));
+    }
+    if let Some(f) = model.get("footer") {
+        p.items.push(Item::blank());
+        p.items.push(Item::line("", secondary_line(ctx, t(f), 2)));
+    }
+}
+
 fn credentials(ctx: &Ctx, model: &Value, p: &mut Page) {
     p.items.push(Item::line("", secondary_line(ctx, t(&model["intro"]), 2)));
     p.items.push(Item::blank());

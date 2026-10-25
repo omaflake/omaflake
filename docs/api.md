@@ -212,9 +212,10 @@ short as it can be).
   `description` in the session's language, `tags`, `license`, `lab`, `systems`, `requires`, `homepage`, `version`,
   `files: [{path, size, sha256}]`) plus `source` and `runsHere`.
 - **Prerequisite** – `item` (`host`, `kvm`, `nix`, `flakes`, `nixDarwin`, `linuxBuilder`, `qemu`, `flake`, `sshKey`,
-  `credential` (at least one credential – the default; images and macOS bases are made with it, plan B139), `git`,
+  `credential` (at least one credential – the default; images and macOS bases are made with it, plan B139), `look` (at
+  least one installed look – the default, plan B141; its action `looks.installRecommended`), `git`,
   `cli`, `builderRunning`, `flakeEval`, `nixSpace`, `ipsw`, `macBase`, `macSpace`; a Linux host checks `host`, `kvm`,
-  `nix`, `flakes`, `qemu`, `flake`, `sshKey`, `credential`, `git`, `cli`, then `flakeEval`, `nixSpace` – no macOS preflight, plan B124), `status` (`ok` | `limited` | `missing`),
+  `nix`, `flakes`, `qemu`, `flake`, `sshKey`, `credential`, `look`, `git`, `cli`, then `flakeEval`, `nixSpace` – no macOS preflight, plan B124), `status` (`ok` | `limited` | `missing`),
   `title` (English; UIs translate by `item`), `required`, `detail`, `hint`, `install` (a command), `settablePath`,
   `freeBytes`, `neededBytes`, `baseUser`, `expectedUser`. `git` and `cli` (the `omaf` command on the user's PATH) are
   optional (`required` false, not counted in `issues`).
@@ -319,8 +320,13 @@ Params and results in short; the types are those of §4.
 | `events.subscribe` | `topics` | `null` |
 | `shutdown` | – | `null` – ends this session (§2) |
 | `service.restart` | – | `{jobs}` – the service ends once no job waits or runs (§1, §2) |
-| `settings.get` | – | `{settings, guestDefaults, choices: {timeZones, locales, keyboards: [{code, locale}], looks: [{name, title}]}, isDefaultDataFolder}` – `settings`: config.json's values with their defaults applied (`developerMode, checkForUpdates, notifications, keepRecipeVersions, guest: {user?, fullName?, email?, timeZone?, locale?, keyboard?, look?}, flake?, qemu?, nix?, runner?, flakeInUse?, dataFolder`); `guestDefaults`: this computer's values the guest overrides fall back to |
-| `settings.set` | any of `developerMode, checkForUpdates, notifications, keepRecipeVersions, guest, defaultCredential, flake, qemu, nix, runner` (`null` or `""` = back to the default; keys not given stay; `guest` takes `locale, keyboard, timeZone, look` – user, full name and e-mail are a credential's; `defaultCredential` takes a credential's id – there is always a default while there are credentials, plan B139) | `settings` – turning `keepRecipeVersions` off prunes older recipe versions |
+| `settings.get` | – | `{settings, guestDefaults, choices: {timeZones, locales, keyboards: [{code, locale}], looks: [{name, title}]}, isDefaultDataFolder}` – `settings`: config.json's values with their defaults applied (`developerMode, checkForUpdates, notifications, keepRecipeVersions, guest: {timeZone?, locale?, keyboard?}, defaultCredential?, defaultLook?, flake?, qemu?, nix?, runner?, flakeInUse?, dataFolder`); `choices.looks`: the installed looks (`name` is the look's id, plan B141); `guestDefaults`: this computer's values the guest overrides fall back to |
+| `settings.set` | any of `developerMode, checkForUpdates, notifications, keepRecipeVersions, guest, defaultCredential, flake, qemu, nix, runner` (`null` or `""` = back to the default; keys not given stay; `guest` takes `locale, keyboard, timeZone` – user, full name and e-mail are a credential's, the default look is set with `looks.setDefault` (plan B141); `defaultCredential` takes a credential's id – there is always a default while there are credentials, plan B139) | `settings` – turning `keepRecipeVersions` off prunes older recipe versions |
+| `looks.list` | `fetch?` | `{looks, offered, unreadable, fetched}` (plan B141) – `looks`: the looks here `[{id, reference, author, name, title, description, tags, appearance?, plain, swatches?, source, sourceName, official, installed, update, isDefault, images}]` (installed from a source, or a local folder source's, used as it is there); `offered`: what the sources' catalogs offer besides (`fetch: true` – or the first call – looks into them) |
+| `looks.install` | `id, source` | Job `look-install` – downloads a look (its files checked against the catalog's SHA-256) into `<data>/looks/<author>.<name>/`; the first one becomes the default |
+| `looks.installRecommended` | – | Job `look-install` – omaflake's own look and Catppuccin from the official catalog (the Doctor's action) |
+| `looks.remove` | `id` | `null` – refused while images are built with it (`in-use`); another one becomes the default |
+| `looks.setDefault` | `id` | `null` – the look new images get unless the build chooses another |
 | `credentials.list` | – | `[{id, name, user?, fullName?, email?, hasPassword, isDefault}]` (plan B137; a password never leaves the keychain/keyring) |
 | `credentials.add` | `name, user, password, fullName?, email?` | `{credential, note?}` – every credential has a user and a password (plan B138, B139); the first one becomes the default; `note` says when the password went to a file (no keyring) |
 | `credentials.update` | `id`, any of `name, user, fullName, email, password` (`""` clears a value; a password can be changed, not removed) | `{credential, note?}` – while images use it only `name` and `password` may change, while a macOS base uses it only `name` (`in-use` otherwise) |
@@ -360,7 +366,7 @@ Params and results in short; the types are those of §4.
 |---|---|---|
 | `images.list` | – | `{images: [Image], unreadable}` |
 | `images.get` | `name` | `Image` with `sizeBytes` |
-| `images.build` | `recipe, credential?, look?, base?, keepFailed?` | Job `build` – `credential`: a credential's id, left out (or `""`) the default – without any credential `prerequisite`; `look`: a look, `""` the recipe's own, left out the default (plan B137). A macOS recipe takes its base's credential and its stored password – nothing is asked (plan B139); a base without a credential is refused (`prerequisite`) unless a `password` is given (API version 1); `base`: the base folder, default the newest; `keepFailed`: keep a failed build folder) |
+| `images.build` | `recipe, credential?, look?, base?, keepFailed?` | Job `build` – `credential`: a credential's id, left out (or `""`) the default – without any credential `prerequisite`; `look`: an installed look (id, `<author>/<name>`, name or title), left out (or `""`) the default (plan B137, B141) – its data goes to the image flake (`settings.look`); without any look the Doctor blocks the build. A macOS recipe takes its base's credential and its stored password – nothing is asked (plan B139); a base without a credential is refused (`prerequisite`) unless a `password` is given (API version 1); `base`: the base folder, default the newest; `keepFailed`: keep a failed build folder) |
 | `images.remove` | `name` | `null` – refused while VMs use it (`in-use`) |
 
 ### Recipes and sources
@@ -489,6 +495,7 @@ Pages and their params:
 | `build` | `recipe` | the Build Image page of one recipe |
 | `doctor` | – | versions and updates, the checks in three sections with their actions |
 | `credentials` | – | the credentials, each with its usage and Copy Password (plan B137, B138) |
+| `looks` | – | the Looks tab: the looks here with their colours, usage and the default, what the sources offer besides (plan B141) |
 | `credential` | `id?` | one credential's form: new, or to edit (only the name while images use it) |
 | `baseCredential` | `name` | the same form for a macOS base from before bases kept their credential: which one its user has (plan B139) |
 | `macBase` | `values?` | Create macOS Base |
@@ -634,7 +641,7 @@ folder with the VM" / "Share a folder with the VM", "Like this Mac – %@" / "Li
 Mac – …" / "Not for this computer – …", "… in the Keychain" / "… in the keyring", the Doctor's intro, the notification
 help, the data folder's note, the sources' footer. Both are keys; translations have both.
 
-**home** – `title`, `actions` (doctor with `badge`, credentials (icon `key`, plan B137), settings, dataFolder, quit – with `shortLabel`s for a narrow header), `tabs: [{id, label, icon, badge?}]` with
+**home** – `title`, `actions` (doctor with `badge`, credentials (icon `key`, plan B137), settings, dataFolder, quit – with `shortLabel`s for a narrow header), `tabs: [{id, label, icon, badge?}]` (vms, images, recipes, looks – icon `look`, a warning dot without any look, plan B141 – and activity) with
 `badge: {kind: count|working|failed|dot, count?, tone, help}` (running VMs; a build runs or failed; a recipe changed
 since its image), `firstTab` (`recipes` while there is no VM – a UI opening for the first time starts there).
 
@@ -676,6 +683,15 @@ newVm (primary) – or the Doctor's warning (primary) –, details: info omaflak
 Recipe, Built, Recipe state, Status, Look (with a note when the settings ask for another look), Used by, Size, Source,
 Disk image/System; actions export, remove – disabled while
 VMs use it), `unreadable`. **image** – `{title, row}` with the size.
+
+**looks** (plan B141) – list head (tool: refresh – `looks.list {fetch: true}`; `empty` without any look: "Install
+Recommended"), `catalogsLoaded`, `loading`, `loadingText?`, `rows` (the looks here: `{id, name, lamp (on while images
+are built with it), subtitle ("omaflake/catppuccin · dark · 2 images"), badges (default, official, update, folder),
+swatches ("#RRGGBB" for a strip: background, surface, text, accent, urgent and six terminal colours; empty for a plain
+look), actions (Make Default unless it is the default), detail: {info (About, Source, Used by), actions: [default,
+update?, remove (disabled while images use it or for a local folder's)]}}`), `offeredTitle?`, `offered` (the same rows
+with Install), `unreadable`, `footer`. The UI runs `refresh` once when the tab opens and the catalogs were not looked
+into.
 
 **recipes** – list head (filter `status`: With image/Without image, `kind`, `tag`, `otherSystems`; tools: refresh –
 `recipes.available`, busy while it runs – and import), `catalogsLoaded` (else the UI runs `refresh` when the tab

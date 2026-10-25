@@ -599,9 +599,12 @@ pub struct SettingsDto {
     /// The guest values set here (an unset one is the computer's, `guestDefaults`); user, fullName and email are
     /// left out since credentials (plan B137)
     pub guest: GuestValues,
-    /// The credential new images get unless another is chosen (`credentials.list`); left out: this computer's values
+    /// The credential new images get unless another is chosen (`credentials.list`); left out: there is none
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub default_credential: Option<String>,
+    /// The look new images get unless another is chosen (`looks.list`, plan B141); left out: none is installed
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub default_look: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub flake: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -632,7 +635,8 @@ pub struct GuestValues {
     pub locale: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub keyboard: Option<String>,
-    /// The guests' look (`choices.looks`); unset = each recipe's – there is no computer's look (plan B135)
+    /// Before settings v4 the guests' look (plan B135); now always unset – the default look is `defaultLook`, an
+    /// installed look's id (plan B141)
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub look: Option<String>,
 }
@@ -680,6 +684,73 @@ pub struct BaseDto {
     /// That credential's name when it was set
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub credential_name: Option<String>,
+}
+
+/// A look omaflake can use (`looks.list`, plan B141): installed from a source, or in a local folder source
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LookDto {
+    /// "<author>.look.<name>"
+    pub id: String,
+    /// "<author>/<name>"
+    pub reference: String,
+    pub author: String,
+    pub name: String,
+    pub title: String,
+    pub description: String,
+    pub tags: Vec<String>,
+    /// "dark" | "light"; None for a plain look
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub appearance: Option<String>,
+    pub plain: bool,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub swatches: Option<crate::looks::Swatches>,
+    /// `RecipeSource::id`
+    pub source: String,
+    pub source_name: String,
+    /// By omaflake from its own catalog
+    pub official: bool,
+    /// In the data folder (false: a local folder source's, used as it is there)
+    pub installed: bool,
+    /// Its source offers a newer version
+    pub update: bool,
+    pub is_default: bool,
+    /// The images built with it
+    pub images: Vec<String>,
+}
+
+/// A look a source's catalog offers that is not here (`looks.list`)
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OfferedLookDto {
+    pub id: String,
+    pub reference: String,
+    pub author: String,
+    pub name: String,
+    pub title: String,
+    pub description: String,
+    pub tags: Vec<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub appearance: Option<String>,
+    pub plain: bool,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub swatches: Option<crate::looks::Swatches>,
+    pub source: String,
+    pub source_name: String,
+    pub official: bool,
+}
+
+/// `looks.list`
+#[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LooksAnswer {
+    pub looks: Vec<LookDto>,
+    /// What the sources' catalogs offer besides – empty while they were not fetched in this session
+    pub offered: Vec<OfferedLookDto>,
+    /// Looks here that cannot be read: (id, message)
+    pub unreadable: Vec<(String, String)>,
+    /// The catalogs were fetched in this session
+    pub fetched: bool,
 }
 
 /// A credential (plan B137) – `credentials.list`; its password never leaves the secret store
@@ -807,6 +878,8 @@ pub enum JobKind {
     Export,
     DataMove,
     RecipeInstall,
+    /// Install looks (`looks.install`, `looks.installRecommended`, plan B141)
+    LookInstall,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]

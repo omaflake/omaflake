@@ -49,6 +49,8 @@ pub enum PrerequisiteItem {
     SshKey,
     /// At least one credential – the default one (plan B139): who you are in the guests, with its password
     Credential,
+    /// At least one installed look – the default one (plan B141): how the guests look
+    Look,
     Git,
     /// The `omaf` command on the user's PATH (optional, plan B122)
     Cli,
@@ -76,6 +78,7 @@ impl PrerequisiteItem {
             PrerequisiteItem::Flake => "flake",
             PrerequisiteItem::SshKey => "sshKey",
             PrerequisiteItem::Credential => "credential",
+            PrerequisiteItem::Look => "look",
             PrerequisiteItem::Git => "git",
             PrerequisiteItem::Cli => "cli",
             PrerequisiteItem::BuilderRunning => "builderRunning",
@@ -297,6 +300,7 @@ impl Prerequisites {
                 self.flake(&settings, nix.as_deref()),
                 self.ssh_key(),
                 self.credential(),
+                self.look(),
                 self.git(),
             ];
         }
@@ -310,6 +314,7 @@ impl Prerequisites {
             self.flake(&settings, nix.as_deref()),
             self.ssh_key(),
             self.credential(),
+            self.look(),
             self.git(),
         ]
     }
@@ -625,6 +630,21 @@ impl Prerequisites {
                 None => "none yet".to_string(),
             },
             if found.is_some() { "" } else { "Create a credential – who you are in the guests, with a password" },
+            None,
+        )
+    }
+
+    /// An installed look (plan B141): images are built with one – the default unless another is chosen
+    pub(crate) fn look(&self) -> Prerequisite {
+        let found = crate::looks::LookStore::new(self.paths.clone()).default_look(&Settings::load(&self.paths));
+        Prerequisite::new(
+            PrerequisiteItem::Look,
+            status(found.is_some(), PrerequisiteStatus::Missing),
+            &match &found {
+                Some(l) => format!("{} (default)", l.title),
+                None => "none installed".to_string(),
+            },
+            if found.is_some() { "" } else { "Install a look – omaflake's own and Catppuccin are recommended" },
             None,
         )
     }
@@ -1090,11 +1110,11 @@ mod tests {
         let nixos: Vec<PrerequisiteItem> = pre.nixos_preflight().iter().map(|p| p.item).collect();
         use PrerequisiteItem::*;
         if cfg!(target_os = "linux") {
-            assert_eq!(items, [Host, Kvm, Nix, Flakes, Qemu, Flake, SshKey, Credential, Git]);
+            assert_eq!(items, [Host, Kvm, Nix, Flakes, Qemu, Flake, SshKey, Credential, Look, Git]);
             assert_eq!(nixos, [FlakeEval, NixSpace]);
             assert!(pre.macos_preflight(None).is_empty());
         } else {
-            assert_eq!(items, [Host, Nix, Flakes, NixDarwin, LinuxBuilder, Qemu, Flake, SshKey, Credential, Git]);
+            assert_eq!(items, [Host, Nix, Flakes, NixDarwin, LinuxBuilder, Qemu, Flake, SshKey, Credential, Look, Git]);
             assert_eq!(nixos, [BuilderRunning, FlakeEval, NixSpace]);
             assert_eq!(pre.macos_preflight(None).len(), 3);
         }

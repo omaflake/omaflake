@@ -8,6 +8,8 @@ public struct Prerequisite: Decodable, Sendable, Equatable, Identifiable {
         case host, nix, flakes, nixDarwin, linuxBuilder, qemu, flake, sshKey, git
         /// At least one credential, the default (plan B139)
         case credential
+        /// At least one installed look, the default (plan B141)
+        case look
         /// Linux hosts: /dev/kvm usable (plan B124)
         case kvm
         /// The `omaf` command on the user's PATH (optional)

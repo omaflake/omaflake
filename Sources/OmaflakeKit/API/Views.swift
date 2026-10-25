@@ -511,6 +511,48 @@ public struct RecipesPage: Decodable, Sendable, Equatable {
     }
 }
 
+/// The Looks tab (plan B141): the looks here and what the sources offer besides
+public struct LooksPage: Decodable, Sendable, Equatable {
+    public struct Row: Decodable, Sendable, Equatable, Identifiable {
+        public var id: String
+        public var name: String
+        public var lamp: Lamp
+        public var subtitle: ViewText
+        public var badges: [Badge]
+        /// "#RRGGBB" for a strip of its colours; empty for a plain look
+        public var swatches: [String]
+        public var actions: [ViewAction]
+        public var detail: ImageRow.Detail
+    }
+
+    public var head: ListHead
+    public var catalogsLoaded: Bool
+    public var loading: Bool
+    public var loadingText: ViewText?
+    public var rows: [Row]
+    public var offeredTitle: ViewText?
+    public var offered: [Row]
+    public var unreadable: [Hint]
+    public var footer: ViewText
+
+    enum CodingKeys: String, CodingKey {
+        case catalogsLoaded, loading, loadingText, rows, offeredTitle, offered, unreadable, footer
+    }
+
+    public init(from decoder: Decoder) throws {
+        head = try ListHead(from: decoder)
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        catalogsLoaded = try c.decode(Bool.self, forKey: .catalogsLoaded)
+        loading = try c.decode(Bool.self, forKey: .loading)
+        loadingText = try c.decodeIfPresent(ViewText.self, forKey: .loadingText)
+        rows = try c.decode([Row].self, forKey: .rows)
+        offeredTitle = try c.decodeIfPresent(ViewText.self, forKey: .offeredTitle)
+        offered = try c.decode([Row].self, forKey: .offered)
+        unreadable = try c.decode([Hint].self, forKey: .unreadable)
+        footer = try c.decode(ViewText.self, forKey: .footer)
+    }
+}
+
 public struct RecipeRow: Decodable, Sendable, Equatable, Identifiable {
     public struct Detail: Decodable, Sendable, Equatable {
         public var description: String?
@@ -871,6 +913,7 @@ public enum PageModel: Sendable, Equatable {
     case home(HomePage), vms(VmsPage), vm(VmPage), images(ImagesPage), image(ImagePage), recipes(RecipesPage)
     case newVm(NewVmPage), build(BuildPage), doctor(DoctorPage), macBase(MacBasePage), settings(SettingsPage)
     case activity(ActivityPage), importStep(ImportPage), credentials(CredentialsPage), credential(CredentialPage)
+    case looks(LooksPage)
     /// The page could not be built
     case error(ViewError)
     /// A page this client does not know
@@ -900,6 +943,7 @@ public enum PageModel: Sendable, Equatable {
         // The credential of a macOS base from before bases kept theirs: the same form (plan B139)
         case "baseCredential": self = .credential(try CredentialPage(from: decoder))
         case "activity": self = .activity(try ActivityPage(from: decoder))
+        case "looks": self = .looks(try LooksPage(from: decoder))
         case "import": self = .importStep(try ImportPage(from: decoder))
         default: self = .unknown(page)
         }

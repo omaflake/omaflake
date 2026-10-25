@@ -150,6 +150,14 @@
       }
     },
     {
+      "icon": "look",
+      "id": "looks",
+      "label": {
+        "key": "Looks",
+        "text": "Looks"
+      }
+    },
+    {
       "icon": "activity",
       "id": "activity",
       "label": {

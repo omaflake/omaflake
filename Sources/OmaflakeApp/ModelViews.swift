@@ -13,6 +13,7 @@ enum Icons {
         case "image": ("shippingbox", nil)
         case "recipe": ("book.closed", nil)
         case "activity": ("clock", nil)
+        case "look": ("paintpalette", nil)
         case "nixos": ("snowflake", nil)
         case "macos": ("apple.logo", nil)
         case "start-window": ("desktopcomputer", "play.fill")

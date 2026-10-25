@@ -195,7 +195,9 @@ while omaflake is not in front (menu window closed, app window hidden or in the 
   credential has a password (plan B138) and its own user (only the first one starts from this Mac's, plan B139);
   building an image asks its credential and look; macOS bases are a section of the images tab (Remove), each with
   its credential – a base is created from one, an older base gets one assigned (plan B139); no password is typed
-  anywhere after a credential's creation;
+  anywhere after a credential's creation; looks are a tab of their own next to Recipes – installed from the sources,
+  a strip of their colours, the default, update and remove (plan B141) – and the default credential and look are set
+  on their own pages, not in the settings;
   SSH keys from ~/.ssh; macOS VMs use the base's user), language (System, English, Deutsch – stored as `AppleLanguages` in the app's defaults, restart button);
   data folder (default `~/.omaflake`, move it elsewhere or back; `DataFolder.move`)
 

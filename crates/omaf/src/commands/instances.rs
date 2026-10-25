@@ -577,20 +577,7 @@ pub fn config(a: &cli::Config) -> Outcome {
     if let Some(nix) = &a.nix {
         s.nix = Some(folder_path(nix).to_string_lossy().into_owned());
     }
-    if let Some(look) = a.guest_look.as_deref().filter(|l| !l.is_empty()) {
-        if !GuestChoices::LOOKS.iter().any(|(n, _)| *n == look) {
-            let names: Vec<&str> = GuestChoices::LOOKS.iter().map(|(n, _)| *n).collect();
-            return Err(usage(&["config"], format!("--guest-look: {} or empty", names.join(", "))));
-        }
-    }
-    if let Some(reference) = &a.default_credential {
-        let credentials = omaflake_core::credentials::Credentials::new(env.paths.clone());
-        let id = credentials.find(reference).map(|c| c.id).ok_or_else(|| {
-            usage(&["config"], format!("--default-credential: no credential {reference} – see omaf credentials"))
-        })?;
-        s.default_credential = Some(id);
-    }
-    let guest = [&a.guest_locale, &a.guest_keyboard, &a.guest_time_zone, &a.guest_look];
+    let guest = [&a.guest_locale, &a.guest_keyboard, &a.guest_time_zone];
     let guest_change = guest.iter().any(|v| v.is_some());
     if guest_change {
         // An empty value removes the override (the Mac's value applies again)
@@ -603,7 +590,6 @@ pub fn config(a: &cli::Config) -> Outcome {
         set(&mut g.locale, &a.guest_locale);
         set(&mut g.keyboard, &a.guest_keyboard);
         set(&mut g.time_zone, &a.guest_time_zone);
-        set(&mut g.look, &a.guest_look);
         s.guest = Some(g);
     }
     if let Some(keep) = &a.keep_recipe_versions {
@@ -613,7 +599,6 @@ pub fn config(a: &cli::Config) -> Outcome {
         s.keep_recipe_versions = Some(keep == "on");
     }
     let changed = a.flake.is_some()
-        || a.default_credential.is_some()
         || a.qemu.is_some()
         || a.runner.is_some()
         || a.nix.is_some()
@@ -658,7 +643,9 @@ pub fn config_lines(s: &omaflake_core::Settings, paths: &Paths, g: &GuestSetting
         ),
         format!(
             "default look: {}",
-            g.look.as_deref().map_or("– (each recipe's own)".to_string(), GuestChoices::look_name)
+            omaflake_core::looks::LookStore::new(paths.clone())
+                .default_look(s)
+                .map_or_else(|| "– (none installed: omaf looks install recommended)".to_string(), |l| l.title)
         ),
         format!(
             "recipe versions: {}",

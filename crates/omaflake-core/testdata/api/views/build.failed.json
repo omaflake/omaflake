@@ -11,7 +11,7 @@
       "method": "images.build",
       "params": {
         "credential": "c-1",
-        "look": "rose-pine-dawn",
+        "look": "omaflake.look.rose-pine-dawn",
         "recipe": "omaflake.nixos.dev@velvet-tiger-orbit"
       },
       "primary": true,
@@ -96,37 +96,22 @@
       "choices": [
         {
           "label": {
-            "key": "The recipe's own",
-            "text": "The recipe's own"
+            "text": "Rosé Pine Dawn"
           },
-          "value": ""
+          "value": "omaflake.look.rose-pine-dawn"
         },
         {
           "label": {
             "text": "omaflake"
           },
-          "value": "omaflake"
-        },
-        {
-          "label": {
-            "text": "Catppuccin Mocha"
-          },
-          "value": "catppuccin"
-        },
-        {
-          "label": {
-            "text": "Rosé Pine Dawn"
-          },
-          "value": "rose-pine-dawn"
-        },
-        {
-          "label": {
-            "text": "Vanilla"
-          },
-          "value": "vanilla"
+          "value": "omaflake.look.omaflake"
         }
       ],
       "enabled": true,
+      "help": {
+        "key": "How the guest looks: colours, terminal, editors (the Looks tab)",
+        "text": "How the guest looks: colours, terminal, editors (the Looks tab)"
+      },
       "id": "look",
       "kind": "choice",
       "label": {
@@ -134,7 +119,7 @@
         "text": "Look"
       },
       "param": "look",
-      "value": "rose-pine-dawn",
+      "value": "omaflake.look.rose-pine-dawn",
       "valueParam": "look"
     }
   ],

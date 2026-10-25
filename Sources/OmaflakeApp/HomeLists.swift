@@ -51,6 +51,35 @@ struct HomeList: View {
                     model.run(refresh)
                 }
             }
+        case .looks(let p)?:
+            section(p.head) {
+                if p.loading, let text = p.loadingText {
+                    HStack(spacing: BrandTokens.Spacing.l) {
+                        ProgressView().controlSize(.small)
+                        Text(verbatim: model.t(text)).font(.callout).foregroundStyle(.secondary)
+                        Spacer()
+                    }
+                    .padding(BrandTokens.Spacing.cardPadding)
+                }
+                ForEach(p.rows) { LookRowView(row: $0, model: model) }
+                if let title = p.offeredTitle, !p.offered.isEmpty {
+                    Text(verbatim: model.t(title)).font(.caption.weight(.medium)).foregroundStyle(.secondary)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.horizontal, BrandTokens.Spacing.xl).padding(.top, BrandTokens.Spacing.l)
+                }
+                ForEach(p.offered) { LookRowView(row: $0, model: model) }
+                ForEach(Array(p.unreadable.enumerated()), id: \.offset) { HintRow(hint: $1, model: model) }
+                Text(verbatim: model.t(p.footer)).font(.caption).foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal, BrandTokens.Spacing.xl).padding(.top, BrandTokens.Spacing.l)
+            }
+            .onAppear {
+                // The catalogs are looked into when the tab opens, never in the background
+                if !p.catalogsLoaded, !p.loading, let refresh = p.head.actions.first(where: { $0.id == "refresh" }) {
+                    model.run(refresh)
+                }
+            }
         case .activity(let p)?:
             section(p.head) {
                 ForEach(p.entries) { ActivityRow(entry: $0, model: model) }
@@ -235,6 +264,67 @@ struct ImageRowView: View {
                 DetailActions(actions: row.detail.actions, model: model)
             }
         }
+    }
+}
+
+// MARK: - Looks
+
+/// One look (plan B141): lamp (in use), a strip of its colours, name and what it is, the quick action; opened: its
+/// description, source, usage and actions
+struct LookRowView: View {
+    let row: LooksPage.Row
+    let model: AppModel
+
+    var body: some View {
+        ExpandableRow {
+            HStack(spacing: BrandTokens.Spacing.xl) {
+                StatusLamp(state: .init(row.lamp.state)).help(Text(verbatim: model.t(row.lamp.help)))
+                LookSwatches(colors: row.swatches)
+                VStack(alignment: .leading, spacing: BrandTokens.Spacing.xxs) {
+                    HStack(spacing: BrandTokens.Spacing.m) {
+                        Text(verbatim: row.name).font(.callout.weight(.medium)).lineLimit(1)
+                        ForEach(row.badges) { BadgeView(badge: $0, model: model) }
+                    }
+                    Text(verbatim: model.t(row.subtitle)).font(.caption).foregroundStyle(.secondary).lineLimit(1)
+                }
+                Spacer(minLength: 4)
+                ForEach(row.actions) { ActionIcon(action: $0, model: model) }
+            }
+        } detail: {
+            DetailBox {
+                InfoLines(lines: row.detail.info, model: model)
+                DetailActions(actions: row.detail.actions, model: model)
+            }
+        }
+    }
+}
+
+/// A look's colours as a small strip of rounded squares; a plain look shows a dashed outline
+struct LookSwatches: View {
+    let colors: [String]
+
+    var body: some View {
+        if colors.isEmpty {
+            RoundedRectangle(cornerRadius: 3).strokeBorder(style: StrokeStyle(lineWidth: 1, dash: [2]))
+                .foregroundStyle(.secondary).frame(width: 44, height: 14)
+        } else {
+            HStack(spacing: 1) {
+                ForEach(Array(colors.prefix(11).enumerated()), id: \.offset) { _, hex in
+                    Rectangle().fill(Color(hex: hex)).frame(width: 4, height: 14)
+                }
+            }
+            .clipShape(RoundedRectangle(cornerRadius: 3))
+            .overlay(RoundedRectangle(cornerRadius: 3).strokeBorder(.quaternary, lineWidth: 0.5))
+        }
+    }
+}
+
+extension Color {
+    /// "#RRGGBB" (a look's colours); anything else is grey
+    init(hex: String) {
+        let s = hex.hasPrefix("#") ? String(hex.dropFirst()) : hex
+        let v = UInt32(s, radix: 16) ?? 0x808080
+        self.init(red: Double((v >> 16) & 0xff) / 255, green: Double((v >> 8) & 0xff) / 255, blue: Double(v & 0xff) / 255)
     }
 }
 

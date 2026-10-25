@@ -3,7 +3,7 @@
 # (SwiftUI on macOS, iced on Linux; plan B119) and for the brand artwork's palette (generate.py).
 #
 # Change a value here, then run `python3 brand/tokens.py` – it writes Sources/OmaflakeApp/BrandTokens.swift,
-# crates/omaflake-brand/src/tokens.rs and nix/looks/omaflake.toml. `python3 brand/tokens.py --check` fails
+# crates/omaflake-brand/src/tokens.rs and brand/omaflake-look.toml. `python3 brand/tokens.py --check` fails
 # when they are out of date.
 # Names are snake_case here; Swift gets lowerCamelCase, Rust UPPER_SNAKE_CASE.
 
@@ -181,7 +181,7 @@ weight = "medium"
 
 # --- the omaflake look of the guests (plan B135; look data since B141) ----------------------------------------------
 # Black and high contrast; red and cyan – the hero's split – only as fine accents. Written to
-# nix/looks/omaflake.toml as look data (the image flake cannot read brand/). Each entry is
+# brand/omaflake-look.toml as look data (copied into omaflake/catalog). Each entry is
 # `palette = "<name>"` or `hex = "#RRGGBB"`, no alpha.
 [look.base]             # windows, bar, terminal background
 palette = "black"

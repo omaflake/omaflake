@@ -133,6 +133,7 @@ pub fn hint_on(p: &PrerequisiteDto, host: super::HostOs) -> Text {
         I::Qemu => "Needed for NixOS guests: install omaflake's QEMU, or enter a path.",
         I::Flake => "Choose the folder with your recipes (flake.nix).",
         I::SshKey => "Create a key – used for SSH into VMs, image builds and macOS bases.",
+        I::Look => "Install a look – how the guests look: colours, terminal, editors. omaflake's own and Catppuccin are recommended; more are in the Looks tab.",
         I::Credential => "Create a credential – who you are in the guests: user, full name and a password, asked once. omaflake builds images and macOS bases with it by itself.",
         I::Git => "Optional: without it, image names show “nogit” instead of the flake's revision.",
         I::Cli if limited => {
@@ -280,6 +281,21 @@ fn item(ctx: &Ctx, p: &PrerequisiteDto) -> DoctorItem {
                 ),
             )
             .enabled_if(!nix_missing, Some(Text::new("Nix"))),
+        );
+    } else if p.item == I::Look && p.status != S::Ok {
+        let installing = ctx.active_job(JobKind::LookInstall).is_some();
+        actions.push(
+            Action::call(
+                "installLooks",
+                Text::new("Install Recommended"),
+                Some("download"),
+                "looks.installRecommended",
+                json!({}),
+            )
+            .help(Text::new("Installs omaflake's own look and Catppuccin from the official catalog"))
+            .busy(installing)
+            .enabled_if(!installing, None)
+            .primary(),
         );
     } else if p.item == I::Credential && p.status != S::Ok {
         actions.push(

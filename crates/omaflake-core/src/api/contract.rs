@@ -176,10 +176,10 @@ pub(crate) fn settings_answer() -> SettingsAnswer {
             notifications: false,
             keep_recipe_versions: false,
             default_credential: Some("c-1".into()),
+            default_look: Some("omaflake.look.rose-pine-dawn".into()),
             guest: GuestValues {
                 locale: Some("de_CH.UTF-8".into()),
                 keyboard: Some("ch".into()),
-                look: Some("rose-pine-dawn".into()),
                 ..GuestValues::default()
             },
             flake: Some("/src/omaflake/nix".into()),
@@ -795,6 +795,7 @@ fn view_goldens() -> Vec<(&'static str, Value)> {
         ),
         ("doctor", page("doctor", json!({}))),
         ("credentials", page("credentials", json!({}))),
+        ("looks", page("looks", json!({}))),
         ("credential", page("credential", json!({}))),
         ("credential.edit", page("credential", json!({"id": "c-1"}))),
         ("credentials.linux", build(&linux, &PageRef { page: "credentials".into(), params: json!({}) }).unwrap()),

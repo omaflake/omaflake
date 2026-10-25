@@ -4,6 +4,7 @@
 
 pub mod credentials;
 pub mod instances;
+pub mod looks;
 pub mod macos;
 pub mod packages;
 pub mod recipes;
@@ -44,6 +45,13 @@ pub fn run(command: Command) -> Outcome {
             Some(CredentialsCommand::Remove(a)) => credentials::remove(&a.credential),
             Some(CredentialsCommand::Default(a)) => credentials::set_default(&a.credential),
             Some(CredentialsCommand::CopyPassword(a)) => credentials::copy_password(&a.credential),
+        },
+        Command::Looks(l) => match l.command {
+            None | Some(LooksCommand::List) => looks::list(),
+            Some(LooksCommand::Available) => looks::available(),
+            Some(LooksCommand::Install(a)) => looks::install(&a.look),
+            Some(LooksCommand::Remove(a)) => looks::remove(&a.look),
+            Some(LooksCommand::Default(a)) => looks::set_default(&a.look),
         },
         Command::MacOs { command: MacOsCommand::Install(a) } => macos::install(&a),
         Command::MacOs { command: MacOsCommand::Assign(a) } => macos::assign(&a),

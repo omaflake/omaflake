@@ -24,6 +24,7 @@ pub mod doctor;
 pub mod home;
 pub mod images;
 pub mod import;
+pub mod looks;
 pub mod new_vm;
 pub mod recipes;
 pub mod settings;
@@ -51,7 +52,7 @@ pub use activity::ActivityEntry;
 pub use text::{Arg, Text};
 
 /// Every page `views.get` knows
-pub const PAGES: [&str; 16] = [
+pub const PAGES: [&str; 17] = [
     "home",
     "vms",
     "vm",
@@ -67,6 +68,7 @@ pub const PAGES: [&str; 16] = [
     "import",
     "credentials",
     "credential",
+    "looks",
     "baseCredential",
 ];
 
@@ -118,6 +120,8 @@ pub(crate) struct Ctx {
     pub sources: Vec<SourceDto>,
     /// The credentials (plan B137)
     pub credentials: Vec<CredentialDto>,
+    /// The looks here and what the catalogs fetched last offer (plan B141)
+    pub looks: crate::api::types::LooksAnswer,
     /// The macOS bases (plan B137)
     pub bases: Vec<BaseDto>,
     pub settings: SettingsDto,
@@ -286,6 +290,7 @@ pub(crate) fn build(ctx: &Ctx, page: &PageRef) -> Result<Value, RpcError> {
         "doctor" => to_value(doctor::page(ctx)),
         "macBase" => to_value(doctor::mac_base_page(ctx, &page_params(p)?)),
         "credentials" => to_value(credentials::page(ctx)),
+        "looks" => to_value(looks::page(ctx)),
         "credential" => {
             let p: credentials::CredentialParams = page_params(p)?;
             to_value(credentials::credential_page(ctx, &p).ok_or_else(|| {
@@ -322,6 +327,7 @@ impl Server {
         client_version: Option<String>,
         pages: &[PageRef],
     ) -> Result<Ctx, RpcError> {
+        let language_for_looks = language.clone();
         let state = self.state_in(language).map_err(RpcError::from)?;
         let view = state.view();
         let vms = view.vms();
@@ -375,6 +381,7 @@ impl Server {
             fetching: catalogs,
             sources: self.sources(),
             credentials: super::methods::credential_dtos(&state.paths),
+            looks: self.looks_answer(language_for_looks.as_deref()),
             bases: super::methods::base_dtos(&state.paths),
             settings: super::methods::settings_dto(&state.paths),
             settings_answer,

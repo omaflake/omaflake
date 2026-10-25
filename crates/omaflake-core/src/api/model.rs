@@ -324,9 +324,9 @@ pub(crate) fn build_blockers<'a>(
     use PrerequisiteItem::*;
     let needed: &[PrerequisiteItem] = match kind {
         GuestKind::Nixos => {
-            &[Nix, Flakes, NixDarwin, LinuxBuilder, Flake, Credential, BuilderRunning, FlakeEval, NixSpace]
+            &[Nix, Flakes, NixDarwin, LinuxBuilder, Flake, Credential, Look, BuilderRunning, FlakeEval, NixSpace]
         }
-        GuestKind::Macos => &[Host, Nix, Flakes, Flake, SshKey, Credential, FlakeEval, MacBase, MacSpace],
+        GuestKind::Macos => &[Host, Nix, Flakes, Flake, SshKey, Credential, Look, FlakeEval, MacBase, MacSpace],
     };
     all.filter(|p| {
         needed.contains(&p.item)
@@ -374,6 +374,7 @@ pub(crate) fn requirement_title_on(item: PrerequisiteItem, host: super::views::H
         Flake => "Recipes (your flake)",
         SshKey => "SSH key",
         Credential => "Credential",
+        Look => "Look",
         Git => "git (optional)",
         Cli => "omaf command (optional)",
         BuilderRunning => "Linux builder answers",
@@ -1047,7 +1048,11 @@ mod tests {
     }
 
     fn catalog(recipes: Vec<CatalogRecipe>) -> RecipeCatalog {
-        RecipeCatalog { source: CatalogSource { name: "x".into(), description: None, homepage: None }, recipes }
+        RecipeCatalog {
+            source: CatalogSource { name: "x".into(), description: None, homepage: None },
+            recipes,
+            looks: vec![],
+        }
     }
 
     fn hash(r: &CatalogRecipe) -> String {

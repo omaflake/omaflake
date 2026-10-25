@@ -45,6 +45,8 @@ pub enum Model {
     /// Credentials (plan B137)
     Credentials(Box<CredentialsPage>),
     Credential(Box<CredentialPage>),
+    /// Looks (plan B141)
+    Looks(Box<omaflake_core::api::views::looks::LooksPage>),
     Activity(Box<ActivityPage>),
     Vm(Box<VmPage>),
     Image(Box<ImagePage>),
@@ -99,6 +101,7 @@ pub fn decode(page: &str, v: Value) -> Model {
         // The credential of a macOS base from before bases kept theirs: the same form (plan B139)
         "baseCredential" => de(v, Model::Credential),
         "activity" => de(v, Model::Activity),
+        "looks" => de(v, Model::Looks),
         "vm" => de(v, Model::Vm),
         "image" => de(v, Model::Image),
         other => Model::Error(trf("Unknown page %@", &[other.into()])),
@@ -114,6 +117,7 @@ impl Model {
             Model::Images(p) => &p.head.title,
             Model::Recipes(p) => &p.head.title,
             Model::Activity(p) => &p.head.title,
+            Model::Looks(p) => &p.head.title,
             Model::NewVm(p) => &p.title,
             Model::Build(p) => &p.title,
             Model::Doctor(p) => &p.title,
@@ -791,17 +795,21 @@ impl App {
         }
     }
 
-    /// The recipes tab fetches the sources' catalogs once when it opens (as the macOS app did)
+    /// The recipes and the looks tab fetch the sources' catalogs once when they open (as the macOS app did)
     fn refresh_catalogs_once(&mut self) -> Task<Message> {
-        if self.tab != "recipes" || self.catalogs_asked {
+        if !matches!(self.tab.as_str(), "recipes" | "looks") || self.catalogs_asked {
             return Task::none();
         }
-        let Some(Model::Recipes(r)) = self.models.get(&self.tab_page().key()) else { return Task::none() };
-        if r.catalogs_loaded || r.loading {
+        let (loaded, head) = match self.models.get(&self.tab_page().key()) {
+            Some(Model::Recipes(r)) => (r.catalogs_loaded || r.loading, &r.head),
+            Some(Model::Looks(l)) => (l.catalogs_loaded || l.loading, &l.head),
+            _ => return Task::none(),
+        };
+        if loaded {
             self.catalogs_asked = true;
             return Task::none();
         }
-        let refresh = r.head.actions.iter().find(|a| a.id == "refresh" && a.enabled).cloned();
+        let refresh = head.actions.iter().find(|a| a.id == "refresh" && a.enabled).cloned();
         self.catalogs_asked = true;
         match refresh {
             Some(a) => self.start(a, None),
@@ -887,7 +895,7 @@ impl App {
             }
             "activity" => self.activity_arrived(),
             "vms" => self.update_tray(),
-            "recipes" => tasks.push(self.refresh_catalogs_once()),
+            "recipes" | "looks" => tasks.push(self.refresh_catalogs_once()),
             "settings" => {
                 if let Some(Model::Settings(s)) = self.current().as_ref().and_then(|p| self.model(p)) {
                     if let Some(f) = s.general.fields.iter().find(|f| f.id == "notifications") {

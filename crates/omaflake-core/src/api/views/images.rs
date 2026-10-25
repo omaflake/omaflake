@@ -422,16 +422,26 @@ pub(crate) fn choice_parts(ctx: &Ctx, i: &ImageDto) -> Vec<String> {
             .unwrap_or_else(|| id.clone()),
     };
     let mut parts = vec![credential];
-    parts.extend(i.look.as_deref().map(GuestChoices::look_name));
+    parts.extend(i.look.as_deref().map(|l| look_title(ctx, l)));
     parts
 }
 
+/// A look's title: an installed look's own; older images name one of omaflake's looks (plan B135), a look that is
+/// gone keeps its name
+pub(crate) fn look_title(ctx: &Ctx, look: &str) -> String {
+    let id = if look.contains(".look.") { look.to_string() } else { format!("omaflake.look.{look}") };
+    match ctx.looks.looks.iter().find(|l| l.id == id) {
+        Some(l) => l.title.clone(),
+        None => GuestChoices::look_name(id.rsplit(".look.").next().unwrap_or(look)),
+    }
+}
+
 /// "Look: Rosé Pine Dawn" of an image (plan B135); "unknown" for an image built before looks
-pub(crate) fn look_line(look: Option<&str>) -> InfoLine {
+pub(crate) fn look_line(ctx: &Ctx, look: Option<&str>) -> InfoLine {
     InfoLine::new(
         "Look",
         match look {
-            Some(l) => Text::verbatim(GuestChoices::look_name(l)),
+            Some(l) => Text::verbatim(look_title(ctx, l)),
             None => Text::new("unknown – built before looks"),
         },
     )
@@ -481,7 +491,7 @@ fn detail(ctx: &Ctx, i: &ImageDto, outdated: Option<bool>) -> ImageDetail {
         InfoLine::new("Recipe state", revision),
         status,
         credential_line(ctx, i),
-        look_line(i.look.as_deref()),
+        look_line(ctx, i.look.as_deref()),
         InfoLine::new("Used by", if used.is_empty() { Text::new("no VM") } else { Text::verbatim(&used) }).full(&used),
         InfoLine::new(
             "Size",

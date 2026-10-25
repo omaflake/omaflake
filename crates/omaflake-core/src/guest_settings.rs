@@ -46,9 +46,10 @@ pub struct GuestSettings {
     /// Guest user of macOS VMs – fixed by the base; None = same as `user`
     #[serde(rename = "macUser", default, skip_serializing_if = "Option::is_none")]
     pub mac_user: Option<String>,
-    /// The look of the guests (`GuestChoices::LOOKS`, the image flake's modules/look.nix); None = the recipe's
+    /// The guest's look as data (look.toml of an installed look, plan B141) – the image flake's looks/adapter.nix
+    /// turns it into each program's configuration; None = no look (every program its own colours)
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub look: Option<String>,
+    pub look: Option<serde_json::Value>,
     #[serde(rename = "authorizedKeys")]
     pub authorized_keys: Vec<String>,
 }
@@ -91,7 +92,11 @@ impl GuestSettings {
             }
             g.email = set(c.email.clone());
         }
-        g.look = set(choice.look.clone());
+        // The chosen look's data – a look that is gone gives none
+        g.look = set(choice.look.clone()).and_then(|id| {
+            let looks = crate::looks::LookStore::new(paths.clone());
+            looks.list(&Settings::load(paths)).into_iter().find(|l| l.id == id).map(|l| l.data)
+        });
         if let Some(o) = Settings::load(paths).guest {
             if let Some(v) = set(o.time_zone) {
                 g.time_zone = v;
@@ -325,13 +330,10 @@ pub struct GuestOverrides {
     pub locale: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub keyboard: Option<String>,
-    /// The default look of new images (settings v2); None = each recipe's
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub look: Option<String>,
 }
 
-/// What an image is built with besides its recipe (plan B137): a credential (None: this computer's values) and a look
-/// (None: the recipe's own)
+/// What an image is built with besides its recipe (plan B137): a credential (None: this computer's values, images
+/// from before credentials) and a look – an installed look's id (plan B141; None: no look)
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct BuildChoice {
     pub credential: Option<Credential>,
@@ -343,7 +345,7 @@ impl BuildChoice {
     pub fn defaults(paths: &Paths) -> BuildChoice {
         BuildChoice {
             credential: Credentials::new(paths.clone()).default_credential(),
-            look: Settings::load(paths).guest.and_then(|g| g.look).filter(|l| !l.is_empty()),
+            look: crate::looks::LookStore::new(paths.clone()).default_look(&Settings::load(paths)).map(|l| l.id),
         }
     }
 
@@ -351,7 +353,8 @@ impl BuildChoice {
     pub fn of_image(paths: &Paths, info: &ImageInfo) -> BuildChoice {
         BuildChoice {
             credential: info.credential.as_deref().and_then(|id| Credentials::new(paths.clone()).get(id)),
-            look: info.look_choice.clone(),
+            // Images from before installable looks name a look of omaflake's own (plan B141)
+            look: info.look_choice.clone().map(|l| if l.contains(".look.") { l } else { format!("omaflake.look.{l}") }),
         }
     }
 
@@ -498,12 +501,25 @@ mod tests {
         use crate::guest_settings::GuestOverrides;
         use crate::mac_vm::{MacVmBundle, MacVmConfig};
         let (_t, p) = temp_paths();
+        // A look in a local folder source: the default (the only one)
+        let src = tempfile::tempdir().unwrap();
+        let look = src.path().join("looks/alice/plain");
+        std::fs::create_dir_all(&look).unwrap();
+        std::fs::write(
+            look.join("look.toml"),
+            "\"$schema\" = \"https://omaflake.dev/schema/look/v1.json\"\nauthor = \"alice\"\nlicense = \"MIT\"\ntitle = \"Plain\"\ndescription = \"x\"\ntags = [\"plain\"]\nplain = true\n",
+        )
+        .unwrap();
+        let folder = crate::recipe_sources::RecipeSource::new(
+            crate::recipe_sources::RecipeSourceKind::Folder,
+            &src.path().to_string_lossy(),
+            None,
+            None,
+            None,
+        );
         let s = Settings {
-            guest: Some(GuestOverrides {
-                keyboard: Some("us".into()),
-                look: Some("rose-pine-dawn".into()),
-                ..Default::default()
-            }),
+            sources: Some(vec![folder]),
+            guest: Some(GuestOverrides { keyboard: Some("us".into()), ..Default::default() }),
             credentials: Some(vec![Credential {
                 id: "c-1".into(),
                 name: "Dev".into(),
@@ -520,11 +536,12 @@ mod tests {
         std::fs::write(base.join(MacBaseInstaller::READY_MARKER), "carol\n").unwrap();
         let g = GuestSettings::current(&p);
         assert!(g.user == "dev" && g.keyboard == "us" && g.mac_user.as_deref() == Some("carol"));
-        assert_eq!(g.look.as_deref(), Some("rose-pine-dawn"));
+        // The look goes to the image flake as data (plan B141)
+        assert_eq!(g.look.as_ref().and_then(|l| l.get("title")).and_then(|t| t.as_str()), Some("Plain"));
         // written once, stable content (no rewrite when unchanged)
         let choice = BuildChoice::defaults(&p);
         let dir = GuestSettings::write(&p, &choice).unwrap();
-        assert!(dir.ends_with("guest/c-1-rose-pine-dawn"));
+        assert!(dir.ends_with("guest/c-1-alice_look_plain"));
         let file = dir.join("settings.json");
         let first = std::fs::metadata(&file).unwrap().modified().unwrap();
         GuestSettings::write(&p, &choice).unwrap();

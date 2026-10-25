@@ -816,6 +816,22 @@ Entwurf-Baukasten.md):
   with look data in `settings.look`; the colour-made Neovim theme in Neovim and Emacs theme in Emacs (headless:
   Normal/default and String as the look says); `nix flake check` (with the recipes). Catalog: omaflake and Vanilla
   added (`plain = true`, schema look/v1 and catalog/v3 updated), all four validate. OPEN: an image built and looked at.
+- **Step 2 done (2026-10-25):** the core reads catalog v3 (`RecipeCatalog::VERSION` 3, `looks`); `looks::LookStore` –
+  installed looks in `<data>/looks/<author>.<name>/` with `looks/.installed.json` (schema `installed-looks` v1), a local
+  folder source's looks used live, `install` (files checked by size and SHA-256, known files only), `remove`, the
+  default (settings `defaultLook`, else the first). Settings v4: the guest look becomes `defaultLook`, the official
+  source omaflake/catalog (`.installed.json` recipes from omaflake/recipes count as from it). Builds send the chosen
+  look's data (`GuestSettings::look`), images record the look's id; the image flake has no look built in any more
+  (`omaflake.look` null = every program its own colours; `brand/tokens.py` writes `brand/omaflake-look.toml`, copied
+  into the catalog). API `looks.list/install/installRecommended/remove/setDefault`, job `look-install`; Doctor item
+  `look` (a build blocker, "Install Recommended"); pages: the Looks tab (home tab `looks`, rows with a colour strip),
+  the build page's look field from the installed looks, settings without the default credential and look; CLI `omaf
+  looks`, `omaf build --look <author>/<name>`. TUI, iced and SwiftUI render the tab (colour strips: RGB blocks, iced
+  containers, SwiftUI rectangles). Checked: `cargo test` (store: folder looks, install with untrusted entries refused,
+  remove, default; settings v3 → v4; pages; golden `looks`), `swift test`, flake checks, the CLI against the public
+  catalog (two looks there yet) and a local folder source (all four). OPEN: publishing the catalog commit with
+  omaflake's look and Vanilla (until then "Install Recommended" finds omaflake's own only in a local source);
+  clicking the tab in the three UIs; a build with an installed look.
 
 **Found on the way:** environment variables of the CLI (`VM_FLAKE`, …) do not reach the core service – a build that
 runs there uses config.json's flake (OPEN).

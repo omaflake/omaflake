@@ -68,6 +68,7 @@ pub fn list<'a>(app: &'a App, tab: &str, m: &'a Model) -> El<'a> {
         Model::Vms(p) => vms(app, p),
         Model::Images(p) => images(app, p),
         Model::Recipes(p) => recipes(app, p),
+        Model::Looks(p) => looks(app, p),
         Model::Activity(p) => activity(app, p),
         Model::Error(e) => error(e),
         _ => error(&format!("{tab}: not a list")),
@@ -442,6 +443,73 @@ fn recipes<'a>(app: &'a App, p: &'a RecipesPage) -> El<'a> {
         rows.push(hint(h, app.pulse));
     }
     section(app, "recipes", &p.head, rows)
+}
+
+/// The Looks tab (plan B141): the looks here with a strip of their colours, what the sources offer besides
+fn looks<'a>(app: &'a App, p: &'a omaflake_core::api::views::looks::LooksPage) -> El<'a> {
+    let mut rows: Vec<El<'a>> = Vec::new();
+    if let (true, Some(t)) = (p.loading, &p.loading_text) {
+        rows.push(
+            container(
+                row![
+                    widgets::lamp_dot(omaflake_core::api::views::common::LampState::Working, app.pulse),
+                    secondary(s(t))
+                ]
+                .spacing(spacing::L)
+                .align_y(Alignment::Center),
+            )
+            .padding(spacing::CARD_PADDING)
+            .into(),
+        );
+    }
+    rows.extend(p.rows.iter().map(|r| look_row(app, r)));
+    if let (false, Some(t)) = (p.offered.is_empty(), &p.offered_title) {
+        rows.push(container(section_title(t)).padding([spacing::M, spacing::XL]).into());
+    }
+    rows.extend(p.offered.iter().map(|r| look_row(app, r)));
+    rows.extend(p.unreadable.iter().map(|h| hint(h, app.pulse)));
+    rows.push(container(secondary(s(&p.footer))).padding(spacing::CARD_PADDING).into());
+    section(app, "looks", &p.head, rows)
+}
+
+/// A look's colours as a small strip; a plain look shows an empty frame
+fn swatches<'a>(colors: &[String]) -> El<'a> {
+    let mut strip = row![].spacing(1);
+    for c in colors.iter().take(11) {
+        let v = u32::from_str_radix(c.trim_start_matches('#'), 16).unwrap_or(0x808080);
+        let color = Color::from_rgb8((v >> 16) as u8, (v >> 8) as u8, v as u8);
+        strip = strip.push(
+            container(space::horizontal().width(4))
+                .height(14)
+                .style(move |_| container::Style { background: Some(color.into()), ..Default::default() }),
+        );
+    }
+    container(strip)
+        .style(|_| container::Style {
+            border: iced::Border { color: style::SECONDARY, width: 0.5, radius: 3.0.into() },
+            ..Default::default()
+        })
+        .width(Length::Fixed(if colors.is_empty() { 44.0 } else { (colors.len().min(11) * 5) as f32 }))
+        .height(14)
+        .into()
+}
+
+fn look_row<'a>(app: &'a App, r: &'a omaflake_core::api::views::looks::LookRow) -> El<'a> {
+    let key = format!("look:{}", r.id);
+    let header = row![
+        lamp(&r.lamp, app.pulse),
+        swatches(&r.swatches),
+        container(name_line(r.name.clone(), r.badges.iter().map(badge).collect(), Some(s(&r.subtitle)), vec![]))
+            .width(Length::Fill),
+        row_actions(app, &r.actions),
+    ]
+    .spacing(spacing::XL)
+    .align_y(Alignment::Center);
+    expandable(key.clone(), app.expanded.contains(&key), header.into(), || {
+        let mut c = column![Column::with_children(r.detail.info.iter().map(info_line)).spacing(spacing::S)];
+        c = c.push(wrap(r.detail.actions.iter().map(|a| action_button(a, None, app.pulse)).collect()));
+        detail_box(c)
+    })
 }
 
 pub fn recipe_row<'a>(app: &'a App, r: &'a RecipeRowView) -> El<'a> {
@@ -1258,6 +1326,7 @@ pub mod tests {
             "vms" => "vms",
             "images" => "images",
             "recipes" => "recipes",
+            "looks" => "looks",
             "newVm" => "newVm",
             "build" => "build",
             "doctor" => "doctor",

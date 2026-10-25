@@ -17,6 +17,7 @@ pub fn lucide(name: &str) -> Option<Icon> {
         "image" => Icon::Package,
         "recipe" => Icon::BookOpen,
         "activity" => Icon::Clock,
+        "look" => Icon::Palette,
         "nixos" => Icon::Snowflake,
         "macos" => Icon::Apple,
         "start-window" => Icon::MonitorPlay,

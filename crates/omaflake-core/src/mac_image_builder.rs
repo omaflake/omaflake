@@ -251,7 +251,7 @@ impl MacImageBuilder {
             Some(system.clone()),
             json::now(),
         );
-        info.set_choice(&r.choice, images.look_of(&r.recipe, GuestKind::Macos, &r.flake, &r.choice));
+        info.set_choice(&r.choice);
         ImageStore::write_info(&info, &work)?;
         fs::rename(&work, &image).with_path(&image)?;
         Shell::check(
