@@ -13,6 +13,8 @@ are collected under *Unreleased*. Releases: [GitHub](https://github.com/omaflake
 
 ## [Unreleased]
 
+## [0.6.0] – 2026-10-25
+
 **Recipes are put together from building blocks now.** A recipe is data – a platform, the **modules** in it, a
 suggested look, **key bindings**, what a VM needs at least and how it runs –, and the Nix lives in modules, reviewed in
 their catalog. Installing a recipe brings what it is made of; the new **Modules** tab lists the modules and key

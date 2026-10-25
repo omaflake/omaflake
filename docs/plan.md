@@ -503,6 +503,15 @@ for `omaf ui` and the Linux app and German error messages everywhere (B125), the
 for `omaf new -r` when its recipe line names another computer's folder; click tests of B119/B121 (macOS app, Linux app on a real desktop). Then M12 once the Developer ID
 is there.
 
+**Release 0.6.0 (2026-10-25):** recipes as building blocks (B141, B142): recipe v2 is data – a platform, modules,
+a suggested look, key bindings, requirements, how a VM runs; the first-party modules and key bindings in omaflake/catalog
+(catalog v4); installing a recipe brings its parts; the Modules tab, Profiles, My Recipes (the recipe editor), what a
+recipe is made of on its page and the build page; locales (language, time zone, one to three keyboards) and the host
+keyboard; installable looks with the Looks tab (B140, B141); the website's catalog page. Settings v5, image.json v3;
+recipe v1 and catalogs before v4 are not read (no compatibility before 1.0). Unsigned, for the maintainer to try. Open
+after it: the other new recipes built (emacs-minimal, neovim-research, lab, macOS), the new pages clicked in the
+SwiftUI and iced apps, a macOS guest with several keyboards (BM24).
+
 **Release 0.5.2 (2026-10-25):** credentials and the image as recipe + credential + look (B137), the look and credential
 shown at images and VMs, outdated right after a change of what an image was built with (B136); credentials as the
 other lists with Copy Password (Touch ID), locked while used, always with a password; macOS bases in the images tab;
