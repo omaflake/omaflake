@@ -103,6 +103,10 @@ impl Credentials {
         if all.iter().any(|c| c.name.eq_ignore_ascii_case(&name)) {
             return Err(vm_err!(codes::EXISTS, "There is a credential \"{name}\" already"));
         }
+        // Every credential has a password (the maintainer's decision, plan B137)
+        if change.password.as_deref().is_none_or(str::is_empty) {
+            return Err(vm_err!("A credential needs a password"));
+        }
         let mut c = Credential { id: Self::new_id(&all), name, ..Default::default() };
         Self::apply(&mut c, &change)?;
         all.push(c.clone());
@@ -139,6 +143,7 @@ impl Credentials {
         s.credentials = Some(all);
         s.save(&self.paths)?;
         let place = match change.password.as_deref() {
+            Some("") => return Err(vm_err!("A credential's password cannot be removed – only changed")),
             Some(p) => self.tokens.set_account(&Self::account(id), &Self::label(&c), Some(p))?,
             None => None,
         };
@@ -215,6 +220,63 @@ impl Credentials {
     }
 }
 
+/// Asks the person at this computer to prove it is them before a password leaves the secret store (plan B137): Touch
+/// ID or the login password (LocalAuthentication, `deviceOwnerAuthentication`) on macOS. On Linux the keyring's own
+/// unlock is the guard (OPEN: a polkit check). `Ok(false)`: cancelled or failed.
+pub fn confirm_owner(reason: &str) -> Result<bool> {
+    #[cfg(target_os = "macos")]
+    {
+        use objc2_foundation::{NSError, NSString};
+        use objc2_local_authentication::{LAContext, LAPolicy};
+        let (tx, rx) = std::sync::mpsc::channel::<bool>();
+        let reply = block2::RcBlock::new(move |ok: objc2::runtime::Bool, _error: *mut NSError| {
+            let _ = tx.send(ok.as_bool());
+        });
+        // SAFETY: the reply only sends on a channel (sendable); the context lives until the answer came
+        let context = unsafe { LAContext::new() };
+        unsafe {
+            context.evaluatePolicy_localizedReason_reply(
+                LAPolicy::DeviceOwnerAuthentication,
+                &NSString::from_str(reason),
+                &reply,
+            )
+        };
+        let ok = rx.recv_timeout(std::time::Duration::from_secs(300)).unwrap_or(false);
+        drop(context);
+        Ok(ok)
+    }
+    #[cfg(not(target_os = "macos"))]
+    {
+        let _ = reason;
+        Ok(true)
+    }
+}
+
+/// Puts `text` on this computer's clipboard: pbcopy on macOS; wl-copy, else xclip on Linux
+pub fn copy_to_clipboard(text: &str) -> Result<()> {
+    use std::io::Write;
+    use std::process::{Command, Stdio};
+    let tools: &[(&str, &[&str])] = if cfg!(target_os = "macos") {
+        &[("/usr/bin/pbcopy", &[])]
+    } else {
+        &[("wl-copy", &[]), ("xclip", &["-selection", "clipboard"])]
+    };
+    for (tool, args) in tools {
+        let Ok(mut child) =
+            Command::new(tool).args(*args).stdin(Stdio::piped()).stdout(Stdio::null()).stderr(Stdio::null()).spawn()
+        else {
+            continue;
+        };
+        if let Some(mut stdin) = child.stdin.take() {
+            stdin.write_all(text.as_bytes())?;
+        }
+        if child.wait()?.success() {
+            return Ok(());
+        }
+    }
+    Err(vm_err!("No clipboard tool (pbcopy, wl-copy, xclip) to copy with"))
+}
+
 /// A random credential ID: "c-" and 12 hex digits (time, process and a counter, hashed)
 pub fn random_id() -> String {
     use std::collections::hash_map::RandomState;
@@ -287,25 +349,27 @@ mod tests {
         assert!(!std::fs::read_to_string(&c.paths.config_file).unwrap().contains("secret"));
         // The first one is the default
         assert_eq!(c.default_credential().map(|d| d.id), Some(w1.clone()));
-        let (private, _) = c.add(change("Private", "al", None)).unwrap();
+        assert!(c.add(change("Private", "al", None)).is_err()); // every credential has a password
+        let (private, _) = c.add(change("Private", "al", Some("pw"))).unwrap();
         let p2 = private.id.clone();
-        assert!(p2 != w1 && !c.has_password(&p2));
-        assert!(c.add(change("work", "x", None)).is_err()); // names are unique, any case
-        assert!(c.add(change("Bad", "Alex!", None)).is_err());
+        assert!(p2 != w1 && c.has_password(&p2));
+        assert!(c.add(change("work", "x", Some("pw"))).is_err()); // names are unique, any case
+        assert!(c.add(change("Bad", "Alex!", Some("pw"))).is_err());
         // A change keeps what it does not name; "" clears
         let (w, _) =
             c.update(&w1, CredentialChange { email: Some("a@example.org".into()), ..Default::default() }).unwrap();
         assert_eq!((w.user.as_deref(), w.email.as_deref()), (Some("alex"), Some("a@example.org")));
-        c.update(&w1, CredentialChange { password: Some(String::new()), ..Default::default() }).unwrap();
-        assert!(!c.has_password(&w1));
+        // A password can change, not go
+        assert!(c.update(&w1, CredentialChange { password: Some(String::new()), ..Default::default() }).is_err());
+        assert!(c.has_password(&w1));
         c.update(&w1, CredentialChange { password: Some("new".into()), ..Default::default() }).unwrap();
         assert_eq!(c.password(&w1).as_deref(), Some("new"));
         assert_eq!(c.find("private").map(|p| p.id), Some(p2.clone()));
         // Removing the default leaves this computer's values; the password goes too
         c.remove(&w1).unwrap();
-        assert!(c.default_credential().is_none() && fake.0.lock().unwrap().is_empty());
+        assert!(c.default_credential().is_none() && fake.0.lock().unwrap().len() == 1);
         c.set_default(Some(&p2)).unwrap();
         assert!(c.set_default(Some("c-9")).is_err());
-        assert!(c.add(change("Work", "alex", None)).is_ok()); // the name is free again
+        assert!(c.add(change("Work", "alex", Some("pw"))).is_ok()); // the name is free again
     }
 }

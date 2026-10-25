@@ -61,6 +61,7 @@ pub(crate) type Reply = Result<Answer, RpcError>;
 #[derive(Default)]
 pub(crate) struct Session {
     pub language: Option<String>,
+    pub client_version: Option<String>,
     pub update_feed: Option<String>,
 }
 

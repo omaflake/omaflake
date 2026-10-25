@@ -25,6 +25,11 @@ zune-jpeg = "0.5.15"
 
 # The login Keychain (recipe source tokens, RecipeSources.swift `SourceTokens`)
 [target.'cfg(target_os = "macos")'.dependencies]
+# "Copy password" asks Touch ID or the login password first (LocalAuthentication, credentials.rs; plan B137)
+objc2-local-authentication = { version = "0.3", default-features = false, features = ["std", "LAContext", "LAError", "block2"] }
+objc2-foundation = { version = "0.3", default-features = false, features = ["std", "NSString", "NSError"] }
+objc2 = "0.6"
+block2 = "0.6"
 security-framework.workspace = true
 
 # The Secret Service over D-Bus (recipe source tokens, source_tokens.rs): pure Rust (zbus, RustCrypto), MIT/Apache-2.0

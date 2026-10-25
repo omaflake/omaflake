@@ -189,8 +189,11 @@ while omaflake is not in front (menu window closed, app window hidden or in the 
   keeps it in the Keychain, never in a file. Footer: recipes from other sources are not reviewed by the omaflake team
 - Settings: guest user in the VMs (user, full name, e-mail as text; language and region, keyboard, time zone chosen
   from lists that offer only what NixOS and macOS guests both support (`GuestChoices`, plan B46); "Like this Mac" or empty = the Mac's value;
-  the default credential and the default look of new images (plan B135, B137); Credentials (the key in the header):
-  create, edit and remove them, store a password for macOS builds; building an image asks its credential and look;
+  the default credential and the default look of new images (plan B135, B137; the section is "For new images":
+  existing images and VMs keep what they were built with); Credentials (the key in the header): rows as the other
+  lists (in use, Copy Password with Touch ID), a form to create or edit one (only the name while images use it), every
+  credential has a password (plan B138); building an image asks its credential and look; macOS bases are a section
+  of the images tab (Remove);
   SSH keys from ~/.ssh; macOS VMs use the base's user), language (System, English, Deutsch – stored as `AppleLanguages` in the app's defaults, restart button);
   data folder (default `~/.omaflake`, move it elsewhere or back; `DataFolder.move`)
 

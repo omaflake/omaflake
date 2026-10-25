@@ -47,10 +47,13 @@ pub fn list() -> Outcome {
 }
 
 fn change(a: &cli::CredentialArgs, name: Option<String>, adding: bool) -> Result<CredentialChange, Failure> {
-    let password = if a.password {
-        Some(read_password("Password of the macOS base's user (stored in the keychain/keyring): ", false, true)?)
-    } else if a.no_password && !adding {
-        Some(String::new())
+    // Every credential has a password (plan B137): asked when it is added (stdin with --password), on edit only with
+    // --password
+    let prompt = "Password of the guest's user (kept in the keychain/keyring): ";
+    let password = if adding {
+        Some(read_password(prompt, a.password, !a.password)?)
+    } else if a.password {
+        Some(read_password(prompt, !std::io::IsTerminal::is_terminal(&std::io::stdin()), true)?)
     } else {
         None
     };
@@ -81,6 +84,14 @@ pub fn edit(a: &cli::CredentialArgs) -> Outcome {
     let env = Env::new();
     let credentials = Credentials::new(env.paths.clone());
     let c = credential(&credentials, &a.name, "edit")?;
+    // Images carry its user, full name and e-mail: while any uses it, only the name can change (plan B137)
+    let used = env.images().list().iter().filter(|i| i.info.credential.as_deref() == Some(c.id.as_str())).count();
+    if used > 0 && (a.user.is_some() || a.full_name.is_some() || a.email.is_some()) {
+        return Err(usage(
+            &["credentials", "edit"],
+            format!("{used} images are built with {} – only its name can change (--rename)", c.name),
+        ));
+    }
     let (c, place) = credentials.update(&c.id, change(a, a.rename.clone(), false)?)?;
     said(place);
     println!("Credential {} changed – images built with it are now outdated: build them again to take it.", c.name);
@@ -91,6 +102,13 @@ pub fn remove(reference: &str) -> Outcome {
     let env = Env::new();
     let credentials = Credentials::new(env.paths.clone());
     let c = credential(&credentials, reference, "rm")?;
+    let used = env.images().list().iter().filter(|i| i.info.credential.as_deref() == Some(c.id.as_str())).count();
+    if used > 0 {
+        return Err(usage(
+            &["credentials", "rm"],
+            format!("{used} images are built with {} – remove them first (omaf images rm)", c.name),
+        ));
+    }
     credentials.remove(&c.id)?;
     println!("Credential {} removed.", c.name);
     Ok(())
@@ -107,6 +125,21 @@ pub fn set_default(reference: &str) -> Outcome {
     let c = credential(&credentials, reference, "default")?;
     credentials.set_default(Some(&c.id))?;
     println!("New images get the credential {}.", c.name);
+    Ok(())
+}
+
+pub fn copy_password(reference: &str) -> Outcome {
+    let env = Env::new();
+    let credentials = Credentials::new(env.paths.clone());
+    let c = credential(&credentials, reference, "copy-password")?;
+    let Some(password) = credentials.password(&c.id) else {
+        return Err(usage(&["credentials", "copy-password"], format!("No password stored for {}", c.name)));
+    };
+    if !omaflake_core::credentials::confirm_owner(&format!("copy the password of “{}”", c.name))? {
+        return Err(usage(&["credentials", "copy-password"], "Not copied – not confirmed"));
+    }
+    omaflake_core::credentials::copy_to_clipboard(&password)?;
+    println!("Password of {} copied.", c.name);
     Ok(())
 }
 

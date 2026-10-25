@@ -49,6 +49,146 @@
       }
     }
   ],
+  "bases": {
+    "create": {
+      "enabled": true,
+      "icon": "macos",
+      "id": "macBase",
+      "label": {
+        "key": "Create macOS Base …",
+        "text": "Create macOS Base …"
+      },
+      "method": "ui.show",
+      "params": {
+        "page": "macBase",
+        "params": {}
+      }
+    },
+    "footer": {
+      "key": "A base is a clean macOS installed from Apple's IPSW; macOS images are built from the newest one. Removing an older base frees its space.",
+      "text": "A base is a clean macOS installed from Apple's IPSW; macOS images are built from the newest one. Removing an older base frees its space."
+    },
+    "rows": [
+      {
+        "actions": [
+          {
+            "enabled": true,
+            "icon": "folder",
+            "id": "reveal",
+            "label": {
+              "key": "Show in Finder",
+              "text": "Show in Finder"
+            },
+            "method": "ui.reveal",
+            "params": {
+              "path": "/data/bases/mac-base-26A434"
+            }
+          },
+          {
+            "confirm": {
+              "button": {
+                "key": "Remove",
+                "text": "Remove"
+              },
+              "destructive": true,
+              "text": {
+                "key": "It is deleted and cannot be restored. macOS images and VMs made from it stay – they are copies. New macOS images need a base.",
+                "text": "It is deleted and cannot be restored. macOS images and VMs made from it stay – they are copies. New macOS images need a base."
+              },
+              "title": {
+                "args": [
+                  "mac-base-26A434"
+                ],
+                "key": "Remove the macOS base “%@”?",
+                "text": "Remove the macOS base “mac-base-26A434”?"
+              }
+            },
+            "destructive": true,
+            "enabled": false,
+            "icon": "trash",
+            "id": "remove",
+            "label": {
+              "key": "Remove …",
+              "text": "Remove …"
+            },
+            "method": "bases.remove",
+            "params": {
+              "name": "mac-base-26A434"
+            },
+            "reason": {
+              "key": "A macOS base is being installed or a macOS image built – wait until it ends",
+              "text": "A macOS base is being installed or a macOS image built – wait until it ends"
+            }
+          }
+        ],
+        "badges": [
+          {
+            "help": {
+              "key": "New macOS images are built from this base",
+              "text": "New macOS images are built from this base"
+            },
+            "icon": "ok",
+            "id": "newest",
+            "label": {
+              "key": "newest",
+              "text": "newest"
+            },
+            "tone": "accent"
+          }
+        ],
+        "lamp": {
+          "help": {
+            "key": "New macOS images are built from it",
+            "text": "New macOS images are built from it"
+          },
+          "state": "on"
+        },
+        "name": "mac-base-26A434",
+        "subtitle": {
+          "args": [
+            {
+              "args": [
+                "26A434"
+              ],
+              "key": "macOS %@",
+              "text": "macOS 26A434"
+            },
+            {
+              "args": [
+                "alex"
+              ],
+              "key": "user %@",
+              "text": "user alex"
+            },
+            {
+              "args": [
+                {
+                  "date": "2026-10-17T10:00:00Z"
+                }
+              ],
+              "key": "%@",
+              "text": "2026-10-17 10:00 UTC"
+            },
+            {
+              "args": [
+                {
+                  "bytes": 41000000000
+                }
+              ],
+              "key": "%@",
+              "text": "41.0 GB"
+            }
+          ],
+          "key": "%@ · %@ · %@ · %@",
+          "text": "macOS 26A434 · user alex · 2026-10-17 10:00 UTC · 41.0 GB"
+        }
+      }
+    ],
+    "title": {
+      "key": "macOS Bases",
+      "text": "macOS Bases"
+    }
+  },
   "count": 2,
   "filter": {
     "active": false,

@@ -22,6 +22,7 @@ struct HomeList: View {
                 ForEach(p.rows) { ImageRowView(row: $0, model: model) }
                 ForEach(Array(p.unreadable.enumerated()), id: \.offset) { HintRow(hint: $1, model: model) }
             }
+            if let bases = p.bases { BasesSectionView(section: bases, model: model) }
         case .recipes(let p)?:
             section(p.head) {
                 if let updates = p.updates { RecipeUpdatesView(updates: updates, model: model) }
@@ -234,6 +235,45 @@ struct ImageRowView: View {
                 DetailActions(actions: row.detail.actions, model: model)
             }
         }
+    }
+}
+
+// MARK: - macOS bases
+
+/// The macOS bases under the images (plan B137): one line each with Show in Finder and Remove
+struct BasesSectionView: View {
+    let section: BasesSection
+    let model: AppModel
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: BrandTokens.Spacing.m) {
+            Text(verbatim: model.t(section.title)).font(.caption.weight(.medium)).foregroundStyle(.secondary)
+                .frame(maxWidth: .infinity, alignment: .leading)
+            ForEach(section.rows) { r in
+                HStack(spacing: BrandTokens.Spacing.xl) {
+                    StatusLamp(state: .init(r.lamp.state)).help(Text(verbatim: model.t(r.lamp.help)))
+                    Image(systemName: "apple.logo").frame(width: 16).foregroundStyle(.secondary)
+                    VStack(alignment: .leading, spacing: BrandTokens.Spacing.xxs) {
+                        HStack(spacing: BrandTokens.Spacing.m) {
+                            Text(verbatim: r.name).font(.callout.weight(.medium)).lineLimit(1)
+                            ForEach(r.badges) { BadgeView(badge: $0, model: model) }
+                        }
+                        Text(verbatim: model.t(r.subtitle)).font(.caption).foregroundStyle(.secondary).lineLimit(1)
+                    }
+                    Spacer(minLength: 4)
+                    ForEach(r.actions) { ActionIcon(action: $0, model: model) }
+                }
+                .padding(BrandTokens.Spacing.cardPadding)
+            }
+            if let empty = section.empty { HintRow(hint: empty, model: model) }
+            HStack {
+                Text(verbatim: model.t(section.footer)).font(.caption).foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                Spacer()
+                ActionPlainButton(action: section.create, model: model)
+            }
+        }
+        .padding(.top, BrandTokens.Spacing.xl)
     }
 }
 

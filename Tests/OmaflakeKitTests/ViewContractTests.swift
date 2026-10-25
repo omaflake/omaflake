@@ -73,6 +73,9 @@ extension APIContractTests {
             "images": {
                 guard case .images(let p) = try page("images", as: "images") else { throw Unexpected() }
                 #expect(p.head.count == 2 && !p.jobs.isEmpty && p.rows.count == 2)
+                // On a Mac the macOS bases are a section of their own (plan B137)
+                let bases = try #require(p.bases)
+                #expect(bases.rows.map(\.name) == ["mac-base-26A434"] && bases.rows[0].actions.map(\.id) == ["reveal", "remove"])
                 let job = try #require(p.jobs.first)
                 #expect(job.state == .running && job.fraction != nil && job.actions.first?.method == "jobs.cancel")
                 #expect(job.open.method == "ui.show" && job.open.params["page"] == .string("build") && job.open.primary)
@@ -149,7 +152,7 @@ extension APIContractTests {
             "doctor": {
                 guard case .doctor(let p) = try page("doctor", as: "doctor") else { throw Unexpected() }
                 #expect(p.issues == 3 && p.sections.map(\.id) == ["requirements", "nixos", "macos"] && p.checked != nil)
-                #expect(p.versions.first?.label.key == "Core" && p.actions.first?.method == "doctor.check")
+                #expect(p.versions.map(\.label.key) == ["omaflake"] && p.versions[0].value.args.count == 2 && p.actions.first?.method == "doctor.check")
                 let nix = try #require(p.sections[0].items.first { $0.item == .nix })
                 #expect(nix.status == .ok && !nix.expanded && nix.actions.map(\.id) == ["install", "setPath"])
                 // The guide: its title, its page on omaflake.dev; no `path` outside omaflake.app
@@ -176,9 +179,25 @@ extension APIContractTests {
             },
             "credentials": {
                 guard case .credentials(let p) = try page("credentials", as: "credentials") else { throw Unexpected() }
-                #expect(p.rows.map(\.name) == ["Work"] && p.rows[0].badges.map(\.id) == ["default", "password"])
-                #expect(p.rows[0].actions.map(\.id) == ["edit", "password", "removePassword", "default", "remove"])
-                #expect(p.add.primary && p.add.ask.map(\.param) == ["name", "user", "fullName", "email"])
+                // A row as the other lists: in use (lamp, by whom), the quick Copy Password, the rest when opened
+                #expect(p.rows.map(\.name) == ["Work"] && p.rows[0].badges.map(\.id) == ["default"])
+                #expect(p.rows[0].lamp.state == .on && p.rows[0].usedBy.count == 1 && p.rows[0].actions.map(\.id) == ["copyPassword"])
+                #expect(p.rows[0].detail.actions.map(\.id) == ["edit", "password", "default", "remove"])
+                #expect(p.add.method == "ui.show" && p.add.params["page"] == .string("credential"))
+            },
+            "credential": {
+                // New: all fields, the password asked twice on Create
+                guard case .credential(let p) = try page("credential", as: "credential") else { throw Unexpected() }
+                #expect(p.id == nil && p.locked == nil && p.fields.map(\.id) == ["name", "user", "fullName", "email"])
+                #expect(p.fields.allSatisfy { $0.enabled && $0.valueParam == $0.param })
+                let create = try #require(p.actions.last)
+                #expect(create.method == "credentials.add" && create.ask.first?.kind == .password && create.then == .back)
+            },
+            "credential.edit": {
+                // Used by an image: only the name can change, the other fields are greyed out with the reason
+                guard case .credential(let p) = try page("credential.edit", as: "credential") else { throw Unexpected() }
+                #expect(p.id == "c-1" && p.locked != nil && p.fields.filter(\.enabled).map(\.id) == ["name"])
+                #expect(p.actions.last?.method == "credentials.update" && p.actions.last?.params["id"] == .string("c-1"))
             },
             "credentials.linux": {
                 guard case .credentials(let p) = try page("credentials.linux", as: "credentials") else { throw Unexpected() }

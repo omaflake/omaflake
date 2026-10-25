@@ -10,7 +10,7 @@ use iced::{Alignment, Color, Length};
 use omaflake_core::api::views::activity::ActivityPage;
 use omaflake_core::api::views::build::{BuildPage, LogRef, Outcome};
 use omaflake_core::api::views::common::{Action, Blockers, Field, FieldKind, Filter, FilterKind, ListHead, Tone};
-use omaflake_core::api::views::credentials::CredentialsPage;
+use omaflake_core::api::views::credentials::{CredentialPage, CredentialRow, CredentialsPage};
 use omaflake_core::api::views::doctor::{DoctorItem, DoctorPage, Download, MacBasePage};
 use omaflake_core::api::views::images::{BuildJobRow, ImageRowView, ImagesPage};
 use omaflake_core::api::views::new_vm::NewVmPage;
@@ -263,6 +263,33 @@ fn images<'a>(app: &'a App, p: &'a ImagesPage) -> El<'a> {
     let mut rows: Vec<El<'a>> = p.jobs.iter().map(|j| job_row(app, j)).collect();
     rows.extend(p.rows.iter().map(|r| image_row(app, r)));
     rows.extend(p.unreadable.iter().map(|h| hint(h, app.pulse)));
+    // The macOS bases (on a Mac only – the Linux app shows them when its core runs there, plan B137)
+    if let Some(b) = &p.bases {
+        rows.push(section_title(&b.title));
+        rows.extend(b.rows.iter().map(|r| {
+            let mut line = row![
+                lamp(&r.lamp, app.pulse),
+                container(name_line(
+                    r.name.clone(),
+                    r.badges.iter().map(badge).collect(),
+                    Some(s(&r.subtitle)),
+                    vec![]
+                ))
+                .width(Length::Fill),
+            ]
+            .spacing(spacing::XL)
+            .align_y(Alignment::Center);
+            for a in &r.actions {
+                line = line.push(widgets::action_button(a, None, app.pulse));
+            }
+            container(line).padding([7.0, spacing::XL]).into()
+        }));
+        match &b.empty {
+            Some(h) => rows.push(hint(h, app.pulse)),
+            None => rows.push(row![space::horizontal(), button_of(&b.create, None, app.pulse)].into()),
+        }
+        rows.push(secondary(s(&b.footer)).into());
+    }
     section(app, "images", &p.head, rows)
 }
 
@@ -515,6 +542,7 @@ pub fn page<'a>(app: &'a App, p: &PageRef, m: &'a Model) -> El<'a> {
         Model::NewVm(n) => new_vm(app, &p.page, n),
         Model::Build(b) => build(app, &p.page, b),
         Model::Credentials(c) => credentials(app, &p.page, c),
+        Model::Credential(c) => credential(app, &p.page, c),
         Model::Doctor(d) => doctor(app, d),
         Model::MacBase(m) => mac_base(app, &p.page, m),
         Model::Settings(st) => settings(app, &p.page, st),
@@ -605,19 +633,7 @@ fn button_of<'a>(a: &Action, form: Option<&str>, pulse: bool) -> El<'a> {
 fn credentials<'a>(app: &'a App, page: &str, c: &'a CredentialsPage) -> El<'a> {
     let mut rows = Column::new();
     for r in &c.rows {
-        let mut line = row![container(name_line(
-            r.name.clone(),
-            r.badges.iter().map(badge).collect(),
-            Some(s(&r.subtitle)),
-            vec![]
-        ))
-        .width(Length::Fill)]
-        .spacing(spacing::L)
-        .align_y(Alignment::Center);
-        for a in &r.actions {
-            line = line.push(widgets::action_button(a, Some(page), app.pulse));
-        }
-        rows = rows.push(container(line).padding([7.0, spacing::XL]));
+        rows = rows.push(credential_row(app, r));
     }
     let add = row![space::horizontal(), button_of(&c.add, Some(page), app.pulse)];
     column![
@@ -629,6 +645,39 @@ fn credentials<'a>(app: &'a App, page: &str, c: &'a CredentialsPage) -> El<'a> {
     ]
     .spacing(spacing::XL)
     .into()
+}
+
+/// A credential as the other lists' rows (plan B137): lamp (in use), name, badges, subtitle, the quick action (Copy
+/// Password); opened, its values and the images using it with Edit, Password, Make Default, Remove
+fn credential_row<'a>(app: &'a App, r: &'a CredentialRow) -> El<'a> {
+    let key = format!("credential:{}", r.id);
+    let header = row![
+        lamp(&r.lamp, app.pulse),
+        container(name_line(r.name.clone(), r.badges.iter().map(badge).collect(), Some(s(&r.subtitle)), vec![]))
+            .width(Length::Fill),
+        row_actions(app, &r.actions),
+    ]
+    .spacing(spacing::XL)
+    .align_y(Alignment::Center);
+    expandable(key.clone(), app.expanded.contains(&key), header.into(), || {
+        let mut c = column![Column::with_children(r.detail.info.iter().map(info_line)).spacing(spacing::S)];
+        c = c.push(wrap(r.detail.actions.iter().map(|a| action_button(a, None, app.pulse)).collect()));
+        detail_box(c)
+    })
+}
+
+/// One credential's form (plan B137): what it is for, why only the name can change, the fields, Cancel and Save
+fn credential<'a>(app: &'a App, page: &str, c: &'a CredentialPage) -> El<'a> {
+    let mut col = column![secondary(s(&c.intro))].spacing(spacing::XL);
+    if let Some(l) = &c.locked {
+        col = col.push(text(s(l)).size(text_size::CALLOUT).color(style::WARNING));
+    }
+    let mut f = Column::new().spacing(spacing::L);
+    for field in &c.fields {
+        f = f.push(field_view(app, page, field, false));
+    }
+    col = col.push(container(f).padding(spacing::CARD_PADDING).width(Length::Fill).style(style::card));
+    col.push(page_actions(app, page, &c.actions)).into()
 }
 
 fn build<'a>(app: &'a App, page: &str, b: &'a BuildPage) -> El<'a> {
@@ -748,14 +797,8 @@ fn log_console<'a>(app: &'a App, job: &str) -> El<'a> {
 }
 
 fn doctor<'a>(app: &'a App, d: &'a DoctorPage) -> El<'a> {
-    let mut versions = column![info_line(&omaflake_core::api::views::common::InfoLine {
-        label: Text::new("App"),
-        value: Text::verbatim(env!("CARGO_PKG_VERSION")),
-        note: None,
-        tone: None,
-        full: None,
-    })]
-    .spacing(spacing::S);
+    // One block: "omaflake" with the app's and the core's version (the core says both), then the update
+    let mut versions = column![].spacing(spacing::S);
     for v in &d.versions {
         versions = versions.push(info_line(v));
     }

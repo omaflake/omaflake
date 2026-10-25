@@ -655,6 +655,27 @@ pub struct Choices {
     pub looks: Vec<Look>,
 }
 
+/// A macOS base (`bases.list`, plan B137)
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct BaseDto {
+    /// "mac-base-26A434"
+    pub name: String,
+    pub path: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub os_build: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub user: Option<String>,
+    /// Installed completely
+    pub ready: bool,
+    /// New macOS images are built from it
+    pub newest: bool,
+    #[serde(default, skip_serializing_if = "Option::is_none", with = "crate::json::iso8601::option")]
+    pub created: Option<DateTime<Utc>>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub size_bytes: Option<i64>,
+}
+
 /// A credential (plan B137) – `credentials.list`; its password never leaves the secret store
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]

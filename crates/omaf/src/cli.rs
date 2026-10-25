@@ -349,6 +349,12 @@ pub enum CredentialsCommand {
     Remove(CredentialRef),
     #[command(about = "Make a credential the default for new images; \"computer\" for this computer's values.")]
     Default(CredentialRef),
+    #[command(
+        name = "copy-password",
+        about = "Copy a credential's password to the clipboard (after Touch ID or the login password; cleared after \
+                 90 s)."
+    )]
+    CopyPassword(CredentialRef),
 }
 
 #[derive(Debug, Args)]
@@ -365,12 +371,10 @@ pub struct CredentialArgs {
     pub email: Option<String>,
     #[arg(
         long,
-        help = "Read a password from stdin (or prompt) and store it in the keychain/keyring – macOS builds then ask \
-                for none"
+        help = "add: read the password from stdin instead of a prompt; edit: change the password (prompt, or stdin \
+                when not a terminal). It is kept in the keychain/keyring – macOS builds ask for none"
     )]
     pub password: bool,
-    #[arg(long, help = "edit: remove the stored password")]
-    pub no_password: bool,
 }
 
 #[derive(Debug, Args)]

@@ -795,6 +795,8 @@ fn view_goldens() -> Vec<(&'static str, Value)> {
         ),
         ("doctor", page("doctor", json!({}))),
         ("credentials", page("credentials", json!({}))),
+        ("credential", page("credential", json!({}))),
+        ("credential.edit", page("credential", json!({"id": "c-1"}))),
         ("credentials.linux", build(&linux, &PageRef { page: "credentials".into(), params: json!({}) }).unwrap()),
         ("macBase", page("macBase", json!({}))),
         (

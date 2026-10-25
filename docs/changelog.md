@@ -13,6 +13,26 @@ are collected under *Unreleased*. Releases: [GitHub](https://github.com/omaflake
 
 ## [Unreleased]
 
+### Added
+
+- **Copy a credential's password:** a quick icon on each credential copies its password after Touch ID or your
+  login password (on Linux at once); the clipboard is cleared after 90 seconds. You never have to remember a guest's
+  password (`omaf credentials copy-password`).
+- **macOS bases in the images tab:** a section of their own under the images, with Show in Finder and Remove (not
+  while a macOS base is installed or a macOS image is built).
+
+### Changed
+
+- **Credentials as the other lists:** each row shows the name, who uses it (lamp, "alex · 1 image") and Copy
+  Password; a click opens its values and actions (Edit, Change Password, Make Default, Remove).
+- **Editing a credential is a form:** every field says what it is for (the user name is NixOS's login, home folder
+  and `omaf ssh`; macOS guests keep the base's user). While images use the credential only its name can change – the
+  other fields are greyed out with the reason –, and it cannot be removed until those images are gone.
+- **Every credential has a password:** it is asked (twice) when you create one and can be changed, not removed.
+- **Settings: "For new images"** instead of "Guests" – the values (credential, look, language, keyboard, time zone)
+  are used when an image is built; existing images and their VMs keep what they were built with.
+- **Doctor:** one line "omaflake" with the app's and the core's version, right above the update check.
+
 ## [0.5.1] – 2026-10-25
 
 An image is now a recipe with a credential and a look: you choose both when you build it, the settings only preset

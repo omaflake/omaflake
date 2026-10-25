@@ -11,7 +11,7 @@ use super::common::*;
 use super::text::{tf, Arg, Text};
 use super::vms::{kind_badge, recipe_name, unreadable};
 use super::Ctx;
-use crate::api::types::{ImageDto, JobDto, JobState};
+use crate::api::types::{ImageDto, JobDto, JobKind, JobState};
 use crate::guest_choices::GuestChoices;
 use crate::models::{GuestKind, RecipeId};
 
@@ -24,6 +24,36 @@ pub struct ImagesPage {
     pub jobs: Vec<BuildJobRow>,
     pub rows: Vec<ImageRowView>,
     pub unreadable: Vec<Hint>,
+    /// The macOS bases (on a Mac only, plan B137): what macOS images are built from
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub bases: Option<BasesSection>,
+}
+
+/// "macOS Bases": one row per base, a hint and the way to create one when there is none
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct BasesSection {
+    pub title: Text,
+    pub rows: Vec<BaseRow>,
+    /// No base yet: what it is for, with "Create macOS Base …"
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub empty: Option<Hint>,
+    /// "Create macOS Base …" (another one, from a newer macOS)
+    pub create: Action,
+    pub footer: Text,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct BaseRow {
+    pub name: String,
+    pub lamp: Lamp,
+    /// "macOS 26A434 · user alex · 2026-10-17 · 42 GB"
+    pub subtitle: Text,
+    /// newest (used for new images), incomplete
+    pub badges: Vec<Badge>,
+    /// Show in Finder, Remove …
+    pub actions: Vec<Action>,
 }
 
 /// A build in a list: its state in words, its progress; a click opens the build page (`open`)
@@ -147,7 +177,97 @@ pub(crate) fn page(ctx: &Ctx, p: &ImagesParams) -> ImagesPage {
     } else {
         None
     };
-    ImagesPage { head, jobs, rows, unreadable: unreadable(&ctx.unreadable_images) }
+    let bases = (ctx.host == super::HostOs::Macos).then(|| bases_section(ctx));
+    ImagesPage { head, jobs, rows, unreadable: unreadable(&ctx.unreadable_images), bases }
+}
+
+/// The macOS bases (plan B137): removing one is refused while a base is installed or a macOS image built
+fn bases_section(ctx: &Ctx) -> BasesSection {
+    let busy = ctx.jobs.iter().any(|j| {
+        j.state.is_active()
+            && (j.kind == JobKind::MacosInstall || (j.kind == JobKind::Build && j.guest_kind == Some(GuestKind::Macos)))
+    });
+    let rows = ctx
+        .bases
+        .iter()
+        .map(|b| {
+            let mut parts = vec![match &b.os_build {
+                Some(build) => tf!("macOS %@", build),
+                None => Text::new("macOS"),
+            }];
+            if let Some(user) = &b.user {
+                parts.push(tf!("user %@", user));
+            }
+            if let Some(created) = b.created {
+                parts.push(Text::fmt("%@", vec![Arg::date(created)]));
+            }
+            if let Some(size) = b.size_bytes {
+                parts.push(Text::fmt("%@", vec![Arg::bytes(size)]));
+            }
+            let mut badges = Vec::new();
+            if b.newest {
+                badges.push(
+                    Badge::new("newest", "ok", Text::new("New macOS images are built from this base"), Tone::Accent)
+                        .label(Text::new("newest")),
+                );
+            }
+            if !b.ready {
+                badges.push(
+                    Badge::new(
+                        "incomplete",
+                        "warning",
+                        Text::new("Not installed completely – it cannot build images"),
+                        Tone::Warning,
+                    )
+                    .label(Text::new("incomplete")),
+                );
+            }
+            let remove_text = Text::new(
+                "It is deleted and cannot be restored. macOS images and VMs made from it stay – they are copies. New macOS images need a base.",
+            );
+            BaseRow {
+                name: b.name.clone(),
+                lamp: if b.newest {
+                    Lamp::new(LampState::On, "New macOS images are built from it")
+                } else {
+                    Lamp::new(LampState::Off, "Not used for new images")
+                },
+                subtitle: Text::joined(parts),
+                badges,
+                actions: vec![
+                    Action::call("reveal", Text::new("Show in Finder"), Some("folder"), "ui.reveal", json!({"path": b.path})),
+                    Action::call("remove", Text::new("Remove …"), Some("trash"), "bases.remove", json!({"name": b.name}))
+                        .destructive()
+                        .confirm(
+                            Confirm::new(tf!("Remove the macOS base “%@”?", &b.name), remove_text)
+                                .button("Remove")
+                                .destructive(),
+                        )
+                        .enabled_if(
+                            !busy,
+                            Some(Text::new("A macOS base is being installed or a macOS image built – wait until it ends")),
+                        ),
+                ],
+            }
+        })
+        .collect::<Vec<_>>();
+    let create = Action::show("macBase", Text::new("Create macOS Base …"), Some("macos"), "macBase", json!({}));
+    BasesSection {
+        title: Text::new("macOS Bases"),
+        empty: rows.is_empty().then(|| {
+            Hint::new(
+                "macos",
+                Text::new("No macOS base yet – it is needed for macOS images and is created from Apple's macOS once."),
+                Tone::Normal,
+            )
+            .action(create.clone())
+        }),
+        rows,
+        create,
+        footer: Text::new(
+            "A base is a clean macOS installed from Apple's IPSW; macOS images are built from the newest one. Removing an older base frees its space.",
+        ),
+    }
 }
 
 pub(crate) fn job_row(ctx: &Ctx, j: &JobDto) -> BuildJobRow {

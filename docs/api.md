@@ -321,9 +321,12 @@ Params and results in short; the types are those of §4.
 | `settings.get` | – | `{settings, guestDefaults, choices: {timeZones, locales, keyboards: [{code, locale}], looks: [{name, title}]}, isDefaultDataFolder}` – `settings`: config.json's values with their defaults applied (`developerMode, checkForUpdates, notifications, keepRecipeVersions, guest: {user?, fullName?, email?, timeZone?, locale?, keyboard?, look?}, flake?, qemu?, nix?, runner?, flakeInUse?, dataFolder`); `guestDefaults`: this computer's values the guest overrides fall back to |
 | `settings.set` | any of `developerMode, checkForUpdates, notifications, keepRecipeVersions, guest, defaultCredential, flake, qemu, nix, runner` (`null` or `""` = back to the default; keys not given stay; `guest` takes `locale, keyboard, timeZone, look` – user, full name and e-mail are a credential's) | `settings` – turning `keepRecipeVersions` off prunes older recipe versions |
 | `credentials.list` | – | `[{id, name, user?, fullName?, email?, hasPassword, isDefault}]` (plan B137; a password never leaves the keychain/keyring) |
-| `credentials.add` | `name, user?, fullName?, email?, password?` | `{credential, note?}` – the first one becomes the default; `note` says when the password went to a file (no keyring) |
-| `credentials.update` | `id`, any of `name, user, fullName, email, password` (`""` clears a value; `password: ""` removes the stored one) | `{credential, note?}` – its images turn outdated when a value they were built with changed |
-| `credentials.remove` | `id` | `null` – its password goes too; images built with it keep its name (`credentialName`) |
+| `credentials.add` | `name, password, user?, fullName?, email?` | `{credential, note?}` – every credential has a password (plan B138); the first one becomes the default; `note` says when the password went to a file (no keyring) |
+| `credentials.update` | `id`, any of `name, user, fullName, email, password` (`""` clears a value; a password can be changed, not removed) | `{credential, note?}` – while images use it only `name` and `password` may change (`invalidParams` otherwise) |
+| `credentials.remove` | `id` | `null` – its password goes too; refused while images use it ("%@ images are built with this credential – remove them first") |
+| `credentials.copyPassword` | `id` | `null` – asks the owner first (macOS: Touch ID or the login password, LocalAuthentication), copies the password to the clipboard and clears it after 90 s; refused when not confirmed (plan B138) |
+| `bases.list` | – | `[{name, path, osBuild?, user?, ready, newest, created?, sizeBytes?}]` – the macOS bases (`bases/mac-base-*`; plan B138) |
+| `bases.remove` | `name` | `null` – deletes the base; refused while a macOS base is installed or a macOS image is built |
 | `dataFolder.move` | `target` | Job `data-move` (all VMs must be stopped) |
 | `updates.check` | – | `{state: "noFeed"|"upToDate"|"available"|"off", release?: {version, url, sha256?, notes?, page?}}` – a feed that cannot be read is an error (`network`) |
 
@@ -659,7 +662,9 @@ runs ("Shut the VM down first") or is busy.
 
 **images** – list head (filter `status`: In use/Not in use, `kind`, `recipe`; tool: import), `jobs` (builds that wait,
 run, failed or were cancelled: `{id, name, kind, state, title, count?, fraction?, actions: [cancel | dismiss], open,
-job}` – `open` is the row's `primary`: a click opens the build page), `rows` (macOS before NixOS, by recipe name,
+job}` – `open` is the row's `primary`: a click opens the build page), `bases?` (on a Mac only, plan B138: `{title,
+rows: [{name, lamp, subtitle, badges (newest), actions: [reveal, remove]}], empty?, create (the macOS base page),
+footer}`), `rows` (macOS before NixOS, by recipe name,
 newest first: lamp green when a VM uses it, badge `outdated`, subtitle "recipe dev · <date> · 1 VM", actions reveal and
 newVm (primary) – or the Doctor's warning (primary) –, details: info omaflake ID,
 Recipe, Built, Recipe state, Status, Look (with a note when the settings ask for another look), Used by, Size, Source,
@@ -713,7 +718,8 @@ note?, file?, full?}` – the job's id and where its log is: `jobs.log {id: job,
 whole file. The build is the page's primary action (Cancel is not).
 
 **doctor** – `{versions, update, intro, checking, checked?, actions: [check], sections: [{id: requirements|nixos|macos,
-title, items}], issues}`. The UI puts its own version before `versions` (the core's). `update: {label, text, tone, busy,
+title, items}], issues}`. `versions`: one line "omaflake" – "App <clientVersion> · Core <version>" (the UI's version
+from `initialize`, plan B138) – shown with `update` as one block. `update: {label, text, tone, busy,
 actions}` from the last `updates.check` (Download …, Check Now). An item: `{item, status, title, detail?, hint?,
 expandable, expanded, busy, task?, download?, actions, prerequisite}` – `detail` (paths and versions as found, or "%@
 free, about %@ needed"), `hint` while not ok, `expanded` the sub-line's first state (open while there is a problem or
@@ -737,15 +743,21 @@ name, icon (folder|github|url), badges (official, private with or without token)
 (a switch), remove], source}`; `add.fields`: input (with "Folder …"), private (only for a GitHub repository – the core
 decides from `params.values.input`); `addAction` (primary) is `sources.add {input, private}` and asks the token for a
 private one; the two fields keep their values under `values.input` and `values.private`. `general.fields`: notifications, checkForUpdates, keepRecipeVersions, developerMode (toggles with `set`).
-`guest.fields`: defaultCredential ("This computer – <user>" as `null`, then the credentials; plan B137), look (the
+`guest` ("For new images": its footer says existing images and VMs keep what they were built with) – `fields`: defaultCredential ("This computer – <user>" as `null`, then the credentials; plan B137), look (the
 default look: "Each recipe's own" as `null`, then the looks by title; plan B135), locale, keyboard, timeZone (choices
 with "Like this Mac – …" as `null`; names are the plain values – UIs may name them in their language).
 
-**credentials** (plan B137) – `{title, intro, rows, add, footer}`: rows `{id, name, subtitle ("user · full name ·
-e-mail · n images"), badges (default, password), actions: [edit (asks name, user, fullName, email, prefilled;
-primary), password ("Set/Change Password …", asks it twice), removePassword (confirm), default (`settings.set
-{defaultCredential}`), remove (destructive, confirm)]}`; `add` ("New Credential …", primary) asks name, user,
-fullName, email; `footer` says where passwords are kept. `dataFolder: {title,
+**credentials** (plan B137, B138) – `{title, intro, rows, add, footer}`: rows as the other lists `{id, name, lamp (on
+while images use it), subtitle ("user · n images"), badges (default), usedBy (the images' names), actions:
+[copyPassword], detail: {info (user, full name, e-mail, password, used by), actions: [edit (`ui.show credential {id}`), password
+("Change Password …", asks it twice), default (`settings.set {defaultCredential}`), remove (destructive, confirm;
+disabled while used)]}}`; `add` ("New Credential …", primary) opens `credential`; `footer` says where passwords are
+kept.
+
+**credential** (params `id?`) – `{title, id?, intro, fields: [name, user, fullName, email], locked?, actions: [cancel,
+save | create]}`: each field's `help` says what it is for; while images use the credential `locked` says why and every
+field but `name` is disabled with that `reason`. `create` (`credentials.add`) asks the password twice; both go back
+(`then: back`). `dataFolder: {title,
 location, isDefault, moving, actions: [default, move], note}` – both disabled while a VM runs. Launch at login and the
 UI's language are each UI's own.
 

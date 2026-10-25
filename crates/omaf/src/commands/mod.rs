@@ -43,6 +43,7 @@ pub fn run(command: Command) -> Outcome {
             Some(CredentialsCommand::Edit(a)) => credentials::edit(&a),
             Some(CredentialsCommand::Remove(a)) => credentials::remove(&a.credential),
             Some(CredentialsCommand::Default(a)) => credentials::set_default(&a.credential),
+            Some(CredentialsCommand::CopyPassword(a)) => credentials::copy_password(&a.credential),
         },
         Command::MacOs { command: MacOsCommand::Install(a) } => macos::install(&a),
         Command::Images(i) => match i.command {

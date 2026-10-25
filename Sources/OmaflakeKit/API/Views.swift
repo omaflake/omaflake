@@ -404,8 +404,10 @@ public struct ImagesPage: Decodable, Sendable, Equatable {
     public var jobs: [BuildJobRow]
     public var rows: [ImageRow]
     public var unreadable: [Hint]
+    /// The macOS bases (on a Mac, plan B137)
+    public var bases: BasesSection?
 
-    enum CodingKeys: String, CodingKey { case jobs, rows, unreadable }
+    enum CodingKeys: String, CodingKey { case jobs, rows, unreadable, bases }
 
     public init(from decoder: Decoder) throws {
         head = try ListHead(from: decoder)
@@ -413,6 +415,7 @@ public struct ImagesPage: Decodable, Sendable, Equatable {
         jobs = try c.decode([BuildJobRow].self, forKey: .jobs)
         rows = try c.decode([ImageRow].self, forKey: .rows)
         unreadable = try c.decode([Hint].self, forKey: .unreadable)
+        bases = try c.decodeIfPresent(BasesSection.self, forKey: .bases)
     }
 }
 
@@ -626,15 +629,47 @@ public struct CredentialsPage: Decodable, Sendable, Equatable {
     public struct Row: Decodable, Sendable, Equatable, Identifiable {
         public var id: String
         public var name: String
+        public var lamp: Lamp
         public var subtitle: ViewText
         public var badges: [Badge]
+        public var usedBy: [String]
+        /// The quick action: Copy Password
         public var actions: [ViewAction]
+        public var detail: ImageRow.Detail
     }
 
     public var title: ViewText
     public var intro: ViewText
     public var rows: [Row]
     public var add: ViewAction
+    public var footer: ViewText
+}
+
+/// One credential's form (plan B137): new, or to edit – only the name while images use it
+public struct CredentialPage: Decodable, Sendable, Equatable {
+    public var title: ViewText
+    public var id: String?
+    public var intro: ViewText
+    public var fields: [Field]
+    public var locked: ViewText?
+    public var actions: [ViewAction]
+}
+
+/// The macOS bases on the images page (plan B137)
+public struct BasesSection: Decodable, Sendable, Equatable {
+    public struct Row: Decodable, Sendable, Equatable, Identifiable {
+        public var id: String { name }
+        public var name: String
+        public var lamp: Lamp
+        public var subtitle: ViewText
+        public var badges: [Badge]
+        public var actions: [ViewAction]
+    }
+
+    public var title: ViewText
+    public var rows: [Row]
+    public var empty: Hint?
+    public var create: ViewAction
     public var footer: ViewText
 }
 
@@ -835,7 +870,7 @@ public struct ViewError: Decodable, Sendable, Equatable {
 public enum PageModel: Sendable, Equatable {
     case home(HomePage), vms(VmsPage), vm(VmPage), images(ImagesPage), image(ImagePage), recipes(RecipesPage)
     case newVm(NewVmPage), build(BuildPage), doctor(DoctorPage), macBase(MacBasePage), settings(SettingsPage)
-    case activity(ActivityPage), importStep(ImportPage), credentials(CredentialsPage)
+    case activity(ActivityPage), importStep(ImportPage), credentials(CredentialsPage), credential(CredentialPage)
     /// The page could not be built
     case error(ViewError)
     /// A page this client does not know
@@ -861,6 +896,7 @@ public enum PageModel: Sendable, Equatable {
         case "macBase": self = .macBase(try MacBasePage(from: decoder))
         case "settings": self = .settings(try SettingsPage(from: decoder))
         case "credentials": self = .credentials(try CredentialsPage(from: decoder))
+        case "credential": self = .credential(try CredentialPage(from: decoder))
         case "activity": self = .activity(try ActivityPage(from: decoder))
         case "import": self = .importStep(try ImportPage(from: decoder))
         default: self = .unknown(page)

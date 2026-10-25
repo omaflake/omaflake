@@ -83,8 +83,19 @@ impl Server {
                 let id = p.id.clone().ok_or_else(|| RpcError::invalid_params("id is needed"))?;
                 self.credentials_change(Some(id), p)
             }
+            "credentials.copyPassword" => self.credentials_copy_password(&params::<Id>(p)?.id),
             "credentials.remove" => {
-                let c = Credentials::new(self.paths()).remove(&params::<Id>(p)?.id).map_err(err)?;
+                let id = params::<Id>(p)?.id;
+                // Images carry its values: a credential in use stays (plan B137)
+                let used = credential_images(&self.paths(), &id);
+                if used > 0 {
+                    return Err(RpcError::from(vm_err!(
+                        codes::IN_USE,
+                        "{} images are built with this credential – remove them first",
+                        used
+                    )));
+                }
+                let c = Credentials::new(self.paths()).remove(&id).map_err(err)?;
                 self.events().message_text(Level::Info, super::views::text::tf!("Credential “%@” removed", c.name));
                 self.check_freshness();
                 self.poke();
@@ -133,6 +144,9 @@ impl Server {
             "images.get" => self.images_get(&params::<Name>(p)?.name),
             "images.build" => self.images_build(params(p)?),
             "images.remove" => self.images_remove(&params::<Name>(p)?.name),
+            // macOS bases (plan B137)
+            "bases.list" => Answer::of(base_dtos(&self.paths())),
+            "bases.remove" => self.bases_remove(&params::<Name>(p)?.name),
             // Recipes and sources
             "recipes.list" => self.recipes_list(params(p)?),
             "recipes.available" => Answer::of(self.recipes_available(true)?),
@@ -209,7 +223,9 @@ impl Server {
             let mut s = lock(&self.conn.session);
             s.language = p.language.map(|l| l.chars().take(2).collect());
             s.update_feed = p.update_feed.filter(|f| !f.is_empty());
+            s.client_version = p.client_version.clone().filter(|v| !v.is_empty());
             self.inner.events.set_language(self.conn.id, s.language.clone());
+            self.inner.events.set_client_version(self.conn.id, s.client_version.clone());
         }
         let paths = self.paths();
         if self.inner.migrate_at_start && !self.inner.migrated.swap(true, Ordering::SeqCst) {
@@ -737,6 +753,31 @@ impl Server {
         Answer::of(state.view().image(image, true))
     }
 
+    /// Deletes a macOS base for real (after the UI's confirmation) – not while a base is installed or a macOS image
+    /// built: both use the bases. Images and VMs made from it stay: they are copies (APFS clones).
+    fn bases_remove(&self, name: &str) -> Reply {
+        let paths = self.paths();
+        let busy = self.inner.jobs.list().into_iter().any(|j| {
+            j.state.is_active()
+                && (j.kind == JobKind::MacosInstall
+                    || (j.kind == JobKind::Build && j.guest_kind == Some(GuestKind::Macos)))
+        });
+        if busy {
+            return Err(RpcError::from(vm_err!(
+                codes::IN_USE,
+                "A macOS base is being installed or a macOS image built – wait until it ends"
+            )));
+        }
+        let Some(base) = MacBaseInstaller::list(&paths).into_iter().find(|b| b.name == name) else {
+            return Err(RpcError::from(vm_err!(codes::NOT_FOUND, "No macOS base \"{}\"", name)));
+        };
+        crate::trash::Disposal::delete(&[&base.path]).map_err(err)?;
+        self.events().message_text(Level::Info, super::views::text::tf!("macOS base %@ removed", name));
+        self.check_doctor_later();
+        self.poke();
+        Answer::of(Value::Null)
+    }
+
     fn images_remove(&self, name: &str) -> Reply {
         let paths = self.paths();
         let backends = crate::backend::Backends::new(paths.clone()).map_err(err)?;
@@ -879,6 +920,24 @@ impl Server {
             password: p.password,
         };
         let credentials = Credentials::new(self.paths());
+        if let Some(id) = &id {
+            // Images carry its user, full name and e-mail: while any uses it, only the name can change (plan B137)
+            let used = credential_images(&self.paths(), id);
+            let current = credentials.get(id).unwrap_or_default();
+            let clean = |v: &Option<String>| v.as_deref().map(str::trim).filter(|v| !v.is_empty()).map(str::to_string);
+            let changes = |new: &Option<String>, old: &Option<String>| new.is_some() && clean(new) != clean(old);
+            if used > 0
+                && (changes(&change.user, &current.user)
+                    || changes(&change.full_name, &current.full_name)
+                    || changes(&change.email, &current.email))
+            {
+                return Err(RpcError::from(vm_err!(
+                    codes::IN_USE,
+                    "{} images are built with this credential – only its name can change",
+                    used
+                )));
+            }
+        }
         let (c, place) = match id {
             None => credentials.add(change),
             Some(id) => credentials.update(&id, change),
@@ -901,6 +960,34 @@ impl Server {
             self.events().message_text(Level::Warning, super::views::text::Text::verbatim(n));
         }
         Answer::of(CredentialAnswer { credential: dto, note })
+    }
+
+    /// Copies a credential's password to the clipboard – after Touch ID or the login password (plan B137); the
+    /// clipboard is cleared after 90 s when it still holds it
+    fn credentials_copy_password(&self, id: &str) -> Reply {
+        let credentials = Credentials::new(self.paths());
+        let c =
+            credentials.get(id).ok_or_else(|| RpcError::from(vm_err!(codes::NOT_FOUND, "No credential \"{}\"", id)))?;
+        let password = credentials
+            .password(id)
+            .ok_or_else(|| RpcError::from(vm_err!(codes::NOT_FOUND, "No password stored for \"{}\"", c.name)))?;
+        if !crate::credentials::confirm_owner(&format!("copy the password of “{}”", c.name)).map_err(err)? {
+            return Err(RpcError::from(vm_err!(codes::CANCELLED, "Not copied – not confirmed")));
+        }
+        crate::credentials::copy_to_clipboard(&password).map_err(err)?;
+        std::thread::spawn(move || {
+            std::thread::sleep(Duration::from_secs(90));
+            let paste = if cfg!(target_os = "macos") { "/usr/bin/pbpaste" } else { "wl-paste" };
+            let now = std::process::Command::new(paste).output().map(|o| o.stdout).unwrap_or_default();
+            if String::from_utf8_lossy(&now).trim_end_matches('\n') == password {
+                let _ = crate::credentials::copy_to_clipboard("");
+            }
+        });
+        self.events().message_text(
+            Level::Info,
+            super::views::text::tf!("Password of “%@” copied – the clipboard is cleared in 90 s", &c.name),
+        );
+        Answer::of(Value::Null)
     }
 
     // MARK: Recipes
@@ -1842,6 +1929,28 @@ struct BuildParams {
     /// macOS: keep a failed build folder for inspection
     #[serde(default)]
     keep_failed: bool,
+}
+
+/// The macOS bases (none on a host without macOS guests)
+pub(crate) fn base_dtos(paths: &Paths) -> Vec<BaseDto> {
+    MacBaseInstaller::list(paths)
+        .into_iter()
+        .map(|b| BaseDto {
+            path: b.path.to_string_lossy().into_owned(),
+            name: b.name,
+            os_build: b.os_build,
+            user: b.user,
+            ready: b.ready,
+            newest: b.newest,
+            created: b.created,
+            size_bytes: b.size_bytes,
+        })
+        .collect()
+}
+
+/// How many images are built with credential `id`
+pub(crate) fn credential_images(paths: &Paths, id: &str) -> usize {
+    ImageStore::new(paths.clone()).list().iter().filter(|i| i.info.credential.as_deref() == Some(id)).count()
 }
 
 /// Every credential with whether a password is stored (read without the secret: no prompt) and the default

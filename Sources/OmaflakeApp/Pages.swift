@@ -17,6 +17,7 @@ struct PageView: View {
             case .newVm(let p)?: NewVMView(page: p, ref: ref, model: model)
             case .build(let p)?: BuildView(page: p, ref: ref, model: model)
             case .credentials(let p)?: CredentialsView(page: p, model: model)
+            case .credential(let p)?: CredentialView(page: p, ref: ref, model: model)
             case .doctor(let p)?: DoctorView(page: p, model: model)
             case .macBase(let p)?: MacBaseView(page: p, ref: ref, model: model)
             case .settings(let p)?: SettingsView(page: p, ref: ref, model: model)
@@ -232,24 +233,28 @@ struct CredentialsView: View {
             Section {
                 Text(verbatim: model.t(page.intro)).font(.caption).foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
+                // As the other lists: lamp (in use), name and usage, the quick action; opened: its values and actions
                 ForEach(page.rows) { r in
-                    HStack(spacing: BrandTokens.Spacing.l) {
-                        Image(systemName: "key").frame(width: 16).foregroundStyle(.secondary)
-                        VStack(alignment: .leading, spacing: 1) {
-                            HStack(spacing: BrandTokens.Spacing.s) {
-                                Text(verbatim: r.name).lineLimit(1)
-                                ForEach(r.badges) { BadgeView(badge: $0, model: model) }
+                    ExpandableRow {
+                        HStack(spacing: BrandTokens.Spacing.xl) {
+                            StatusLamp(state: .init(r.lamp.state)).help(Text(verbatim: model.t(r.lamp.help)))
+                            Image(systemName: "key").frame(width: 16).foregroundStyle(.secondary)
+                            VStack(alignment: .leading, spacing: BrandTokens.Spacing.xxs) {
+                                HStack(spacing: BrandTokens.Spacing.m) {
+                                    Text(verbatim: r.name).font(.callout.weight(.medium)).lineLimit(1)
+                                    ForEach(r.badges) { BadgeView(badge: $0, model: model) }
+                                }
+                                Text(verbatim: model.t(r.subtitle)).font(.caption).foregroundStyle(.secondary)
+                                    .lineLimit(1).help(r.usedBy.joined(separator: ", "))
                             }
-                            Text(verbatim: model.t(r.subtitle)).font(.caption2).foregroundStyle(.secondary)
+                            Spacer(minLength: 4)
+                            ForEach(r.actions) { ActionIcon(action: $0, model: model) }
                         }
-                        Spacer()
-                        Menu {
-                            ForEach(r.actions) { a in
-                                Button(model.t(a.label), role: a.destructive ? .destructive : nil) { model.run(a) }
-                                    .disabled(!a.enabled)
-                            }
-                        } label: { Image(systemName: "ellipsis.circle") }
-                            .menuStyle(.borderlessButton).fixedSize()
+                    } detail: {
+                        DetailBox {
+                            InfoLines(lines: r.detail.info, model: model)
+                            DetailActions(actions: r.detail.actions, model: model)
+                        }
                     }
                 }
                 HStack {
@@ -258,6 +263,34 @@ struct CredentialsView: View {
                 }
             } footer: {
                 Text(verbatim: model.t(page.footer)).font(.caption).foregroundStyle(.secondary)
+            }
+        }
+        .formStyle(.grouped)
+    }
+}
+
+// MARK: - One credential
+
+/// One credential's form (plan B137): what it is for, why only the name can change, the fields, Cancel and Save
+struct CredentialView: View {
+    let page: CredentialPage
+    let ref: PageRef
+    let model: AppModel
+
+    var body: some View {
+        Form {
+            Section {
+                Text(verbatim: model.t(page.intro)).font(.caption).foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                if let locked = page.locked {
+                    Label(model.t(locked), systemImage: "lock").font(.caption).foregroundStyle(BrandTokens.Colors.warning)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                ForEach(page.fields) { FormField(field: $0, page: ref.page, model: model) }
+            }
+            HStack {
+                Spacer()
+                ForEach(page.actions) { ActionPlainButton(action: $0, model: model, form: ref, isDefault: $0.primary) }
             }
         }
         .formStyle(.grouped)
@@ -283,7 +316,7 @@ struct BuildView: View {
                     Image(systemName: "info.circle").font(.caption).foregroundStyle(.secondary).help(description)
                 }
                 Spacer()
-                ForEach(page.actions) { ActionPlainButton(action: $0, model: model, isDefault: $0.primary) }
+                ForEach(page.actions) { ActionPlainButton(action: $0, model: model, form: ref, isDefault: $0.primary) }
             }
             if let blockers = page.blockers { BlockersBanner(blockers: blockers, model: model) }
             // The credential and look of the image (plan B137): their values go into the build action
@@ -409,10 +442,7 @@ struct DoctorView: View {
     var body: some View {
         Form {
             Section {
-                LabeledContent("omaflake") {
-                    Text(AppVersion.current).font(.system(.callout, design: .monospaced)).foregroundStyle(.secondary)
-                        .textSelection(.enabled)
-                }
+                // One block: "omaflake" with the app's and the core's version, then the update
                 ForEach(Array(page.versions.enumerated()), id: \.offset) { _, line in
                     LabeledContent(model.t(line.label)) {
                         Text(verbatim: model.t(line.value)).font(.system(.callout, design: .monospaced)).foregroundStyle(.secondary)

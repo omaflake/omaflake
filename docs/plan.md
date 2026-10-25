@@ -664,6 +664,26 @@ guests get none; German "Zugang"/"Zugänge".
   build fields, CLI in a temporary data folder. OPEN: clicking it in the SwiftUI and iced apps; a macOS build with a
   stored password.
 
+**B138 (2026-10-25): credentials as the other lists; bases; settings "For new images"; one omaflake line in the
+Doctor.** The maintainer's decisions after trying 0.5.1: a credential can be edited fully only while no image uses it,
+else only renamed (the other fields greyed out with the reason) and not removed; every field explains what it is for
+(the user is NixOS's login, home and `omaf ssh`; macOS keeps the base's user); rows like VMs/images/recipes – name and
+usage, Copy Password as the quick icon (always, after Touch ID / the login password), the rest when opened; every
+credential has a password; the macOS bases as a section of the images tab, removable; the settings' guest section
+says it is for new images only; the Doctor's "omaflake" and "Core" become one line with both versions, with the
+update below.
+- **Core:** `credentials::{confirm_owner, copy_to_clipboard}` (LAContext `DeviceOwnerAuthentication` via
+  `objc2-local-authentication`; `pbcopy`/`wl-copy`/`xclip`, cleared after 90 s if unchanged), `add` needs a password,
+  `update` refuses to clear it; API `credentials.copyPassword`, `bases.list/remove`, `credentials.update/remove`
+  refused while used; pages `credentials` (rows with lamp, usedBy, detail), `credential` (form, `locked`), `images.bases`
+  (Mac only), settings section "For new images", Doctor `versions` from the client's `initialize` version (per
+  connection: the subscriptions' contexts are built per language and client version).
+- **CLI:** `omaf credentials copy-password`, `add` always asks the password, `--no-password` gone, `edit`/`rm` refused
+  while used. **UIs:** TUI, iced and SwiftUI render the expandable rows, the form, the bases and the Doctor block.
+- **Checked:** `cargo test` (credentials rows/lock, bases section, golden files incl. `credential`, `credential.edit`),
+  TUI and iced tests, `swift test` (view contracts for the new pages). OPEN: the LocalAuthentication prompt from the
+  core service and the CLI on a real Mac, clicking it in the SwiftUI and iced apps.
+
 **Found on the way:** environment variables of the CLI (`VM_FLAKE`, …) do not reach the core service – a build that
 runs there uses config.json's flake (OPEN).
 

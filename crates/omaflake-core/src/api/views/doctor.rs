@@ -17,7 +17,8 @@ use crate::prerequisites::{PrerequisiteItem as I, PrerequisiteStatus as S};
 pub struct DoctorPage {
     /// The page's title ("Doctor")
     pub title: Text,
-    /// "omaflake" (the UI's own version) and "Core" (this server's)
+    /// One line "omaflake" with both versions: the UI's (as it said in `initialize`) and the core's – shown
+    /// together with `update`, as one block
     pub versions: Vec<InfoLine>,
     pub update: UpdateLine,
     pub intro: Text,
@@ -389,7 +390,13 @@ pub(crate) fn page(ctx: &Ctx) -> DoctorPage {
     };
     DoctorPage {
         title: Text::new("Doctor"),
-        versions: vec![InfoLine::new("Core", Text::verbatim(&ctx.omaf_version))],
+        versions: vec![InfoLine::new(
+            "omaflake",
+            match &ctx.client_version {
+                Some(app) => tf!("App %@ · Core %@", app.as_str(), ctx.omaf_version.as_str()),
+                None => tf!("Core %@", ctx.omaf_version.as_str()),
+            },
+        )],
         update: update_line(ctx),
         intro: Text::new(ctx.on_host(
             "omaflake uses what your Mac already has. Set up missing parts here or enter their path.",

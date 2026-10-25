@@ -63,12 +63,15 @@ struct Subscriber {
     /// The pages of `views.subscribe` (plan B121)
     views: Vec<PageRef>,
     language: Option<String>,
+    /// The client's own version (`initialize`): the Doctor shows it next to the core's
+    client_version: Option<String>,
 }
 
 /// One connection's subscribed pages, with its language (the pages are built in it)
 pub(crate) struct ViewSubscription {
     pub conn: ConnId,
     pub language: Option<String>,
+    pub client_version: Option<String>,
     pub pages: Vec<PageRef>,
 }
 
@@ -119,7 +122,12 @@ impl Events {
         self.lock()
             .iter()
             .filter(|(_, s)| !s.views.is_empty())
-            .map(|(id, s)| ViewSubscription { conn: *id, language: s.language.clone(), pages: s.views.clone() })
+            .map(|(id, s)| ViewSubscription {
+                conn: *id,
+                language: s.language.clone(),
+                client_version: s.client_version.clone(),
+                pages: s.views.clone(),
+            })
             .collect()
     }
 
@@ -152,7 +160,10 @@ impl Events {
 
     /// A connection's sink; it gets nothing until it subscribes
     pub fn attach(&self, conn: ConnId, sink: Arc<Notify>) {
-        self.lock().insert(conn, Subscriber { sink, topics: HashSet::new(), views: Vec::new(), language: None });
+        self.lock().insert(
+            conn,
+            Subscriber { sink, topics: HashSet::new(), views: Vec::new(), language: None, client_version: None },
+        );
     }
 
     /// The connection is gone: nothing more goes to it
@@ -163,6 +174,12 @@ impl Events {
     pub fn set_language(&self, conn: ConnId, language: Option<String>) {
         if let Some(s) = self.lock().get_mut(&conn) {
             s.language = language;
+        }
+    }
+
+    pub fn set_client_version(&self, conn: ConnId, version: Option<String>) {
+        if let Some(s) = self.lock().get_mut(&conn) {
+            s.client_version = version;
         }
     }
 

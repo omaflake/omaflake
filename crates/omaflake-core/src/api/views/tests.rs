@@ -42,6 +42,16 @@ pub(crate) fn ctx() -> Ctx {
             has_password: true,
             is_default: true,
         }],
+        bases: vec![crate::api::types::BaseDto {
+            name: "mac-base-26A434".into(),
+            path: "/data/bases/mac-base-26A434".into(),
+            os_build: Some("26A434".into()),
+            user: Some("alex".into()),
+            ready: true,
+            newest: true,
+            created: Some(fx::date("2026-10-17T10:00:00Z")),
+            size_bytes: Some(41_000_000_000),
+        }],
         settings: answer.settings.clone(),
         settings_answer: Some(answer),
         default_data_folder: "/home/.omaflake".into(),
@@ -73,6 +83,7 @@ pub(crate) fn ctx() -> Ctx {
             checking: false,
         },
         omaf_version: "0.1.0".into(),
+        client_version: Some("0.1.2".into()),
         ssh: BTreeMap::from([("research".to_string(), "'/usr/bin/ssh' '-p' '2201' 'alex@127.0.0.1'".to_string())]),
         host_user: "alex".into(),
         host_full_name: "Alex Example".into(),
@@ -1103,4 +1114,78 @@ mod server {
         server.call("views.subscribe", json!({"pages": []})).unwrap();
         server.close(std::time::Duration::from_secs(5));
     }
+}
+
+// MARK: Credentials and bases (plan B137)
+
+#[test]
+fn credentials_are_rows_and_a_used_one_keeps_its_values() {
+    let c = ctx();
+    let page = get(&c, "credentials", json!({}));
+    let work = &page["rows"][0];
+    // A row as the other lists: lamp (in use), name, subtitle, the quick action; the rest when opened
+    assert_eq!(work["lamp"]["state"], "on");
+    assert_eq!(work["subtitle"]["text"], "alex · 1 image");
+    assert_eq!(work["usedBy"], json!(["omaflake.nixos.dev@cedar-mango-lift"]));
+    assert_eq!(ids(&work["actions"]), ["copyPassword"]);
+    assert_eq!(work["actions"][0]["enabled"], true);
+    assert_eq!(ids(&work["detail"]["actions"]), ["edit", "password", "default", "remove"]);
+    let remove = action(&work["detail"]["actions"], "remove");
+    assert_eq!(remove["enabled"], false);
+    assert_eq!(remove["reason"]["key"], "Images are built with it – remove them first");
+    let edit = action(&work["detail"]["actions"], "edit");
+    assert_eq!(edit["method"], "ui.show");
+    assert_eq!(edit["params"], json!({"page": "credential", "params": {"id": "c-1"}}));
+    // Its form: images use it – only the name can change, the other fields say why
+    let form = get(&c, "credential", json!({"id": "c-1"}));
+    assert!(form["locked"]["key"].as_str().unwrap().starts_with("%lld images are built with it"));
+    let fields = form["fields"].as_array().unwrap();
+    assert_eq!(fields[0]["enabled"], true);
+    for f in &fields[1..] {
+        assert_eq!(f["enabled"], false, "{}", f["id"]);
+        assert_eq!(f["reason"]["key"], "Used by images – only the name can change");
+    }
+    let save = action(&form["actions"], "save");
+    assert_eq!(save["params"], json!({"id": "c-1", "name": "Work"}));
+    // A new one: every field, the password asked twice when it is created; a taken name is refused
+    let form = get(&c, "credential", json!({"values": {"name": "work", "user": "Alex!"}}));
+    let create = action(&form["actions"], "create");
+    assert_eq!(create["enabled"], false);
+    assert_eq!(form["fields"][0]["error"]["key"], "There is a credential \"%@\" already");
+    assert_eq!(
+        form["fields"][1]["error"]["key"],
+        "Invalid user name \"%@\": a–z, 0–9, \"_\" and \"-\", starting with a letter"
+    );
+    let form = get(&c, "credential", json!({"values": {"name": "Private", "user": "al", "email": "a@example.org"}}));
+    let create = action(&form["actions"], "create");
+    assert_eq!(create["enabled"], true);
+    assert_eq!(create["params"]["email"], "a@example.org");
+    assert_eq!(
+        (create["ask"][0]["kind"].clone(), create["ask"][0]["repeat"].clone()),
+        (json!("password"), json!(true))
+    );
+    assert_eq!(create["then"], "back");
+}
+
+#[test]
+fn macos_bases_are_a_section_of_the_images_on_a_mac() {
+    let mut c = ctx();
+    let page = get(&c, "images", json!({}));
+    let bases = &page["bases"];
+    assert_eq!(bases["title"]["key"], "macOS Bases");
+    let row = &bases["rows"][0];
+    assert_eq!(row["name"], "mac-base-26A434");
+    assert_eq!(row["badges"][0]["id"], "newest");
+    assert!(row["subtitle"]["text"].as_str().unwrap().starts_with("macOS 26A434 · user alex"));
+    // A macOS build runs: the base stays
+    assert_eq!(action(&row["actions"], "remove")["enabled"], false);
+    c.jobs.clear();
+    let page = get(&c, "images", json!({}));
+    let remove = action(&page["bases"]["rows"][0]["actions"], "remove");
+    assert_eq!((remove["enabled"].clone(), remove["method"].clone()), (json!(true), json!("bases.remove")));
+    // None: the way to create one; Linux: no section
+    c.bases.clear();
+    assert_eq!(get(&c, "images", json!({}))["bases"]["empty"]["action"]["id"], "macBase");
+    c.host = HostOs::Linux;
+    assert!(get(&c, "images", json!({})).get("bases").is_none());
 }

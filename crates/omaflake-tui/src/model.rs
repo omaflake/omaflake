@@ -485,6 +485,7 @@ pub fn page(ctx: &Ctx, name: &str, model: &Value) -> Page {
         "newVm" => new_vm(ctx, model, &mut p),
         "settings" => settings(ctx, model, &mut p),
         "credentials" => credentials(ctx, model, &mut p),
+        "credential" => credential(ctx, model, &mut p),
         _ => {}
     }
     if p.title.is_empty() {
@@ -542,6 +543,24 @@ fn images(ctx: &Ctx, model: &Value, p: &mut Page) {
         list_row(ctx, "image", row, &mut p.items);
     }
     empty_and_unreadable(ctx, model, p);
+    // The macOS bases (on a Mac, plan B137)
+    let bases = &model["bases"];
+    if bases.is_object() {
+        p.items.push(Item::blank());
+        p.items.push(heading(ctx, t(&bases["title"])));
+        for row in arr(bases, "rows") {
+            list_row(ctx, "base", row, &mut p.items);
+        }
+        match bases.get("empty") {
+            Some(e) => p.items.push(hint(ctx, "bases:empty".into(), e)),
+            None => {
+                if let Some(bar) = button_bar(ctx, "bases:create", std::slice::from_ref(&bases["create"])) {
+                    p.items.push(bar);
+                }
+            }
+        }
+        p.items.push(Item::line("", secondary_line(ctx, t(&bases["footer"]), 2)));
+    }
 }
 
 fn recipes(ctx: &Ctx, model: &Value, p: &mut Page) {
@@ -720,9 +739,7 @@ fn build(ctx: &Ctx, model: &Value, p: &mut Page) {
 fn doctor(ctx: &Ctx, model: &Value, p: &mut Page) {
     let th = ctx.theme;
     p.tools = arr(model, "actions").to_vec();
-    // The UI's own version comes first (api.md §10.5)
-    let own = serde_json::json!({"label": {"text": "omaf ui"}, "value": {"text": omaflake_core::VERSION}});
-    p.items.push(Item::line("", info_line(ctx, &own, 2)));
+    // "omaflake" with this UI's and the core's version (the core says both), then the update right below
     for v in arr(model, "versions") {
         p.items.push(Item::line("", info_line(ctx, v, 2)));
     }
@@ -912,6 +929,21 @@ fn credentials(ctx: &Ctx, model: &Value, p: &mut Page) {
     }
     if let Some(f) = model.get("footer") {
         p.items.push(Item::line("", secondary_line(ctx, t(f), 2)));
+    }
+}
+
+/// One credential's form (plan B137): what it is for, why only the name can change, the fields, Cancel and Save
+fn credential(ctx: &Ctx, model: &Value, p: &mut Page) {
+    p.items.push(Item::line("", secondary_line(ctx, t(&model["intro"]), 2)));
+    if let Some(l) = model.get("locked") {
+        p.items.push(Item::line("", toned_line(ctx, t(l), Tone::Warning, 2)));
+    }
+    p.items.push(Item::blank());
+    for f in arr(model, "fields") {
+        p.items.push(field(ctx, "credential", f));
+    }
+    if let Some(bar) = button_bar(ctx, "credential:actions", arr(model, "actions")) {
+        p.items.push(bar);
     }
 }
 

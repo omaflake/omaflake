@@ -260,6 +260,36 @@ impl MacBaseInstaller {
         Ok(BaseOutcome::Created { dir: base_dir, ready: true })
     }
 
+    /// The macOS bases in `bases/` (`mac-base-*`), newest name first (plan B137): ready or not, with what is known
+    pub fn list(paths: &Paths) -> Vec<BaseInfo> {
+        let mut names: Vec<String> = fs::read_dir(paths.bases())
+            .map(|entries| entries.flatten().map(|e| e.file_name().to_string_lossy().into_owned()).collect())
+            .unwrap_or_default();
+        names.retain(|n| n.starts_with("mac-base-"));
+        names.sort();
+        names.reverse();
+        let newest = crate::mac_image_builder::MacImageBuilder::newest_base_in(paths);
+        names
+            .into_iter()
+            .map(|name| {
+                let dir = paths.bases().join(&name);
+                let os_build = crate::mac_vm::MacVmBundle::new(dir.clone()).load_config().ok().and_then(|c| c.os_build);
+                let created =
+                    fs::metadata(&dir).and_then(|m| m.modified()).ok().map(chrono::DateTime::<chrono::Utc>::from);
+                BaseInfo {
+                    ready: Self::is_ready(&dir),
+                    user: Self::user_of(&dir, &paths.logs()),
+                    newest: newest.as_deref() == Some(dir.as_path()),
+                    size_bytes: allocated(&dir),
+                    os_build,
+                    created,
+                    name,
+                    path: dir,
+                }
+            })
+            .collect()
+    }
+
     pub fn is_ready(dir: &Path) -> bool {
         dir.join(Self::READY_MARKER).exists()
     }
@@ -571,6 +601,42 @@ impl LastPercent {
         *last = Some(pct);
         Some(pct)
     }
+}
+
+/// A macOS base as `MacBaseInstaller::list` finds it
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct BaseInfo {
+    /// "mac-base-26A434"
+    pub name: String,
+    pub path: PathBuf,
+    /// The macOS build it was installed from
+    pub os_build: Option<String>,
+    /// Its guest user (the ready marker)
+    pub user: Option<String>,
+    /// Installed completely (new macOS images can be built from it)
+    pub ready: bool,
+    /// The one new macOS images are built from
+    pub newest: bool,
+    pub created: Option<chrono::DateTime<chrono::Utc>>,
+    /// Allocated blocks of its files (the disk is sparse)
+    pub size_bytes: Option<i64>,
+}
+
+/// Allocated bytes of the files in a folder and its subfolders (not through links)
+fn allocated(dir: &Path) -> Option<i64> {
+    use std::os::unix::fs::MetadataExt;
+    fn walk(dir: &Path) -> i64 {
+        let Ok(entries) = fs::read_dir(dir) else { return 0 };
+        entries
+            .flatten()
+            .map(|e| match e.metadata() {
+                Ok(m) if m.is_dir() => walk(&e.path()),
+                Ok(m) if m.is_file() => m.blocks() as i64 * 512,
+                _ => 0,
+            })
+            .sum()
+    }
+    dir.is_dir().then(|| walk(dir))
 }
 
 #[cfg(test)]

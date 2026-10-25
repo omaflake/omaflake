@@ -301,11 +301,16 @@
   "versions": [
     {
       "label": {
-        "key": "Core",
-        "text": "Core"
+        "key": "omaflake",
+        "text": "omaflake"
       },
       "value": {
-        "text": "0.1.0"
+        "args": [
+          "0.1.2",
+          "0.1.0"
+        ],
+        "key": "App %@ · Core %@",
+        "text": "App 0.1.2 · Core 0.1.0"
       }
     }
   ]

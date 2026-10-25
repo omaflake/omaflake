@@ -278,7 +278,7 @@ pub(crate) fn page(ctx: &Ctx, answer: &SettingsAnswer, p: &SettingsParams) -> Se
         .collect();
     keyboards.sort_by(|a, b| a.label.text.cmp(&b.label.text));
     let guest = SettingsSection {
-        title: Text::new("Guests"),
+        title: Text::new("For new images"),
         fields: vec![
             credential,
             look_choice(g, &c.looks, &base),
@@ -287,8 +287,8 @@ pub(crate) fn page(ctx: &Ctx, answer: &SettingsAnswer, p: &SettingsParams) -> Se
             guest_choice(ctx, "timeZone", "Time zone", &g.time_zone, &d.time_zone, choices(&c.time_zones, |z| z.replace('_', " ")), &base),
         ],
         footer: Some(Text::new(ctx.on_host(
-            "The default credential and look are preset when an image is built – each image keeps its own. \"Like this Mac\" uses your Mac's values. The lists offer only what both NixOS and macOS VMs support. Your SSH keys from ~/.ssh are added automatically. macOS VMs always use the user of the macOS base. A developer flake's local/settings.nix overrides these values.",
-            "The default credential and look are preset when an image is built – each image keeps its own. \"Like this computer\" uses this computer's values. The lists offer only what both NixOS and macOS VMs support. Your SSH keys from ~/.ssh are added automatically. A developer flake's local/settings.nix overrides these values.",
+            "Used when an image is built – existing images and their VMs keep what they were built with (language, keyboard …); build an image again to take a change. The credential and look are only preset: the build page lets you choose others. \"Like this Mac\" uses your Mac's values. The lists offer only what both NixOS and macOS VMs support. Your SSH keys from ~/.ssh are added automatically. macOS VMs always use the user of the macOS base. A developer flake's local/settings.nix overrides these values.",
+            "Used when an image is built – existing images and their VMs keep what they were built with (language, keyboard …); build an image again to take a change. The credential and look are only preset: the build page lets you choose others. \"Like this computer\" uses this computer's values. The lists offer only what both NixOS and macOS VMs support. Your SSH keys from ~/.ssh are added automatically. A developer flake's local/settings.nix overrides these values.",
         ))),
     };
 

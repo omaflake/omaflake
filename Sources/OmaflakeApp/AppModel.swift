@@ -407,13 +407,14 @@ final class AppModel {
         case .newVm(let p)?: p.sections.flatMap(\.fields)
         case .macBase(let p)?: p.fields
         case .build(let p)?: p.fields ?? []
+        case .credential(let p)?: p.fields
         case .settings(let p)?: p.sources.add.fields
         default: []
         }
     }
 
     /// The params that make a page another page (not form values)
-    static let identity: [String: [String]] = ["newVm": ["image"], "build": ["recipe"]]
+    static let identity: [String: [String]] = ["newVm": ["image"], "build": ["recipe"], "credential": ["id"]]
 
     private func send(_ a: ViewAction, params: JSONValue, shown: [String: String], form: PageRef?) async {
         var params = params

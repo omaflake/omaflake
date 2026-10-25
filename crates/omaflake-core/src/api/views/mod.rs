@@ -116,6 +116,8 @@ pub(crate) struct Ctx {
     pub sources: Vec<SourceDto>,
     /// The credentials (plan B137)
     pub credentials: Vec<CredentialDto>,
+    /// The macOS bases (plan B137)
+    pub bases: Vec<BaseDto>,
     pub settings: SettingsDto,
     /// Settings' choices and the computer's guest values (only for the settings page: they read system lists)
     pub settings_answer: Option<SettingsAnswer>,
@@ -124,6 +126,8 @@ pub(crate) struct Ctx {
     pub activity: Vec<ActivityEntry>,
     pub update: UpdateRecord,
     pub omaf_version: String,
+    /// The connected UI's own version (`initialize`), for the Doctor
+    pub client_version: Option<String>,
     /// VM → its SSH command line, where there is one (NixOS always; macOS while it has an address)
     pub ssh: BTreeMap<String, String>,
     pub host_user: String,
@@ -280,6 +284,16 @@ pub(crate) fn build(ctx: &Ctx, page: &PageRef) -> Result<Value, RpcError> {
         "doctor" => to_value(doctor::page(ctx)),
         "macBase" => to_value(doctor::mac_base_page(ctx, &page_params(p)?)),
         "credentials" => to_value(credentials::page(ctx)),
+        "credential" => {
+            let p: credentials::CredentialParams = page_params(p)?;
+            to_value(credentials::credential_page(ctx, &p).ok_or_else(|| {
+                RpcError::from(crate::vm_err!(
+                    crate::error::codes::NOT_FOUND,
+                    "No credential \"{}\"",
+                    p.id.unwrap_or_default()
+                ))
+            })?)
+        }
         "settings" => {
             let answer = ctx.settings_answer.as_ref().ok_or_else(|| RpcError::internal("settings not gathered"))?;
             to_value(settings::page(ctx, answer, &page_params(p)?))
@@ -294,7 +308,12 @@ pub(crate) fn build(ctx: &Ctx, page: &PageRef) -> Result<Value, RpcError> {
 impl Server {
     /// Gathers what `pages` need (the settings' system lists and an image's size only when asked for), recipe texts
     /// in `language`
-    pub(crate) fn views_ctx(&self, language: Option<String>, pages: &[PageRef]) -> Result<Ctx, RpcError> {
+    pub(crate) fn views_ctx(
+        &self,
+        language: Option<String>,
+        client_version: Option<String>,
+        pages: &[PageRef],
+    ) -> Result<Ctx, RpcError> {
         let state = self.state_in(language).map_err(RpcError::from)?;
         let view = state.view();
         let vms = view.vms();
@@ -348,6 +367,7 @@ impl Server {
             fetching: catalogs,
             sources: self.sources(),
             credentials: super::methods::credential_dtos(&state.paths),
+            bases: super::methods::base_dtos(&state.paths),
             settings: super::methods::settings_dto(&state.paths),
             settings_answer,
             default_data_folder: Paths::default_home().to_string_lossy().into_owned(),
@@ -355,6 +375,7 @@ impl Server {
             activity: self.events().activity(),
             update: lock(&self.inner.update).clone(),
             omaf_version: crate::VERSION.into(),
+            client_version,
             ssh,
             host_user: crate::platform::user_name(),
             host_full_name: crate::platform::full_user_name(),
@@ -376,7 +397,8 @@ impl Server {
         if page.page == "doctor" || page.page == "macBase" {
             self.check_doctor_if_never();
         }
-        build(&self.views_ctx(self.language(), std::slice::from_ref(page))?, page)
+        let client_version = lock(&self.conn.session).client_version.clone();
+        build(&self.views_ctx(self.language(), client_version, std::slice::from_ref(page))?, page)
     }
 
     /// The Doctor's page shows its checks: run them once in the background when they never ran
@@ -424,16 +446,21 @@ impl Server {
                 subs.iter().flat_map(|s| s.pages.iter().map(move |p| (s.conn, p.key()))).collect();
             lock(&self.inner.views_last).retain(|k, _| live.contains(k));
         }
-        let mut contexts: Vec<(Option<String>, Result<Ctx, RpcError>)> = Vec::new();
+        // One context per language and client version (the Doctor names the UI's version)
+        type Key = (Option<String>, Option<String>);
+        let key = |s: &super::events::ViewSubscription| -> Key { (s.language.clone(), s.client_version.clone()) };
+        let mut contexts: Vec<(Key, Result<Ctx, RpcError>)> = Vec::new();
         for sub in &subs {
-            if !contexts.iter().any(|(l, _)| *l == sub.language) {
-                let pages: Vec<PageRef> =
-                    subs.iter().filter(|s| s.language == sub.language).flat_map(|s| s.pages.clone()).collect();
-                contexts.push((sub.language.clone(), self.views_ctx(sub.language.clone(), &pages)));
+            let k = key(sub);
+            if !contexts.iter().any(|(l, _)| *l == k) {
+                let pages: Vec<PageRef> = subs.iter().filter(|s| key(s) == k).flat_map(|s| s.pages.clone()).collect();
+                let ctx = self.views_ctx(k.0.clone(), k.1.clone(), &pages);
+                contexts.push((k, ctx));
             }
         }
         for sub in subs {
-            let Some((_, ctx)) = contexts.iter().find(|(l, _)| *l == sub.language) else { continue };
+            let k = key(&sub);
+            let Some((_, ctx)) = contexts.iter().find(|(l, _)| *l == k) else { continue };
             let ctx = match ctx {
                 Ok(c) => c,
                 Err(e) => {
