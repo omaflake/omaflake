@@ -192,54 +192,10 @@
           {
             "label": {
               "args": [
-                "de_CH.UTF-8"
-              ],
-              "key": "Like this Mac – %@",
-              "text": "Like this Mac – de_CH.UTF-8"
-            },
-            "value": null
-          },
-          {
-            "label": {
-              "text": "de_CH"
-            },
-            "value": "de_CH.UTF-8"
-          },
-          {
-            "label": {
-              "text": "en_US"
-            },
-            "value": "en_US.UTF-8"
-          }
-        ],
-        "enabled": true,
-        "id": "locale",
-        "kind": "choice",
-        "label": {
-          "key": "Language and region",
-          "text": "Language and region"
-        },
-        "set": {
-          "method": "settings.set",
-          "param": "guest.locale",
-          "params": {
-            "guest": {
-              "keyboard": "ch",
-              "locale": "de_CH.UTF-8"
-            }
-          }
-        },
-        "value": "de_CH.UTF-8"
-      },
-      {
-        "choices": [
-          {
-            "label": {
-              "args": [
                 "ch"
               ],
-              "key": "Like this Mac – %@",
-              "text": "Like this Mac – ch"
+              "key": "As the Mac says – %@",
+              "text": "As the Mac says – ch"
             },
             "value": null
           },
@@ -257,7 +213,11 @@
           }
         ],
         "enabled": true,
-        "id": "keyboard",
+        "help": {
+          "key": "The keyboard this computer has – new locales start with it",
+          "text": "The keyboard this computer has – new locales start with it"
+        },
+        "id": "hostKeyboard",
         "kind": "choice",
         "label": {
           "key": "Keyboard",
@@ -265,68 +225,19 @@
         },
         "set": {
           "method": "settings.set",
-          "param": "guest.keyboard",
-          "params": {
-            "guest": {
-              "keyboard": "ch",
-              "locale": "de_CH.UTF-8"
-            }
-          }
+          "param": "hostKeyboard",
+          "params": {}
         },
         "value": "ch"
-      },
-      {
-        "choices": [
-          {
-            "label": {
-              "args": [
-                "Europe/Zurich"
-              ],
-              "key": "Like this Mac – %@",
-              "text": "Like this Mac – Europe/Zurich"
-            },
-            "value": null
-          },
-          {
-            "label": {
-              "text": "Europe/Berlin"
-            },
-            "value": "Europe/Berlin"
-          },
-          {
-            "label": {
-              "text": "Europe/Zurich"
-            },
-            "value": "Europe/Zurich"
-          }
-        ],
-        "enabled": true,
-        "id": "timeZone",
-        "kind": "choice",
-        "label": {
-          "key": "Time zone",
-          "text": "Time zone"
-        },
-        "set": {
-          "method": "settings.set",
-          "param": "guest.timeZone",
-          "params": {
-            "guest": {
-              "keyboard": "ch",
-              "locale": "de_CH.UTF-8"
-            }
-          }
-        },
-        "value": null
       }
     ],
     "footer": {
-      "key": "Used when an image is built – existing images and their VMs keep what they were built with (language, keyboard …); build an image again to take a change. The default credential is set on the Credentials page, the default look in the Looks tab. \"Like this Mac\" uses your Mac's values. The lists offer only what both NixOS and macOS VMs support. Your SSH keys from ~/.ssh are added automatically. macOS VMs have the user of their macOS base, which is created with a credential. A developer flake's local/settings.nix overrides these values.",
-      "text": "Used when an image is built – existing images and their VMs keep what they were built with (language, keyboard …); build an image again to take a change. The default credential is set on the Credentials page, the default look in the Looks tab. \"Like this Mac\" uses your Mac's values. The lists offer only what both NixOS and macOS VMs support. Your SSH keys from ~/.ssh are added automatically. macOS VMs have the user of their macOS base, which is created with a credential. A developer flake's local/settings.nix overrides these values."
+      "key": "Language, region, time zone and the guests' keyboards are a locale's (Locales, the globe at the top); the default credential is set on the Credentials page, the default look in the Looks tab. Images keep what they were built with – build one again to take a change.",
+      "text": "Language, region, time zone and the guests' keyboards are a locale's (Locales, the globe at the top); the default credential is set on the Credentials page, the default look in the Looks tab. Images keep what they were built with – build one again to take a change."
     },
     "title": {
-      "key": "For new images",
-      "text": "For new images"
+      "key": "This Mac",
+      "text": "This Mac"
     }
   },
   "sources": {

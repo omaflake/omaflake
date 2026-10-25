@@ -205,7 +205,11 @@ in
       height = 30;
       modules-left = [ "hyprland/workspaces" ];
       modules-center = [ "clock" ];
-      modules-right = [ "cpu" "memory" "network" "pulseaudio" ];
+      # The active keyboard when the locale has several (plan B141)
+      modules-right =
+        lib.optional (builtins.length (lib.splitString "," osConfig.services.xserver.xkb.layout) > 1) "hyprland/language"
+        ++ [ "cpu" "memory" "network" "pulseaudio" ];
+      "hyprland/language".format = "󰌌 {short}";
       clock.format = "{:%a %d.%m.  %H:%M}";
       cpu.format = " {usage}%";
       memory.format = " {percentage}%";

@@ -187,7 +187,7 @@ impl GuestChoices {
 
     /// Keyboard layouts: XKB names for NixOS (the console follows XKB); nix/modules/darwin-guest.nix maps each to
     /// a macOS layout (name and ID from macOS 27's AppleKeyboardLayouts-L.dat, plan B46). (code, locale)
-    pub const KEYBOARDS: [(&'static str, &'static str); 16] = [
+    pub const KEYBOARDS: [(&'static str, &'static str); 19] = [
         ("us", "en_US"),
         ("gb", "en_GB"),
         ("de", "de_DE"),
@@ -204,6 +204,10 @@ impl GuestChoices {
         ("pl", "pl_PL"),
         ("pt", "pt_PT"),
         ("cz", "cs_CZ"),
+        // plan B141: Cyrillic and Greek, mostly as a second keyboard of a locale
+        ("ru", "ru_RU"),
+        ("ua", "uk_UA"),
+        ("gr", "el_GR"),
     ];
 
     /// omaflake's own looks before they became installable (plan B135 → B141): (name, display name) – the titles of

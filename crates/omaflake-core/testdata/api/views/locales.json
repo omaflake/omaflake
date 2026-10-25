@@ -1,0 +1,200 @@
+{
+  "add": {
+    "enabled": true,
+    "icon": "add",
+    "id": "add",
+    "label": {
+      "key": "New Locale …",
+      "text": "New Locale …"
+    },
+    "method": "ui.show",
+    "params": {
+      "page": "locale",
+      "params": {}
+    },
+    "primary": true
+  },
+  "footer": {
+    "key": "Locales stay on this computer – they are never in a catalog. A recipe may say which languages it works with; a locale outside gets a warning at the build. This computer's own keyboard is in the Settings.",
+    "text": "Locales stay on this computer – they are never in a catalog. A recipe may say which languages it works with; a locale outside gets a warning at the build. This computer's own keyboard is in the Settings."
+  },
+  "intro": {
+    "args": [
+      "ch"
+    ],
+    "key": "Where a guest lives: its language and region, its time zone and its keyboards – several if you write in more than one (Super+Space switches on NixOS). Every image is built with one, the default unless the build page chooses another; without any, an image gets this computer's values (keyboard %@).",
+    "text": "Where a guest lives: its language and region, its time zone and its keyboards – several if you write in more than one (Super+Space switches on NixOS). Every image is built with one, the default unless the build page chooses another; without any, an image gets this computer's values (keyboard ch)."
+  },
+  "rows": [
+    {
+      "actions": [],
+      "badges": [
+        {
+          "help": {
+            "key": "New images get this locale unless the build chooses another",
+            "text": "New images get this locale unless the build chooses another"
+          },
+          "icon": "ok",
+          "id": "default",
+          "label": {
+            "key": "default",
+            "text": "default"
+          },
+          "tone": "accent"
+        }
+      ],
+      "detail": {
+        "actions": [
+          {
+            "enabled": true,
+            "id": "edit",
+            "label": {
+              "key": "Edit …",
+              "text": "Edit …"
+            },
+            "method": "ui.show",
+            "params": {
+              "page": "locale",
+              "params": {
+                "id": "l-1"
+              }
+            },
+            "primary": true
+          },
+          {
+            "enabled": false,
+            "icon": "ok",
+            "id": "default",
+            "label": {
+              "key": "Make Default",
+              "text": "Make Default"
+            },
+            "method": "locales.setDefault",
+            "params": {
+              "id": "l-1"
+            },
+            "reason": {
+              "key": "Already the default",
+              "text": "Already the default"
+            }
+          },
+          {
+            "confirm": {
+              "button": {
+                "key": "Remove",
+                "text": "Remove"
+              },
+              "destructive": true,
+              "text": {
+                "key": "Images built with it keep its values.",
+                "text": "Images built with it keep its values."
+              },
+              "title": {
+                "args": [
+                  "German"
+                ],
+                "key": "Remove the locale “%@”?",
+                "text": "Remove the locale “German”?"
+              }
+            },
+            "destructive": true,
+            "enabled": false,
+            "icon": "trash",
+            "id": "remove",
+            "label": {
+              "key": "Remove …",
+              "text": "Remove …"
+            },
+            "method": "locales.remove",
+            "params": {
+              "id": "l-1"
+            },
+            "reason": {
+              "key": "Images are built with it – remove them first",
+              "text": "Images are built with it – remove them first"
+            }
+          }
+        ],
+        "info": [
+          {
+            "label": {
+              "key": "Language and region",
+              "text": "Language and region"
+            },
+            "value": {
+              "text": "de_DE"
+            }
+          },
+          {
+            "label": {
+              "key": "Time zone",
+              "text": "Time zone"
+            },
+            "value": {
+              "text": "Europe/Berlin"
+            }
+          },
+          {
+            "label": {
+              "key": "Keyboards",
+              "text": "Keyboards"
+            },
+            "note": {
+              "key": "the first is the default; Super+Space switches (NixOS)",
+              "text": "the first is the default; Super+Space switches (NixOS)"
+            },
+            "tone": "normal",
+            "value": {
+              "text": "de + ru"
+            }
+          },
+          {
+            "full": "omaflake.nixos.dev@cedar-mango-lift",
+            "label": {
+              "key": "Used by",
+              "text": "Used by"
+            },
+            "value": {
+              "text": "omaflake.nixos.dev@cedar-mango-lift"
+            }
+          }
+        ]
+      },
+      "id": "l-1",
+      "lamp": {
+        "help": {
+          "key": "Images are built with it",
+          "text": "Images are built with it"
+        },
+        "state": "on"
+      },
+      "name": "German",
+      "subtitle": {
+        "args": [
+          {
+            "text": "de_DE"
+          },
+          {
+            "text": "de + ru"
+          },
+          {
+            "text": "Europe/Berlin"
+          },
+          {
+            "key": "1 image",
+            "text": "1 image"
+          }
+        ],
+        "key": "%@ · %@ · %@ · %@",
+        "text": "de_DE · de + ru · Europe/Berlin · 1 image"
+      },
+      "usedBy": [
+        "omaflake.nixos.dev@cedar-mango-lift"
+      ]
+    }
+  ],
+  "title": {
+    "key": "Locales",
+    "text": "Locales"
+  }
+}

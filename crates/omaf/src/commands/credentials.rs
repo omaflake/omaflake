@@ -140,7 +140,12 @@ pub fn copy_password(reference: &str) -> Outcome {
 
 /// `--credential` and `--look` of `omaf build`: None = the defaults (a credential is needed – plan B139); a look is an
 /// installed one (plan B141)
-pub fn build_choice(paths: &Paths, credential_ref: Option<&str>, look: Option<&str>) -> Result<BuildChoice, Failure> {
+pub fn build_choice(
+    paths: &Paths,
+    credential_ref: Option<&str>,
+    look: Option<&str>,
+    locale: Option<&str>,
+) -> Result<BuildChoice, Failure> {
     let defaults = BuildChoice::defaults(paths);
     let credential = match credential_ref.filter(|r| !r.is_empty()) {
         None => {
@@ -162,5 +167,13 @@ pub fn build_choice(paths: &Paths, credential_ref: Option<&str>, look: Option<&s
                 .id,
         ),
     };
-    Ok(BuildChoice { credential, look })
+    let locale = match locale.filter(|l| !l.is_empty()) {
+        None => defaults.locale,
+        Some(l) => Some(
+            omaflake_core::locales::Locales::new(paths.clone())
+                .find(l)
+                .ok_or_else(|| usage(&["build"], format!("--locale {l}: no such locale – see omaf locales")))?,
+        ),
+    };
+    Ok(BuildChoice { credential, look, locale })
 }

@@ -35,6 +35,20 @@
     },
     {
       "enabled": true,
+      "icon": "globe",
+      "id": "locales",
+      "label": {
+        "key": "Locales",
+        "text": "Locales"
+      },
+      "method": "ui.show",
+      "params": {
+        "page": "locales",
+        "params": {}
+      }
+    },
+    {
+      "enabled": true,
       "icon": "settings",
       "id": "settings",
       "label": {

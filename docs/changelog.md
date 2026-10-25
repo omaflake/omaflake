@@ -16,7 +16,10 @@ are collected under *Unreleased*. Releases: [GitHub](https://github.com/omaflake
 Looks are installable now, like recipes: the new **Looks** tab lists the looks here with their colours, which images
 use them and the default one, and what your sources offer besides. No look is built in any more. The official source
 is the new **omaflake/catalog** – recipes and looks; omaflake/recipes is archived. Your settings file becomes version
-4: the look you had chosen becomes the default look, and the official source switches over.
+4: the look you had chosen becomes the default look, and the official source switches over. **Locales** – where a
+guest lives: language and region, time zone and up to three keyboards – are created like credentials and chosen when
+an image is built; settings version 5 turns your former guest values into a locale "Standard", and image.json
+version 3 records an image's locale.
 
 ### Added
 
@@ -24,6 +27,10 @@ is the new **omaflake/catalog** – recipes and looks; omaflake/recipes is archi
   official catalog), see a strip of their colours and which images use them, make one the default, update and remove
   them (not while images are built with one). `omaf looks [available|install|rm|default]`.
 - **The Doctor wants a look:** without one it offers "Install Recommended" – omaflake's own and Catppuccin.
+- **Locales** (the globe in the header): one language and region, one time zone, one to three keyboards – the first is
+  the default, Super+Space switches on NixOS (a language indicator in the bar), macOS shows them in the menu bar. The
+  build page chooses one, preset with the default; while images are built with a locale only its name can change.
+  `omaf locales [add|edit|rm|default]`, `omaf build --locale`. Russian, Ukrainian and Greek keyboards are new.
 
 - **The Doctor requires a credential:** images and macOS bases are made with one, so "Credential" is a requirement
   now – with "New Credential …" while there is none.
@@ -34,8 +41,9 @@ is the new **omaflake/catalog** – recipes and looks; omaflake/recipes is archi
 ### Changed
 
 - **Defaults live in their tabs:** the default credential is set on the Credentials page, the default look in the
-  Looks tab; the settings' "For new images" keeps language, keyboard and time zone. `omaf config` loses
-  `--default-credential` and `--guest-look`.
+  Looks tab, the default locale on the Locales page; the settings keep only this computer's own keyboard ("This
+  Mac"). `omaf config` loses `--default-credential`, `--guest-look`, `--guest-locale`, `--guest-keyboard` and
+  `--guest-time-zone`; `--host-keyboard` is new.
 - **Building asks for an installed look:** the build page offers the looks here, preset with the default; "The
   recipe's own" is gone – a look is chosen for every image (`omaf build --look <author>/<name>`).
 - **The official source is omaflake/catalog** (recipes and looks, catalog version 3); recipes installed from

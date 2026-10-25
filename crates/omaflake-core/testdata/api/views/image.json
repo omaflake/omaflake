@@ -176,6 +176,16 @@
           }
         },
         {
+          "label": {
+            "key": "Locale",
+            "text": "Locale"
+          },
+          "value": {
+            "key": "this computer's values",
+            "text": "this computer's values"
+          }
+        },
+        {
           "full": "",
           "label": {
             "key": "Used by",

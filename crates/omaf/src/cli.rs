@@ -43,6 +43,11 @@ pub enum Command {
         args_conflicts_with_subcommands = true
     )]
     Looks(Looks),
+    #[command(
+        about = "Locales: where a guest lives – language and region, time zone, one to three keyboards.",
+        args_conflicts_with_subcommands = true
+    )]
+    Locales(Locales),
     #[command(name = "macos", about = "macOS bases: install from Apple's IPSW with a credential, or assign one.")]
     #[command(subcommand_required = true, arg_required_else_help = true)]
     MacOs {
@@ -333,6 +338,60 @@ pub struct Build {
                 looks)"
     )]
     pub look: Option<String>,
+    #[arg(
+        long,
+        value_name = "locale",
+        help = "Language, time zone and keyboards: a locale's name or ID (default: the default locale; omaf locales)"
+    )]
+    pub locale: Option<String>,
+}
+
+#[derive(Debug, Args)]
+pub struct Locales {
+    #[command(subcommand)]
+    pub command: Option<LocalesCommand>,
+}
+
+#[derive(Debug, Subcommand)]
+pub enum LocalesCommand {
+    #[command(about = "The locales (* = the default).")]
+    List,
+    #[command(about = "Create a locale (the first one becomes the default).")]
+    Add(LocaleArgs),
+    #[command(about = "Change a locale: only the values given (while images use it: only --rename).")]
+    Edit(LocaleArgs),
+    #[command(name = "rm", about = "Delete a locale (not while images are built with it).")]
+    Remove(LocaleRef),
+    #[command(about = "Make a locale the default for new images.")]
+    Default(LocaleRef),
+}
+
+#[derive(Debug, Args)]
+pub struct LocaleArgs {
+    #[arg(value_name = "name", help = "The locale's name (edit: its name or ID)")]
+    pub name: String,
+    #[arg(long, value_name = "name", help = "edit: a new name")]
+    pub rename: Option<String>,
+    #[arg(
+        long,
+        value_name = "locale",
+        help = "Language and region, e.g. de_DE.UTF-8 (add: this computer's by default)"
+    )]
+    pub locale: Option<String>,
+    #[arg(long, value_name = "zone", help = "Time zone, e.g. Europe/Berlin (add: this computer's by default)")]
+    pub time_zone: Option<String>,
+    #[arg(
+        long,
+        value_name = "keyboards",
+        help = "One to three keyboards, the first the default: e.g. de,ru (add: this computer's keyboard by default)"
+    )]
+    pub keyboards: Option<String>,
+}
+
+#[derive(Debug, Args)]
+pub struct LocaleRef {
+    #[arg(value_name = "locale", help = "Its name or ID")]
+    pub locale: String,
 }
 
 #[derive(Debug, Args)]
@@ -673,22 +732,11 @@ pub struct Config {
     pub nix: Option<String>,
     #[arg(
         long,
-        value_name = "guest-locale",
-        help = "Locale in the guests, e.g. de_DE.UTF-8 (default: this computer's)"
+        value_name = "keyboard",
+        help = "This computer's keyboard (XKB name, e.g. de) – preset for new locales; empty: as the system says. \
+                The guests' language, time zone and keyboards are a locale's (omaf locales)"
     )]
-    pub guest_locale: Option<String>,
-    #[arg(
-        long,
-        value_name = "guest-keyboard",
-        help = "Keyboard layout in the guests, e.g. de or us (default: this computer's)"
-    )]
-    pub guest_keyboard: Option<String>,
-    #[arg(
-        long,
-        value_name = "guest-time-zone",
-        help = "Time zone in the guests, e.g. Europe/Berlin (default: this computer's)"
-    )]
-    pub guest_time_zone: Option<String>,
+    pub host_keyboard: Option<String>,
     #[arg(
         long,
         value_name = "keep-recipe-versions",

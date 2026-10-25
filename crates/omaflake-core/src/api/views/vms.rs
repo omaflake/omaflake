@@ -321,6 +321,7 @@ fn detail(ctx: &Ctx, v: &Vm) -> VmDetail {
     if let Some(image) = ctx.images.iter().find(|i| i.name == v.image) {
         info.push(super::images::credential_line(ctx, image));
         info.push(super::images::look_line(ctx, image.look.as_deref()));
+        info.push(super::images::locale_line(ctx, image));
     }
     info.push(InfoLine::new(
         "Resources",

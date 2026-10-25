@@ -24,6 +24,7 @@ pub mod doctor;
 pub mod home;
 pub mod images;
 pub mod import;
+pub mod locales;
 pub mod looks;
 pub mod new_vm;
 pub mod recipes;
@@ -52,7 +53,7 @@ pub use activity::ActivityEntry;
 pub use text::{Arg, Text};
 
 /// Every page `views.get` knows
-pub const PAGES: [&str; 17] = [
+pub const PAGES: [&str; 19] = [
     "home",
     "vms",
     "vm",
@@ -69,6 +70,8 @@ pub const PAGES: [&str; 17] = [
     "credentials",
     "credential",
     "looks",
+    "locales",
+    "locale",
     "baseCredential",
 ];
 
@@ -120,6 +123,8 @@ pub(crate) struct Ctx {
     pub sources: Vec<SourceDto>,
     /// The credentials (plan B137)
     pub credentials: Vec<CredentialDto>,
+    /// The locales (plan B141)
+    pub locales: Vec<crate::api::types::LocaleDto>,
     /// The looks here and what the catalogs fetched last offer (plan B141)
     pub looks: crate::api::types::LooksAnswer,
     /// The macOS bases (plan B137)
@@ -291,6 +296,18 @@ pub(crate) fn build(ctx: &Ctx, page: &PageRef) -> Result<Value, RpcError> {
         "macBase" => to_value(doctor::mac_base_page(ctx, &page_params(p)?)),
         "credentials" => to_value(credentials::page(ctx)),
         "looks" => to_value(looks::page(ctx)),
+        "locales" => to_value(locales::page(ctx)),
+        "locale" => {
+            let answer = ctx.settings_answer.as_ref().ok_or_else(|| RpcError::internal("settings not gathered"))?;
+            let p: locales::LocaleParams = page_params(p)?;
+            to_value(locales::locale_page(ctx, answer, &p).ok_or_else(|| {
+                RpcError::from(crate::vm_err!(
+                    crate::error::codes::NOT_FOUND,
+                    "No locale \"{}\"",
+                    p.id.unwrap_or_default()
+                ))
+            })?)
+        }
         "credential" => {
             let p: credentials::CredentialParams = page_params(p)?;
             to_value(credentials::credential_page(ctx, &p).ok_or_else(|| {
@@ -364,8 +381,11 @@ impl Server {
                 Some((c.name.clone(), crate::ssh_command::SshCommand::shell_line(&argv)))
             })
             .collect();
-        let settings_answer =
-            if pages.iter().any(|p| p.page == "settings") { Some(self.settings_answer()?) } else { None };
+        let settings_answer = if pages.iter().any(|p| p.page == "settings" || p.page == "locale") {
+            Some(self.settings_answer()?)
+        } else {
+            None
+        };
         let catalogs = lock(&self.inner.catalogs).fetching;
         Ok(Ctx {
             paths: state.paths.clone(),
@@ -382,6 +402,7 @@ impl Server {
             sources: self.sources(),
             credentials: super::methods::credential_dtos(&state.paths),
             looks: self.looks_answer(language_for_looks.as_deref()),
+            locales: super::methods::locale_dtos(&state.paths),
             bases: super::methods::base_dtos(&state.paths),
             settings: super::methods::settings_dto(&state.paths),
             settings_answer,

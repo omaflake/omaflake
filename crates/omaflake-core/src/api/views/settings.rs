@@ -161,24 +161,6 @@ fn source_row(ctx: &Ctx, s: &SourceDto, first: bool) -> SourceRow {
     }
 }
 
-/// A guest value from a list: "Like this Mac – <value>" (null) or one of the choices
-fn guest_choice(
-    ctx: &Ctx,
-    id: &str,
-    label: &str,
-    value: &Option<String>,
-    mac: &Option<String>,
-    options: Vec<Choice>,
-    base: &Value,
-) -> Field {
-    let mut f = Field::new(id, FieldKind::Choice, Text::new(label), json!(value))
-        .settings(&format!("guest.{id}"), base.clone());
-    let like = ctx.on_host("Like this Mac – %@", "Like this computer – %@");
-    f.choices = vec![Choice::new(Value::Null, tf!(like, mac.clone().unwrap_or_default()))];
-    f.choices.extend(options);
-    f
-}
-
 pub(crate) fn page(ctx: &Ctx, answer: &SettingsAnswer, p: &SettingsParams) -> SettingsPage {
     let s = &answer.settings;
     let rows = ctx.sources.iter().enumerate().map(|(i, s)| source_row(ctx, s, i == 0)).collect();
@@ -246,10 +228,9 @@ pub(crate) fn page(ctx: &Ctx, answer: &SettingsAnswer, p: &SettingsParams) -> Se
         footer: None,
     };
 
-    let g = &s.guest;
+    // This computer (plan B141): its keyboard – the physical one; language, region, time zone and the guests'
+    // keyboards are a locale's
     let d = &answer.guest_defaults;
-    // settings.set replaces the whole guest object: each field sends the others as they are
-    let base = json!({"guest": g});
     let c = &answer.choices;
     let mut keyboards: Vec<Choice> = c
         .keyboards
@@ -257,17 +238,19 @@ pub(crate) fn page(ctx: &Ctx, answer: &SettingsAnswer, p: &SettingsParams) -> Se
         .map(|k| Choice::new(json!(k.code), Text::verbatim(format!("{} ({})", k.code, k.locale))))
         .collect();
     keyboards.sort_by(|a, b| a.label.text.cmp(&b.label.text));
+    let mut host_keyboard =
+        Field::new("hostKeyboard", FieldKind::Choice, Text::new("Keyboard"), json!(s.host_keyboard))
+            .settings("hostKeyboard", json!({}))
+            .help(Text::new("The keyboard this computer has – new locales start with it"));
+    let like = ctx.on_host("As the Mac says – %@", "As the system says – %@");
+    host_keyboard.choices = vec![Choice::new(Value::Null, tf!(like, d.keyboard.clone().unwrap_or_default()))];
+    host_keyboard.choices.extend(keyboards);
     let guest = SettingsSection {
-        title: Text::new("For new images"),
-        fields: vec![
-            guest_choice(ctx, "locale", "Language and region", &g.locale, &d.locale, choices(&c.locales, |l| l.replace(".UTF-8", "")), &base),
-            guest_choice(ctx, "keyboard", "Keyboard", &g.keyboard, &d.keyboard, keyboards, &base),
-            guest_choice(ctx, "timeZone", "Time zone", &g.time_zone, &d.time_zone, choices(&c.time_zones, |z| z.replace('_', " ")), &base),
-        ],
-        footer: Some(Text::new(ctx.on_host(
-            "Used when an image is built – existing images and their VMs keep what they were built with (language, keyboard …); build an image again to take a change. The default credential is set on the Credentials page, the default look in the Looks tab. \"Like this Mac\" uses your Mac's values. The lists offer only what both NixOS and macOS VMs support. Your SSH keys from ~/.ssh are added automatically. macOS VMs have the user of their macOS base, which is created with a credential. A developer flake's local/settings.nix overrides these values.",
-            "Used when an image is built – existing images and their VMs keep what they were built with (language, keyboard …); build an image again to take a change. The default credential is set on the Credentials page, the default look in the Looks tab. \"Like this computer\" uses this computer's values. The lists offer only what both NixOS and macOS VMs support. Your SSH keys from ~/.ssh are added automatically. A developer flake's local/settings.nix overrides these values.",
-        ))),
+        title: Text::new(ctx.on_host("This Mac", "This computer")),
+        fields: vec![host_keyboard],
+        footer: Some(Text::new(
+            "Language, region, time zone and the guests' keyboards are a locale's (Locales, the globe at the top); the default credential is set on the Credentials page, the default look in the Looks tab. Images keep what they were built with – build one again to take a change.",
+        )),
     };
 
     let moving = ctx.active_job(crate::api::types::JobKind::DataMove).is_some();
@@ -321,7 +304,7 @@ pub(crate) fn page(ctx: &Ctx, answer: &SettingsAnswer, p: &SettingsParams) -> Se
 }
 
 /// Choices with plain names (UIs may name them in their language: Foundation's locale names in the app)
-fn choices(values: &[String], name: impl Fn(&str) -> String) -> Vec<Choice> {
+pub(crate) fn choices(values: &[String], name: impl Fn(&str) -> String) -> Vec<Choice> {
     let mut c: Vec<Choice> = values.iter().map(|v| Choice::new(json!(v), Text::verbatim(name(v)))).collect();
     c.sort_by_key(|c| c.label.text.to_lowercase());
     c

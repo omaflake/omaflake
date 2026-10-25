@@ -33,14 +33,23 @@ let
     pl = { id = 30788; name = "Polish Pro"; };       # XKB "pl" is the programmers' layout
     pt = { id = 10; name = "Portuguese"; };
     cz = { id = -14193; name = "Czech"; };           # QWERTZ like XKB "cz"
+    # plan B141, read from macOS 27's AppleKeyboardLayouts-L.dat like the others (B46): the PC layouts, as XKB's
+    ru = { id = 19458; name = "RussianWin"; };       # "Russian – PC" (ЙЦУКЕН as on Windows, like XKB "ru")
+    ua = { id = -2354; name = "Ukrainian-PC"; };
+    gr = { id = -18944; name = "Greek"; };
   };
-  layout = settings.macKeyboardLayout or knownLayouts.${settings.keyboard}
-    or (throw "darwin-guest: no macOS layout known for keyboard \"${settings.keyboard}\" – set macKeyboardLayout in local/settings.nix");
-  layoutSource = {
+  # The locale's keyboards (plan B141): several input sources, the first selected; macOS switches with its own keys
+  keyboards = if (settings.keyboards or [ ]) != [ ] then settings.keyboards else [ settings.keyboard ];
+  layoutOf = k: knownLayouts.${k}
+    or (throw "darwin-guest: no macOS layout known for keyboard \"${k}\" – set macKeyboardLayout in local/settings.nix");
+  layouts = if settings ? macKeyboardLayout then [ settings.macKeyboardLayout ] else map layoutOf keyboards;
+  layout = builtins.head layouts;
+  sourceOf = l: {
     InputSourceKind = "Keyboard Layout";
-    "KeyboardLayout ID" = layout.id;
-    "KeyboardLayout Name" = layout.name;
+    "KeyboardLayout ID" = l.id;
+    "KeyboardLayout Name" = l.name;
   };
+  layoutSource = sourceOf layout;
 in
 {
   nixpkgs.hostPlatform = "aarch64-darwin";
@@ -94,8 +103,7 @@ in
     AppleLocale = localeId;
   };
   system.defaults.CustomUserPreferences."com.apple.HIToolbox" = {
-    AppleEnabledInputSources = [
-      layoutSource
+    AppleEnabledInputSources = map sourceOf layouts ++ [
       { "Bundle ID" = "com.apple.CharacterPaletteIM"; InputSourceKind = "Non Keyboard Input Method"; }
     ];
     AppleSelectedInputSources = [ layoutSource ];

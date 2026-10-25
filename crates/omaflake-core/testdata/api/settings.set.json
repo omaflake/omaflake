@@ -2,14 +2,12 @@
   "checkForUpdates": true,
   "dataFolder": "/data",
   "defaultCredential": "c-1",
+  "defaultLocale": "l-1",
   "defaultLook": "omaflake.look.rose-pine-dawn",
   "developerMode": true,
   "flake": "/src/omaflake/nix",
   "flakeInUse": "/src/omaflake/nix",
-  "guest": {
-    "keyboard": "ch",
-    "locale": "de_CH.UTF-8"
-  },
+  "hostKeyboard": "ch",
   "keepRecipeVersions": false,
   "notifications": false
 }

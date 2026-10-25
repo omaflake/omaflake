@@ -150,8 +150,9 @@ fn draws_the_vms_tab() {
         "D Doctor 3",
         "C Credentials",
         "S Settings",
-        "A Data Folder",
-        "q Quit",
+        "L Locales",
+        // what does not fit next to the tabs: key and symbol
+        "A ▤  q ⏻",
         "/ Filter",
         "i ⇩ Import",
         "r ↗ Run from There",
@@ -656,7 +657,7 @@ fn linux_home_and_an_import_refused_with_a_text_reason() {
     h.model("home", json!({}), fixture("home.linux"));
     h.model("vms", json!({}), fixture("vms"));
     let s = h.screen();
-    assert!(s.contains(" omaflake ") && s.contains("A Data Folder") && s.contains("D Doctor"), "{s}");
+    assert!(s.contains(" omaflake ") && s.contains("C Credentials") && s.contains("D Doctor"), "{s}");
     h.app.run_action(&json!({"id": "x", "label": {"text": "x"}, "method": "ui.step", "enabled": true,
                              "params": {"page": "import", "params": {"path": "/x"}}}));
     h.settle();

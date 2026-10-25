@@ -11,6 +11,7 @@
       "method": "images.build",
       "params": {
         "credential": "c-1",
+        "locale": "l-1",
         "look": "omaflake.look.rose-pine-dawn",
         "recipe": "omaflake.nixos.dev@velvet-tiger-orbit"
       },
@@ -121,6 +122,30 @@
       "param": "look",
       "value": "omaflake.look.rose-pine-dawn",
       "valueParam": "look"
+    },
+    {
+      "choices": [
+        {
+          "label": {
+            "text": "German – de + ru"
+          },
+          "value": "l-1"
+        }
+      ],
+      "enabled": true,
+      "help": {
+        "key": "Language, region, time zone and keyboards (Locales, the globe at the top)",
+        "text": "Language, region, time zone and keyboards (Locales, the globe at the top)"
+      },
+      "id": "locale",
+      "kind": "choice",
+      "label": {
+        "key": "Locale",
+        "text": "Locale"
+      },
+      "param": "locale",
+      "value": "l-1",
+      "valueParam": "locale"
     }
   ],
   "job": {

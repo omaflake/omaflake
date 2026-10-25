@@ -479,6 +479,15 @@
             },
             {
               "label": {
+                "key": "Locale",
+                "text": "Locale"
+              },
+              "value": {
+                "text": "German (de + ru)"
+              }
+            },
+            {
+              "label": {
                 "key": "Resources",
                 "text": "Resources"
               },

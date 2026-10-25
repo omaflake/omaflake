@@ -109,6 +109,15 @@ pub(crate) fn ctx() -> Ctx {
             is_default: true,
         }],
         looks: looks_fixture(),
+        locales: vec![crate::api::types::LocaleDto {
+            id: "l-1".into(),
+            name: "German".into(),
+            locale: "de_DE.UTF-8".into(),
+            time_zone: "Europe/Berlin".into(),
+            keyboards: vec!["de".into(), "ru".into()],
+            is_default: true,
+            images: vec!["omaflake.nixos.dev@cedar-mango-lift".into()],
+        }],
         bases: vec![crate::api::types::BaseDto {
             name: "mac-base-26A434".into(),
             path: "/data/bases/mac-base-26A434".into(),
@@ -222,6 +231,7 @@ fn vm_rows_say_what_the_app_said() {
             "Recipe",
             "Credential",
             "Look",
+            "Locale",
             "Resources",
             "Network",
             "SSH",
@@ -557,10 +567,10 @@ fn build_page_follows_the_job() {
     assert!(build.get("ask").is_none());
     assert_eq!(
         build["params"],
-        json!({"recipe": "lab.macos.base@ocean-maple", "credential": "c-1", "look": "omaflake.look.rose-pine-dawn"})
+        json!({"recipe": "lab.macos.base@ocean-maple", "credential": "c-1", "look": "omaflake.look.rose-pine-dawn", "locale": "l-1"})
     );
     let fields: Vec<&str> = page["fields"].as_array().unwrap().iter().map(|f| f["id"].as_str().unwrap()).collect();
-    assert_eq!(fields, ["credential", "look"]);
+    assert_eq!(fields, ["credential", "look", "locale"]);
     assert_eq!(page["fields"][0]["valueParam"], "credential");
     assert_eq!(page["fields"][0]["choices"][0]["label"]["text"], "Work – alex");
     assert_eq!(page["fields"][0]["enabled"], false, "the base's credential");
@@ -803,15 +813,14 @@ fn settings_fields_store_themselves() {
     let dev = action(&page["general"]["fields"], "developerMode");
     assert_eq!(dev["set"], json!({"method": "settings.set", "params": {}, "param": "developerMode"}));
     assert_eq!(dev["value"], true);
-    let locale = action(&page["guest"]["fields"], "locale");
-    assert_eq!(locale["set"]["param"], "guest.locale");
-    assert_eq!(locale["set"]["params"], json!({"guest": {"locale": "de_CH.UTF-8", "keyboard": "ch"}}));
-    assert_eq!(locale["choices"][0]["label"]["text"], "Like this Mac – de_CH.UTF-8");
-    // "For new images" keeps language, keyboard and time zone: the default credential is set on the Credentials page,
-    // the default look in the Looks tab (plan B141); user, full name and e-mail are a credential's
+    // This Mac: only its keyboard – language, region, time zone and the guests' keyboards are a locale's, the
+    // defaults are set in their own places (plan B141)
     let ids: Vec<&str> =
         page["guest"]["fields"].as_array().unwrap().iter().map(|f| f["id"].as_str().unwrap()).collect();
-    assert_eq!(ids, ["locale", "keyboard", "timeZone"]);
+    assert_eq!(ids, ["hostKeyboard"]);
+    let keyboard = action(&page["guest"]["fields"], "hostKeyboard");
+    assert_eq!(keyboard["set"]["param"], "hostKeyboard");
+    assert_eq!(keyboard["choices"][0]["label"]["text"], "As the Mac says – ch");
     // A VM runs: the data folder stays
     let df = &page["dataFolder"];
     assert_eq!(action(&df["actions"], "move")["reason"]["key"], "Stop all VMs before moving the data folder.");
@@ -950,7 +959,12 @@ fn primary_actions_and_short_labels() {
     let home = get(&c, "home", json!({}));
     let short: Vec<Option<&str>> =
         home["actions"].as_array().unwrap().iter().map(|a| a["shortLabel"]["key"].as_str()).collect();
-    assert_eq!(short, [Some("Doctor"), None, None, Some("Data Folder"), Some("Quit")]);
+    assert_eq!(short, [Some("Doctor"), None, None, None, Some("Data Folder"), Some("Quit")]);
+    // Locales next to the credentials (plan B141)
+    assert_eq!(
+        (home["actions"][2]["icon"].clone(), home["actions"][2]["params"]["page"].clone()),
+        (json!("globe"), json!("locales"))
+    );
     // The credentials' key next to the settings (plan B137)
     assert_eq!(home["actions"][1]["icon"], "key");
     assert_eq!(home["actions"][1]["params"]["page"], "credentials");
@@ -1056,8 +1070,8 @@ fn linux_hosts_get_their_own_words() {
         "omaflake uses what this computer already has. Set up missing parts here or enter their path."
     );
     let settings = get(&c, "settings", json!({}));
-    let locale = action(&settings["guest"]["fields"], "locale");
-    assert_eq!(locale["choices"][0]["label"]["key"], "Like this computer – %@");
+    let keyboard = action(&settings["guest"]["fields"], "hostKeyboard");
+    assert_eq!(keyboard["choices"][0]["label"]["key"], "As the system says – %@");
     assert_eq!(
         settings["sources"]["rows"][1]["badges"][0]["help"]["key"],
         "Private – token stored (keyring or tokens.json)"
@@ -1341,4 +1355,38 @@ fn looks_are_a_tab_with_their_colours_usage_and_offers() {
     c.jobs.clear();
     let build = get(&c, "build", json!({"recipe": "omaflake.nixos.dev@velvet-tiger-orbit"}));
     assert_eq!(action(&build["actions"], "build")["enabled"], false);
+}
+
+// MARK: Locales (plan B141)
+
+#[test]
+fn locales_are_rows_and_a_form_like_credentials() {
+    let c = ctx();
+    let page = get(&c, "locales", json!({}));
+    let de = &page["rows"][0];
+    assert_eq!(de["name"], "German");
+    assert_eq!(de["subtitle"]["text"], "de_DE · de + ru · Europe/Berlin · 1 image");
+    assert_eq!(ids(&de["detail"]["actions"]), ["edit", "default", "remove"]);
+    assert_eq!(action(&de["detail"]["actions"], "remove")["enabled"], false);
+    // Its form: images use it – only the name; a new one: three keyboard fields, the second and third optional
+    let mut c = c;
+    c.settings_answer = Some(crate::api::contract::settings_answer());
+    let form = get(&c, "locale", json!({"id": "l-1"}));
+    assert!(form["locked"].is_object());
+    let fields: Vec<&str> = form["fields"].as_array().unwrap().iter().map(|f| f["id"].as_str().unwrap()).collect();
+    assert_eq!(fields, ["name", "locale", "timeZone", "keyboard", "keyboard2", "keyboard3"]);
+    let form = get(&c, "locale", json!({"values": {"name": "Russian", "keyboard": "ru", "keyboard2": "de"}}));
+    let create = action(&form["actions"], "create");
+    assert_eq!(create["params"]["keyboards"], json!(["ru", "de"]));
+    assert_eq!(create["enabled"], true);
+    let form = get(&c, "locale", json!({"values": {"name": "Twice", "keyboard": "de", "keyboard2": "de"}}));
+    assert_eq!(action(&form["actions"], "create")["enabled"], false);
+    // The build page offers the locales, the default preset
+    c.jobs.clear();
+    let build = get(&c, "build", json!({"recipe": "omaflake.nixos.dev@velvet-tiger-orbit"}));
+    let locale = action(&build["fields"], "locale");
+    assert_eq!(
+        (locale["value"].clone(), locale["choices"][0]["label"]["text"].clone()),
+        (json!("l-1"), json!("German – de + ru"))
+    );
 }

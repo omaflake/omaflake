@@ -72,25 +72,38 @@ fn draw_header(f: &mut Frame, app: &App, area: Rect) {
     }
     let home = app.home_actions();
     let letters = App::letters(&home, true, RESERVED);
-    let mut right: Vec<Span<'static>> = Vec::new();
-    for (a, l) in home.iter().zip(letters) {
-        if let Some(l) = l {
-            right.push(key_span(app, l.to_string()));
-            right.push(Span::raw(" "));
+    // The header's buttons: key and label (the model's short one in a narrow header); where they do not fit next to
+    // the tabs, the last ones (then all) with key and symbol only
+    let buttons = |labelled: usize| -> Vec<Span<'static>> {
+        let mut right: Vec<Span<'static>> = Vec::new();
+        for (i, (a, l)) in home.iter().zip(letters.iter()).enumerate() {
+            let compact = i >= labelled;
+            if let Some(l) = l {
+                right.push(key_span(app, l.to_string()));
+                right.push(Span::raw(" "));
+            }
+            if compact {
+                right.extend(model::icon(&ctx, a["icon"].as_str().unwrap_or(""), th.text()));
+            } else {
+                right.push(Span::styled(t(a.get("shortLabel").unwrap_or(&a["label"])), th.text()));
+            }
+            if let Some(n) = a.get("badge").and_then(Value::as_u64) {
+                right.push(Span::styled(format!(" {n}"), th.tone(Tone::Warning)));
+            }
+            right.push(Span::raw(if compact { " " } else { "  " }));
         }
-        // A narrow header: the model's short label, else the label
-        right.push(Span::styled(t(a.get("shortLabel").unwrap_or(&a["label"])), th.text()));
-        if let Some(n) = a.get("badge").and_then(Value::as_u64) {
-            right.push(Span::styled(format!(" {n}"), th.tone(Tone::Warning)));
-        }
-        right.push(Span::raw("  "));
-    }
+        right
+    };
+    let left: usize = spans.iter().map(|s| s.width()).sum();
     f.render_widget(Paragraph::new(Line::from(spans)), area);
-    let width: usize = right.iter().map(|s| s.width()).sum();
-    if (width as u16) < area.width / 2 {
-        let r = Rect { x: area.x + area.width - width as u16, width: width as u16, ..area };
-        f.render_widget(Paragraph::new(Line::from(right)), r);
-    }
+    let free = (area.width as usize).saturating_sub(left + 2);
+    let width = |b: &[Span<'static>]| b.iter().map(|s| s.width()).sum::<usize>();
+    let Some(right) = (0..=home.len()).rev().map(buttons).find(|b| width(b) <= free) else {
+        return;
+    };
+    let w = width(&right) as u16;
+    let r = Rect { x: area.x + area.width - w, width: w, ..area };
+    f.render_widget(Paragraph::new(Line::from(right)), r);
 }
 
 fn draw_title(f: &mut Frame, app: &App, page: &Page, area: Rect) {

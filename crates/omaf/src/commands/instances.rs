@@ -577,20 +577,13 @@ pub fn config(a: &cli::Config) -> Outcome {
     if let Some(nix) = &a.nix {
         s.nix = Some(folder_path(nix).to_string_lossy().into_owned());
     }
-    let guest = [&a.guest_locale, &a.guest_keyboard, &a.guest_time_zone];
-    let guest_change = guest.iter().any(|v| v.is_some());
-    if guest_change {
-        // An empty value removes the override (the Mac's value applies again)
-        let mut g = s.guest.clone().unwrap_or_default();
-        let set = |field: &mut Option<String>, v: &Option<String>| {
-            if let Some(v) = v {
-                *field = (!v.is_empty()).then(|| v.clone());
-            }
-        };
-        set(&mut g.locale, &a.guest_locale);
-        set(&mut g.keyboard, &a.guest_keyboard);
-        set(&mut g.time_zone, &a.guest_time_zone);
-        s.guest = Some(g);
+    let guest_change = a.host_keyboard.is_some();
+    if let Some(k) = &a.host_keyboard {
+        if !k.is_empty() && !GuestChoices::KEYBOARDS.iter().any(|(c, _)| c == k) {
+            let codes: Vec<&str> = GuestChoices::KEYBOARDS.iter().map(|(c, _)| *c).collect();
+            return Err(usage(&["config"], format!("--host-keyboard: one of {}", codes.join(", "))));
+        }
+        s.host_keyboard = (!k.is_empty()).then(|| k.clone());
     }
     if let Some(keep) = &a.keep_recipe_versions {
         if keep != "on" && keep != "off" {
@@ -626,14 +619,17 @@ pub fn config_lines(s: &omaflake_core::Settings, paths: &Paths, g: &GuestSetting
         format!("home:   {}", paths.root.display()),
         format!("config: {}", paths.config_file.display()),
         format!(
-            "guest:  {} ({}), {}, keyboard {}, {}, macOS user {}, {} key(s)",
-            g.user,
-            g.full_name,
-            g.locale,
-            g.keyboard,
-            g.time_zone,
-            g.mac_user.as_deref().unwrap_or(&g.user),
-            g.authorized_keys.len()
+            "keyboard: {} (this computer's{})",
+            s.host_keyboard.clone().unwrap_or_else(|| GuestSettings::mac().keyboard),
+            if s.host_keyboard.is_some() { "" } else { ", as the system says" }
+        ),
+        format!("ssh keys: {} (into every guest)", g.authorized_keys.len()),
+        format!(
+            "default locale: {}",
+            omaflake_core::locales::Locales::new(paths.clone()).default_locale().map_or_else(
+                || "– (none yet: images get this computer's values; omaf locales add)".to_string(),
+                |l| format!("{} ({}, {}, {})", l.name, l.locale, l.time_zone, l.keyboards.join("+"))
+            )
         ),
         format!(
             "default credential: {}",

@@ -633,6 +633,15 @@
             }
           },
           {
+            "label": {
+              "key": "Locale",
+              "text": "Locale"
+            },
+            "value": {
+              "text": "German (de + ru)"
+            }
+          },
+          {
             "full": "research",
             "label": {
               "key": "Used by",
@@ -685,6 +694,8 @@
         "kind": "nixos",
         "label": "image:omaflake/nixos/dev:cedar",
         "line": "omaflake.nixos.dev@github:omaflake/recipes@main",
+        "locale": "l-1",
+        "localeName": "German",
         "look": "omaflake",
         "name": "omaflake.nixos.dev@cedar-mango-lift",
         "omaflakeId": "image:omaflake/nixos/dev:cedar-mango-lift-amber-lake-quiet-otter-lamp-river-stone-cloud-maple",
@@ -929,6 +940,16 @@
             "value": {
               "key": "unknown – built before looks",
               "text": "unknown – built before looks"
+            }
+          },
+          {
+            "label": {
+              "key": "Locale",
+              "text": "Locale"
+            },
+            "value": {
+              "key": "this computer's values",
+              "text": "this computer's values"
             }
           },
           {

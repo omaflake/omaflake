@@ -124,16 +124,15 @@ mod tests {
         let s = Settings::load(&server.paths());
         assert_eq!((s.developer_mode, s.check_for_updates), (Some(true), Some(false)));
         // null = back to the default (not stored); untouched keys stay
-        let a = server
-            .call("settings.set", json!({"checkForUpdates": null, "guest": {"user": " ", "locale": "de_CH"}}))
-            .unwrap();
+        let a = server.call("settings.set", json!({"checkForUpdates": null, "hostKeyboard": "ch"})).unwrap();
         assert_eq!(a["checkForUpdates"], json!(true));
         assert_eq!(a["developerMode"], json!(true));
-        assert_eq!(a["guest"], json!({"locale": "de_CH"}));
+        assert_eq!(a["hostKeyboard"], json!("ch"));
         let s = Settings::load(&server.paths());
         assert_eq!(s.check_for_updates, None);
-        // user, fullName and email are a credential's now (plan B137): left out
-        assert_eq!(s.guest.unwrap(), crate::GuestOverrides { locale: Some("de_CH".into()), ..Default::default() });
+        // This computer's keyboard (plan B141); an unknown one is refused
+        assert_eq!(s.host_keyboard.as_deref(), Some("ch"));
+        assert!(server.call("settings.set", json!({"hostKeyboard": "xx"})).is_err());
         let e = server.call("settings.set", json!({"notifications": "yes"})).unwrap_err();
         assert_eq!(e.code, protocol::INVALID_PARAMS);
         // Updates switched off: no feed is asked

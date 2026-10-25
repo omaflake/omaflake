@@ -33,14 +33,15 @@ struct APIContractTests {
                 let s: SettingsInfo = try load("settings.get")
                 #expect(s.settings.developerMode && !s.settings.notifications && s.settings.checkForUpdates)
                 // user, fullName and email are a credential's since settings v3 (plan B137)
-                #expect(!s.settings.keepRecipeVersions && s.settings.guest.user == nil && s.settings.guest.locale == "de_CH.UTF-8")
+                // the guest's language, time zone and keyboards are a locale's since settings v5 (plan B141)
+                #expect(!s.settings.keepRecipeVersions && s.settings.hostKeyboard == "ch" && s.settings.defaultLocale == "l-1")
                 #expect(s.settings.dataFolder == "/data" && s.settings.flakeInUse == "/src/omaflake/nix" && s.settings.qemu == nil)
                 #expect(s.guestDefaults.timeZone == "Europe/Zurich" && s.guestDefaults.email == nil && !s.isDefaultDataFolder)
                 #expect(s.choices.keyboards.first == .init(code: "ch", locale: "de_CH") && s.choices.timeZones.count == 2)
             },
             "settings.set": {
                 let s: CoreSettings = try load("settings.set")
-                #expect(s.developerMode && s.dataFolder == "/data" && s.guest.keyboard == "ch")
+                #expect(s.developerMode && s.dataFolder == "/data" && s.hostKeyboard == "ch")
             },
             "updates.check": {
                 let u: UpdateStatus = try load("updates.check")

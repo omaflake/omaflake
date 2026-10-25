@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 # Shared base for all recipes: user, locale, SSH, Nix – no editor (modules/editor.nix)
-{ pkgs, settings, ... }:
+{ lib, pkgs, settings, ... }:
 
 let
   # The Mac's keyboard layout: the same keys as on the Mac (\ = Option+Shift+7 on German, @ = Option+L, …).
@@ -9,6 +9,8 @@ let
     us = "mac"; gb = "mac"; de = "mac"; ch = "de_mac"; at = "mac"; fr = "mac"; it = "mac"; nl = "mac";
     se = "mac"; no = "mac"; dk = "mac"; fi = "mac"; pt = "mac";
   };
+  # The locale's keyboards (plan B141): the first is the default, Super+Space switches (grp:win_space_toggle)
+  keyboards = if (settings.keyboards or [ ]) != [ ] then settings.keyboards else [ settings.keyboard ];
 in
 {
   time.timeZone = settings.timeZone;
@@ -16,9 +18,9 @@ in
   # One keyboard setting for desktop and console: the console follows XKB (any XKB name works, not only kbd's).
   # Both Option keys act as on the Mac (level 3 for special characters); the desktop's shortcuts use Cmd.
   services.xserver.xkb = {
-    layout = settings.keyboard;
-    variant = macVariants.${settings.keyboard} or "";
-    options = "lv3:alt_switch";
+    layout = lib.concatStringsSep "," keyboards;
+    variant = lib.concatMapStringsSep "," (k: macVariants.${k} or "") keyboards;
+    options = "lv3:alt_switch" + lib.optionalString (builtins.length keyboards > 1) ",grp:win_space_toggle";
   };
   console.useXkbConfig = true;
 

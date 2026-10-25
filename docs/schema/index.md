@@ -21,9 +21,9 @@ one, and never removes a published version from this site. Editors use the URL t
 
 | Type | File | Schema |
 |---|---|---|
-| `image` | `image.json` in an image package | [v2](image/v2.json) |
+| `image` | `image.json` in an image package | [v3](image/v3.json) |
 | `instance` | `instance.json` in a VM package | [v1](instance/v1.json) |
-| `settings` | `~/.omaflake/config.json` | [v4](settings/v4.json) |
+| `settings` | `~/.omaflake/config.json` | [v5](settings/v5.json) |
 | `installed` | `<data>/recipes/.installed.json` | [v1](installed/v1.json) |
 | `macos-vm` | `config.json` of a macOS VM folder | [v1](macos-vm/v1.json) |
 | `base` | `omaflake-base.json` in a macOS base folder – the credential of its guest user | [v1](base/v1.json) |

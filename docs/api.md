@@ -320,8 +320,8 @@ Params and results in short; the types are those of §4.
 | `events.subscribe` | `topics` | `null` |
 | `shutdown` | – | `null` – ends this session (§2) |
 | `service.restart` | – | `{jobs}` – the service ends once no job waits or runs (§1, §2) |
-| `settings.get` | – | `{settings, guestDefaults, choices: {timeZones, locales, keyboards: [{code, locale}], looks: [{name, title}]}, isDefaultDataFolder}` – `settings`: config.json's values with their defaults applied (`developerMode, checkForUpdates, notifications, keepRecipeVersions, guest: {timeZone?, locale?, keyboard?}, defaultCredential?, defaultLook?, flake?, qemu?, nix?, runner?, flakeInUse?, dataFolder`); `choices.looks`: the installed looks (`name` is the look's id, plan B141); `guestDefaults`: this computer's values the guest overrides fall back to |
-| `settings.set` | any of `developerMode, checkForUpdates, notifications, keepRecipeVersions, guest, defaultCredential, flake, qemu, nix, runner` (`null` or `""` = back to the default; keys not given stay; `guest` takes `locale, keyboard, timeZone` – user, full name and e-mail are a credential's, the default look is set with `looks.setDefault` (plan B141); `defaultCredential` takes a credential's id – there is always a default while there are credentials, plan B139) | `settings` – turning `keepRecipeVersions` off prunes older recipe versions |
+| `settings.get` | – | `{settings, guestDefaults, choices: {timeZones, locales, keyboards: [{code, locale}], looks: [{name, title}]}, isDefaultDataFolder}` – `settings`: config.json's values with their defaults applied (`developerMode, checkForUpdates, notifications, keepRecipeVersions, hostKeyboard?, defaultCredential?, defaultLook?, defaultLocale?, flake?, qemu?, nix?, runner?, flakeInUse?, dataFolder`); `choices.looks`: the installed looks (`name` is the look's id, plan B141); `hostKeyboard`: this computer's own keyboard (plan B141; unset: as the system says) – preset for new locales and the guest's keyboard without a locale; `guestDefaults`: this computer's values (what an image without a locale gets) |
+| `settings.set` | any of `developerMode, checkForUpdates, notifications, keepRecipeVersions, hostKeyboard, defaultCredential, flake, qemu, nix, runner` (`null` or `""` = back to the default; keys not given stay; `hostKeyboard` takes a keyboard of `choices.keyboards` – the guest's language, time zone and keyboards are a locale's (`locales.*`), the default look is set with `looks.setDefault` (plan B141); `defaultCredential` takes a credential's id – there is always a default while there are credentials, plan B139) | `settings` – turning `keepRecipeVersions` off prunes older recipe versions |
 | `looks.list` | `fetch?` | `{looks, offered, unreadable, fetched}` (plan B141) – `looks`: the looks here `[{id, reference, author, name, title, description, tags, appearance?, plain, swatches?, source, sourceName, official, installed, update, isDefault, images}]` (installed from a source, or a local folder source's, used as it is there); `offered`: what the sources' catalogs offer besides (`fetch: true` – or the first call – looks into them) |
 | `looks.install` | `id, source` | Job `look-install` – downloads a look (its files checked against the catalog's SHA-256) into `<data>/looks/<author>.<name>/`; the first one becomes the default |
 | `looks.installRecommended` | – | Job `look-install` – omaflake's own look and Catppuccin from the official catalog (the Doctor's action) |
@@ -332,6 +332,11 @@ Params and results in short; the types are those of §4.
 | `credentials.update` | `id`, any of `name, user, fullName, email, password` (`""` clears a value; a password can be changed, not removed) | `{credential, note?}` – while images use it only `name` and `password` may change, while a macOS base uses it only `name` (`in-use` otherwise) |
 | `credentials.remove` | `id` | `null` – its password goes too; refused while images or a macOS base use it (`in-use`); another one becomes the default |
 | `credentials.copyPassword` | `id` | `null` – asks the owner first (macOS: Touch ID or the login password, LocalAuthentication), copies the password to the clipboard and clears it after 90 s; refused when not confirmed (plan B138) |
+| `locales.list` | – | `[{id, name, locale, timeZone, keyboards, isDefault, images}]` (plan B141) – where a guest lives: one language and region, one time zone, one to three keyboards (the first the default); kept in config.json, never in a catalog |
+| `locales.add` | `name, locale, timeZone, keyboards` | `{id}` – the first one becomes the default; names are unique (any case, `exists`); one to three keyboards, none twice |
+| `locales.update` | `id`, any of `name, locale, timeZone, keyboards` | `{id}` – while images are built with it only `name` may change (`in-use`) |
+| `locales.remove` | `id` | `null` – refused while images are built with it (`in-use`); another one becomes the default |
+| `locales.setDefault` | `id` | `null` – the locale new images get unless the build chooses another |
 | `bases.list` | – | `[{name, path, osBuild?, user?, ready, newest, created?, sizeBytes?, credential?, credentialName?}]` – the macOS bases (`bases/mac-base-*`; plan B138), with the credential of their user (plan B139) |
 | `bases.remove` | `name` | `null` – deletes the base; refused while a macOS base is installed or a macOS image is built |
 | `bases.assign` | `name, credential` | `null` – writes the credential (ID or name) into a base created before bases kept theirs (`omaflake-base.json`, plan B139); its user must be the base's |
@@ -366,7 +371,7 @@ Params and results in short; the types are those of §4.
 |---|---|---|
 | `images.list` | – | `{images: [Image], unreadable}` |
 | `images.get` | `name` | `Image` with `sizeBytes` |
-| `images.build` | `recipe, credential?, look?, base?, keepFailed?` | Job `build` – `credential`: a credential's id, left out (or `""`) the default – without any credential `prerequisite`; `look`: an installed look (id, `<author>/<name>`, name or title), left out (or `""`) the default (plan B137, B141) – its data goes to the image flake (`settings.look`); without any look the Doctor blocks the build. A macOS recipe takes its base's credential and its stored password – nothing is asked (plan B139); a base without a credential is refused (`prerequisite`) unless a `password` is given (API version 1); `base`: the base folder, default the newest; `keepFailed`: keep a failed build folder) |
+| `images.build` | `recipe, credential?, look?, locale?, base?, keepFailed?` | Job `build` – `credential`: a credential's id, left out (or `""`) the default – without any credential `prerequisite`; `look`: an installed look (id, `<author>/<name>`, name or title), left out (or `""`) the default (plan B137, B141) – its data goes to the image flake (`settings.look`); without any look the Doctor blocks the build; `locale`: a locale's id or name, left out (or `""`) the default – without any locale the image gets this computer's values (plan B141). A macOS recipe takes its base's credential and its stored password – nothing is asked (plan B139); a base without a credential is refused (`prerequisite`); `base`: the base folder, default the newest; `keepFailed`: keep a failed build folder) |
 | `images.remove` | `name` | `null` – refused while VMs use it (`in-use`) |
 
 ### Recipes and sources
@@ -641,7 +646,7 @@ folder with the VM" / "Share a folder with the VM", "Like this Mac – %@" / "Li
 Mac – …" / "Not for this computer – …", "… in the Keychain" / "… in the keyring", the Doctor's intro, the notification
 help, the data folder's note, the sources' footer. Both are keys; translations have both.
 
-**home** – `title`, `actions` (doctor with `badge`, credentials (icon `key`, plan B137), settings, dataFolder, quit – with `shortLabel`s for a narrow header), `tabs: [{id, label, icon, badge?}]` (vms, images, recipes, looks – icon `look`, a warning dot without any look, plan B141 – and activity) with
+**home** – `title`, `actions` (doctor with `badge`, credentials (icon `key`, plan B137), locales (icon `globe`, plan B141), settings, dataFolder, quit – with `shortLabel`s for a narrow header), `tabs: [{id, label, icon, badge?}]` (vms, images, recipes, looks – icon `look`, a warning dot without any look, plan B141 – and activity) with
 `badge: {kind: count|working|failed|dot, count?, tone, help}` (running VMs; a build runs or failed; a recipe changed
 since its image), `firstTab` (`recipes` while there is no VM – a UI opening for the first time starts there).
 
@@ -726,8 +731,9 @@ sharePath?, start}` and `then: back` (primary), disabled while a value is wrong.
 
 **build** – `{recipe, name, kind, badges, description?, state: idle|queued|checking|running|finished|failed|cancelled,
 actions, fields?, blockers?, macBase?, status?, progress?, outcome?, newest?, log?, job?}`. `fields` (while no build
-runs, plan B137): `credential` (the credentials) and `look` ("The recipe's own" as `""`, then the looks), preset with
-the settings' defaults; their values (`values.credential`, `values.look`) go into the build action's params. A macOS
+runs, plan B137): `credential` (the credentials), `look` (the looks) and `locale` ("This computer's values" as `""` without
+any locale, else the locales), preset with the defaults; their values (`values.credential`, `values.look`,
+`values.locale`) go into the build action's params. A macOS
 recipe's `credential` is the newest base's, disabled (plan B139). Actions: `build` ("Build", or "Add to Queue" while
 another build of the guest kind runs; never asks a password; disabled for another architecture, Doctor blockers, no
 credential, a missing macOS base or one without a credential – then `macBase` names it with "Assign Credential …") – or `cancel` ("Cancel"/"Remove from Queue") while it waits or
@@ -764,9 +770,9 @@ name, icon (folder|github|url), badges (official, private with or without token)
 (a switch), remove], source}`; `add.fields`: input (with "Folder …"), private (only for a GitHub repository – the core
 decides from `params.values.input`); `addAction` (primary) is `sources.add {input, private}` and asks the token for a
 private one; the two fields keep their values under `values.input` and `values.private`. `general.fields`: notifications, checkForUpdates, keepRecipeVersions, developerMode (toggles with `set`).
-`guest` ("For new images": its footer says existing images and VMs keep what they were built with) – `fields`: defaultCredential (the credentials, disabled without any; plan B137, B139), look (the
-default look: "Each recipe's own" as `null`, then the looks by title; plan B135), locale, keyboard, timeZone (choices
-with "Like this Mac – …" as `null`; names are the plain values – UIs may name them in their language).
+`guest` ("This Mac" / "This computer", plan B141) – `fields`: hostKeyboard (this computer's own keyboard; "As the Mac
+says – …" / "As the system says – …" as `null`, then the keyboards). The defaults for new images are set in their own
+pages: credentials, looks and locales.
 
 **credentials** (plan B137, B138) – `{title, intro, rows, add, footer}`: rows as the other lists `{id, name, lamp (on
 while images use it), subtitle ("user · n images"), badges (default), usedBy (the images' names), actions:
@@ -778,7 +784,18 @@ kept.
 **credential** (params `id?`) – `{title, id?, intro, fields: [name, user, fullName, email], locked?, actions: [cancel,
 save | create]}`: each field's `help` says what it is for; while images use the credential `locked` says why and every
 field but `name` is disabled with that `reason`. `create` (`credentials.add`) asks the password twice; both go back
-(`then: back`). `dataFolder: {title,
+(`then: back`).
+
+**locales** (plan B141) – the shape of **credentials** (`{title, intro, rows, add, footer}`; UIs draw it with the same
+view): rows `{id, name, lamp (on while images are built with it), subtitle ("de_DE · de + ru · Europe/Berlin · n
+images"), badges (default), usedBy, actions: [default], detail: {info (language and region, time zone, keyboards, used
+by), actions: [edit (`ui.show locale {id}`), default (`locales.setDefault`), remove (destructive, confirm; disabled while
+used)]}}`; `add` ("New Locale …") opens `locale`; `intro` names this computer's keyboard.
+
+**locale** (params `id?`, `values`) – the shape of **credential**: `fields: [name, locale, timeZone, keyboard,
+keyboard2, keyboard3]` (choices; the second and third with "none" as `""`; a new one preset with this computer's
+values), `locked?` while images are built with it (only `name` then), `actions: [cancel, save (`locales.update`) |
+create (`locales.add`)]` – disabled with the field's error (no name, a name taken, a keyboard twice). `dataFolder: {title,
 location, isDefault, moving, actions: [default, move], note}` – both disabled while a VM runs. Launch at login and the
 UI's language are each UI's own.
 

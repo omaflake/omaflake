@@ -88,8 +88,12 @@ public struct CoreSettings: Decodable, Sendable, Equatable {
     public var checkForUpdates = true
     public var notifications = true
     public var keepRecipeVersions = false
-    /// The guest values set here (an unset one is the computer's, `guestDefaults`)
-    public var guest = GuestValues()
+    /// This computer's keyboard (plan B141): preset for new locales; nil = as the system says
+    public var hostKeyboard: String?
+    /// The defaults new images get (plan B137, B141)
+    public var defaultCredential: String?
+    public var defaultLook: String?
+    public var defaultLocale: String?
     public var flake: String?
     public var qemu: String?
     public var nix: String?
@@ -102,7 +106,8 @@ public struct CoreSettings: Decodable, Sendable, Equatable {
     public init() {}
 
     enum CodingKeys: String, CodingKey {
-        case developerMode, checkForUpdates, notifications, keepRecipeVersions, guest, flake, qemu, nix, runner, flakeInUse
+        case developerMode, checkForUpdates, notifications, keepRecipeVersions, hostKeyboard, defaultCredential, defaultLook
+        case defaultLocale, flake, qemu, nix, runner, flakeInUse
         case dataFolder
     }
 
@@ -112,7 +117,10 @@ public struct CoreSettings: Decodable, Sendable, Equatable {
         checkForUpdates = try c.decode(Bool.self, forKey: .checkForUpdates)
         notifications = try c.decode(Bool.self, forKey: .notifications)
         keepRecipeVersions = try c.decode(Bool.self, forKey: .keepRecipeVersions)
-        guest = try c.decode(GuestValues.self, forKey: .guest)
+        hostKeyboard = try c.decodeIfPresent(String.self, forKey: .hostKeyboard)
+        defaultCredential = try c.decodeIfPresent(String.self, forKey: .defaultCredential)
+        defaultLook = try c.decodeIfPresent(String.self, forKey: .defaultLook)
+        defaultLocale = try c.decodeIfPresent(String.self, forKey: .defaultLocale)
         flake = try c.decodeIfPresent(String.self, forKey: .flake)
         qemu = try c.decodeIfPresent(String.self, forKey: .qemu)
         nix = try c.decodeIfPresent(String.self, forKey: .nix)

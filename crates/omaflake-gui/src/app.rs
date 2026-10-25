@@ -98,6 +98,9 @@ pub fn decode(page: &str, v: Value) -> Model {
         "settings" => de(v, Model::Settings),
         "credentials" => de(v, Model::Credentials),
         "credential" => de(v, Model::Credential),
+        // Locales (plan B141): the same page and form as credentials
+        "locales" => de(v, Model::Credentials),
+        "locale" => de(v, Model::Credential),
         // The credential of a macOS base from before bases kept theirs: the same form (plan B139)
         "baseCredential" => de(v, Model::Credential),
         "activity" => de(v, Model::Activity),

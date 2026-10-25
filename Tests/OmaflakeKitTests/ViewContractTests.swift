@@ -23,20 +23,20 @@ extension APIContractTests {
         [
             "home": {
                 guard case .home(let h) = try page("home", as: "home") else { throw Unexpected() }
-                #expect(h.actions.map(\.id) == ["doctor", "credentials", "settings", "dataFolder", "quit"] && h.actions[0].badge == 3)
-                #expect(h.actions[4].confirm?.text.args == [.string("research")] && h.firstTab == "vms")
+                #expect(h.actions.map(\.id) == ["doctor", "credentials", "locales", "settings", "dataFolder", "quit"] && h.actions[0].badge == 3)
+                #expect(h.actions[5].confirm?.text.args == [.string("research")] && h.firstTab == "vms")
                 #expect(h.actions[1].icon == "key")
                 #expect(h.tabs.map(\.id) == ["vms", "images", "recipes", "looks", "activity"] && h.tabs[0].badge?.count == 1)
                 #expect(h.tabs[1].badge?.kind == "working" && h.tabs[2].badge?.tone == .warning && h.tabs[3].badge == nil)
                 // The window's title is data; the header's short labels
                 #expect(h.title == ViewText(verbatim: "omaflake"))
-                #expect(h.actions.map { $0.shortLabel?.key } == ["Doctor", nil, nil, "Data Folder", "Quit"])
-                #expect(h.actions[3].label.key == "Show Data Folder in Finder" && !h.actions.contains { $0.primary })
+                #expect(h.actions.map { $0.shortLabel?.key } == ["Doctor", nil, nil, nil, "Data Folder", "Quit"])
+                #expect(h.actions[4].label.key == "Show Data Folder in Finder" && !h.actions.contains { $0.primary })
             },
             "home.linux": {
                 // Host wording is the core's: the host-neutral variant on Linux
                 guard case .home(let h) = try page("home.linux", as: "home") else { throw Unexpected() }
-                #expect(h.actions[3].label.key == "Show Data Folder" && h.actions[3].shortLabel?.key == "Data Folder")
+                #expect(h.actions[4].label.key == "Show Data Folder" && h.actions[4].shortLabel?.key == "Data Folder")
             },
             "vms": {
                 guard case .vms(let p) = try page("vms", as: "vms") else { throw Unexpected() }
@@ -147,7 +147,7 @@ extension APIContractTests {
                 guard case .build(let p) = try page("build.macos", as: "build") else { throw Unexpected() }
                 // The default credential has a stored password: nothing is asked (plan B137)
                 #expect(p.state == .idle && p.actions.first?.ask.isEmpty == true && p.badges.first?.id == "lab")
-                #expect(p.fields?.map(\.id) == ["credential", "look"] && p.fields?.first?.valueParam == "credential")
+                #expect(p.fields?.map(\.id) == ["credential", "look", "locale"] && p.fields?.first?.valueParam == "credential")
             },
             "doctor": {
                 guard case .doctor(let p) = try page("doctor", as: "doctor") else { throw Unexpected() }
@@ -214,6 +214,14 @@ extension APIContractTests {
                 #expect(p.rows[0].badges.map(\.id) == ["default", "official"] && p.rows[0].actions.isEmpty)
                 #expect(p.offered.first?.actions.first?.method == "looks.install" && p.catalogsLoaded)
             },
+            "locales": {
+                guard case .credentials(let p) = try page("locales", as: "locales") else { throw Unexpected() }
+                #expect(p.title.key == "Locales" && p.add.method == "ui.show" && !p.rows.isEmpty)
+            },
+            "locale": {
+                guard case .credential(let p) = try page("locale", as: "locale") else { throw Unexpected() }
+                #expect(p.fields.map(\.id) == ["name", "locale", "timeZone", "keyboard", "keyboard2", "keyboard3"])
+            },
             "credentials.linux": {
                 guard case .credentials(let p) = try page("credentials.linux", as: "credentials") else { throw Unexpected() }
                 #expect(p.footer.key?.hasPrefix("Passwords are kept in the desktop's keyring") == true)
@@ -225,10 +233,10 @@ extension APIContractTests {
                 #expect(p.general.fields.allSatisfy { $0.valueParam == nil })
                 #expect(p.sources.addAction.ask.first?.kind == .password && p.sources.rows[0].actions[1].on != nil)
                 #expect(p.general.fields.allSatisfy { $0.set?.method == "settings.set" })
-                #expect(p.guest.fields.first { $0.id == "locale" }?.choices.first?.value == .null)
+                #expect(p.guest.fields.map(\.id) == ["hostKeyboard"] && p.guest.fields[0].choices.first?.value == .null)
                 #expect(p.dataFolder.actions.map(\.id) == ["default", "move"])
                 #expect(p.dataFolder.actions[1].confirm?.title.args == [.param("target")])
-                #expect(p.guest.fields.first { $0.id == "locale" }?.choices.first?.label.key == "Like this Mac – %@")
+                #expect(p.guest.title.key == "This Mac" && p.guest.fields[0].choices.first?.label.key == "As the Mac says – %@")
             },
             "doctor.linux": {
                 guard case .doctor(let p) = try page("doctor.linux", as: "doctor") else { throw Unexpected() }
@@ -243,7 +251,7 @@ extension APIContractTests {
             },
             "settings.linux": {
                 guard case .settings(let p) = try page("settings.linux", as: "settings") else { throw Unexpected() }
-                #expect(p.guest.fields.first { $0.id == "locale" }?.choices.first?.label.key == "Like this computer – %@")
+                #expect(p.guest.fields[0].choices.first?.label.key == "As the system says – %@")
             },
             "activity": {
                 guard case .activity(let p) = try page("activity", as: "activity") else { throw Unexpected() }

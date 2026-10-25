@@ -867,6 +867,20 @@ Entwurf-Baukasten.md):
   catalog (two looks there yet) and a local folder source (all four). OPEN: publishing the catalog commit with
   omaflake's look and Vanilla (until then "Install Recommended" finds omaflake's own only in a local source);
   clicking the tab in the three UIs; a build with an installed look.
+- **Locales done (2026-10-25):** `locales::Locales` – config.json `locales` and `defaultLocale` (settings v5: the
+  former guest values become a locale "Standard", `hostKeyboard` replaces them in the settings, `guest` is gone);
+  images record their locale (image.json v3 `locale`, `localeName`); `BuildChoice` is credential + look + locale.
+  `GuestSettings.keyboards` (the image flake: `xkb.layout` "de,ru,gr", a variant each, `grp:win_space_toggle` with
+  several, Waybar's `hyprland/language`; nix-darwin: every keyboard in `AppleEnabledInputSources`, new layouts ru, ua
+  and gr read from macOS' `AppleKeyboardLayouts-L.dat`). API `locales.list/add/update/remove/setDefault`,
+  `settings.set {hostKeyboard}`, `images.build {locale}`; pages `locales` and `locale` (the credentials' shapes, so
+  every UI draws them as those; home action `locales`, icon `globe`), the build page's `locale` field, settings "This
+  Mac" with the host keyboard only; CLI `omaf locales`, `omaf build --locale`, `omaf config --host-keyboard`. The TUI
+  header shows its buttons with labels as far as they fit, the rest as key and symbol. Checked: `cargo test` (store,
+  v4 → v5, pages, golden `locales`/`locale`), `swift test`, flake checks, `nix eval` of a NixOS guest with a locale of
+  three keyboards (layout "de,ru,gr", options with the toggle, time zone and language), the CLI in a scratch data
+  folder. OPEN: several keyboards in a macOS guest (BM24), a recipe's locale restriction (with recipe.toml v2), images
+  built with a locale and looked at.
 
 **Found on the way:** environment variables of the CLI (`VM_FLAKE`, …) do not reach the core service – a build that
 runs there uses config.json's flake (OPEN).

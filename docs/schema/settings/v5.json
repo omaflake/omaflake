@@ -1,0 +1,168 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://omaflake.dev/schema/settings/v5.json",
+  "title": "omaflake settings",
+  "description": "~/.omaflake/config.json – every setting is optional. v2: guest.look. v3: credentials, defaultCredential (guest.user, fullName, email moved into a credential). v4 (plan B141): defaultLook – an installed look's id; the guest has no look any more; the official source is omaflake/catalog. v5 (plan B141): locales, defaultLocale, hostKeyboard; the guest values are gone (a locale now).",
+  "type": "object",
+  "properties": {
+    "$schema": {
+      "const": "https://omaflake.dev/schema/settings/v5.json"
+    },
+    "flake": {
+      "type": "string",
+      "description": "The image flake (folder or flake URL)"
+    },
+    "sources": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "kind",
+          "location"
+        ],
+        "properties": {
+          "kind": {
+            "enum": [
+              "github",
+              "url",
+              "folder"
+            ]
+          },
+          "location": {
+            "type": "string"
+          },
+          "branch": {
+            "type": "string"
+          },
+          "private": {
+            "type": "boolean"
+          },
+          "enabled": {
+            "type": "boolean"
+          }
+        }
+      }
+    },
+    "externalVMs": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "qemu": {
+      "type": "string"
+    },
+    "runner": {
+      "type": "string"
+    },
+    "nix": {
+      "type": "string"
+    },
+    "credentials": {
+      "type": "array",
+      "description": "Named credentials – who you are in a guest; their passwords are in the keychain/keyring, never here",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "name"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "user": {
+            "type": "string"
+          },
+          "fullName": {
+            "type": "string"
+          },
+          "email": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "defaultCredential": {
+      "type": "string",
+      "description": "The credential new images get (its id); left out: this computer's user and name"
+    },
+    "home": {
+      "type": "string",
+      "description": "Data folder"
+    },
+    "developerMode": {
+      "type": "boolean"
+    },
+    "checkForUpdates": {
+      "type": "boolean"
+    },
+    "notifications": {
+      "type": "boolean"
+    },
+    "keepRecipeVersions": {
+      "type": "boolean"
+    },
+    "defaultLook": {
+      "type": "string",
+      "description": "The look new images get unless another is chosen: an installed look's id (\"<author>.look.<name>\")",
+      "pattern": "^[a-z0-9][a-z0-9-]*\\.look\\.[a-z0-9][a-z0-9-]*$"
+    },
+    "locales": {
+      "type": "array",
+      "description": "Where a guest lives: language and region, time zone, one to three keyboards (plan B141)",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "name",
+          "locale",
+          "timeZone",
+          "keyboards"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^l-[0-9a-f]{12}$|^l-[0-9a-z]+$"
+          },
+          "name": {
+            "type": "string"
+          },
+          "locale": {
+            "type": "string",
+            "description": "e.g. de_DE.UTF-8"
+          },
+          "timeZone": {
+            "type": "string"
+          },
+          "keyboards": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "minItems": 1,
+            "maxItems": 3
+          }
+        }
+      }
+    },
+    "defaultLocale": {
+      "type": "string",
+      "description": "The locale new images get unless another is chosen"
+    },
+    "hostKeyboard": {
+      "type": "string",
+      "description": "This computer's keyboard (XKB name) – preset for new locales"
+    }
+  },
+  "required": [
+    "$schema"
+  ],
+  "additionalProperties": false
+}

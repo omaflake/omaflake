@@ -445,7 +445,7 @@ mod tests {
         let text = fs::read_to_string(&json)
             .unwrap()
             .replace("\"recipe\"", "\"flavor\"")
-            .replace(r#""$schema" : "https://omaflake.dev/schema/image/v2.json","#, "");
+            .replace(r#""$schema" : "https://omaflake.dev/schema/image/v3.json","#, "");
         assert!(!text.contains("$schema"));
         fs::write(&json, text).unwrap();
         assert_eq!(ImageStore::read_info(&dir).unwrap().recipe, "omaflake.nixos.minimal");

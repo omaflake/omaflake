@@ -25,7 +25,7 @@ use crate::credentials::{CredentialChange, Credentials};
 use crate::data_folder::DataFolder;
 use crate::error::{codes, Error};
 use crate::guest_choices::GuestChoices;
-use crate::guest_settings::{BuildChoice, GuestOverrides, GuestSettings};
+use crate::guest_settings::{BuildChoice, GuestSettings};
 use crate::image_store::ImageStore;
 use crate::ipsw_downloader::MacOsRelease;
 use crate::mac_base_installer::{BaseOutcome, BaseRequest, MacBaseInstaller};
@@ -77,6 +77,46 @@ impl Server {
             "settings.set" => self.settings_set(p),
             // Credentials (plan B137)
             "credentials.list" => Answer::of(credential_dtos(&self.paths())),
+            "locales.list" => Answer::of(locale_dtos(&self.paths())),
+            "locales.add" | "locales.update" => {
+                let p: LocaleParamsIn = params(p)?;
+                let locales = crate::locales::Locales::new(self.paths());
+                let change = crate::locales::LocaleChange {
+                    name: p.name,
+                    locale: p.locale,
+                    time_zone: p.time_zone,
+                    keyboards: p.keyboards,
+                };
+                let l = if method == "locales.update" {
+                    let id = p.id.ok_or_else(|| RpcError::invalid_params("id is needed"))?;
+                    locales.check_change(&id, &change).map_err(err)?;
+                    locales.update(&id, change).map_err(err)?
+                } else {
+                    locales.add(change).map_err(err)?
+                };
+                self.check_freshness();
+                self.poke();
+                Answer::of(json!({"id": l.id}))
+            }
+            "locales.remove" => {
+                let id = params::<Id>(p)?.id;
+                let locales = crate::locales::Locales::new(self.paths());
+                if !locales.images_with(&id).is_empty() {
+                    return Err(RpcError::from(vm_err!(
+                        codes::IN_USE,
+                        "Images are built with this locale – remove them first"
+                    )));
+                }
+                let l = locales.remove(&id).map_err(err)?;
+                self.events().message_text(Level::Info, super::views::text::tf!("Locale “%@” removed", l.name));
+                self.poke();
+                Answer::of(Value::Null)
+            }
+            "locales.setDefault" => {
+                crate::locales::Locales::new(self.paths()).set_default(&params::<Id>(p)?.id).map_err(err)?;
+                self.poke();
+                Answer::of(Value::Null)
+            }
             "credentials.add" => self.credentials_change(None, params(p)?),
             "credentials.update" => {
                 let p: CredentialParams = params(p)?;
@@ -368,22 +408,14 @@ impl Server {
                 }
             }
         }
-        match p.get("guest") {
-            None => {}
-            Some(Value::Null) => s.guest = None,
-            Some(v) => {
-                let g: GuestValues =
-                    serde_json::from_value(v.clone()).map_err(|e| RpcError::invalid_params(format!("guest: {e}")))?;
-                let clean = |v: Option<String>| v.filter(|x| !x.trim().is_empty());
-                // user, fullName and email are a credential's since settings v3 (plan B137), the look is an installed
-                // look's (`looks.setDefault`, settings v4, plan B141) – both ignored here
-                let o = GuestOverrides {
-                    time_zone: clean(g.time_zone),
-                    locale: clean(g.locale),
-                    keyboard: clean(g.keyboard),
-                };
-                s.guest = (o != GuestOverrides::default()).then_some(o);
+        // This computer's keyboard (plan B141): the physical one, preset for new locales; null: as the system says
+        if let Some(v) = text("hostKeyboard")? {
+            if let Some(k) = &v {
+                if !GuestChoices::KEYBOARDS.iter().any(|(code, _)| code == k) {
+                    return Err(RpcError::invalid_params(format!("hostKeyboard: no keyboard \"{k}\"")));
+                }
             }
+            s.host_keyboard = v;
         }
         match p.get("defaultCredential") {
             None => {}
@@ -415,9 +447,8 @@ impl Server {
         if paths_changed {
             self.check_doctor_later();
         }
-        if before.guest != s.guest {
-            // Another look, user, keyboard … gives other images: the lists say "outdated" now, not at the next look
-            // at the recipes (plan B135)
+        if before.host_keyboard != s.host_keyboard {
+            // Images without a locale take this computer's keyboard: the lists say "outdated" now (plan B135)
             self.check_freshness();
         }
         if paths_changed
@@ -831,9 +862,8 @@ impl Server {
         }
         let kind = d.kind;
         let paths = self.paths();
-        let mut choice = build_choice(&paths, p.credential.as_deref(), p.look.as_deref())?;
-        // macOS: the base's credential and its stored password – nobody types one (plan B139); a password given
-        // still works for a base without a credential
+        let mut choice = build_choice(&paths, p.credential.as_deref(), p.look.as_deref(), p.locale.as_deref())?;
+        // macOS: the base's credential and its stored password – nobody types one (plan B139)
         let mut password = None;
         if kind == GuestKind::Macos {
             let base = p
@@ -841,23 +871,17 @@ impl Server {
                 .clone()
                 .filter(|b| !b.is_empty())
                 .map(PathBuf::from)
-                .or_else(|| MacImageBuilder::newest_base_in(&paths));
-            let given = p.password.clone().filter(|p| !p.is_empty());
-            match base.map(|b| Credentials::new(paths.clone()).login_of_base(&b)) {
-                Some(Ok(login)) => {
-                    choice.credential = Some(login.credential);
-                    password = Some(login.password);
-                }
-                Some(Err(e)) if given.is_none() => return Err(err(e)),
-                _ => password = given,
-            }
-            if password.is_none() {
-                return Err(RpcError::from(vm_err!(
-                    codes::PREREQUISITE,
-                    "No base found (expected {}/mac-base-<os-build>) – create one with: omaf macos install",
-                    paths.bases().display()
-                )));
-            }
+                .or_else(|| MacImageBuilder::newest_base_in(&paths))
+                .ok_or_else(|| {
+                    RpcError::from(vm_err!(
+                        codes::PREREQUISITE,
+                        "No base found (expected {}/mac-base-<os-build>) – create one with: omaf macos install",
+                        paths.bases().display()
+                    ))
+                })?;
+            let login = Credentials::new(paths.clone()).login_of_base(&base).map_err(err)?;
+            choice.credential = Some(login.credential);
+            password = Some(login.password);
         }
         let name = RecipeId::display_name(&p.recipe, Some(d));
         self.inner.jobs.drop_ended(JobKind::Build, &p.recipe);
@@ -1645,20 +1669,13 @@ impl Server {
         let s = self.clone();
         // The guest user comes from a credential, its password from the secret store (plan B139); user, full name and
         // password given directly still work (API version 1)
-        let (user, full_name, password, record) = match (p.user, p.password) {
-            (Some(user), Some(password)) if p.credential.is_none() => {
-                (user.clone(), p.full_name.unwrap_or(user), password, None)
-            }
-            _ => {
-                let login = Credentials::new(self.paths()).base_login(p.credential.as_deref()).map_err(err)?;
-                let record = crate::mac_base_installer::BaseRecord {
-                    credential: login.credential.id.clone(),
-                    credential_name: login.credential.name.clone(),
-                    user: login.user.clone(),
-                };
-                (login.user, login.full_name, login.password, Some(record))
-            }
-        };
+        let login = Credentials::new(self.paths()).base_login(p.credential.as_deref()).map_err(err)?;
+        let record = Some(crate::mac_base_installer::BaseRecord {
+            credential: login.credential.id.clone(),
+            credential_name: login.credential.name.clone(),
+            user: login.user.clone(),
+        });
+        let (user, full_name, password) = (login.user, login.full_name, login.password);
         let ipsw = p.ipsw;
         let mut spec = JobSpec::new(
             JobKind::MacosInstall,
@@ -1897,14 +1914,14 @@ pub(crate) fn check_update(server: &Server) -> Result<UpdateAnswer, RpcError> {
 
 pub(crate) fn settings_dto(paths: &Paths) -> SettingsDto {
     let s = Settings::load(paths);
-    let g = s.guest.clone().unwrap_or_default();
     SettingsDto {
         developer_mode: s.developer_mode.unwrap_or(false),
         check_for_updates: s.check_for_updates.unwrap_or(true),
         notifications: s.notifications.unwrap_or(true),
         keep_recipe_versions: s.keep_recipe_versions.unwrap_or(false),
         default_credential: Credentials::new(paths.clone()).default_credential().map(|c| c.id),
-        guest: GuestValues { time_zone: g.time_zone, locale: g.locale, keyboard: g.keyboard, ..Default::default() },
+        host_keyboard: s.host_keyboard.clone(),
+        default_locale: crate::locales::Locales::new(paths.clone()).default_locale().map(|l| l.id),
         default_look: crate::looks::LookStore::new(paths.clone()).default_look(&s).map(|l| l.id),
         flake_in_use: s.flake_path().ok(),
         flake: s.flake,
@@ -2108,15 +2125,15 @@ struct ExternalParams {
 #[serde(rename_all = "camelCase")]
 struct BuildParams {
     recipe: String,
-    /// The credential's ID (plan B137); "" = this computer's values; left out = the default credential
+    /// The credential's ID (plan B137); left out or "" = the default credential
     #[serde(default)]
     credential: Option<String>,
-    /// The look; "" = the recipe's own; left out = the default look
+    /// An installed look; left out or "" = the default look (plan B141)
     #[serde(default)]
     look: Option<String>,
-    /// macOS: the base user's password; left out = the credential's stored one
+    /// A locale's ID or name; left out or "" = the default locale (plan B141)
     #[serde(default)]
-    password: Option<String>,
+    locale: Option<String>,
     /// macOS: the base folder (default: the newest base)
     #[serde(default)]
     base: Option<String>,
@@ -2142,6 +2159,45 @@ pub(crate) fn base_dtos(paths: &Paths) -> Vec<BaseDto> {
             credential_name: b.record.map(|r| r.credential_name),
         })
         .collect()
+}
+
+/// Every locale with the images built with it and the default (plan B141)
+pub(crate) fn locale_dtos(paths: &Paths) -> Vec<LocaleDto> {
+    let locales = crate::locales::Locales::new(paths.clone());
+    let default = locales.default_locale().map(|l| l.id);
+    let images = ImageStore::new(paths.clone()).list();
+    locales
+        .list()
+        .into_iter()
+        .map(|l| LocaleDto {
+            is_default: default.as_deref() == Some(l.id.as_str()),
+            images: images
+                .iter()
+                .filter(|i| i.info.locale.as_deref() == Some(l.id.as_str()))
+                .map(|i| i.name.clone())
+                .collect(),
+            id: l.id,
+            name: l.name,
+            locale: l.locale,
+            time_zone: l.time_zone,
+            keyboards: l.keyboards,
+        })
+        .collect()
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct LocaleParamsIn {
+    #[serde(default)]
+    id: Option<String>,
+    #[serde(default)]
+    name: Option<String>,
+    #[serde(default)]
+    locale: Option<String>,
+    #[serde(default)]
+    time_zone: Option<String>,
+    #[serde(default)]
+    keyboards: Option<Vec<String>>,
 }
 
 /// Every credential with whether a password is stored (read without the secret: no prompt) and the default
@@ -2180,12 +2236,14 @@ struct CredentialParams {
     password: Option<String>,
 }
 
-/// The credential and look of a build (plan B137): `credential` None = the default, "" = this computer's values, else
-/// its ID; `look` None or "" = the default look, else an installed look (id, "<author>/<name>", name or title)
+/// The credential, look and locale of a build (plan B137, B141): `credential` None or "" = the default; `look` None or
+/// "" = the default look, else an installed look (id, "<author>/<name>", name or title); `locale` None or "" = the
+/// default locale (none: this computer's values), else a locale's ID or name
 pub(crate) fn build_choice(
     paths: &Paths,
     credential: Option<&str>,
     look: Option<&str>,
+    locale: Option<&str>,
 ) -> Result<BuildChoice, RpcError> {
     let defaults = BuildChoice::defaults(paths);
     // Every image is built with a credential – left out (or "") the default one (plan B139)
@@ -2210,7 +2268,15 @@ pub(crate) fn build_choice(
                 .id,
         ),
     };
-    Ok(BuildChoice { credential, look })
+    let locale = match locale.filter(|l| !l.is_empty()) {
+        None => defaults.locale,
+        Some(l) => Some(
+            crate::locales::Locales::new(paths.clone())
+                .find(l)
+                .ok_or_else(|| RpcError::from(vm_err!(codes::NOT_FOUND, "No locale \"{l}\"")))?,
+        ),
+    };
+    Ok(BuildChoice { credential, look, locale })
 }
 
 /// What `images.build` takes for a macOS build besides the password
@@ -2302,13 +2368,6 @@ struct InstallBaseParams {
     /// The credential the guest user is created from (ID or name; default: the default credential) – plan B139
     #[serde(default)]
     credential: Option<String>,
-    /// Without a credential (API version 1): user, full name and password directly
-    #[serde(default)]
-    user: Option<String>,
-    #[serde(default)]
-    full_name: Option<String>,
-    #[serde(default)]
-    password: Option<String>,
     #[serde(default)]
     ipsw: Option<String>,
 }

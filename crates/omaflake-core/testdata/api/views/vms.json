@@ -477,6 +477,15 @@
           },
           {
             "label": {
+              "key": "Locale",
+              "text": "Locale"
+            },
+            "value": {
+              "text": "German (de + ru)"
+            }
+          },
+          {
+            "label": {
               "key": "Resources",
               "text": "Resources"
             },
@@ -908,6 +917,16 @@
             "value": {
               "key": "unknown – built before looks",
               "text": "unknown – built before looks"
+            }
+          },
+          {
+            "label": {
+              "key": "Locale",
+              "text": "Locale"
+            },
+            "value": {
+              "key": "this computer's values",
+              "text": "this computer's values"
             }
           },
           {

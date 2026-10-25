@@ -71,6 +71,7 @@ pub(crate) fn page(ctx: &Ctx) -> HomePage {
     let actions = vec![
         doctor,
         Action::show("credentials", Text::new("Credentials"), Some("key"), "credentials", json!({})),
+        Action::show("locales", Text::new("Locales"), Some("globe"), "locales", json!({})),
         Action::show("settings", Text::new("Settings"), Some("settings"), "settings", json!({})),
         Action::call(
             "dataFolder",

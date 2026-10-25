@@ -672,6 +672,8 @@ impl View<'_> {
             look: i.info.look.clone(),
             credential: i.info.credential.clone(),
             credential_name: i.info.credential_name.clone(),
+            locale: i.info.locale.clone(),
+            locale_name: i.info.locale_name.clone(),
             instances: self
                 .snap
                 .rows

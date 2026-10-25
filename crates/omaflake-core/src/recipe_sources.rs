@@ -2197,7 +2197,6 @@ mod tests {
 
     #[test]
     fn what_omaflake_writes_matches_its_schema() {
-        use crate::guest_settings::GuestOverrides;
         let info = ImageInfo::new(
             "omaflake.nixos.minimal@a",
             Some("s".into()),
@@ -2217,7 +2216,15 @@ mod tests {
         let s = Settings {
             flake: Some("/f".into()),
             sources: Some(vec![RecipeSource::official()]),
-            guest: Some(GuestOverrides { keyboard: Some("us".into()), ..Default::default() }),
+            host_keyboard: Some("us".into()),
+            locales: Some(vec![crate::locales::GuestLocale {
+                id: "l-1".into(),
+                name: "German".into(),
+                locale: "de_DE.UTF-8".into(),
+                time_zone: "Europe/Berlin".into(),
+                keyboards: vec!["de".into(), "ru".into()],
+            }]),
+            default_locale: Some("l-1".into()),
             default_credential: Some("c-1".into()),
             default_look: Some("omaflake.look.omaflake".into()),
             ..Default::default()

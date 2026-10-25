@@ -279,6 +279,11 @@ pub struct ImageDto {
     /// That credential's name when it was built
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub credential_name: Option<String>,
+    /// The locale it was built with (its ID, plan B141) and its name then; left out: this computer's values
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub locale: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub locale_name: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -596,9 +601,12 @@ pub struct SettingsDto {
     pub check_for_updates: bool,
     pub notifications: bool,
     pub keep_recipe_versions: bool,
-    /// The guest values set here (an unset one is the computer's, `guestDefaults`); user, fullName and email are
-    /// left out since credentials (plan B137)
-    pub guest: GuestValues,
+    /// This computer's keyboard (plan B141): the physical one, preset for new locales; left out: as the system says
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub host_keyboard: Option<String>,
+    /// The locale new images get unless another is chosen (`locales.list`); left out: none – this computer's values
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub default_locale: Option<String>,
     /// The credential new images get unless another is chosen (`credentials.list`); left out: there is none
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub default_credential: Option<String>,
@@ -751,6 +759,20 @@ pub struct LooksAnswer {
     pub unreadable: Vec<(String, String)>,
     /// The catalogs were fetched in this session
     pub fetched: bool,
+}
+
+/// A locale (`locales.list`, plan B141): language and region, time zone, the guest's keyboards
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LocaleDto {
+    pub id: String,
+    pub name: String,
+    pub locale: String,
+    pub time_zone: String,
+    pub keyboards: Vec<String>,
+    pub is_default: bool,
+    /// The images built with it
+    pub images: Vec<String>,
 }
 
 /// A credential (plan B137) – `credentials.list`; its password never leaves the secret store

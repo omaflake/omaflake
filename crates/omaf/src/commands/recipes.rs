@@ -221,7 +221,8 @@ pub fn build(a: &cli::Build) -> Outcome {
         }
     };
     // The credential and look of the image (plan B137)
-    let choice = super::credentials::build_choice(&env.paths, a.credential.as_deref(), a.look.as_deref())?;
+    let choice =
+        super::credentials::build_choice(&env.paths, a.credential.as_deref(), a.look.as_deref(), a.locale.as_deref())?;
     // macOS: the base and its credential's password – nothing is asked (plan B139)
     let mut choice = choice;
     let mut mac: Option<(MacImageBuilder, PathBuf, String, String)> = None;

@@ -1,0 +1,55 @@
+{
+  "$schema" : "https://omaflake.dev/schema/settings/v5.json",
+  "checkForUpdates" : false,
+  "credentials" : [
+    {
+      "fullName" : "Jane Doe",
+      "id" : "c-1",
+      "name" : "jane",
+      "user" : "jane"
+    }
+  ],
+  "defaultCredential" : "c-1",
+  "defaultLocale" : "l-1",
+  "defaultLook" : "omaflake.look.rose-pine-dawn",
+  "developerMode" : true,
+  "externalVMs" : [
+    "/Volumes/stick/research.omaflake-vm"
+  ],
+  "flake" : "~/src/omaflake/nix",
+  "hostKeyboard" : "de",
+  "keepRecipeVersions" : true,
+  "locales" : [
+    {
+      "id" : "l-1",
+      "keyboards" : [
+        "de",
+        "ru"
+      ],
+      "locale" : "de_DE.UTF-8",
+      "name" : "German",
+      "timeZone" : "Europe/Berlin"
+    }
+  ],
+  "sources" : [
+    {
+      "kind" : "folder",
+      "location" : "/Volumes/data/recipes"
+    },
+    {
+      "kind" : "github",
+      "location" : "omaflake/catalog"
+    },
+    {
+      "branch" : "dev",
+      "kind" : "github",
+      "location" : "example/recipes",
+      "private" : true
+    },
+    {
+      "enabled" : false,
+      "kind" : "url",
+      "location" : "https://example.org/recipes/catalog.json"
+    }
+  ]
+}

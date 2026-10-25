@@ -127,7 +127,7 @@ fn lamp(ctx: &Ctx, lamp: &Value) -> Span<'static> {
     }
 }
 
-fn icon(ctx: &Ctx, name: &str, style: Style) -> Vec<Span<'static>> {
+pub(crate) fn icon(ctx: &Ctx, name: &str, style: Style) -> Vec<Span<'static>> {
     let g = ctx.icons.get(name);
     if g.is_empty() {
         vec![]
@@ -497,7 +497,8 @@ pub fn page(ctx: &Ctx, name: &str, model: &Value) -> Page {
         "macBase" => mac_base(ctx, model, &mut p),
         "newVm" => new_vm(ctx, model, &mut p),
         "settings" => settings(ctx, model, &mut p),
-        "credentials" => credentials(ctx, model, &mut p),
+        "credentials" | "locales" => credentials(ctx, model, &mut p),
+        "locale" => credential(ctx, "locale", model, &mut p),
         "credential" => credential(ctx, "credential", model, &mut p),
         // The credential of a macOS base from before bases kept theirs: the same form (plan B139)
         "baseCredential" => credential(ctx, "baseCredential", model, &mut p),

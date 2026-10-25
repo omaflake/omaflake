@@ -11,6 +11,8 @@
       "kind": "nixos",
       "label": "image:omaflake/nixos/dev:cedar",
       "line": "omaflake.nixos.dev@github:omaflake/recipes@main",
+      "locale": "l-1",
+      "localeName": "German",
       "look": "omaflake",
       "name": "omaflake.nixos.dev@cedar-mango-lift",
       "omaflakeId": "image:omaflake/nixos/dev:cedar-mango-lift-amber-lake-quiet-otter-lamp-river-stone-cloud-maple",

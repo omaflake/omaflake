@@ -177,11 +177,8 @@ pub(crate) fn settings_answer() -> SettingsAnswer {
             keep_recipe_versions: false,
             default_credential: Some("c-1".into()),
             default_look: Some("omaflake.look.rose-pine-dawn".into()),
-            guest: GuestValues {
-                locale: Some("de_CH.UTF-8".into()),
-                keyboard: Some("ch".into()),
-                ..GuestValues::default()
-            },
+            host_keyboard: Some("ch".into()),
+            default_locale: Some("l-1".into()),
             flake: Some("/src/omaflake/nix".into()),
             qemu: None,
             nix: None,
@@ -321,6 +318,8 @@ pub(crate) fn image(size: bool) -> ImageDto {
         look: Some("omaflake".into()),
         credential: Some("c-1".into()),
         credential_name: Some("Work".into()),
+        locale: Some("l-1".into()),
+        locale_name: Some("German".into()),
     }
 }
 
@@ -346,6 +345,8 @@ pub(crate) fn image_old() -> ImageDto {
         look: None,
         credential: None,
         credential_name: None,
+        locale: None,
+        locale_name: None,
     }
 }
 
@@ -796,6 +797,8 @@ fn view_goldens() -> Vec<(&'static str, Value)> {
         ("doctor", page("doctor", json!({}))),
         ("credentials", page("credentials", json!({}))),
         ("looks", page("looks", json!({}))),
+        ("locales", page("locales", json!({}))),
+        ("locale", page("locale", json!({"values": {"name": "Russian", "keyboard": "ru", "keyboard2": "de"}}))),
         ("credential", page("credential", json!({}))),
         ("credential.edit", page("credential", json!({"id": "c-1"}))),
         ("credentials.linux", build(&linux, &PageRef { page: "credentials".into(), params: json!({}) }).unwrap()),

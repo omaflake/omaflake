@@ -447,6 +447,21 @@ pub(crate) fn look_line(ctx: &Ctx, look: Option<&str>) -> InfoLine {
     )
 }
 
+/// "Locale: German (de + ru)" of an image (plan B141); an image without one has this computer's values; a locale that
+/// is gone keeps its name
+pub(crate) fn locale_line(ctx: &Ctx, i: &ImageDto) -> InfoLine {
+    match (&i.locale, ctx.locales.iter().find(|l| Some(&l.id) == i.locale.as_ref())) {
+        (None, _) => InfoLine::new("Locale", Text::new("this computer's values")),
+        (Some(_), Some(l)) => {
+            InfoLine::new("Locale", Text::verbatim(format!("{} ({})", l.name, l.keyboards.join(" + "))))
+        }
+        (Some(id), None) => {
+            InfoLine::new("Locale", Text::verbatim(i.locale_name.clone().unwrap_or_else(|| id.clone())))
+                .note(Text::new("removed"), Tone::Normal)
+        }
+    }
+}
+
 /// "Credential: Work (alex)" of an image (plan B137); an image from before credentials has none (it was built with
 /// this computer's user); a credential that is gone keeps its name, with a note
 pub(crate) fn credential_line(ctx: &Ctx, i: &ImageDto) -> InfoLine {
@@ -492,6 +507,7 @@ fn detail(ctx: &Ctx, i: &ImageDto, outdated: Option<bool>) -> ImageDetail {
         status,
         credential_line(ctx, i),
         look_line(ctx, i.look.as_deref()),
+        locale_line(ctx, i),
         InfoLine::new("Used by", if used.is_empty() { Text::new("no VM") } else { Text::verbatim(&used) }).full(&used),
         InfoLine::new(
             "Size",

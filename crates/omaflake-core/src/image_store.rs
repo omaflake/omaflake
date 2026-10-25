@@ -53,7 +53,12 @@ fn image_v1_to_v2(_: &mut Map<String, Value>) -> Result<()> {
     Ok(())
 }
 
-static IMAGE_STEPS: [Step; 2] = [image_v0_to_v1, image_v1_to_v2];
+/// image.json 2 → 3 (plan B141): `locale` and `localeName` – optional, nothing to change
+fn image_v2_to_v3(_: &mut Map<String, Value>) -> Result<()> {
+    Ok(())
+}
+
+static IMAGE_STEPS: [Step; 3] = [image_v0_to_v1, image_v1_to_v2, image_v2_to_v3];
 
 /// Contents of `image.json` (Swift `ImageStore.Info`). Keys: recipe, recipeSource, author, kind, system, name,
 /// source, revision, storePath, look, created (`.iso8601`); None fields left out.
@@ -91,6 +96,11 @@ pub struct ImageInfo {
     /// That credential's name when it was built – shown when it is gone
     #[serde(rename = "credentialName", default, skip_serializing_if = "Option::is_none")]
     pub credential_name: Option<String>,
+    /// The locale it was built with (plan B141) and its name then
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub locale: Option<String>,
+    #[serde(rename = "localeName", default, skip_serializing_if = "Option::is_none")]
+    pub locale_name: Option<String>,
     #[serde(with = "crate::json::iso8601")]
     pub created: DateTime<Utc>,
 }
@@ -106,6 +116,8 @@ impl ImageInfo {
         self.look_choice = choice.look.clone();
         self.credential = choice.credential.as_ref().map(|c| c.id.clone());
         self.credential_name = choice.credential.as_ref().map(|c| c.name.clone());
+        self.locale = choice.locale.as_ref().map(|l| l.id.clone());
+        self.locale_name = choice.locale.as_ref().map(|l| l.name.clone());
     }
 
     /// Author and name come from the recipe ID ("local" and the ID itself when it has no parts); pass
@@ -136,6 +148,8 @@ impl ImageInfo {
             look_choice: None,
             credential: None,
             credential_name: None,
+            locale: None,
+            locale_name: None,
             created,
         }
     }
@@ -851,9 +865,9 @@ mod tests {
         let i = ImageStore::read_info(&dir).unwrap();
         assert!(i.recipe == "omaflake.macos.minimal" && i.system == "aarch64-darwin");
         let written = fs::read_to_string(dir.join("image.json")).unwrap();
-        assert!(written.contains("https://omaflake.dev/schema/image/v2.json") && !written.contains("flavor"));
+        assert!(written.contains("https://omaflake.dev/schema/image/v3.json") && !written.contains("flavor"));
         // the keys are the schema's, its required ones are there
-        let schema_file = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../docs/schema/image/v2.json");
+        let schema_file = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../docs/schema/image/v3.json");
         let schema: Value = serde_json::from_slice(&fs::read(schema_file).unwrap()).unwrap();
         let object: Map<String, Value> = serde_json::from_str(&written).unwrap();
         let properties = schema["properties"].as_object().unwrap();

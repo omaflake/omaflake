@@ -43,6 +43,9 @@ pub struct GuestSettings {
     pub time_zone: String,
     pub locale: String,
     pub keyboard: String,
+    /// All the guest's keyboards, the first is `keyboard` (plan B141); empty: only `keyboard`
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub keyboards: Vec<String>,
     /// Guest user of macOS VMs – fixed by the base; None = same as `user`
     #[serde(rename = "macUser", default, skip_serializing_if = "Option::is_none")]
     pub mac_user: Option<String>,
@@ -65,6 +68,7 @@ impl GuestSettings {
             time_zone: Self::mac_time_zone(),
             locale: Self::mac_locale(),
             keyboard: Self::mac_keyboard(),
+            keyboards: vec![],
             mac_user: None,
             look: None,
             authorized_keys: MacBaseInstaller::default_public_keys(),
@@ -97,15 +101,21 @@ impl GuestSettings {
             let looks = crate::looks::LookStore::new(paths.clone());
             looks.list(&Settings::load(paths)).into_iter().find(|l| l.id == id).map(|l| l.data)
         });
-        if let Some(o) = Settings::load(paths).guest {
-            if let Some(v) = set(o.time_zone) {
-                g.time_zone = v;
+        // The locale: language, region, time zone and the guest's keyboards (plan B141); without one this computer's
+        // values with its keyboard (the setting's, else the system's)
+        match &choice.locale {
+            Some(l) => {
+                g.locale = l.locale.clone();
+                g.time_zone = l.time_zone.clone();
+                if let Some(first) = l.keyboards.first() {
+                    g.keyboard = first.clone();
+                }
+                g.keyboards = if l.keyboards.len() > 1 { l.keyboards.clone() } else { vec![] };
             }
-            if let Some(v) = set(o.locale) {
-                g.locale = v;
-            }
-            if let Some(v) = set(o.keyboard) {
-                g.keyboard = v;
+            None => {
+                if let Some(k) = set(Settings::load(paths).host_keyboard) {
+                    g.keyboard = k;
+                }
             }
         }
         if let Some(base) = MacImageBuilder::newest_base_in(paths) {
@@ -320,24 +330,14 @@ fn command_output(exe: &str, args: &[&str]) -> Option<String> {
     (!text.is_empty()).then_some(text)
 }
 
-/// Overrides for the guest values, from the app's settings (config.json `guest`). Keys: timeZone, locale, keyboard,
-/// look (None left out); user, full name and e-mail are a credential's since settings v3 (plan B137).
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
-pub struct GuestOverrides {
-    #[serde(rename = "timeZone", default, skip_serializing_if = "Option::is_none")]
-    pub time_zone: Option<String>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub locale: Option<String>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub keyboard: Option<String>,
-}
-
-/// What an image is built with besides its recipe (plan B137): a credential (None: this computer's values, images
-/// from before credentials) and a look – an installed look's id (plan B141; None: no look)
+/// What an image is built with besides its recipe (plan B137, B141): a credential (None: this computer's values,
+/// images from before credentials), a look – an installed look's id (None: no look) – and a locale (None: this
+/// computer's values)
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct BuildChoice {
     pub credential: Option<Credential>,
     pub look: Option<String>,
+    pub locale: Option<crate::locales::GuestLocale>,
 }
 
 impl BuildChoice {
@@ -346,6 +346,7 @@ impl BuildChoice {
         BuildChoice {
             credential: Credentials::new(paths.clone()).default_credential(),
             look: crate::looks::LookStore::new(paths.clone()).default_look(&Settings::load(paths)).map(|l| l.id),
+            locale: crate::locales::Locales::new(paths.clone()).default_locale(),
         }
     }
 
@@ -355,6 +356,7 @@ impl BuildChoice {
             credential: info.credential.as_deref().and_then(|id| Credentials::new(paths.clone()).get(id)),
             // Images from before installable looks name a look of omaflake's own (plan B141)
             look: info.look_choice.clone().map(|l| if l.contains(".look.") { l } else { format!("omaflake.look.{l}") }),
+            locale: info.locale.as_deref().and_then(|id| crate::locales::Locales::new(paths.clone()).get(id)),
         }
     }
 
@@ -362,7 +364,8 @@ impl BuildChoice {
     pub fn key(&self) -> String {
         let credential = self.credential.as_ref().map_or("computer", |c| c.id.as_str());
         let look = self.look.as_deref().unwrap_or("recipe");
-        format!("{credential}-{look}")
+        let locale = self.locale.as_ref().map_or("computer", |l| l.id.as_str());
+        format!("{credential}-{look}-{locale}")
             .chars()
             .map(|c| if c.is_ascii_alphanumeric() || c == '-' { c } else { '_' })
             .collect()
@@ -498,7 +501,6 @@ mod tests {
     /// `MacVmBundle` – run after the merge with `cargo test -- --ignored`
     #[test]
     fn overrides_and_base_user_win() {
-        use crate::guest_settings::GuestOverrides;
         use crate::mac_vm::{MacVmBundle, MacVmConfig};
         let (_t, p) = temp_paths();
         // A look in a local folder source: the default (the only one)
@@ -519,7 +521,7 @@ mod tests {
         );
         let s = Settings {
             sources: Some(vec![folder]),
-            guest: Some(GuestOverrides { keyboard: Some("us".into()), ..Default::default() }),
+            host_keyboard: Some("us".into()),
             credentials: Some(vec![Credential {
                 id: "c-1".into(),
                 name: "Dev".into(),
@@ -541,7 +543,7 @@ mod tests {
         // written once, stable content (no rewrite when unchanged)
         let choice = BuildChoice::defaults(&p);
         let dir = GuestSettings::write(&p, &choice).unwrap();
-        assert!(dir.ends_with("guest/c-1-alice_look_plain"));
+        assert!(dir.ends_with("guest/c-1-alice_look_plain-computer"));
         let file = dir.join("settings.json");
         let first = std::fs::metadata(&file).unwrap().modified().unwrap();
         GuestSettings::write(&p, &choice).unwrap();
@@ -551,7 +553,7 @@ mod tests {
         let other = BuildChoice::default();
         let g = GuestSettings::for_choice(&p, &other);
         assert!(g.user != "dev" && g.look.is_none() && g.keyboard == "us");
-        assert!(GuestSettings::write(&p, &other).unwrap().ends_with("guest/computer-recipe"));
+        assert!(GuestSettings::write(&p, &other).unwrap().ends_with("guest/computer-recipe-computer"));
     }
 
     /// Needs `GuestSettings::current` → F4 (see above)

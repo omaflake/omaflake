@@ -1,0 +1,225 @@
+{
+  "actions": [
+    {
+      "enabled": true,
+      "id": "cancel",
+      "label": {
+        "key": "Cancel",
+        "text": "Cancel"
+      },
+      "method": "ui.back",
+      "params": {}
+    },
+    {
+      "enabled": true,
+      "icon": "create",
+      "id": "create",
+      "label": {
+        "key": "Create",
+        "text": "Create"
+      },
+      "method": "locales.add",
+      "params": {
+        "keyboards": [
+          "ru",
+          "de"
+        ],
+        "locale": "de_CH.UTF-8",
+        "name": "Russian",
+        "timeZone": "Europe/Zurich"
+      },
+      "primary": true,
+      "then": "back"
+    }
+  ],
+  "fields": [
+    {
+      "enabled": true,
+      "help": {
+        "key": "Only for you – to tell your locales apart when building.",
+        "text": "Only for you – to tell your locales apart when building."
+      },
+      "id": "name",
+      "kind": "text",
+      "label": {
+        "key": "Name",
+        "text": "Name"
+      },
+      "param": "name",
+      "value": "Russian",
+      "valueParam": "name"
+    },
+    {
+      "choices": [
+        {
+          "label": {
+            "text": "de_CH"
+          },
+          "value": "de_CH.UTF-8"
+        },
+        {
+          "label": {
+            "text": "en_US"
+          },
+          "value": "en_US.UTF-8"
+        }
+      ],
+      "enabled": true,
+      "help": {
+        "key": "The guest's system language, dates and numbers – one per locale.",
+        "text": "The guest's system language, dates and numbers – one per locale."
+      },
+      "id": "locale",
+      "kind": "choice",
+      "label": {
+        "key": "Language and region",
+        "text": "Language and region"
+      },
+      "param": "locale",
+      "value": "de_CH.UTF-8",
+      "valueParam": "locale"
+    },
+    {
+      "choices": [
+        {
+          "label": {
+            "text": "Europe/Berlin"
+          },
+          "value": "Europe/Berlin"
+        },
+        {
+          "label": {
+            "text": "Europe/Zurich"
+          },
+          "value": "Europe/Zurich"
+        }
+      ],
+      "enabled": true,
+      "help": {
+        "key": "The guest's clock.",
+        "text": "The guest's clock."
+      },
+      "id": "timeZone",
+      "kind": "choice",
+      "label": {
+        "key": "Time zone",
+        "text": "Time zone"
+      },
+      "param": "timeZone",
+      "value": "Europe/Zurich",
+      "valueParam": "timeZone"
+    },
+    {
+      "choices": [
+        {
+          "label": {
+            "text": "ch (de_CH)"
+          },
+          "value": "ch"
+        },
+        {
+          "label": {
+            "text": "us (en_US)"
+          },
+          "value": "us"
+        }
+      ],
+      "enabled": true,
+      "help": {
+        "key": "The guest's first keyboard – the default.",
+        "text": "The guest's first keyboard – the default."
+      },
+      "id": "keyboard",
+      "kind": "choice",
+      "label": {
+        "key": "Keyboard",
+        "text": "Keyboard"
+      },
+      "param": "keyboard",
+      "value": "ru",
+      "valueParam": "keyboard"
+    },
+    {
+      "choices": [
+        {
+          "label": {
+            "key": "none",
+            "text": "none"
+          },
+          "value": ""
+        },
+        {
+          "label": {
+            "text": "ch (de_CH)"
+          },
+          "value": "ch"
+        },
+        {
+          "label": {
+            "text": "us (en_US)"
+          },
+          "value": "us"
+        }
+      ],
+      "enabled": true,
+      "help": {
+        "key": "Optional – Super+Space switches (NixOS); macOS shows it in the menu bar.",
+        "text": "Optional – Super+Space switches (NixOS); macOS shows it in the menu bar."
+      },
+      "id": "keyboard2",
+      "kind": "choice",
+      "label": {
+        "key": "Second keyboard",
+        "text": "Second keyboard"
+      },
+      "param": "keyboard2",
+      "value": "de",
+      "valueParam": "keyboard2"
+    },
+    {
+      "choices": [
+        {
+          "label": {
+            "key": "none",
+            "text": "none"
+          },
+          "value": ""
+        },
+        {
+          "label": {
+            "text": "ch (de_CH)"
+          },
+          "value": "ch"
+        },
+        {
+          "label": {
+            "text": "us (en_US)"
+          },
+          "value": "us"
+        }
+      ],
+      "enabled": true,
+      "help": {
+        "key": "Optional",
+        "text": "Optional"
+      },
+      "id": "keyboard3",
+      "kind": "choice",
+      "label": {
+        "key": "Third keyboard",
+        "text": "Third keyboard"
+      },
+      "param": "keyboard3",
+      "value": "",
+      "valueParam": "keyboard3"
+    }
+  ],
+  "intro": {
+    "key": "Where a guest lives: one language and region, one time zone, one to three keyboards. Images are built with it; changing it later needs a new build.",
+    "text": "Where a guest lives: one language and region, one time zone, one to three keyboards. Images are built with it; changing it later needs a new build."
+  },
+  "title": {
+    "key": "New Locale",
+    "text": "New Locale"
+  }
+}

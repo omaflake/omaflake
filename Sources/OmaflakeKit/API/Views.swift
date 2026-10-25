@@ -940,6 +940,9 @@ public enum PageModel: Sendable, Equatable {
         case "settings": self = .settings(try SettingsPage(from: decoder))
         case "credentials": self = .credentials(try CredentialsPage(from: decoder))
         case "credential": self = .credential(try CredentialPage(from: decoder))
+        // Locales (plan B141): the same page and form as credentials
+        case "locales": self = .credentials(try CredentialsPage(from: decoder))
+        case "locale": self = .credential(try CredentialPage(from: decoder))
         // The credential of a macOS base from before bases kept theirs: the same form (plan B139)
         case "baseCredential": self = .credential(try CredentialPage(from: decoder))
         case "activity": self = .activity(try ActivityPage(from: decoder))

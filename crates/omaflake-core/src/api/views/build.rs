@@ -133,6 +133,7 @@ pub struct BuildParams {
 pub struct BuildValues {
     pub credential: Option<String>,
     pub look: Option<String>,
+    pub locale: Option<String>,
 }
 
 /// The credential and look fields of the build form, and the values they have now (the user's, else the defaults)
@@ -140,7 +141,7 @@ fn choice_fields(
     ctx: &Ctx,
     v: &BuildValues,
     base: Option<&crate::api::types::BaseDto>,
-) -> (Vec<Field>, String, String) {
+) -> (Vec<Field>, String, String, String) {
     let default_credential = ctx.settings.default_credential.clone().unwrap_or_default();
     let credential =
         v.credential.clone().filter(|id| ctx.credentials.iter().any(|c| &c.id == id)).unwrap_or(default_credential);
@@ -178,7 +179,26 @@ fn choice_fields(
         .enabled_if(!ctx.looks.looks.is_empty(), Some(Text::new("Install a look first – the Looks tab")));
     l.choices = ctx.looks.looks.iter().map(|x| Choice::new(json!(x.id), Text::verbatim(&x.title))).collect();
     l.help = Some(Text::new("How the guest looks: colours, terminal, editors (the Looks tab)"));
-    (vec![c, l], credential, look)
+    // The locale (plan B141): the chosen one while it is there, else the default; without any, this computer's values
+    let locale = v
+        .locale
+        .clone()
+        .filter(|id| ctx.locales.iter().any(|l| &l.id == id))
+        .or_else(|| ctx.settings.default_locale.clone())
+        .unwrap_or_default();
+    let mut lo = Field::new("locale", FieldKind::Choice, Text::new("Locale"), json!(locale))
+        .param("locale")
+        .value_param("locale");
+    lo.choices = if ctx.locales.is_empty() {
+        vec![Choice::new(json!(""), Text::new("This computer's values"))]
+    } else {
+        ctx.locales
+            .iter()
+            .map(|x| Choice::new(json!(x.id), Text::verbatim(format!("{} – {}", x.name, x.keyboards.join(" + ")))))
+            .collect()
+    };
+    lo.help = Some(Text::new("Language, region, time zone and keyboards (Locales, the globe at the top)"));
+    (vec![c, l, lo], credential, look, locale)
 }
 
 pub fn progress(j: &JobDto) -> Progress {
@@ -230,7 +250,7 @@ pub(crate) fn page(ctx: &Ctx, p: &BuildParams) -> BuildPage {
 
     // macOS images are built on the newest base, with its credential (plan B139)
     let base = if mac { ctx.bases.iter().find(|b| b.newest) } else { None };
-    let (fields, credential, look) = choice_fields(ctx, &p.values, base);
+    let (fields, credential, look, locale) = choice_fields(ctx, &p.values, base);
     let no_credential = ctx.credentials.is_empty();
     let base_without = base.filter(|b| b.credential.is_none());
     let mut actions = Vec::new();
@@ -246,7 +266,7 @@ pub(crate) fn page(ctx: &Ctx, p: &BuildParams) -> BuildPage {
                 Text::new(if queue { "Add to Queue" } else { "Build" }),
                 Some("build"),
                 "images.build",
-                json!({"recipe": p.recipe, "credential": credential, "look": look}),
+                json!({"recipe": p.recipe, "credential": credential, "look": look, "locale": locale}),
             );
             // No password is asked: NixOS needs none, macOS takes the base credential's (plan B139)
             build = build
