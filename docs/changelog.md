@@ -13,6 +13,22 @@ are collected under *Unreleased*. Releases: [GitHub](https://github.com/omaflake
 
 ## [Unreleased]
 
+### Fixed
+
+- Recipes no longer show as not installed when Nix is unavailable (e.g. its volume is not mounted after a restart):
+  the recipe list is read from the recipes' own files, not by evaluating them with Nix. Only building needs Nix.
+- Without a QEMU chosen in the settings, omaflake takes the first QEMU with 3D it finds (its own in the Nix profile)
+  instead of the first on `PATH` – a Homebrew QEMU earlier on a terminal's `PATH` no longer starts NixOS VMs without 3D.
+
+### Changed
+
+- A recipe's build button stays when the Doctor reports what building needs (Nix for NixOS recipes, a macOS base for
+  macOS recipes): greyed out with a warning sign, the reason in its tooltip – instead of a Doctor button in its place.
+- The Doctor tells a Nix that is installed but not mounted at `/nix` from a missing one ("Nix Store volume not at
+  /nix") and offers **Mount …**: it mounts the volume and restores what mounts it at startup (`/etc/fstab`,
+  `/etc/synthetic.conf`, the `org.nixos.darwin-store` service) through the administrator dialog. API:
+  `builder.mountNix`, job kind `builder-mount-nix`.
+
 ## [0.6.1] – 2026-10-25
 
 A fix for 0.6.0: installed modules could be mixed up, so images failed to build. **After updating, remove the

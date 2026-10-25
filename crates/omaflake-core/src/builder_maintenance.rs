@@ -150,6 +150,131 @@ impl BuilderMaintenance {
     }
 }
 
+/// The APFS volume "Nix Store" the Nix installer creates (macOS). After a reboot it belongs at /nix – mounted by
+/// /etc/fstab (`noauto`) and the launchd daemon `org.nixos.darwin-store` (unlocking it with the key in the System
+/// keychain when it is encrypted). Without them macOS mounts it under /Volumes, or leaves it locked: Nix and every
+/// store path (omaflake's QEMU too) are gone although nothing was uninstalled.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct NixVolume {
+    pub uuid: String,
+    /// Where it is mounted now; None while it is not (or locked)
+    pub mount_point: Option<String>,
+    pub encrypted: bool,
+    pub locked: bool,
+}
+
+impl NixVolume {
+    pub const NAME: &'static str = "Nix Store";
+    pub const DAEMON: &'static str = "/Library/LaunchDaemons/org.nixos.darwin-store.plist";
+
+    /// The volume as `diskutil info "Nix Store"` describes it; None without one (or on Linux)
+    pub fn find() -> Option<NixVolume> {
+        if !cfg!(target_os = "macos") {
+            return None;
+        }
+        let r = Shell::run("/usr/sbin/diskutil", &["info", Self::NAME], &crate::shell::RunOptions::default()).ok()?;
+        if r.status != 0 {
+            return None;
+        }
+        Self::parse(&r.stdout)
+    }
+
+    /// `diskutil info` → the volume ("Volume UUID", "Mounted", "Mount Point", "FileVault", "Locked")
+    pub(crate) fn parse(info: &str) -> Option<NixVolume> {
+        let field = |name: &str| {
+            info.lines().find_map(|l| {
+                let (k, v) = l.split_once(':')?;
+                (k.trim() == name).then(|| v.trim().to_string())
+            })
+        };
+        let uuid = field("Volume UUID").filter(|u| !u.is_empty())?;
+        let mounted = field("Mounted").as_deref() == Some("Yes");
+        Some(NixVolume {
+            uuid,
+            mount_point: field("Mount Point").filter(|m| mounted && !m.is_empty()),
+            encrypted: field("FileVault").as_deref() == Some("Yes"),
+            locked: field("Locked").as_deref() == Some("Yes"),
+        })
+    }
+
+    /// Mounted where Nix expects it
+    pub fn at_nix(&self) -> bool {
+        self.mount_point.as_deref() == Some("/nix")
+    }
+
+    /// What the Doctor says about it: where it is instead of /nix
+    pub fn state(&self) -> String {
+        match (&self.mount_point, self.locked) {
+            (Some(m), _) => format!("mounted at {m}"),
+            (None, true) => "locked".into(),
+            (None, false) => "not mounted".into(),
+        }
+    }
+
+    /// The command that mounts the volume itself – unlocking it with its key from the System keychain when it is
+    /// encrypted (as the Nix installer's daemon does)
+    fn mount_command(&self) -> String {
+        let u = shell_quote(&self.uuid);
+        if self.encrypted {
+            format!(
+                "/usr/bin/security find-generic-password -s {u} -w | /usr/sbin/diskutil apfs unlockVolume {u} -mountpoint /nix -stdinpassphrase"
+            )
+        } else {
+            format!("/usr/sbin/diskutil mount -mountPoint /nix {u}")
+        }
+    }
+
+    /// As root: restores what mounts the volume at startup – `nix` in /etc/synthetic.conf, the /nix line in /etc/fstab
+    /// and the daemon `org.nixos.darwin-store`, each only where it is missing (as the Nix installer writes them) –,
+    /// mounts it at /nix now (from /Volumes, or unlocked) and restarts the Nix daemon
+    pub fn repair_command(&self) -> String {
+        let u = shell_quote(&self.uuid);
+        let fstab = shell_quote(&format!("UUID={} /nix apfs rw,noauto,nobrowse,suid,owners", self.uuid));
+        let mount = self.mount_command();
+        let (program, args): (&str, Vec<String>) = if self.encrypted {
+            ("/bin/sh", vec!["-c".into(), mount.clone()])
+        } else {
+            ("/usr/sbin/diskutil", vec!["mount".into(), "-mountPoint".into(), "/nix".into(), self.uuid.clone()])
+        };
+        let escape = |s: &str| s.replace('&', "&amp;").replace('<', "&lt;").replace('>', "&gt;");
+        let mut plist = vec![
+            r#"<?xml version="1.0" encoding="UTF-8"?>"#.to_string(),
+            r#"<!DOCTYPE plist PUBLIC "-//Apple Computer//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">"#.into(),
+            r#"<plist version="1.0"><dict>"#.into(),
+            "<key>Label</key><string>org.nixos.darwin-store</string>".into(),
+            "<key>RunAtLoad</key><true/>".into(),
+            "<key>ProgramArguments</key><array>".into(),
+            format!("<string>{}</string>", escape(program)),
+        ];
+        plist.extend(args.iter().map(|a| format!("<string>{}</string>", escape(a))));
+        plist.extend([
+            "</array>".into(),
+            "<key>StandardErrorPath</key><string>/var/log/darwin-store.log</string>".into(),
+            "</dict></plist>".into(),
+        ]);
+        let plist: Vec<String> = plist.iter().map(|l| shell_quote(l)).collect();
+        let daemon = Self::DAEMON;
+        [
+            "grep -qx nix /etc/synthetic.conf 2>/dev/null || { echo nix >> /etc/synthetic.conf; chmod 644 /etc/synthetic.conf; \
+             /System/Library/Filesystems/apfs.fs/Contents/Resources/apfs.util -t || true; }"
+                .to_string(),
+            format!("grep -qs '[[:space:]]/nix[[:space:]]' /etc/fstab || {{ echo {fstab} >> /etc/fstab; chmod 644 /etc/fstab; }}"),
+            format!(
+                "[ -f {daemon} ] || {{ printf '%s\\n' {} > {daemon}; chown root:wheel {daemon}; chmod 644 {daemon}; \
+                 launchctl bootstrap system {daemon} 2>/dev/null || true; }}",
+                plist.join(" ")
+            ),
+            format!(
+                "mount | grep -q ' on /nix ' || {{ /usr/sbin/diskutil unmount {u} 2>/dev/null || true; \
+                 /usr/sbin/diskutil mount -mountPoint /nix {u} 2>/dev/null || {{ {mount}; }}; }}"
+            ),
+            "launchctl kickstart -k system/org.nixos.nix-daemon 2>/dev/null || true".into(),
+            "test -d /nix/store && echo 'Nix Store mounted at /nix'".into(),
+        ]
+        .join("; ")
+    }
+}
+
 /// Runs a shell command as root after macOS' administrator dialog (AppleScript `do shell script … with administrator
 /// privileges`). The command travels as an argument, never spliced into AppleScript source.
 pub enum AdminShell {}
@@ -278,6 +403,47 @@ mod tests {
             )) || std::env::var("OMAFLAKE_NIX_INSTALLER_URL").is_ok()
         );
         assert!(cmd.contains(&format!("echo \"{}  $d/nix-installer\"", BuilderMaintenance::NIX_INSTALLER_SHA256)));
+    }
+
+    /// `diskutil info "Nix Store"` after a reboot without /etc/fstab: under /Volumes; after unmounting it: locked
+    #[test]
+    fn nix_volume_from_diskutil_info() {
+        let info = "   Volume Name:               Nix Store\n   Mounted:                   Yes\n   Mount Point:               /Volumes/Nix Store\n   Volume UUID:               22D5111A-0000-0000-0000-232684D307AE\n   FileVault:                 Yes\n   Locked:                    No\n";
+        let v = NixVolume::parse(info).unwrap();
+        assert_eq!(v.mount_point.as_deref(), Some("/Volumes/Nix Store"));
+        assert!(v.encrypted && !v.locked && !v.at_nix());
+        assert_eq!(v.state(), "mounted at /Volumes/Nix Store");
+        let locked = info
+            .replace("Mounted:                   Yes", "Mounted:                   No")
+            .replace("Locked:                    No", "Locked:                    Yes");
+        let l = NixVolume::parse(&locked).unwrap();
+        assert_eq!((l.mount_point.clone(), l.state()), (None, "locked".to_string()));
+        assert!(NixVolume::parse("Could not find disk: Nix Store").is_none());
+        let at = NixVolume::parse(&info.replace("/Volumes/Nix Store", "/nix")).unwrap();
+        assert!(at.at_nix());
+    }
+
+    /// The repair restores only what is missing, unlocks an encrypted volume with its key and is valid sh
+    #[test]
+    fn nix_volume_repair_command() {
+        let v = NixVolume {
+            uuid: "22D5111A-0000".into(),
+            mount_point: Some("/Volumes/Nix Store".into()),
+            encrypted: true,
+            locked: false,
+        };
+        let c = v.repair_command();
+        assert!(c.contains("grep -qx nix /etc/synthetic.conf 2>/dev/null || { echo nix >> /etc/synthetic.conf;"));
+        assert!(c.contains("|| { echo 'UUID=22D5111A-0000 /nix apfs rw,noauto,nobrowse,suid,owners' >> /etc/fstab;"));
+        assert!(c.contains("[ -f /Library/LaunchDaemons/org.nixos.darwin-store.plist ] ||"));
+        assert!(c.contains("security find-generic-password -s '22D5111A-0000' -w | /usr/sbin/diskutil apfs unlockVolume '22D5111A-0000' -mountpoint /nix -stdinpassphrase"));
+        assert!(c.contains("launchctl kickstart -k system/org.nixos.nix-daemon"));
+        let plain = NixVolume { encrypted: false, ..v };
+        assert!(!plain.repair_command().contains("unlockVolume"));
+        for cmd in [c, plain.repair_command()] {
+            let r = std::process::Command::new("/bin/sh").args(["-n", "-c", &cmd]).status().unwrap();
+            assert!(r.success(), "{cmd}");
+        }
     }
 
     #[test]

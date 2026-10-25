@@ -111,7 +111,7 @@ pub fn action_icon<'a>(a: &Action, pulse: bool) -> El<'a> {
     };
     let glyph = composite.map(|c| c.0).unwrap_or(name.as_str());
     if let Some((_, sub)) = composite {
-        let content = iced::widget::stack![
+        let mut content = iced::widget::stack![
             container(icon(glyph, icon_size::TOOLBAR, color))
                 .width(size::ICON_BUTTON_WIDTH)
                 .height(size::ICON_BUTTON_HEIGHT)
@@ -130,6 +130,15 @@ pub fn action_icon<'a>(a: &Action, pulse: bool) -> El<'a> {
             .align_y(Alignment::End)
             .padding(Padding { top: 0.0, right: 1.0, bottom: 1.0, left: 0.0 }),
         ];
+        // The Doctor's sign at the top right, as `icon_button` draws it (a build the Doctor blocks)
+        if warn {
+            content = content.push(
+                container(icon("warning", icon_size::SUB_BADGE + 1.0, style::WARNING))
+                    .width(size::ICON_BUTTON_WIDTH)
+                    .align_x(Alignment::End)
+                    .padding(Padding { top: 0.0, right: 1.0, bottom: 0.0, left: 0.0 }),
+            );
+        }
         let b = button(content).padding(0).style(style::icon_button(color)).on_press_maybe(run(a, None));
         return tip(b, help_of(a));
     }

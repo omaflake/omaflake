@@ -456,7 +456,14 @@ fn recipe_rows_by_line_with_offers_and_updates() {
     let dev = &page["rows"][0];
     assert_eq!(dev["lamp"]["state"], "working", "j1 builds it");
     assert_eq!(dev["secondary"], json!(["velvet"]));
-    assert_eq!(ids(&dev["actions"]), ["reveal", "doctor"], "the Linux builder does not answer");
+    // The Linux builder does not answer: the build button stays, greyed out with the Doctor's sign
+    assert_eq!(ids(&dev["actions"]), ["reveal", "build"]);
+    let build = &dev["actions"][1];
+    assert_eq!(
+        (build["enabled"].clone(), build["badge"].clone(), build["primary"].clone()),
+        (json!(false), json!(1), json!(true))
+    );
+    assert_eq!(build["reason"]["key"], "Open the Doctor first: %@");
     let d = &dev["detail"];
     assert_eq!(d["info"][3]["value"]["text"], "Clipboard · Sound · Share folder");
     assert_eq!(d["info"][4]["value"]["key"], "%lld built, the newest %@");
@@ -711,6 +718,29 @@ fn doctor_items_hints_and_actions() {
     assert_eq!(page["update"]["text"]["key"], "Up to date – checked %@");
     assert_eq!(ids(&page["update"]["actions"]), ["checkNow"]);
     assert_eq!(ids(&page["actions"]), ["check"]);
+}
+
+/// Nix installed, its volume not at /nix (a restart without /etc/fstab): Mount …, never Install …
+#[test]
+fn doctor_offers_to_mount_the_nix_store() {
+    use crate::prerequisites::{PrerequisiteItem as I, PrerequisiteStatus as S, Prerequisites};
+    let mut c = ctx();
+    let mut nix = fx::prerequisite(I::Nix, S::Missing);
+    nix.detail = format!("{} (mounted at /Volumes/Nix Store)", Prerequisites::NIX_NOT_MOUNTED);
+    nix.install = Some("sudo sh -c '…'".into());
+    c.doctor.as_mut().unwrap().prerequisites[0] = nix;
+    let page = get(&c, "doctor", json!({}));
+    let item = &page["sections"][0]["items"][0];
+    assert_eq!(item["item"], "nix");
+    let ids = ids(&item["actions"]);
+    assert!(ids.contains(&"mountNix".to_string()) && !ids.contains(&"installNix".to_string()), "{ids:?}");
+    let mount = action(&item["actions"], "mountNix");
+    assert_eq!(mount["method"], "builder.mountNix");
+    assert_eq!(mount["confirm"]["title"]["key"], "Mount the Nix Store?");
+    assert!(item["hint"]["key"]
+        .as_str()
+        .unwrap()
+        .starts_with("Nix is installed, but its volume is not mounted at /nix"));
 }
 
 #[test]

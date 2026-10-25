@@ -18,7 +18,7 @@ use std::path::Path;
 
 use serde::{Deserialize, Serialize, Serializer};
 
-use crate::builder_maintenance::BuilderMaintenance;
+use crate::builder_maintenance::{shell_quote, BuilderMaintenance, NixVolume};
 use crate::cli_link::{CliCheck, CliLink};
 use crate::image_store::ImageStore;
 use crate::ipsw_downloader::{free_space, gigabytes, IpswDownloader, MacOsRelease};
@@ -444,6 +444,11 @@ impl Prerequisites {
 
     pub(crate) fn nix_item(&self, nix: Option<&str>) -> Prerequisite {
         let Some(nix) = nix else {
+            // Installed, but its volume is not at /nix (after a reboot without /etc/fstab or the mount daemon): mount
+            // it, never install Nix again
+            if let Some(v) = NixVolume::find().filter(|v| !v.at_nix() && !Path::new("/nix/store").exists()) {
+                return Self::nix_not_mounted(&v);
+            }
             return Prerequisite::new(
                 PrerequisiteItem::Nix,
                 PrerequisiteStatus::Missing,
@@ -456,6 +461,19 @@ impl Prerequisites {
             .map(|r| r.stdout.trim().to_string())
             .unwrap_or_else(|_| "?".into());
         Prerequisite::new(PrerequisiteItem::Nix, PrerequisiteStatus::Ok, &format!("{version} – {nix}"), "", None)
+    }
+
+    /// The start of the Nix item's detail when its volume is here but not at /nix (the Doctor's view offers Mount …)
+    pub const NIX_NOT_MOUNTED: &'static str = "Nix Store volume not at /nix";
+
+    pub(crate) fn nix_not_mounted(v: &NixVolume) -> Prerequisite {
+        Prerequisite::new(
+            PrerequisiteItem::Nix,
+            PrerequisiteStatus::Missing,
+            &format!("{} ({})", Self::NIX_NOT_MOUNTED, v.state()),
+            "Nix is installed, but its volume is not mounted at /nix – mount it (omaflake also restores what mounts it at startup)",
+            Some(format!("sudo sh -c {}", shell_quote(&v.repair_command()))),
+        )
     }
 
     pub(crate) fn flakes(&self, nix: Option<&str>, config: &HashMap<String, String>) -> Prerequisite {
@@ -736,7 +754,7 @@ impl Prerequisites {
                 None,
             );
         };
-        match ImageStore::new(self.paths.clone()).recipe_defaults(&flake) {
+        match ImageStore::new(self.paths.clone()).evaluate_recipe_defaults(&flake) {
             Ok(recipes) => {
                 let mut nixos: Vec<String> = recipes
                     .iter()
@@ -819,11 +837,8 @@ impl Prerequisites {
             if let Some(user) = MacBaseInstaller::user_of(base, &self.paths.logs()) {
                 // The macOS recipes' guest user (macUser) must be the base's: builds log in as it, nix-darwin
                 // configures it
-                let expected: BTreeSet<String> = Settings::load(&self.paths)
-                    .flake_path()
-                    .ok()
-                    .and_then(|f| ImageStore::new(self.paths.clone()).recipe_defaults(&f).ok())
-                    .unwrap_or_default()
+                let expected: BTreeSet<String> = ImageStore::new(self.paths.clone())
+                    .recipe_defaults()
                     .into_values()
                     .filter(|d| d.kind == GuestKind::Macos)
                     .filter_map(|d| d.user)

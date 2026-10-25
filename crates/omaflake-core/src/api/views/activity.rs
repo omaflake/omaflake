@@ -127,7 +127,10 @@ pub fn job_ended(job: &JobDto) -> Option<(Level, Text, Option<Notification>)> {
             let folder = result(()).get("dataFolder").and_then(Value::as_str).unwrap_or(&job.title).to_string();
             (Level::Info, tf!("Data folder: %@", folder), None)
         }
-        (K::BuilderInstallNix | K::BuilderSetup | K::BuilderApply | K::BuilderCleanUp, S::Failed) => {
+        (
+            K::BuilderInstallNix | K::BuilderMountNix | K::BuilderSetup | K::BuilderApply | K::BuilderCleanUp,
+            S::Failed,
+        ) => {
             let first = match &job.log_file {
                 Some(f) => tf!("Failed – see %@", f),
                 None => Text::new("Failed"),
@@ -136,6 +139,7 @@ pub fn job_ended(job: &JobDto) -> Option<(Level, Text, Option<Notification>)> {
             (Level::Error, tf!("%@\n%@", first, tail), None)
         }
         (K::BuilderInstallNix, S::Finished) => (Level::Info, Text::new("Nix installed"), None),
+        (K::BuilderMountNix, S::Finished) => (Level::Info, Text::new("Nix Store mounted at /nix"), None),
         (K::BuilderSetup | K::BuilderApply, S::Finished) => {
             (Level::Info, Text::new("Linux builder settings applied"), None)
         }
@@ -279,7 +283,7 @@ pub fn call_done(method: &str, params: &Value, outcome: &Result<Value, RpcError>
 }
 
 /// The methods a page's actions send whose refusal goes into the activity list (besides `vms.*`)
-const ACTIONS: [&str; 20] = [
+const ACTIONS: [&str; 21] = [
     "images.remove",
     "recipes.install",
     "recipes.installSuggested",
@@ -296,6 +300,7 @@ const ACTIONS: [&str; 20] = [
     "doctor.uninstallCli",
     "macos.downloadIpsw",
     "builder.installNix",
+    "builder.mountNix",
     "builder.setup",
     "builder.apply",
     "builder.cleanUp",

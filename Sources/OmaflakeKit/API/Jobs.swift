@@ -5,12 +5,13 @@ import Foundation
 public struct Job: Decodable, Sendable, Equatable, Identifiable {
     public enum Kind: String, OpenEnum {
         case build, macosInstall = "macos-install", ipswDownload = "ipsw-download"
-        case builderInstallNix = "builder-install-nix", builderSetup = "builder-setup", builderApply = "builder-apply"
+        case builderInstallNix = "builder-install-nix", builderMountNix = "builder-mount-nix", builderSetup = "builder-setup"
+        case builderApply = "builder-apply"
         case builderCleanUp = "builder-clean-up", `import`, export, dataMove = "data-move", recipeInstall = "recipe-install", lookInstall = "look-install"
         case cliInstall = "cli-install"
         case unknown
 
-        public var isBuilderTask: Bool { [.builderInstallNix, .builderSetup, .builderApply, .builderCleanUp].contains(self) }
+        public var isBuilderTask: Bool { [.builderInstallNix, .builderMountNix, .builderSetup, .builderApply, .builderCleanUp].contains(self) }
     }
 
     public enum State: String, OpenEnum {

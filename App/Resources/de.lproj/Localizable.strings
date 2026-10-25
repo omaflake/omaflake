@@ -1264,3 +1264,11 @@
 "Downloading macOS from Apple …" = "macOS wird von Apple geladen …";
 "Installing macOS …" = "macOS wird installiert …";
 "Install modules" = "Module installieren";
+"Mount …" = "Einhängen …";
+"Mount" = "Einhängen";
+"Mount the Nix Store?" = "Nix-Store einhängen?";
+"Mount the Nix Store" = "Nix-Store einhängen";
+"omaflake mounts the Nix Store volume at /nix and restores what mounts it at every startup (/etc/fstab, /etc/synthetic.conf and the background service org.nixos.darwin-store), only where they are missing. Nothing in the store changes. macOS asks for an administrator." = "omaflake hängt das Volume „Nix Store“ unter /nix ein und stellt wieder her, was es bei jedem Start einhängt (/etc/fstab, /etc/synthetic.conf und den Hintergrunddienst org.nixos.darwin-store) – nur, wo etwas fehlt. Im Store ändert sich nichts. macOS fragt nach einem Administrator.";
+"Nix is installed, but its volume is not mounted at /nix – usually after a restart without its mount settings. Mount it; NixOS images, the Linux builder and omaflake's QEMU are back then." = "Nix ist installiert, aber sein Volume ist nicht unter /nix eingehängt – meist nach einem Neustart ohne seine Einhänge-Einstellungen. Einhängen; danach sind NixOS-Images, der Linux-Builder und omaflakes QEMU wieder da.";
+"Nix Store mounted at /nix" = "Nix-Store unter /nix eingehängt";
+"No Nix Store volume on this Mac" = "Kein Volume „Nix Store“ auf diesem Mac";

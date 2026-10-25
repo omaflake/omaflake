@@ -996,6 +996,8 @@ pub enum JobKind {
     MacosInstall,
     IpswDownload,
     BuilderInstallNix,
+    /// Mount the Nix Store volume at /nix again and restore what mounts it at startup (`builder.mountNix`)
+    BuilderMountNix,
     BuilderSetup,
     BuilderApply,
     BuilderCleanUp,
@@ -1147,7 +1149,7 @@ pub struct CliResult {
     pub message: String,
 }
 
-/// `builder-install-nix`, `builder-setup`, `builder-apply`, `builder-clean-up`
+/// `builder-install-nix`, `builder-mount-nix`, `builder-setup`, `builder-apply`, `builder-clean-up`
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct MessageResult {
     /// What it did, in English ("Linux builder: 18G → 28G free")

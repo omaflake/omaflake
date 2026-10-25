@@ -396,7 +396,7 @@ pub struct Settings {
     /// VM packages that live outside the data folder (e.g. on an external disk) and run from there (plan B108)
     #[serde(rename = "externalVMs", default, skip_serializing_if = "Option::is_none")]
     pub external_vms: Option<Vec<String>>,
-    /// qemu-system-aarch64; default: from PATH or /opt/homebrew/bin
+    /// qemu-system-aarch64; default: the first one with 3D on PATH or in the Nix and Homebrew folders (`QemuRuntime::preferred_binary`)
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub qemu: Option<String>,
     /// omaf-runner (signed with scripts/sign-runner.sh); default: next to the running executable

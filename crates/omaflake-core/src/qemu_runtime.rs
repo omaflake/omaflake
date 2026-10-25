@@ -19,12 +19,13 @@
 //! x86_64's variable store is a copy of the firmware's template (a blank one does not boot OVMF). No Dock icon; the
 //! bridge for the agent's report, clipboard and camera is `omaf bridge` instead of omaf-runner's (plan B126).
 
+use std::collections::{BTreeMap, HashSet};
 use std::fs::File;
 use std::os::fd::AsRawFd;
 use std::os::unix::fs::OpenOptionsExt;
 use std::path::{Path, PathBuf};
 use std::sync::{Mutex, OnceLock};
-use std::time::{Duration, Instant};
+use std::time::{Duration, Instant, SystemTime};
 
 use serde_json::Value;
 
@@ -70,15 +71,17 @@ impl QemuRuntime {
         Platform::host_system(GuestKind::Nixos).and_then(Arch::of_system).unwrap_or(Arch::Aarch64)
     }
 
-    /// QEMU from VM_QEMU, config.json or PATH (`qemu-system-<host arch>`: aarch64 on a Mac); qemu-img lives next to the
+    /// QEMU from VM_QEMU, config.json, else `preferred_binary` (`qemu-system-<host arch>`: aarch64 on a Mac); qemu-img lives next to the
     /// binary (else from PATH), the UEFI firmware too (`../share/qemu/edk2-<arch>-code.fd`) – on Linux else from the
     /// firmware descriptors (`qemu_host::Firmware`). Returns (runtime, qemu-img).
     pub fn locate(paths: &Paths) -> Result<(QemuRuntime, String)> {
         let settings = Settings::load(paths);
         let env = std::env::var("VM_QEMU").ok();
         let arch = Self::host_arch();
-        let default = arch.qemu_binary();
-        let qemu = Shell::which(env.as_deref().or(settings.qemu.as_deref()).unwrap_or(&default))?;
+        let qemu = match env.as_deref().or(settings.qemu.as_deref()) {
+            Some(chosen) => Shell::which(chosen)?,
+            None => Self::preferred_binary(&arch.qemu_binary())?,
+        };
         let resolved = resolve_symlinks(Path::new(&qemu));
         let bin = resolved.parent().unwrap_or(Path::new("/"));
         let prefix = bin.parent().unwrap_or(Path::new("/"));
@@ -109,6 +112,43 @@ impl QemuRuntime {
         let mut runtime = QemuRuntime::new(paths.clone(), &qemu, &firmware.code.to_string_lossy());
         runtime.firmware_vars = firmware.vars.map(|v| v.to_string_lossy().into_owned());
         Ok((runtime, qemu_img))
+    }
+
+    /// The QEMU to use when none is chosen (VM_QEMU, config.json): of the `name` binaries in
+    /// `Shell::search_directories` (PATH first), the first with 3D, else the first – so omaflake's QEMU in the Nix
+    /// profile wins over a Homebrew QEMU that comes earlier on a terminal's PATH, and a VM never falls back to 2D
+    /// while a QEMU with 3D is here
+    pub(crate) fn preferred_binary(name: &str) -> Result<String> {
+        let mut seen = HashSet::new();
+        let found: Vec<String> = Shell::search_directories()
+            .iter()
+            .map(|d| Path::new(d).join(name))
+            .filter(|p| is_executable_file(p) && seen.insert(resolve_symlinks(p)))
+            .map(|p| p.to_string_lossy().into_owned())
+            .collect();
+        Self::choose(&found, &|q| Self::has_gl(q)).ok_or_else(|| vm_err!("Program not found: {name}"))
+    }
+
+    /// The first candidate with 3D, else the first
+    pub(crate) fn choose(candidates: &[String], gl: &dyn Fn(&str) -> bool) -> Option<String> {
+        candidates.iter().find(|q| gl(q)).or(candidates.first()).cloned()
+    }
+
+    /// Whether `qemu` has virtio-gpu-gl (`-device help`), remembered per binary and modification time – `locate`
+    /// runs often, the answer changes only with the binary
+    fn has_gl(qemu: &str) -> bool {
+        static SEEN: Mutex<BTreeMap<(String, Option<SystemTime>), bool>> = Mutex::new(BTreeMap::new());
+        let key = (qemu.to_string(), std::fs::metadata(qemu).and_then(|m| m.modified()).ok());
+        if let Some(gl) = SEEN.lock().ok().and_then(|s| s.get(&key).copied()) {
+            return gl;
+        }
+        let devices =
+            Shell::run(qemu, &["-device", "help"], &RunOptions::default()).map(|r| r.stdout).unwrap_or_default();
+        let gl = devices.contains("\"virtio-gpu-gl-pci\"");
+        if let Ok(mut s) = SEEN.lock() {
+            s.insert(key, gl);
+        }
+        gl
     }
 
     // MARK: Status
@@ -154,12 +194,10 @@ impl QemuRuntime {
     /// Capabilities of the binary: GL via `-device help` ("\"virtio-gpu-gl-pci\""), guest_owner via the option string
     /// "guest_owner_uid" in the binary.
     pub fn capabilities(&self) -> QemuCapabilities {
-        let devices =
-            Shell::run(&self.qemu, &["-device", "help"], &RunOptions::default()).map(|r| r.stdout).unwrap_or_default();
         let binary = std::fs::read(&self.qemu).unwrap_or_default();
         let needle = b"guest_owner_uid";
         QemuCapabilities {
-            gl: devices.contains("\"virtio-gpu-gl-pci\""),
+            gl: Self::has_gl(&self.qemu),
             guest_owner: binary.windows(needle.len()).any(|w| w == needle),
         }
     }
@@ -745,6 +783,17 @@ mod tests {
             assert_eq!((t.arch, t.ui), (Arch::X86_64, crate::qemu_command::Ui::Gtk));
             assert_eq!(t.audio, None, "no QEMU, so no sound driver");
         }
+    }
+
+    /// Without a chosen QEMU the first with 3D wins (omaflake's in the Nix profile over Homebrew's earlier on PATH)
+    #[test]
+    fn the_qemu_with_3d_wins() {
+        let found =
+            ["/opt/homebrew/bin/qemu-system-aarch64".to_string(), "/u/.nix-profile/bin/qemu-system-aarch64".into()];
+        let gl = |q: &str| q.contains(".nix-profile");
+        assert_eq!(QemuRuntime::choose(&found, &gl).unwrap(), found[1]);
+        assert_eq!(QemuRuntime::choose(&found, &|_| false).unwrap(), found[0], "none with 3D: the first");
+        assert_eq!(QemuRuntime::choose(&[], &gl), None);
     }
 
     #[test]

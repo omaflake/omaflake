@@ -87,7 +87,7 @@ pub fn new(a: &cli::New) -> Outcome {
     };
     let env = Env::new();
     let backends = env.backends()?;
-    let defaults = env.images().recipe_defaults(&env.settings().flake_path()?)?;
+    let defaults = env.images().recipe_defaults();
     let chooser = |ids: &[String]| choose_recipe(&env, ids);
     // A name: the newest version of its line that has an image, else its newest (plan B111)
     let images = env.images();

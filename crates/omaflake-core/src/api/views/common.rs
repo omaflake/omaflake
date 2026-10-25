@@ -395,6 +395,14 @@ impl Action {
             .primary()
     }
 
+    /// Greyed out while the Doctor reports `blockers` against it: the warning sign on it (`badge`), what to fix in its
+    /// tooltip – the action stays where it is (a recipe's build)
+    pub fn blocked_by(self, blockers: &[PrerequisiteDto]) -> Action {
+        let mut a = self.disabled(tf!("Open the Doctor first: %@", blocker_titles(blockers)));
+        a.badge = Some(blockers.len());
+        a
+    }
+
     pub fn primary(mut self) -> Action {
         self.primary = true;
         self

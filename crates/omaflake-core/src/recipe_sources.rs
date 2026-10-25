@@ -30,7 +30,7 @@ use sha2::{Digest, Sha256};
 use crate::error::{codes, Error, IoContext, Result};
 use crate::file_format::{write_atomic, FileFormat, Step, UnreadableFile};
 use crate::image_store::ImageStore;
-use crate::models::{GuestKind, RecipeId};
+use crate::models::{GuestKind, RecipeDefaults, RecipeId};
 use crate::omaflake_id::OmaflakeId;
 use crate::packages::{Manifest, Package, PackageKind};
 use crate::paths::{Paths, Settings};
@@ -1278,6 +1278,83 @@ impl RecipeLibrary {
             .collect()
     }
 
+    /// What a VM from each available recipe gets, read from its recipe.toml the way the image flake's
+    /// `lib.recipeDefaults` flattens it (nix/flake.nix, `recipeEntry`) – without Nix: the recipes stay listed and
+    /// installed while Nix is unavailable, only building needs it. Recipes that cannot be read are named with the
+    /// reason; those of another version `unreadable` names.
+    pub fn defaults(&self, settings: &Settings) -> (HashMap<String, RecipeDefaults>, Vec<UnreadableFile>) {
+        let guest = crate::guest_settings::GuestSettings::current(&self.paths);
+        let mut out = HashMap::new();
+        let mut errors = Vec::new();
+        for a in self.available(settings) {
+            if !Self::readable(Self::version_of(&a.folder)) {
+                continue;
+            }
+            let Some((author, kind, name)) = RecipeRef::parts(RecipeId::base(&a.id)) else { continue };
+            // The guest user as the flake sets it: macOS recipes the base's (`macUser`), else the credential's
+            let user = match kind {
+                GuestKind::Macos => guest.mac_user.clone().unwrap_or_else(|| guest.user.clone()),
+                GuestKind::Nixos => guest.user.clone(),
+            };
+            let read = crate::composition::RecipeSpec::read(&a.folder).map_err(|e| e.message().to_string());
+            match read.and_then(|spec| {
+                if spec.platform != kind {
+                    return Err(format!(
+                        "platform = \"{}\", but the folder says {}",
+                        spec.platform.as_str(),
+                        kind.as_str()
+                    ));
+                }
+                Self::defaults_of(&spec.data, &author, kind, &name, &user)
+            }) {
+                Ok(d) => {
+                    out.insert(a.id, d);
+                }
+                Err(reason) => errors.push(UnreadableFile::new(a.id, reason)),
+            }
+        }
+        (out, errors)
+    }
+
+    /// One recipe's defaults from its recipe.toml as data, flattened like the image flake's `defaults`: the guest user,
+    /// the file's own values without its parts, then `[requirements]` and `[vm]`; author, kind and name from where the
+    /// recipe is, its systems checked as the flake asserts them
+    pub(crate) fn defaults_of(
+        data: &Value,
+        author: &str,
+        kind: GuestKind,
+        name: &str,
+        user: &str,
+    ) -> std::result::Result<RecipeDefaults, String> {
+        let Some(top) = data.as_object() else { return Err("recipe.toml is no table".into()) };
+        if let Some(other) = top.get("author").and_then(Value::as_str).filter(|a| *a != author) {
+            return Err(format!("author = \"{other}\" in recipe.toml, but the folder says {author}"));
+        }
+        let known = Platform::systems(kind);
+        let systems: Vec<String> = top
+            .get("systems")
+            .and_then(Value::as_array)
+            .map(|a| a.iter().filter_map(Value::as_str).map(str::to_string).collect())
+            .unwrap_or_default();
+        if systems.is_empty() || !systems.iter().all(|s| known.contains(&s.as_str())) {
+            return Err(format!("systems in recipe.toml must list some of {}", known.join(", ")));
+        }
+        const PARTS: [&str; 8] = ["author", "$schema", "requirements", "vm", "modules", "keymaps", "look", "locales"];
+        let mut flat = Map::new();
+        flat.insert("user".into(), user.into());
+        flat.extend(top.iter().filter(|(k, _)| !PARTS.contains(&k.as_str())).map(|(k, v)| (k.clone(), v.clone())));
+        for table in ["requirements", "vm"] {
+            if let Some(t) = top.get(table).and_then(Value::as_object) {
+                flat.extend(t.clone());
+            }
+        }
+        flat.insert("author".into(), author.into());
+        flat.insert("kind".into(), kind.as_str().into());
+        flat.insert("name".into(), name.into());
+        flat.insert("systems".into(), systems.into());
+        serde_json::from_value(Value::Object(flat)).map_err(|e| format!("recipe.toml: {e}"))
+    }
+
     /// A recipe → `<folder>/<base>.omaflake-recipe` (`recipes/<author>/<kind>/<name>/recipe.toml` + manifest.json) –
     /// what people share. Its modules and key bindings are not in it: they come from the receiver's sources.
     pub fn export_recipe(&self, id: &str, folder: &Path, settings: &Settings) -> Result<PathBuf> {
@@ -2191,5 +2268,54 @@ mod tests {
             .message()
             .starts_with("Not a recipe catalog (catalog.json): "));
         assert_eq!(RecipeCatalog::decode(b"[").unwrap_err().message(), "Not a recipe catalog (catalog.json): not JSON");
+    }
+
+    /// recipe.toml → the VM's defaults without Nix, flattened as the image flake's `lib.recipeDefaults` does
+    #[test]
+    fn defaults_from_recipe_toml_as_the_flake_flattens_them() {
+        let toml = r#"
+"$schema" = "https://omaflake.dev/schema/recipe/v2.json"
+author = "omaflake"
+description = "Neovim"
+description_de = "Neovim (de)"
+tags = ["neovim"]
+lab = true
+platform = "nixos"
+systems = ["aarch64-linux", "x86_64-linux"]
+modules = ["omaflake/neovim"]
+look = "omaflake/omaflake"
+keymaps = ["omaflake/default"]
+
+[requirements]
+cpus = 4
+memory_gb = 4
+disk_gb = 40
+
+[vm]
+display = "gpu"
+network = "shared"
+share = true
+ephemeral = false
+"#;
+        let spec = crate::composition::RecipeSpec::parse(toml).unwrap();
+        let d = RecipeLibrary::defaults_of(&spec.data, "omaflake", GuestKind::Nixos, "neovim", "dev").unwrap();
+        assert_eq!((d.kind, d.cpus, d.memory_gb, d.disk_gb), (GuestKind::Nixos, 4, 4, 40));
+        assert_eq!((d.share, d.ephemeral, d.lab), (true, false, Some(true)));
+        assert_eq!(
+            (d.user.as_deref(), d.name.as_deref(), d.author.as_deref()),
+            (Some("dev"), Some("neovim"), Some("omaflake"))
+        );
+        assert_eq!(d.systems, ["aarch64-linux", "x86_64-linux"]);
+        assert_eq!((d.description.as_deref(), d.descriptions["de"].as_str()), (Some("Neovim"), "Neovim (de)"));
+        assert_eq!(d.tags, ["neovim"]);
+
+        // What the flake asserts stops only this recipe
+        let other = RecipeLibrary::defaults_of(&spec.data, "someone", GuestKind::Nixos, "neovim", "dev").unwrap_err();
+        assert_eq!(other, "author = \"omaflake\" in recipe.toml, but the folder says someone");
+        let mac = RecipeLibrary::defaults_of(&spec.data, "omaflake", GuestKind::Macos, "neovim", "dev").unwrap_err();
+        assert_eq!(mac, "systems in recipe.toml must list some of aarch64-darwin");
+        let mut no_vm = spec.data.clone();
+        no_vm.as_object_mut().unwrap().remove("vm");
+        assert!(RecipeLibrary::defaults_of(&no_vm, "omaflake", GuestKind::Nixos, "neovim", "dev").is_err());
     }
 }

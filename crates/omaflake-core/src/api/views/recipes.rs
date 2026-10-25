@@ -360,18 +360,17 @@ pub(crate) fn row(ctx: &Ctx, r: &RecipeDto) -> RecipeRowView {
         None => Action::call("reveal", Text::new(reveal_label), Some("folder"), "ui.reveal", json!({}))
             .disabled(Text::new(reveal_label)),
     };
+    // Always the build button: greyed out for another architecture, and with the warning sign while the Doctor reports
+    // what building this kind needs (Nix for NixOS, a base for macOS) – the recipe itself stays installed
     let blockers = ctx.build_blockers(r.kind);
+    let label = if r.image.is_none() || !r.runs_here { "Build image" } else { "Build a new version of this image" };
+    let build = Action::show("build", Text::new(label), Some("build"), "build", json!({"recipe": r.id})).primary();
     let build = if !r.runs_here {
-        Action::show("build", Text::new("Build image"), Some("build"), "build", json!({"recipe": r.id}))
-            .disabled(not_here(ctx, &r.systems))
-            .primary()
+        build.disabled(not_here(ctx, &r.systems))
     } else if !blockers.is_empty() {
-        Action::doctor_warning(&blockers)
+        build.blocked_by(&blockers)
     } else {
-        let label = if r.image.is_none() { "Build image" } else { "Build a new version of this image" };
-        Action::show("build", Text::new(label), Some("build"), "build", json!({"recipe": r.id}))
-            .enabled_if(!building, Some(Text::new("being built – see Images")))
-            .primary()
+        build.enabled_if(!building, Some(Text::new("being built – see Images")))
     };
     RecipeRowView {
         id: r.id.clone(),

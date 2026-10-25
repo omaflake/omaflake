@@ -102,7 +102,9 @@ extension APIContractTests {
                 #expect(p.head.filter?.groups.contains { $0.kind == .toggle && $0.id == "otherSystems" } == true)
                 #expect(p.offeredTitle?.key == "More recipes in your sources" && p.loadingText == nil && p.labHint == nil)
                 #expect(p.offered.allSatisfy { $0.actions.primary?.id == "install" })
-                #expect(p.rows.map { $0.actions.primary?.id } == ["doctor", "build"])
+                // Building blocked by the Doctor: the build button stays, greyed out with its sign (plan B145)
+                #expect(p.rows.map { $0.actions.primary?.id } == ["build", "build"])
+                #expect(p.rows[0].actions.primary?.enabled == false && p.rows[0].actions.primary?.badge == 1)
                 #expect(p.updates?.rows.allSatisfy(\.action.primary) == true)
             },
             "recipes.loading": {

@@ -260,8 +260,14 @@ impl ImageStore {
         result
     }
 
-    /// Recipe defaults from the flake (`nix eval --json <flakeRef>#lib.recipeDefaults` + `guest_arguments`).
-    pub fn recipe_defaults(&self, flake: &str) -> Result<HashMap<String, RecipeDefaults>> {
+    /// The available recipes' defaults, read from their recipe.toml without Nix (`RecipeLibrary::defaults`)
+    pub fn recipe_defaults(&self) -> HashMap<String, RecipeDefaults> {
+        RecipeLibrary::new(self.paths.clone()).defaults(&Settings::load(&self.paths)).0
+    }
+
+    /// Recipe defaults as the flake evaluates them (`nix eval --json <flakeRef>#lib.recipeDefaults` +
+    /// `guest_arguments`) – the Doctor's check that the flake evaluates; lists use `recipe_defaults`
+    pub fn evaluate_recipe_defaults(&self, flake: &str) -> Result<HashMap<String, RecipeDefaults>> {
         let mut args =
             vec!["eval".to_string(), "--json".into(), format!("{}#lib.recipeDefaults", Self::flake_ref(flake))];
         args.extend(self.guest_arguments(flake));

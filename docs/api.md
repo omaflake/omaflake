@@ -241,7 +241,7 @@ comes as events, and `jobs.*` ask and steer.
 ```json
 {
   "id": "j7",
-  "kind": "build",          // build | macos-install | ipsw-download | builder-install-nix | builder-setup
+  "kind": "build",          // build | macos-install | ipsw-download | builder-install-nix | builder-mount-nix | builder-setup
                             // | builder-apply | builder-clean-up | cli-install | import | export | data-move
                             // | recipe-install | look-install | module-install
                             // | recipe-install
@@ -276,7 +276,7 @@ move writes `data-move.log` next to config.json, as `logs/` moves along). Downlo
 | `data-move` | `{dataFolder}` |
 | `ipsw-download` | `{file, version}` |
 | `macos-install` | `{base, existing, ready}` |
-| `builder-install-nix`, `builder-setup`, `builder-apply`, `builder-clean-up` | `{message}` – what it did, in English |
+| `builder-install-nix`, `builder-mount-nix`, `builder-setup`, `builder-apply`, `builder-clean-up` | `{message}` – what it did, in English |
 | `cli-install` | `{link, installed, message}` – the link, whether it is there now (install) or was removed; `message` in English |
 
 - **Builds** queue: one build per guest kind at a time, NixOS and macOS side by side (plan B60). Right before it
@@ -433,7 +433,7 @@ values (plan B141). A recipe whose modules or key binding sets are not here is r
 | `macos.downloadIpsw` | – | Job `ipsw-download` → `result: {file, version}` (cancel pauses; it continues from there) |
 | `macos.installBase` | `credential?, ipsw?` | Job `macos-install` → `result: {base, existing, ready}` – the guest user, full name and password from the credential (ID or name; default: the default credential), recorded in the base (plan B139); `user, fullName, password` directly still work (API version 1) |
 | `doctor.installCli` / `doctor.uninstallCli` | – | Job `cli-install` → `result: {link, installed, message}` – the `omaf` command (plan B122): a symlink to this omaflake's `omaf` (inside omaflake.app the bundled `Contents/MacOS/omaf`, else the running executable or the `omaf` next to it). macOS: `/usr/local/bin/omaf` through the administrator dialog (a dismissed dialog cancels the job); Linux: `~/.local/bin/omaf`, no root. Install replaces a link or an older `omaf` there and refuses another file (`exists`); Uninstall removes only omaflake's link (`not-found` otherwise); one at a time (`in-use`) |
-| `builder.installNix` / `builder.setup` / `builder.apply` (`force?`) / `builder.cleanUp` | – | Job → `result: {message}` – each asks for an administrator through the system's own dialog; one at a time (`in-use`); `builder.apply` on a nix-darwin system that is not omaflake's needs `force` (error data `replacesConfiguration`); a dismissed dialog cancels the job |
+| `builder.installNix` / `builder.mountNix` / `builder.setup` / `builder.apply` (`force?`) / `builder.cleanUp` | – | Job → `result: {message}` – each asks for an administrator through the system's own dialog; one at a time (`in-use`); `builder.apply` on a nix-darwin system that is not omaflake's needs `force` (error data `replacesConfiguration`); a dismissed dialog cancels the job |
 
 ### Views (§10)
 
@@ -735,8 +735,9 @@ a spinner), `updates?` (`{title, all?, rows: [{id, name, kind, source,
 action}], note}`; "Add Version"/"Add All" when older versions are kept), `suggestion?` (no recipe yet: "Start with the
 official recipes?" with `recipes.installSuggested`), `rows` (one per line, named by its newest version; built ones
 first, then by kind and name: lamp – working while it builds, off not built, attention changed since its image, on –,
-`secondary` (author, distinction), badges lab and arch, `tags`, actions reveal and build – `ui.show build`, or the
-Doctor's warning, or disabled for another architecture –, details: description, info, `versions` (`{id, words,
+`secondary` (author, distinction), badges lab and arch, `tags`, actions reveal and build – `ui.show build`; disabled
+for another architecture, and disabled with `badge` (the Doctor's sign, reason "Open the Doctor first: …") while the
+Doctor reports what building its kind needs (plan B145) –, details: description, info, `versions` (`{id, words,
 state, actions: [export, remove], version}`; remove disabled for a folder's version or one images are built from) and
 actions update, edit (one of yours) or copy ("Copy to My Recipes …", `ui.show recipeEditor {id}`), removeAll; since
 plan B142 also the info lines modules, look, key bindings, needs at least, `notes` (hints: what is missing with
@@ -790,7 +791,8 @@ from `initialize`, plan B138) – shown with `update` as one block. `update: {la
 actions}` from the last `updates.check` (Download …, Check Now). An item: `{item, status, title, detail?, hint?,
 expandable, expanded, busy, task?, download?, actions, prerequisite}` – `detail` (paths and versions as found, or "%@
 free, about %@ needed"), `hint` while not ok, `expanded` the sub-line's first state (open while there is a problem or
-work runs). Actions as the app had them: Install … (Nix: `builder.installNix` with its question; nix-darwin:
+work runs). Actions as the app had them: Install … (Nix: `builder.installNix` with its question – Mount … (`builder.mountNix`) instead when Nix is installed
+but its volume is not at /nix, plan B145; nix-darwin:
 `builder.setup`; others: `ui.terminal` with the install command), Clean Up … and Apply Settings … (`builder.apply`,
 `force` and "Replace and Apply" when this Mac's nix-darwin system is not omaflake's), Guide, Set Path … (asks a file
 or folder, `doctor.setPath`), Download / Continue Download / Pause (the IPSW, with `download: {done, of, text}`),

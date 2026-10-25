@@ -70,7 +70,7 @@ pub fn list(a: &cli::RecipesList) -> Outcome {
     let flake = settings.flake_path()?;
     let images = env.images();
     let all: HashMap<String, RecipeDefaults> =
-        images.recipe_defaults(&flake)?.into_iter().filter(|(_, d)| show_lab || !d.is_lab()).collect();
+        images.recipe_defaults().into_iter().filter(|(_, d)| show_lab || !d.is_lab()).collect();
     let defaults: HashMap<String, RecipeDefaults> =
         all.iter().filter(|(_, d)| a.all_systems || d.runs_here()).map(|(k, d)| (k.clone(), d.clone())).collect();
     let outdated = if a.check {
@@ -201,7 +201,7 @@ pub fn build(a: &cli::Build) -> Outcome {
     let env = Env::new();
     let flake = env.settings().flake_path()?;
     let images = env.images();
-    let defaults = images.recipe_defaults(&flake)?;
+    let defaults = images.recipe_defaults();
     let chooser = |ids: &[String]| choose_recipe(&env, ids);
     let places = env.recipe_places();
     let recipe = RecipeId::resolve_newest_in(&a.recipe, &defaults, &places, &|_| true, Some(&chooser))?;

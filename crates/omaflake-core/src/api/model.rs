@@ -48,10 +48,11 @@ pub(crate) struct RecipeCache {
 }
 
 impl RecipeCache {
-    /// Reads everything `AppModel.loadRecipes` read. Without QEMU, macOS guests still work (`gl` false).
+    /// Reads everything `AppModel.loadRecipes` read – from the recipes' files, without Nix: a recipe that is here is
+    /// listed and installed whether Nix works or not (only building needs it). Without QEMU, macOS guests still work
+    /// (`gl` false).
     pub fn load(paths: &Paths) -> Result<RecipeCache> {
         let settings = Settings::load(paths);
-        let flake = settings.flake_path()?;
         let gl = QemuRuntime::locate(paths).map(|(r, _)| r.capabilities().gl).unwrap_or(false);
         let library = RecipeLibrary::new(paths.clone());
         let available = library.available(&settings);
@@ -62,16 +63,19 @@ impl RecipeCache {
             folders.entry(a.id).or_insert(a.folder);
         }
         let parts = recipe_parts(paths, &settings, &folders);
+        let (defaults, not_read) = library.defaults(&settings);
+        let mut unreadable = library.unreadable(&settings);
+        unreadable.extend(not_read);
         Ok(RecipeCache {
             loaded: true,
-            defaults: ImageStore::new(paths.clone()).recipe_defaults(&flake)?,
+            defaults,
             gl,
             origins,
             folders,
             installed: library.installed(),
             distinctions: library.distinctions(&settings),
             versions: library.versions(&settings),
-            unreadable: library.unreadable(&settings),
+            unreadable,
             parts,
         })
     }

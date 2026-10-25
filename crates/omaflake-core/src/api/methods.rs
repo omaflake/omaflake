@@ -19,7 +19,7 @@ use super::server::{lock, Answer, Reply, Server};
 use super::types::*;
 use crate::backend::{Readiness, StartOptions};
 use crate::build_progress::BuildLog;
-use crate::builder_maintenance::{AdminShell, BuilderMaintenance};
+use crate::builder_maintenance::{AdminShell, BuilderMaintenance, NixVolume};
 use crate::cli_link::CliLink;
 use crate::credentials::{CredentialChange, Credentials};
 use crate::data_folder::DataFolder;
@@ -306,6 +306,7 @@ impl Server {
             "macos.downloadIpsw" => self.macos_download_ipsw(),
             "macos.installBase" => self.macos_install_base(params(p)?),
             "builder.installNix" => self.builder_job(JobKind::BuilderInstallNix, false),
+            "builder.mountNix" => self.builder_job(JobKind::BuilderMountNix, false),
             "builder.setup" => self.builder_job(JobKind::BuilderSetup, false),
             "builder.apply" => {
                 #[derive(Deserialize)]
@@ -1041,7 +1042,7 @@ impl Server {
                 ctx.log(&format!("omaf build {recipe}"));
                 // The flake as it is now (the recipe list may be older, e.g. after a settings change)
                 let user = ImageStore::new(paths.clone())
-                    .recipe_defaults(&flake)?
+                    .recipe_defaults()
                     .get(recipe)
                     .and_then(|d| d.user.clone())
                     .unwrap_or_else(platform::user_name);
@@ -2199,8 +2200,13 @@ impl Server {
     /// The Linux builder's maintenance (`AppModel.installNix`, `setUpNixDarwin`, `applyBuilderSettings`,
     /// `cleanUpBuilder`): each asks for an administrator through the system's own dialog; one at a time
     fn builder_job(&self, kind: JobKind, force: bool) -> Reply {
-        const KINDS: [JobKind; 4] =
-            [JobKind::BuilderInstallNix, JobKind::BuilderSetup, JobKind::BuilderApply, JobKind::BuilderCleanUp];
+        const KINDS: [JobKind; 5] = [
+            JobKind::BuilderInstallNix,
+            JobKind::BuilderMountNix,
+            JobKind::BuilderSetup,
+            JobKind::BuilderApply,
+            JobKind::BuilderCleanUp,
+        ];
         if let Some(job) = self.inner.jobs.any_active(&KINDS) {
             return Err(RpcError::from(crate::vm_err!(codes::IN_USE, "{} runs already", job.title)));
         }
@@ -2211,6 +2217,7 @@ impl Server {
         }
         let title = match kind {
             JobKind::BuilderInstallNix => "Install Nix",
+            JobKind::BuilderMountNix => "Mount the Nix Store",
             JobKind::BuilderSetup => "Set up nix-darwin and the Linux builder",
             JobKind::BuilderApply => "Apply the Linux builder settings",
             _ => "Clean up the Linux builder",
@@ -2242,6 +2249,14 @@ impl Server {
                         ctx.log("Installing Nix …");
                         admin(BuilderMaintenance::install_nix_command(), "omaflake wants to install Nix.")?;
                         "Nix installed".to_string()
+                    }
+                    JobKind::BuilderMountNix => {
+                        let Some(volume) = NixVolume::find() else {
+                            return Err(crate::vm_err!(codes::NOT_FOUND, "No Nix Store volume on this Mac"));
+                        };
+                        ctx.log(&format!("Mounting the Nix Store at /nix ({}) …", volume.state()));
+                        admin(volume.repair_command(), "omaflake wants to mount the Nix Store at /nix.")?;
+                        "Nix Store mounted at /nix".to_string()
                     }
                     JobKind::BuilderSetup => {
                         ctx.log("Building nix-darwin (stage 1 of 2) …");

@@ -570,8 +570,23 @@
           }
         },
         {
-          "enabled": true,
-          "help": {
+          "badge": 1,
+          "enabled": false,
+          "icon": "build",
+          "id": "build",
+          "label": {
+            "key": "Build a new version of this image",
+            "text": "Build a new version of this image"
+          },
+          "method": "ui.show",
+          "params": {
+            "page": "build",
+            "params": {
+              "recipe": "omaflake.nixos.dev@velvet-tiger-orbit"
+            }
+          },
+          "primary": true,
+          "reason": {
             "args": [
               {
                 "args": [
@@ -586,19 +601,7 @@
             ],
             "key": "Open the Doctor first: %@",
             "text": "Open the Doctor first: Linux builder answers"
-          },
-          "icon": "warning",
-          "id": "doctor",
-          "label": {
-            "key": "Doctor",
-            "text": "Doctor"
-          },
-          "method": "ui.show",
-          "params": {
-            "page": "doctor",
-            "params": {}
-          },
-          "primary": true
+          }
         }
       ],
       "badges": [],

@@ -10,7 +10,7 @@ use super::common::*;
 use super::text::{tf, Arg, Text};
 use super::Ctx;
 use crate::api::types::{CliLinkDto, JobDto, JobKind, PrerequisiteDto, UpdateState};
-use crate::prerequisites::{PrerequisiteItem as I, PrerequisiteStatus as S};
+use crate::prerequisites::{PrerequisiteItem as I, PrerequisiteStatus as S, Prerequisites};
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -121,6 +121,7 @@ pub fn hint_on(p: &PrerequisiteDto, host: super::HostOs) -> Text {
         I::Qemu if linux => "Needed for NixOS guests: install QEMU, or enter the path to qemu-system-*.",
         I::Host if limited => "macOS 27 is needed for automatic macOS bases.",
         I::Host => "omaflake needs a Mac with Apple silicon.",
+        I::Nix if p.detail.starts_with(Prerequisites::NIX_NOT_MOUNTED) => "Nix is installed, but its volume is not mounted at /nix – usually after a restart without its mount settings. Mount it; NixOS images, the Linux builder and omaflake's QEMU are back then.",
         I::Nix => "Install Nix, or enter the path to the nix binary.",
         I::Flakes => {
             "Add “nix-command flakes” to experimental-features (nix-darwin: nix.settings.experimental-features)."
@@ -179,7 +180,11 @@ fn builder_task(ctx: &Ctx) -> Option<&JobDto> {
     ctx.jobs.iter().rev().find(|j| {
         matches!(
             j.kind,
-            JobKind::BuilderInstallNix | JobKind::BuilderSetup | JobKind::BuilderApply | JobKind::BuilderCleanUp
+            JobKind::BuilderInstallNix
+                | JobKind::BuilderMountNix
+                | JobKind::BuilderSetup
+                | JobKind::BuilderApply
+                | JobKind::BuilderCleanUp
         ) && j.state.is_active()
     })
 }
@@ -255,6 +260,19 @@ fn item(ctx: &Ctx, p: &PrerequisiteDto) -> DoctorItem {
     let mut actions = Vec::new();
     if p.item == I::Cli {
         actions.extend(cli_actions(ctx, p, cli));
+    } else if p.item == I::Nix && p.status == S::Missing && p.detail.starts_with(Prerequisites::NIX_NOT_MOUNTED) {
+        // Installed, its volume not at /nix: mount it – installing again would not help
+        let mut a = no_task(
+            Action::call("mountNix", Text::new("Mount …"), Some("install"), "builder.mountNix", json!({})).confirm(
+                Confirm::new(
+                    Text::new("Mount the Nix Store?"),
+                    Text::new("omaflake mounts the Nix Store volume at /nix and restores what mounts it at every startup (/etc/fstab, /etc/synthetic.conf and the background service org.nixos.darwin-store), only where they are missing. Nothing in the store changes. macOS asks for an administrator."),
+                )
+                .button("Mount"),
+            ),
+        );
+        a.help = p.install.as_ref().map(Text::verbatim);
+        actions.push(a);
     } else if p.item == I::Nix && p.status == S::Missing && ctx.host == super::HostOs::Macos {
         let mut a = no_task(
             Action::call("installNix", Text::new("Install …"), Some("install"), "builder.installNix", json!({})).confirm(

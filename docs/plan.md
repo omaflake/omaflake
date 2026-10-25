@@ -1000,6 +1000,29 @@ one after the other –, `looks.installAll`; a confirmation when one is not offi
   picking from the catalog with search and filters (capability, platform, tags, author) – what is picked is the
   recipe, with its needs and conflicts shown as now.
 
+**B145 (2026-10-26, after 0.6.1): after a restart Nix, omaflake's QEMU and the installed recipes were gone.** Found by the
+maintainer: after installing 0.6.1 and restarting the Mac the Doctor said Nix and QEMU were not installed, the installed
+recipes showed as not installed, and the NixOS VM ran very slowly. Cause on the Mac: `/etc/fstab` and the launchd daemon
+`org.nixos.darwin-store` were missing (since when and why is OPEN – the first restart since 2026-10-13; nix-darwin was
+reactivated on 2026-10-16), so macOS mounted the "Nix Store" volume at `/Volumes/Nix Store` and `/nix` stayed empty.
+Three omaflake faults made it worse, fixed: **(1)** the recipe list came from `nix eval …#lib.recipeDefaults` – without
+Nix it failed as a whole, the list was empty and the catalogs offered every installed recipe again. Now
+`RecipeLibrary::defaults` reads each recipe.toml and flattens it as the flake does (user, top-level values without the
+parts, `[requirements]`, `[vm]`, author/kind/name/systems; checked against `nix eval` on the maintainer's 8 recipes:
+`recipes.list` byte-identical); a recipe that cannot be read is named in `unreadable`, the others stay. The flake
+evaluation remains the Doctor's `flakeEval` (`ImageStore::evaluate_recipe_defaults`). **(2)** `QemuRuntime::locate` took
+the first `qemu-system-*` on PATH: Homebrew's (no 3D) when omaflake's QEMU was gone – and in a terminal always, as
+Homebrew's `brew shellenv` comes after Nix's PATH. Now, without VM_QEMU or a path in config.json, the first with 3D
+wins (`preferred_binary`; `-device help` remembered per binary and mtime). **(3)** the Doctor said "not found" and
+offered to install Nix again: now `NixVolume` (`diskutil info "Nix Store"`) tells "Nix Store volume not at /nix
+(mounted at … / locked)" and offers Mount … (`builder.mountNix`, administrator dialog): `nix` in synthetic.conf, the
+fstab line, the darwin-store daemon (unlocking with the key in the System keychain when encrypted) – each only when
+missing –, then mounts it (unmounting from /Volumes locks an encrypted volume; it unlocks it with the key) and restarts
+nix-daemon. Asked with it: a recipe's build button stays, greyed out with the Doctor's sign (`Action::blocked_by`,
+`badge`) instead of being replaced by a Doctor button. Tried: the repair by hand on the maintainer's Mac (the same steps;
+the daemon mounted the volume at /nix). OPEN: Mount … clicked in the app on a Mac with the volume under /Volumes; the
+build button's sign looked at in the macOS app, the Linux app and `omaf ui`.
+
 **B129 (2026-10-24): clipboard on a GNOME host.** Mutter has no data-control protocol: `wl-paste --watch` ends at once.
 `Wayland::start` now treats an end within 500 ms as refused, and `detect` falls back to xclip through Xwayland, which
 Mutter keeps in sync (`X11::through_xwayland`, Mutter's `.mutter-Xwaylandauth.*` cookie when XAUTHORITY is unset; its
