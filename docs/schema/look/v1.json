@@ -1,0 +1,315 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://omaflake.dev/schema/look/v1.json",
+  "title": "omaflake look",
+  "description": "look.toml of a look (looks/<author>/<name>/ in a source, plan B140): a guest's colours and a few choices – data, no code. omaflake's image flake turns it into the configuration of the desktop, the terminal and the editors. TOML, checked as data.",
+  "type": "object",
+  "properties": {
+    "$schema": {
+      "const": "https://omaflake.dev/schema/look/v1.json"
+    },
+    "author": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9-]*$"
+    },
+    "license": {
+      "type": "string",
+      "description": "SPDX identifier, one of the source's licenses"
+    },
+    "title": {
+      "type": "string"
+    },
+    "description": {
+      "type": "string",
+      "description": "English"
+    },
+    "tags": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "minItems": 1
+    },
+    "homepage": {
+      "type": "string"
+    },
+    "appearance": {
+      "enum": [
+        "dark",
+        "light"
+      ]
+    },
+    "colors": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "background",
+        "surface",
+        "selection",
+        "text",
+        "subtext",
+        "muted",
+        "accent",
+        "urgent"
+      ],
+      "properties": {
+        "background": {
+          "type": "string",
+          "pattern": "^#[0-9a-fA-F]{6}$"
+        },
+        "surface": {
+          "type": "string",
+          "pattern": "^#[0-9a-fA-F]{6}$"
+        },
+        "selection": {
+          "type": "string",
+          "pattern": "^#[0-9a-fA-F]{6}$"
+        },
+        "text": {
+          "type": "string",
+          "pattern": "^#[0-9a-fA-F]{6}$"
+        },
+        "subtext": {
+          "type": "string",
+          "pattern": "^#[0-9a-fA-F]{6}$"
+        },
+        "muted": {
+          "type": "string",
+          "pattern": "^#[0-9a-fA-F]{6}$"
+        },
+        "accent": {
+          "type": "string",
+          "pattern": "^#[0-9a-fA-F]{6}$"
+        },
+        "urgent": {
+          "type": "string",
+          "pattern": "^#[0-9a-fA-F]{6}$"
+        },
+        "cursor": {
+          "type": "string",
+          "pattern": "^#[0-9a-fA-F]{6}$"
+        }
+      }
+    },
+    "terminal": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "normal",
+        "bright"
+      ],
+      "description": "black, red, green, yellow, blue, magenta, cyan, white",
+      "properties": {
+        "normal": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^#[0-9a-fA-F]{6}$"
+          },
+          "minItems": 8,
+          "maxItems": 8
+        },
+        "bright": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^#[0-9a-fA-F]{6}$"
+          },
+          "minItems": 8,
+          "maxItems": 8
+        }
+      }
+    },
+    "desktop": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "NixOS's desktop (Hyprland, Waybar, Fuzzel, Mako, the prompt, GTK, the pointer)",
+      "properties": {
+        "border": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^#[0-9a-fA-F]{6}$"
+          },
+          "minItems": 1,
+          "maxItems": 2,
+          "description": "The active window: one colour or a gradient of two"
+        },
+        "inactive_border": {
+          "type": "string",
+          "pattern": "^#[0-9a-fA-F]{6}$"
+        },
+        "clock": {
+          "type": "string",
+          "pattern": "^#[0-9a-fA-F]{6}$"
+        },
+        "split": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^#[0-9a-fA-F]{6}$"
+          },
+          "minItems": 2,
+          "maxItems": 2,
+          "description": "The active workspace's number with a fine two-colour shadow"
+        },
+        "prompt": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "ok": {
+              "type": "string",
+              "pattern": "^#[0-9a-fA-F]{6}$"
+            },
+            "error": {
+              "type": "string",
+              "pattern": "^#[0-9a-fA-F]{6}$"
+            },
+            "directory": {
+              "type": "string",
+              "pattern": "^#[0-9a-fA-F]{6}$"
+            }
+          }
+        },
+        "gtk": {
+          "enum": [
+            "adw-gtk3",
+            "adw-gtk3-dark"
+          ]
+        },
+        "cursor_theme": {
+          "enum": [
+            "Bibata-Modern-Classic",
+            "Bibata-Modern-Ice",
+            "Bibata-Modern-Amber",
+            "Bibata-Original-Classic",
+            "Bibata-Original-Ice",
+            "Bibata-Original-Amber"
+          ]
+        }
+      }
+    },
+    "neovim": {
+      "description": "A theme from nixpkgs; left out, the theme is made from the colours",
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "theme"
+          ],
+          "properties": {
+            "theme": {
+              "const": "catppuccin"
+            },
+            "flavour": {
+              "enum": [
+                "latte",
+                "frappe",
+                "macchiato",
+                "mocha"
+              ]
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "theme"
+          ],
+          "properties": {
+            "theme": {
+              "const": "rose-pine"
+            },
+            "variant": {
+              "enum": [
+                "main",
+                "moon",
+                "dawn"
+              ]
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "theme"
+          ],
+          "properties": {
+            "theme": {
+              "const": "modus"
+            },
+            "style": {
+              "enum": [
+                "modus_vivendi",
+                "modus_operandi"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "emacs": {
+      "description": "As neovim",
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "theme"
+          ],
+          "properties": {
+            "theme": {
+              "const": "catppuccin"
+            },
+            "flavour": {
+              "enum": [
+                "latte",
+                "frappe",
+                "macchiato",
+                "mocha"
+              ]
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "theme"
+          ],
+          "properties": {
+            "theme": {
+              "const": "modus"
+            },
+            "style": {
+              "enum": [
+                "modus-vivendi",
+                "modus-operandi"
+              ]
+            }
+          }
+        }
+      ]
+    }
+  },
+  "patternProperties": {
+    "^description_[a-z]{2}(-[A-Za-z]+)?$": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "$schema",
+    "author",
+    "license",
+    "title",
+    "description",
+    "tags",
+    "appearance",
+    "colors",
+    "terminal"
+  ],
+  "additionalProperties": false
+}

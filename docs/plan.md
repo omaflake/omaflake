@@ -747,6 +747,20 @@ maintainer's decisions after discussing a themes repository:
   installed recipes).
 - **App:** a tab "Looks" next to "Recipes" – installed and offered looks, install/remove, usage (the images built with
   a look; removing is refused while one uses it); macOS guests get the same palette for terminal and editor.
+- **Defaults where they live (2026-10-25, later the same day):** an image is a recipe + a look + a credential. The
+  Doctor requires at least one installed look as it requires a credential (the built-in omaflake look counts), and
+  there is always a default look as there is always a default credential. The default credential is set on the
+  Credentials page, the default look in the Looks tab ("Make Default") – the settings' "For new images" keeps only
+  locale, keyboard and time zone.
+- **Website:** one catalog page with two clearly separate catalogs, Recipes and Looks, sharing the same search,
+  filters and widgets (looks: appearance, tags, colour swatches from `swatches`); replaces omaflake.app/recipes/.
+- **German:** "Look" stays "Look" (plural "Looks") – short, already used in the app, the same word in code and docs.
+- **Started (2026-10-25):** `../catalog` – one commit without history (the maintainer's wish), recipes as before,
+  `looks/omaflake/{catppuccin,rose-pine-dawn}/look.toml`, `tools/catalog.py` writing catalog v3 with looks, the
+  docs (README, CONTRIBUTING "Contributing a look", REVIEW "Looks", FORKING); schemas `look/v1.json` and
+  `catalog/v3.json` here (both validate the two looks and the catalog). Not pushed: the repository is created by
+  the maintainer. OPEN: the Catppuccin terminal colours against Catppuccin's own ports; omaflake does not read
+  catalog v3 or looks yet.
 - **Steps:** (1) the maintainer creates the empty repository `omaflake/catalog` (the agent token cannot create
   repositories), (2) the recipes move over with their history, `tools/catalog.py` learns kinds, (3) `look.toml` v1 and
   the four looks as data, the image flake reads them, (4) catalog v3 and the "Looks" tab in core, CLI and the three UIs,

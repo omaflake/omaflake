@@ -1,0 +1,330 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://omaflake.dev/schema/catalog/v3.json",
+  "title": "omaflake recipe catalog",
+  "description": "catalog.json of a recipe source, written by tools/catalog.py. v3 (plan B140): looks next to recipes – a source may offer either or both.",
+  "type": "object",
+  "properties": {
+    "$schema": {
+      "const": "https://omaflake.dev/schema/catalog/v3.json"
+    },
+    "source": {
+      "type": "object",
+      "required": [
+        "name"
+      ],
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        },
+        "homepage": {
+          "type": "string"
+        }
+      }
+    },
+    "recipes": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "author",
+          "kind",
+          "name",
+          "path",
+          "description",
+          "systems",
+          "version",
+          "files"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "<author>.<kind>.<name>"
+          },
+          "author": {
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "nixos",
+              "macos"
+            ],
+            "description": "Guest kind"
+          },
+          "name": {
+            "type": "string"
+          },
+          "path": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "descriptions": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            }
+          },
+          "tags": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "license": {
+            "type": "string"
+          },
+          "lab": {
+            "type": "boolean"
+          },
+          "systems": {
+            "type": "array",
+            "items": {
+              "enum": [
+                "aarch64-linux",
+                "x86_64-linux",
+                "aarch64-darwin"
+              ],
+              "description": "Architecture as Nix names a system"
+            },
+            "minItems": 1,
+            "uniqueItems": true,
+            "description": "What it can be built for: aarch64-linux, x86_64-linux (nixos) or aarch64-darwin (macos)"
+          },
+          "requires": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "pattern": "^[a-z0-9][a-z0-9-]*/(nixos|macos)/[a-z0-9][a-z0-9-]*$"
+            }
+          },
+          "homepage": {
+            "type": "string"
+          },
+          "defaults": {
+            "type": "object",
+            "properties": {
+              "user": {
+                "type": "string",
+                "description": "Login user inside the guest"
+              },
+              "cpus": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "memory_gb": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "disk_gb": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "network": {
+                "enum": [
+                  "shared",
+                  "isolated",
+                  "none"
+                ]
+              },
+              "share": {
+                "type": "boolean"
+              },
+              "ephemeral": {
+                "type": "boolean"
+              },
+              "display": {
+                "enum": [
+                  "none",
+                  "window",
+                  "gpu"
+                ],
+                "description": "How a plain start shows the VM: headless, a window, a window with 3D"
+              },
+              "audio": {
+                "type": "boolean"
+              },
+              "microphone": {
+                "type": "boolean"
+              },
+              "clipboard": {
+                "type": "boolean"
+              },
+              "camera": {
+                "type": "boolean"
+              }
+            }
+          },
+          "version": {
+            "type": "string",
+            "description": "Changes with any file of the recipe"
+          },
+          "files": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "path",
+                "size",
+                "sha256"
+              ],
+              "properties": {
+                "path": {
+                  "type": "string"
+                },
+                "size": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "sha256": {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{64}$"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "looks": {
+      "description": "The looks of this source (looks/<author>/<name>/look.toml), checked by tools/catalog.py",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "id",
+          "author",
+          "name",
+          "path",
+          "title",
+          "description",
+          "tags",
+          "license",
+          "appearance",
+          "swatches",
+          "version",
+          "files"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[a-z0-9][a-z0-9-]*\\.look\\.[a-z0-9][a-z0-9-]*$"
+          },
+          "author": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "path": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "descriptions": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            }
+          },
+          "tags": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "license": {
+            "type": "string"
+          },
+          "appearance": {
+            "enum": [
+              "dark",
+              "light"
+            ]
+          },
+          "homepage": {
+            "type": "string"
+          },
+          "swatches": {
+            "type": "object",
+            "description": "The main colours, for a preview without downloading",
+            "properties": {
+              "background": {
+                "type": "string",
+                "pattern": "^#[0-9a-fA-F]{6}$"
+              },
+              "surface": {
+                "type": "string",
+                "pattern": "^#[0-9a-fA-F]{6}$"
+              },
+              "text": {
+                "type": "string",
+                "pattern": "^#[0-9a-fA-F]{6}$"
+              },
+              "accent": {
+                "type": "string",
+                "pattern": "^#[0-9a-fA-F]{6}$"
+              },
+              "urgent": {
+                "type": "string",
+                "pattern": "^#[0-9a-fA-F]{6}$"
+              },
+              "terminal": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "pattern": "^#[0-9a-fA-F]{6}$"
+                },
+                "minItems": 16,
+                "maxItems": 16
+              }
+            }
+          },
+          "version": {
+            "type": "string",
+            "description": "SHA-256 over the look's files: changes with any file"
+          },
+          "files": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "path",
+                "size",
+                "sha256"
+              ],
+              "properties": {
+                "path": {
+                  "type": "string"
+                },
+                "size": {
+                  "type": "integer"
+                },
+                "sha256": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "required": [
+    "$schema",
+    "source",
+    "recipes"
+  ],
+  "additionalProperties": false
+}

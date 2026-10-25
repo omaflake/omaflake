@@ -28,8 +28,9 @@ one, and never removes a published version from this site. Editors use the URL t
 | `macos-vm` | `config.json` of a macOS VM folder | [v1](macos-vm/v1.json) |
 | `base` | `omaflake-base.json` in a macOS base folder – the credential of its guest user | [v1](base/v1.json) |
 | `manifest` | `manifest.json` of an exported package | [v1](manifest/v1.json) |
-| `catalog` | `catalog.json` of a recipe source | [v2](catalog/v2.json) |
+| `catalog` | `catalog.json` of a source | [v2](catalog/v2.json); [v3](catalog/v3.json) with looks – not read yet (plan B140) |
 | `recipe` | `recipe.toml` of a recipe (TOML, checked as data) | [v1](recipe/v1.json) |
+| `look` | `look.toml` of a look (TOML, checked as data; plan B140, not read yet) | [v1](look/v1.json) |
 | `tokens` | `$XDG_CONFIG_HOME/omaflake/tokens.json` – tokens of private sources on Linux without a keyring | [v1](tokens/v1.json) |
 
 The schemas live in the repository's [docs/schema/](https://github.com/omaflake/omaflake/tree/main/docs/schema); how
