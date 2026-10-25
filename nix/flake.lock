@@ -99,11 +99,11 @@
         ]
       },
       "locked": {
-        "lastModified": 1792901809,
-        "narHash": "sha256-N4Ehh6udCqjD0BSqvVdV9alV7eBA7UTr809z5KXIUTY=",
+        "lastModified": 1792906384,
+        "narHash": "sha256-Z+reVreo6fdX+DNvoBeyssIrnpcco4S+8MqeKO6jAxo=",
         "owner": "omaflake",
         "repo": "omaflake",
-        "rev": "7065d0392bafade8b7be41791ed1bfdaeb91c962",
+        "rev": "5d8145cb2156cab0f03ab257be3d6583c9780ceb",
         "type": "github"
       },
       "original": {
