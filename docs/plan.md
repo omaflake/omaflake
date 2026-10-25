@@ -503,6 +503,11 @@ for `omaf ui` and the Linux app and German error messages everywhere (B125), the
 for `omaf new -r` when its recipe line names another computer's folder; click tests of B119/B121 (macOS app, Linux app on a real desktop). Then M12 once the Developer ID
 is there.
 
+**Release 0.5.1 (2026-10-25):** credentials and the image as recipe + credential + look (B137), the look and credential
+shown at images and VMs, outdated right after a change of what an image was built with (B136). Settings v3, image.json
+v2. Unsigned, for the maintainer to try. Open after it: clicking the credentials page and the build fields in the
+SwiftUI and iced apps, a macOS build with a stored password, the decisions marked in B137 to review.
+
 **Release 0.5.0 (2026-10-25):** looks for the guests (B135) – omaflake's own as the standard, Catppuccin Mocha, Rosé
 Pine Dawn and Vanilla, chosen by the recipe or the user's guest setting (config.json v2); Zellij at a key with keys
 that leave Neovim alone, moving and resizing windows by keyboard, every key starting with Cmd or Ctrl (B133, B134);

@@ -79,8 +79,8 @@ nix/local.example/         template for personal settings → nix/local/ (git-ig
 
 ## Next step
 
-State and order: **docs/plan.md §8** (2026-10-25, release 0.5.0): looks for the guests (omaflake, Catppuccin, Rosé Pine Dawn, Vanilla; B135),
-Zellij at a key and window keys (B133, B134) after the Linux host was checked on an x86_64 PC (0.4.0, B124–B131); next the OPEN items in docs/linux.md and plan §8; M12 (signing, notarization, helper, macOS camera extension, self-update) once the Developer ID is there. Development base `mac-base-26A434`; develop with the `lab` recipes
+State and order: **docs/plan.md §8** (2026-10-25, release 0.5.1): an image is a recipe with a credential and a look (B137; credentials with a
+stored password for macOS builds), looks for the guests (0.5.0, B135), the Linux host checked on an x86_64 PC (0.4.0, B124–B131); next the OPEN items in docs/linux.md and plan §8; M12 (signing, notarization, helper, macOS camera extension, self-update) once the Developer ID is there. Development base `mac-base-26A434`; develop with the `lab` recipes
 (developer mode in the app).
 Workflow for macOS settings without a nix-darwin option: set them by hand in a clone, diff
 `defaults export` / container plists against a snapshot, then declare them (plan BM22).

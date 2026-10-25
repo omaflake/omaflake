@@ -3343,7 +3343,7 @@ dependencies = [
 
 [[package]]
 name = "omaf"
-version = "0.5.0"
+version = "0.5.1"
 dependencies = [
  "chrono",
  "clap",
@@ -3356,14 +3356,14 @@ dependencies = [
 
 [[package]]
 name = "omaflake-brand"
-version = "0.5.0"
+version = "0.5.1"
 dependencies = [
  "toml",
 ]
 
 [[package]]
 name = "omaflake-core"
-version = "0.5.0"
+version = "0.5.1"
 dependencies = [
  "base64 0.22.1",
  "chrono",
@@ -3384,7 +3384,7 @@ dependencies = [
 
 [[package]]
 name = "omaflake-gui"
-version = "0.5.0"
+version = "0.5.1"
 dependencies = [
  "chrono",
  "iced",
@@ -3405,15 +3405,15 @@ dependencies = [
 
 [[package]]
 name = "omaflake-i18n"
-version = "0.5.0"
+version = "0.5.1"
 
 [[package]]
 name = "omaflake-macros"
-version = "0.5.0"
+version = "0.5.1"
 
 [[package]]
 name = "omaflake-tui"
-version = "0.5.0"
+version = "0.5.1"
 dependencies = [
  "chrono",
  "crossterm",

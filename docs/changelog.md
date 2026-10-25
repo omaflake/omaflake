@@ -13,6 +13,8 @@ are collected under *Unreleased*. Releases: [GitHub](https://github.com/omaflake
 
 ## [Unreleased]
 
+## [0.5.1] – 2026-10-25
+
 An image is now a recipe with a credential and a look: you choose both when you build it, the settings only preset
 them. Credentials – who you are in a guest – get a page of their own, and one can keep the password a macOS build
 needs. Your settings file becomes version 3 and image.json version 2; an older omaflake ignores the settings and no
