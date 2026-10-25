@@ -766,6 +766,46 @@ maintainer's decisions after discussing a themes repository:
   the four looks as data, the image flake reads them, (4) catalog v3 and the "Looks" tab in core, CLI and the three UIs,
   (5) settings migration to the new official source, docs and website, (6) the maintainer archives `omaflake/recipes`.
 
+**B141 (2026-10-25, decided, not built): recipes as building blocks – a recipe is data: base + modules + look + key
+bindings.** The maintainer's decisions (the German draft with every current recipe mapped: the private workspace's
+Entwurf-Baukasten.md):
+- **Guiding rule: the abstraction must not sprawl** – otherwise the building blocks are not worth it and one writes
+  whole modules instead. So: a short, fixed list of capabilities; "needs" and "enhances" only; warnings, never refusals;
+  no version ranges, no conditions, no plugin system for checks.
+- **A recipe is always data** (`recipe.toml` v2): `base` (nixos | macos), `modules`, `look`, `keymap`, `requirements`
+  (minimum cpus, memory, disk – a smaller profile is warned about, still allowed), `vm` (display, network, share,
+  ephemeral, devices). No Nix in a recipe: an author who needs Nix writes a module. One click installs a recipe with
+  its modules, look and key bindings – a working, opinionated image; recipes are safe to share, only bases and
+  modules need review. Users can put recipes together in the app (a local source "My recipes").
+- **Bases** stay in the image flake (omaflake's guest modules: user, locale, SSH, Nix, agent, share); the base sets
+  the host name from the recipe's name. OPEN: the name clashes with the installed macOS base – proposal "platform".
+- **Modules** ("Modul", not "add-on": sounds commercial) are Nix, reviewed, in the catalog
+  (`modules/<author>/<kind>/<name>/` with `module.toml`): `provides` capabilities, `needs` capabilities, `enhances`
+  concrete modules (an integration only that module allows: SyncTeX is zathura's, vimtex neovim's). A recipe missing a
+  needed capability or holding two providers of an exclusive one is warned about (the app suggests providers); it can
+  still be saved and built. Capabilities: a fixed list in the catalog (`capabilities.toml`, like `tags.toml`), each with
+  its meaning and promise – first: `desktop` (exclusive), `terminal`, `multiplexer`, `shell` (exclusive), `editor`,
+  `default-editor` (exclusive, sets `$EDITOR`), `pdf-viewer` (the default for PDFs, reloads a changed file). The first
+  party modules cut from today's image flake and recipes: NixOS hyprland, shell, wezterm, zellij, neovim, emacs,
+  zathura, latex, typst, python-data, pandoc, omaflake-dev; macOS desktop, shell, wezterm, zellij, neovim, latex,
+  typst, vscode, homebrew, pandoc, lazygit, omaflake-dev.
+- **Key bindings** are data (`keymaps/<author>/<name>/keymap.toml`): each module names its actions, a key binding set
+  maps them to keys and says which modules it serves (one set may serve several); the catalog checks double keys and
+  the key rule. First: `omaflake/default` (today's keys).
+- **Looks:** none is built in – every look, also omaflake's and Vanilla, is in the catalog and can be installed and
+  removed; the image flake only turns a look into configuration. The look schema covers the first-party modules and is
+  open for others (a look may carry a section per module, its schema the module's). The Doctor reports "no look" and
+  recommends omaflake and Catppuccin; there is always a default look while one is installed (decided in B140).
+- **Profiles** (CPU, RAM) are local like credentials, chosen when a VM is created; not in the catalog.
+- **Locale** (language, region, time zone, keyboard) is the user's, not a recipe's: it stays a build-time choice (the
+  draft proposes language/region/time zone in the credential, the keyboard global – OPEN).
+- **An image** is a recipe built with a look, key bindings and a credential; a VM is an image started with a profile.
+- **Order:** (1) looks as data in the image flake (adapter from look data to today's per-program files), (2) the core
+  reads catalog v3 and installs looks, the Looks tab, the Doctor's look requirement, defaults in their tabs (B140),
+  (3) modules: `module.toml`, the first-party modules moved out of the image flake into the catalog, (4) `recipe.toml`
+  v2 and the recipes recomposed, (5) key bindings as data, (6) profiles, (7) the recipe builder in the app, (8) the
+  website's catalog page. Each step tested locally before anything is published.
+
 **Found on the way:** environment variables of the CLI (`VM_FLAKE`, …) do not reach the core service – a build that
 runs there uses config.json's flake (OPEN).
 
