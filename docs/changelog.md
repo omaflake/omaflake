@@ -13,6 +13,19 @@ are collected under *Unreleased*. Releases: [GitHub](https://github.com/omaflake
 
 ## [Unreleased]
 
+### Added
+
+- **The look at images and VMs:** an image remembers the look it was built with, and its details – and those of every
+  VM from it – show it ("Look: Rosé Pine Dawn"; `omaf images` too). When your settings ask for another look, the line
+  says so: a new build brings it. Images built earlier show "unknown".
+
+### Changed
+
+- **Images turn "outdated" right after you change a guest setting** (look, user, keyboard …), not only at the next
+  look at the recipes; the badge and the status say that the recipe or your guest settings changed. image.json
+  becomes version 2 (with the look); existing images are brought up to it when read, and an older omaflake no longer
+  reads them.
+
 ## [0.5.0] – 2026-10-25
 
 The guests get looks: omaflake's own – black, high contrast – is the new standard, Catppuccin Mocha (the look so

@@ -156,6 +156,24 @@
           }
         },
         {
+          "label": {
+            "key": "Look",
+            "text": "Look"
+          },
+          "note": {
+            "args": [
+              "Rosé Pine Dawn"
+            ],
+            "key": "%@ in the settings – a new build brings it",
+            "text": "Rosé Pine Dawn in the settings – a new build brings it"
+          },
+          "tone": "warning",
+          "value": {
+            "key": "unknown – built before looks",
+            "text": "unknown – built before looks"
+          }
+        },
+        {
           "full": "",
           "label": {
             "key": "Used by",

@@ -237,7 +237,7 @@ impl MacImageBuilder {
         let settings = Settings::load(paths);
         let library = RecipeLibrary::new(paths.clone());
         let recipe_source = library.available(&settings).into_iter().find(|a| a.id == r.recipe).map(|a| a.source);
-        let info = ImageInfo::new(
+        let mut info = ImageInfo::new(
             &r.recipe,
             recipe_source,
             GuestKind::Macos,
@@ -247,6 +247,7 @@ impl MacImageBuilder {
             Some(system.clone()),
             json::now(),
         );
+        info.look = images.look_of(&r.recipe, GuestKind::Macos, &r.flake);
         ImageStore::write_info(&info, &work)?;
         fs::rename(&work, &image).with_path(&image)?;
         Shell::check(

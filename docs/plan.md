@@ -615,6 +615,18 @@ Every key omaflake binds starts with SUPER/Cmd or Ctrl (optionally Shift); plain
   `cargo test`, `swift test`. **Not yet seen in a running VM (OPEN):** the Waybar CSS (text-shadow), GTK and the
   pointer, Mako, how each look looks; VS Code's colours in `macos/research` do not follow the look yet (OPEN).
 
+**B136 (2026-10-25): the look at images and VMs, outdated right after a guest change.** Asked after trying 0.5.0: a
+changed look needs a new image, but nothing showed which look an image has, and "outdated" came only at the next
+freshness check. `ImageInfo.look` (image.json v2, `image_v1_to_v2` without changes, `docs/schema/image/v2.json`) is set
+after a build from `ImageStore::look_of` – `nix eval` of `config.omaflake.look` (NixOS `nixosConfigurations."vm-<system>-
+<recipe>"`, macOS `darwinConfigurations."<recipe>"`) with the guest arguments; None when the flake has no looks. API
+`ImageDto.look`; image details and VM details (through its image) get "Look" (`images::look_line`), with a warning
+note "<look> in the settings – a new build brings it" when the guest setting asks for another one, "unknown – built
+before looks" without one; `omaf images` prints it. `settings.set` runs `check_freshness` when `guest` changed. The
+outdated badge and status name the recipe or the guest settings as the reason. Swift `VmImage.look`. Checked:
+`cargo test` (VM detail: the look line and its note; a macOS VM's image from before looks), goldens, `swift test`.
+Not yet run: a real build writing the look (the eval it runs was checked by hand), the app after a look change.
+
 **Found on the way:** environment variables of the CLI (`VM_FLAKE`, …) do not reach the core service – a build that
 runs there uses config.json's flake (OPEN).
 

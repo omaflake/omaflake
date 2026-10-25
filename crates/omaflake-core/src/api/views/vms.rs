@@ -312,6 +312,10 @@ fn detail(ctx: &Ctx, v: &Vm) -> VmDetail {
         .map(|r| r.label.clone())
         .unwrap_or_else(|| crate::models::RecipeId::qualified(&v.recipe));
     info.push(InfoLine::new("Recipe", Text::verbatim(recipe_label)).full(&v.recipe));
+    // The look comes with the image (plan B135)
+    if let Some(image) = ctx.images.iter().find(|i| i.name == v.image) {
+        info.push(super::images::look_line(ctx, image.look.as_deref()));
+    }
     info.push(InfoLine::new(
         "Resources",
         Text::verbatim(format!("{} CPU · {} GB RAM · {} GB", v.cpus, v.memory_gb, v.disk_gb)),

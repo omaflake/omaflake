@@ -479,6 +479,23 @@
             }
           },
           {
+            "label": {
+              "key": "Look",
+              "text": "Look"
+            },
+            "note": {
+              "args": [
+                "Rosé Pine Dawn"
+              ],
+              "key": "%@ in the settings – a new build brings it",
+              "text": "Rosé Pine Dawn in the settings – a new build brings it"
+            },
+            "tone": "warning",
+            "value": {
+              "text": "omaflake"
+            }
+          },
+          {
             "full": "research",
             "label": {
               "key": "Used by",
@@ -529,6 +546,7 @@
         "kind": "nixos",
         "label": "image:omaflake/nixos/dev:cedar",
         "line": "omaflake.nixos.dev@github:omaflake/recipes@main",
+        "look": "omaflake",
         "name": "omaflake.nixos.dev@cedar-mango-lift",
         "omaflakeId": "image:omaflake/nixos/dev:cedar-mango-lift-amber-lake-quiet-otter-lamp-river-stone-cloud-maple",
         "outdated": false,
@@ -740,6 +758,24 @@
             },
             "value": {
               "text": "–"
+            }
+          },
+          {
+            "label": {
+              "key": "Look",
+              "text": "Look"
+            },
+            "note": {
+              "args": [
+                "Rosé Pine Dawn"
+              ],
+              "key": "%@ in the settings – a new build brings it",
+              "text": "Rosé Pine Dawn in the settings – a new build brings it"
+            },
+            "tone": "warning",
+            "value": {
+              "key": "unknown – built before looks",
+              "text": "unknown – built before looks"
             }
           },
           {

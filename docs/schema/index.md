@@ -21,7 +21,7 @@ one, and never removes a published version from this site. Editors use the URL t
 
 | Type | File | Schema |
 |---|---|---|
-| `image` | `image.json` in an image package | [v1](image/v1.json) |
+| `image` | `image.json` in an image package | [v2](image/v2.json) |
 | `instance` | `instance.json` in a VM package | [v1](instance/v1.json) |
 | `settings` | `~/.omaflake/config.json` | [v2](settings/v2.json) |
 | `installed` | `<data>/recipes/.installed.json` | [v1](installed/v1.json) |

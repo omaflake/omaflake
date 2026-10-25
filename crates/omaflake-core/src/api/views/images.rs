@@ -12,6 +12,7 @@ use super::text::{tf, Arg, Text};
 use super::vms::{kind_badge, recipe_name, unreadable};
 use super::Ctx;
 use crate::api::types::{ImageDto, JobDto, JobState};
+use crate::guest_choices::GuestChoices;
 use crate::models::{GuestKind, RecipeId};
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -205,7 +206,7 @@ pub(crate) fn row(ctx: &Ctx, i: &ImageDto) -> ImageRowView {
             Badge::new(
                 "outdated",
                 "outdated",
-                Text::new("Built from an earlier state of the recipe – a new build would differ"),
+                Text::new("A new build would differ – the recipe or your guest settings (look, user, keyboard …) changed since"),
                 Tone::Warning,
             )
             .label(Text::new("outdated")),
@@ -255,6 +256,24 @@ pub(crate) fn row(ctx: &Ctx, i: &ImageDto) -> ImageRowView {
     }
 }
 
+/// "Look: Rosé Pine Dawn" of an image (plan B135) – with a note when the settings ask for another one, which a new
+/// build brings; "unknown" for an image built before looks
+pub(crate) fn look_line(ctx: &Ctx, look: Option<&str>) -> InfoLine {
+    let line = InfoLine::new(
+        "Look",
+        match look {
+            Some(l) => Text::verbatim(GuestChoices::look_name(l)),
+            None => Text::new("unknown – built before looks"),
+        },
+    );
+    match ctx.settings.guest.look.as_deref() {
+        Some(want) if look != Some(want) => {
+            line.note(tf!("%@ in the settings – a new build brings it", GuestChoices::look_name(want)), Tone::Warning)
+        }
+        _ => line,
+    }
+}
+
 fn detail(ctx: &Ctx, i: &ImageDto, outdated: Option<bool>) -> ImageDetail {
     let recipe_label = ctx
         .recipes
@@ -271,7 +290,8 @@ fn detail(ctx: &Ctx, i: &ImageDto, outdated: Option<bool>) -> ImageDetail {
         Text::verbatim(&i.revision)
     };
     let status = match outdated {
-        Some(true) => InfoLine::new("Status", Text::new("built from an older state of the recipe")).tone(Tone::Warning),
+        Some(true) => InfoLine::new("Status", Text::new("a new build would differ (recipe or guest settings)"))
+            .tone(Tone::Warning),
         Some(false) => InfoLine::new("Status", Text::new("matches the recipe")),
         None => InfoLine::new("Status", Text::verbatim("–")),
     };
@@ -282,6 +302,7 @@ fn detail(ctx: &Ctx, i: &ImageDto, outdated: Option<bool>) -> ImageDetail {
         InfoLine::new("Built", Text::fmt("%@", vec![Arg::date(i.created)])),
         InfoLine::new("Recipe state", revision),
         status,
+        look_line(ctx, i.look.as_deref()),
         InfoLine::new("Used by", if used.is_empty() { Text::new("no VM") } else { Text::verbatim(&used) }).full(&used),
         InfoLine::new(
             "Size",

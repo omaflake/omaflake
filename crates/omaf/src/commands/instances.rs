@@ -58,6 +58,9 @@ pub fn images_list() -> Outcome {
             local_date(&image.info.created, "%Y-%m-%d %H:%M")
         );
         println!("    System:    {}", image.info.system);
+        let look =
+            image.info.look.as_deref().map_or("unknown (built before looks)".to_string(), GuestChoices::look_name);
+        println!("    Look:      {look}");
         println!("    Instances: {used}");
     }
     // Images this omaflake cannot read (too old, too new, damaged, plan B114)

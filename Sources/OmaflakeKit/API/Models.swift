@@ -158,6 +158,8 @@ public struct VmImage: Decodable, Sendable, Equatable, Identifiable {
     public var current: Bool
     /// The recipe evaluates to something else now (plan B73/B82); nil: not known
     public var outdated: Bool?
+    /// The guest look it was built with (plan B135); nil: built before looks
+    public var look: String?
 }
 
 public struct ImageList: Decodable, Sendable, Equatable {

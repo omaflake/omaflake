@@ -181,7 +181,8 @@ sizes in bytes, paths absolute.
 `created`, `line`, `path`, `sizeBytes`, `label` (its omaflake ID as short as it can be), `omaflakeId` (the whole ID),
 `instances` (VM names using it), `current` (it is the newest of its line), `outdated` (its recipe evaluates to
 something else now, plan B73/B82 – left out while that is not known: the check runs `nix eval` in the background, and
-a recipe version that is gone has nothing to compare with). `sizeBytes` (allocated blocks, so it walks the image's
+a recipe version that is gone has nothing to compare with; it is checked again right after the guest settings change),
+`look` (the guest look it was built with, plan B135 – left out for an image from before looks). `sizeBytes` (allocated blocks, so it walks the image's
 files) is only in `images.get`, not in the lists.
 
 ### 4.3 Recipe
@@ -657,7 +658,8 @@ run, failed or were cancelled: `{id, name, kind, state, title, count?, fraction?
 job}` – `open` is the row's `primary`: a click opens the build page), `rows` (macOS before NixOS, by recipe name,
 newest first: lamp green when a VM uses it, badge `outdated`, subtitle "recipe dev · <date> · 1 VM", actions reveal and
 newVm (primary) – or the Doctor's warning (primary) –, details: info omaflake ID,
-Recipe, Built, Recipe state, Status, Used by, Size, Source, Disk image/System; actions export, remove – disabled while
+Recipe, Built, Recipe state, Status, Look (with a note when the settings ask for another look), Used by, Size, Source,
+Disk image/System; actions export, remove – disabled while
 VMs use it), `unreadable`. **image** – `{title, row}` with the size.
 
 **recipes** – list head (filter `status`: With image/Without image, `kind`, `tag`, `otherSystems`; tools: refresh –

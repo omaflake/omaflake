@@ -48,7 +48,7 @@ git-ignored settings (`nix/local/`); flake URLs are used as given. Recipes come 
 | `omaf reset <name>` | deletes overlay, efivars, known_hosts; fresh overlay (macOS: fresh clone) |
 | `omaf upgrade <name>` | switch to the current image of the recipe (the old state is deleted) |
 | `omaf rm <name>` | deletes the instance (its share folder stays) |
-| `omaf images [list]` / `omaf images rm <image>` | images with their omaflake ID, recipe, revision, time and the instances using them / delete an image (by name, omaflake ID or the start of its words) – refused while instances use it; `current/` moves to the next newest image of the recipe's line |
+| `omaf images [list]` / `omaf images rm <image>` | images with their omaflake ID, recipe, revision, time, system, look and the instances using them / delete an image (by name, omaflake ID or the start of its words) – refused while instances use it; `current/` moves to the next newest image of the recipe's line |
 | `omaf list [--long]` | instances with status, guest kind, SSH port, disk usage; VMs that run from elsewhere with their place; `--long` with each VM's omaflake ID (`vm:<name>:<words>`) and its recipe's (spec §11.11) |
 | `omaf export vm <name> <folder> [--with-image]` | a stopped VM → `<folder>/<name>.omaflake-vm` (a snapshot); NixOS with its image, macOS with it only when ephemeral or with `--with-image` (spec §11.10) |
 | `omaf export image <image> <folder>` / `omaf export recipe <recipe> <folder>` | an image → `<name>.omaflake-image`; a recipe and those it requires → `<author>.<kind>.<name>.omaflake-recipe` |

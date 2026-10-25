@@ -47,10 +47,15 @@ fn image_v0_to_v1(o: &mut Map<String, Value>) -> Result<()> {
     Ok(())
 }
 
-static IMAGE_STEPS: [Step; 1] = [image_v0_to_v1];
+/// 1 → 2 adds `look` (plan B135): nothing to convert – an image built before looks has none
+fn image_v1_to_v2(_: &mut Map<String, Value>) -> Result<()> {
+    Ok(())
+}
+
+static IMAGE_STEPS: [Step; 2] = [image_v0_to_v1, image_v1_to_v2];
 
 /// Contents of `image.json` (Swift `ImageStore.Info`). Keys: recipe, recipeSource, author, kind, system, name,
-/// source, revision, storePath, created (`.iso8601`); None fields left out.
+/// source, revision, storePath, look, created (`.iso8601`); None fields left out.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ImageInfo {
     /// Recipe ID "<author>.<kind>.<name>@<hash>" (plan B110; older images: without the hash)
@@ -72,12 +77,16 @@ pub struct ImageInfo {
     /// NixOS: the store path of the image; macOS: the nix-darwin system it was activated with
     #[serde(rename = "storePath", default, skip_serializing_if = "Option::is_none")]
     pub store_path: Option<String>,
+    /// The guest look it was built with (`omaflake.look`, plan B135); None: built before looks, or from a flake
+    /// without them
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub look: Option<String>,
     #[serde(with = "crate::json::iso8601")]
     pub created: DateTime<Utc>,
 }
 
 impl ImageInfo {
-    /// image.json (see `image_v0_to_v1`)
+    /// image.json (see `image_v0_to_v1`, `image_v1_to_v2`)
     pub const FILE_FORMAT: FileFormat = FileFormat::new("image", "image.json", 0, &IMAGE_STEPS);
 
     /// Author and name come from the recipe ID ("local" and the ID itself when it has no parts); pass
@@ -104,6 +113,7 @@ impl ImageInfo {
             source: source.into(),
             revision: revision.into(),
             store_path,
+            look: None,
             created,
         }
     }
@@ -236,6 +246,21 @@ impl ImageStore {
         Ok(Shell::check("nix", &args, &RunOptions::default())?.trim().to_string())
     }
 
+    /// The look a build of `recipe` gets now (`omaflake.look` of its configuration with the guest values, plan B135)
+    /// – evaluation only; None when the flake has no looks or the evaluation fails
+    pub fn look_of(&self, recipe: &str, kind: GuestKind, flake: &str) -> Option<String> {
+        let attr = if kind == GuestKind::Macos {
+            format!("darwinConfigurations.\"{recipe}\"")
+        } else {
+            format!("nixosConfigurations.\"vm-{}-{recipe}\"", Platform::host_system(GuestKind::Nixos)?)
+        };
+        let mut args =
+            vec!["eval".to_string(), "--raw".into(), format!("{}#{attr}.config.omaflake.look", Self::flake_ref(flake))];
+        args.extend(self.guest_arguments(flake));
+        let look = Shell::check("nix", &args, &RunOptions::default()).ok()?.trim().to_string();
+        (!look.is_empty()).then_some(look)
+    }
+
     /// What a build of each recipe (with an image) would give now – recipes that fail to evaluate are left out
     pub fn expected_store_paths(
         &self,
@@ -339,7 +364,7 @@ impl ImageStore {
         if Self::read_info(&dir).is_none() {
             log("Copying the image out of the Nix store");
             Self::copy_disk(Path::new(&store_path), &dir)?;
-            let info = ImageInfo::new(
+            let mut info = ImageInfo::new(
                 recipe,
                 recipe_source,
                 GuestKind::Nixos,
@@ -349,6 +374,7 @@ impl ImageStore {
                 Some(store_path.clone()),
                 json::now(),
             );
+            info.look = self.look_of(recipe, GuestKind::Nixos, flake);
             Self::write_info(&info, &dir)?;
         }
         self.set_current(&name)?;
@@ -807,9 +833,9 @@ mod tests {
         let i = ImageStore::read_info(&dir).unwrap();
         assert!(i.recipe == "omaflake.macos.minimal" && i.system == "aarch64-darwin");
         let written = fs::read_to_string(dir.join("image.json")).unwrap();
-        assert!(written.contains("https://omaflake.dev/schema/image/v1.json") && !written.contains("flavor"));
+        assert!(written.contains("https://omaflake.dev/schema/image/v2.json") && !written.contains("flavor"));
         // the keys are the schema's, its required ones are there
-        let schema_file = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../docs/schema/image/v1.json");
+        let schema_file = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../docs/schema/image/v2.json");
         let schema: Value = serde_json::from_slice(&fs::read(schema_file).unwrap()).unwrap();
         let object: Map<String, Value> = serde_json::from_str(&written).unwrap();
         let properties = schema["properties"].as_object().unwrap();

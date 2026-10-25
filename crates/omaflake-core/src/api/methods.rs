@@ -365,6 +365,11 @@ impl Server {
         if paths_changed {
             self.check_doctor_later();
         }
+        if before.guest != s.guest {
+            // Another look, user, keyboard … gives other images: the lists say "outdated" now, not at the next look
+            // at the recipes (plan B135)
+            self.check_freshness();
+        }
         if paths_changed
             || before.developer_mode != s.developer_mode
             || before.keep_recipe_versions != s.keep_recipe_versions

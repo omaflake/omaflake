@@ -318,6 +318,7 @@ pub(crate) fn image(size: bool) -> ImageDto {
         instances: vec!["research".into()],
         current: true,
         outdated: Some(false),
+        look: Some("omaflake".into()),
     }
 }
 
@@ -340,6 +341,7 @@ pub(crate) fn image_old() -> ImageDto {
         instances: vec![],
         current: false,
         outdated: None,
+        look: None,
     }
 }
 

@@ -270,6 +270,9 @@ pub struct ImageDto {
     /// check runs `nix eval` in the background, and a recipe version that is gone has nothing to compare with)
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub outdated: Option<bool>,
+    /// The guest look it was built with (plan B135); left out for an image from before looks
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub look: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]

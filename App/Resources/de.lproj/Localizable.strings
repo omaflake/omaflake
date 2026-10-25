@@ -333,7 +333,7 @@
 "Once a day – the only network access omaflake makes on its own." = "Einmal am Tag – der einzige Netzzugriff, den omaflake von sich aus macht.";
 "omaflake %@ is available" = "omaflake %@ ist verfügbar";
 "older recipe" = "älteres Rezept";
-"Built from an earlier state of the recipe – a new build would differ" = "Aus einem früheren Stand des Rezepts gebaut – ein neuer Build sähe anders aus";
+"A new build would differ – the recipe or your guest settings (look, user, keyboard …) changed since" = "Ein neuer Build sähe anders aus – das Rezept oder deine Gast-Einstellungen (Look, Benutzer, Tastatur …) haben sich seitdem geändert";
 "Recipe changed – build a new version" = "Rezept geändert – neue Version erstellen";
 "(%lld routine lines of the disk image tool hidden – full log: %@)" = "(%lld Routinezeilen des Disk-Image-Werkzeugs ausgeblendet – vollständiges Log: %@)";
 "Full Log …" = "Vollständiges Log …";
@@ -350,7 +350,9 @@
 "unknown" = "unbekannt";
 "no git revision" = "keine Git-Revision";
 "(with uncommitted changes)" = "(mit nicht committeten Änderungen)";
-"built from an older state of the recipe" = "aus einem älteren Stand des Rezepts gebaut";
+"a new build would differ (recipe or guest settings)" = "ein neuer Build sähe anders aus (Rezept oder Gast-Einstellungen)";
+"unknown – built before looks" = "unbekannt – vor den Looks gebaut";
+"%@ in the settings – a new build brings it" = "%@ in den Einstellungen – ein neuer Build bringt ihn";
 "default version – new VMs use it" = "Standard-Version – neue VMs nutzen sie";
 "matches the recipe" = "passt zum aktuellen Rezept";
 "Recipes" = "Rezepte";

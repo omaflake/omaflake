@@ -1,0 +1,74 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://omaflake.dev/schema/image/v2.json",
+  "title": "omaflake image",
+  "description": "image.json in an image package (<name>.omaflake-image): what the image is. v2: look.",
+  "type": "object",
+  "properties": {
+    "$schema": {
+      "const": "https://omaflake.dev/schema/image/v2.json"
+    },
+    "recipe": {
+      "type": "string",
+      "description": "Recipe ID <author>.<kind>.<name>@<words>"
+    },
+    "recipeSource": {
+      "type": "string",
+      "description": "The recipe source it was built from"
+    },
+    "author": {
+      "type": "string"
+    },
+    "kind": {
+      "enum": [
+        "nixos",
+        "macos"
+      ],
+      "description": "Guest kind"
+    },
+    "system": {
+      "enum": [
+        "aarch64-linux",
+        "x86_64-linux",
+        "aarch64-darwin"
+      ],
+      "description": "Architecture as Nix names a system"
+    },
+    "name": {
+      "type": "string",
+      "description": "The recipe's name"
+    },
+    "source": {
+      "type": "string",
+      "description": "The image flake it was built with (folder or URL)"
+    },
+    "revision": {
+      "type": "string",
+      "description": "The recipe's state when it was built"
+    },
+    "storePath": {
+      "type": "string",
+      "description": "NixOS: the image's store path; macOS: the nix-darwin system"
+    },
+    "look": {
+      "type": "string",
+      "description": "The guest look it was built with (v2; e.g. omaflake, catppuccin, rose-pine-dawn, vanilla) – left out for an image built before looks"
+    },
+    "created": {
+      "type": "string",
+      "format": "date-time"
+    }
+  },
+  "required": [
+    "$schema",
+    "recipe",
+    "author",
+    "kind",
+    "system",
+    "name",
+    "source",
+    "revision",
+    "created"
+  ],
+  "additionalProperties": false
+}
