@@ -771,12 +771,12 @@ bindings.** The maintainer's decisions (the German draft with every current reci
 Entwurf-Baukasten.md):
 - **Guiding rule: the abstraction must not sprawl** – otherwise the building blocks are not worth it and one writes
   whole modules instead. So: a short, fixed list of capabilities; "needs" and "enhances" only; warnings, never refusals;
-  no conditions, no plugin system for checks. Versions only as below (latest, a pin, a minimum).
+  no conditions, no plugin system for checks. Versions only as below (none = latest, exact, minimum and/or maximum).
 - **Decided later the same day:**
   - **Neovim and Emacs together are reported as incompatible** (both `default-editor`): nobody would work like that,
     and trying both is a second VM. Reconsidered only if the community asks for it explicitly.
-  - **Versions of references:** a recipe uses the newest version of a module, look or key binding set by default; it
-    may pin one version or set a minimum (as npm's dependencies) – no other range syntax.
+  - **Versions of references:** a recipe names no version (the newest of a module, look or key binding set), an exact
+    version, or a minimum and/or a maximum (as npm's dependencies) – no other range syntax.
   - **Where references point:** only to the catalogs of the sources set up and to what is installed locally – the
     official catalog always as the fallback and the default. A recipe never loads modules from a source by itself:
     a module of another source must be installed (its source added) by hand first.
