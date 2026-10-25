@@ -826,9 +826,15 @@ Entwurf-Baukasten.md):
   open for others (a look may carry a section per module, its schema the module's). The Doctor reports "no look" and
   recommends omaflake and Catppuccin; there is always a default look while one is installed (decided in B140).
 - **Profiles** (CPU, RAM) are local like credentials, chosen when a VM is created; not in the catalog.
-- **Locale** (language, region, time zone, keyboard) is the user's, not a recipe's: it stays a build-time choice (the
-  draft proposes language/region/time zone in the credential, the keyboard global – OPEN).
-- **An image** is a recipe built with a look, key bindings and a credential; a VM is an image started with a profile.
+- **Locales** (decided 2026-10-25): the host's keyboard is a global setting (the physical keyboard – the default
+  for new locales). A locale is the user's, created and named like credentials (local only, never in a catalog): one
+  system language with region, one time zone, and one or more guest keyboards (e.g. German and Russian; the first is
+  the default, switching is a key binding action – Super+Space on NixOS, as XKB's `grp:win_space_toggle`; macOS keeps
+  several input sources in `AppleEnabledInputSources`, so far checked with one – BM24, OPEN with several). It is an
+  ingredient of an image chosen at the build (default: the default locale), not part of a recipe – but a recipe may
+  restrict locales (e.g. `rtl = false`, or an allow-list of languages) and a choice outside gets a warning, the build
+  stays possible.
+- **An image** is a recipe built with a look, key bindings, a credential and a locale; a VM is an image started with a profile.
 - **Order:** (1) looks as data in the image flake (adapter from look data to today's per-program files), (2) the core
   reads catalog v3 and installs looks, the Looks tab, the Doctor's look requirement, defaults in their tabs (B140),
   (3) modules: `module.toml`, the first-party modules moved out of the image flake into the catalog, (4) `recipe.toml`
