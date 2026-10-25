@@ -242,27 +242,29 @@ fn draw_modal(f: &mut Frame, app: &App, page: &Page, area: Rect) {
     let th = app.theme;
     let ctx = app.ctx();
     let Some(modal) = &app.modal else { return };
+    // The lines of the selected entry (first, last) – kept in view when the modal is taller than the terminal
+    let mut focus = None;
     let (title, lines): (String, Vec<Line<'static>>) = match modal {
         Modal::Help => (tr("Keys"), help_lines(app, page)),
         Modal::Menu { actions, index } => {
-            let lines = actions
-                .iter()
-                .enumerate()
-                .flat_map(|(n, a)| {
-                    let mut spans = vec![key_span(app, format!(" {} ", n + 1))];
-                    spans.extend(button(&ctx, a));
-                    let mut line = Line::from(spans);
-                    if n == *index {
-                        line.style = th.selected();
-                    }
-                    let mut out = vec![line];
-                    let why = if b(a, "enabled") { a.get("help") } else { a.get("reason") };
-                    if let Some(w) = why {
-                        out.push(Line::from(Span::styled(format!("     {}", t(w)), th.secondary())));
-                    }
-                    out
-                })
-                .collect();
+            let mut lines = Vec::new();
+            for (n, a) in actions.iter().enumerate() {
+                let first = lines.len();
+                let mut spans = vec![key_span(app, format!(" {} ", n + 1))];
+                spans.extend(button(&ctx, a));
+                let mut line = Line::from(spans);
+                if n == *index {
+                    line.style = th.selected();
+                }
+                lines.push(line);
+                let why = if b(a, "enabled") { a.get("help") } else { a.get("reason") };
+                if let Some(w) = why {
+                    lines.push(Line::from(Span::styled(format!("     {}", t(w)), th.secondary())));
+                }
+                if n == *index {
+                    focus = Some((first, lines.len() - 1));
+                }
+            }
             (tr("Actions"), lines)
         }
         Modal::Choice { field, index } => {
@@ -277,6 +279,7 @@ fn draw_modal(f: &mut Frame, app: &App, page: &Page, area: Rect) {
                     line
                 })
                 .collect();
+            focus = Some((*index, *index));
             (t(&field["label"]), lines)
         }
         Modal::Filter { groups, values, index, .. } => {
@@ -359,15 +362,40 @@ fn draw_modal(f: &mut Frame, app: &App, page: &Page, area: Rect) {
         }
     };
     let width = 72u16;
-    let wrapped: u16 = lines.iter().map(|l| (l.width() as u16 / (width - 4)) + 1).sum();
-    let r = centered(area, width, wrapped + 2);
+    let heights: Vec<u16> = lines.iter().map(|l| (l.width() as u16 / (width - 4)) + 1).collect();
+    let r = centered(area, width, heights.iter().sum::<u16>() + 2);
+    let (skip, more_below) = modal_scroll(&heights, r.height.saturating_sub(2), focus);
     f.render_widget(Clear, r);
-    let block = Block::new()
+    let mut block = Block::new()
         .borders(Borders::ALL)
         .border_style(th.accent())
         .title(Span::styled(format!(" {title} "), th.title()))
         .style(th.card());
-    f.render_widget(Paragraph::new(lines).wrap(Wrap { trim: false }).block(block), r);
+    let more = match (skip > 0, more_below) {
+        (true, true) => Some(" ↑↓ "),
+        (true, false) => Some(" ↑ "),
+        (false, true) => Some(" ↓ "),
+        (false, false) => None,
+    };
+    if let Some(m) = more {
+        block = block.title_bottom(Line::from(Span::styled(m, th.accent())).right_aligned());
+    }
+    let shown: Vec<Line<'static>> = lines.into_iter().skip(skip).collect();
+    f.render_widget(Paragraph::new(shown).wrap(Wrap { trim: false }).block(block), r);
+}
+
+/// The lines a modal leaves out at its top so that the `focus` lines (first, last) fit into `room` rows, and whether
+/// lines are left out below. Without a focus the top is shown.
+fn modal_scroll(heights: &[u16], room: u16, focus: Option<(usize, usize)>) -> (usize, bool) {
+    let mut skip = 0;
+    if let Some((first, last)) = focus {
+        let last = last.min(heights.len().saturating_sub(1));
+        while skip < first && heights[skip..=last].iter().sum::<u16>() > room {
+            skip += 1;
+        }
+    }
+    let below = heights[skip.min(heights.len())..].iter().sum::<u16>() > room;
+    (skip, below)
 }
 
 /// `?`: the keys, the selected row's actions with theirs, the page's tools

@@ -93,7 +93,11 @@ impl Harness {
     }
 
     fn screen(&mut self) -> String {
-        let mut term = Terminal::new(TestBackend::new(140, 45)).unwrap();
+        self.screen_sized(140, 45)
+    }
+
+    fn screen_sized(&mut self, width: u16, height: u16) -> String {
+        let mut term = Terminal::new(TestBackend::new(width, height)).unwrap();
         term.draw(|f| omaflake_tui::ui::draw(f, &mut self.app)).unwrap();
         let buf = term.backend().buffer().clone();
         let mut out = String::new();
@@ -389,6 +393,33 @@ fn a_destructive_action_asks_first() {
     h.key(KeyCode::Char('q'));
     h.key(KeyCode::Enter);
     assert!(h.app.quit);
+}
+
+#[test]
+fn the_action_menu_scrolls_to_its_selection_in_a_small_terminal() {
+    let mut h = Harness::new(none);
+    h.model("vms", json!({}), fixture("vms"));
+    h.key(KeyCode::Char('a'));
+    let Some(Modal::Menu { actions, .. }) = &h.app.modal else { panic!("no menu") };
+    let last = actions.len() - 1;
+    assert_eq!(actions[last]["id"], "remove");
+    // 14 rows: the menu of eight actions (most with a second line) does not fit – the top is shown, more below
+    let s = h.screen_sized(100, 14);
+    assert!(s.contains("Show Share Folder") && !s.contains("Remove …") && s.contains(" ↓ "), "{s}");
+    for _ in 0..last {
+        h.key(KeyCode::Char('j'));
+    }
+    let s = h.screen_sized(100, 14);
+    assert!(s.contains("Remove …") && !s.contains("Show Share Folder") && s.contains(" ↑ "), "{s}");
+    // Back to the first: the top again
+    for _ in 0..last {
+        h.key(KeyCode::Char('k'));
+    }
+    let s = h.screen_sized(100, 14);
+    assert!(s.contains("Show Share Folder") && !s.contains("Remove …"), "{s}");
+    // A terminal it fits into: everything, no arrows
+    let s = h.screen();
+    assert!(s.contains("Show Share Folder") && s.contains("Remove …") && !s.contains(" ↓ "), "{s}");
 }
 
 #[test]
