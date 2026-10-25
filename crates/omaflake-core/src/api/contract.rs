@@ -179,6 +179,7 @@ pub(crate) fn settings_answer() -> SettingsAnswer {
                 user: Some("alex".into()),
                 locale: Some("de_CH.UTF-8".into()),
                 keyboard: Some("ch".into()),
+                look: Some("rose-pine-dawn".into()),
                 ..GuestValues::default()
             },
             flake: Some("/src/omaflake/nix".into()),
@@ -195,6 +196,7 @@ pub(crate) fn settings_answer() -> SettingsAnswer {
             time_zone: Some("Europe/Zurich".into()),
             locale: Some("de_CH.UTF-8".into()),
             keyboard: Some("ch".into()),
+            look: None,
         },
         choices: Choices {
             time_zones: vec!["Europe/Berlin".into(), "Europe/Zurich".into()],
@@ -202,6 +204,10 @@ pub(crate) fn settings_answer() -> SettingsAnswer {
             keyboards: vec![
                 Keyboard { code: "ch".into(), locale: "de_CH".into() },
                 Keyboard { code: "us".into(), locale: "en_US".into() },
+            ],
+            looks: vec![
+                Look { name: "omaflake".into(), title: "omaflake".into() },
+                Look { name: "rose-pine-dawn".into(), title: "Rosé Pine Dawn".into() },
             ],
         },
         is_default_data_folder: false,

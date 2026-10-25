@@ -59,6 +59,8 @@
         # omaflake leaves "email" out of guest/settings.json when it has none (plan B124: a fresh data folder failed to
         # build with "attribute 'email' missing")
         email = ownSettings.email or null;
+        # The guest look chosen by the user (modules/look.nix); null: the recipe's (plan B135)
+        look = ownSettings.look or null;
         # The macOS guest user is fixed by the base (omaflake passes it); default: same as `user`
         macUser = if (ownSettings.macUser or null) != null then ownSettings.macUser else ownSettings.user;
         authorizedKeys = guest.authorizedKeys or [ ];
@@ -143,7 +145,7 @@
       ];
 
       # A recipe VM for one system = guest hardware (also the root flake's nixosModules.vm-guest) + base + desktop +
-      # editor line (the recipe picks it) + the recipe (and its variant for the system) + your local extras
+      # editor line and look (the recipe picks them) + the recipe (and its variant for the system) + your local extras
       # pkgs.omaflake for recipes: the root flake's Linux package (app `omaflake`, CLI `omaf`; plan B123) – the input is
       # only fetched when a recipe uses it
       omaflakeOverlay = final: _: {
@@ -157,6 +159,7 @@
           ./modules/base.nix
           ./modules/hyprland.nix
           ./modules/editor.nix
+          ./modules/look.nix
           { nixpkgs.hostPlatform = system; nixpkgs.overlays = [ omaflakeOverlay ]; }
         ] ++ recipeModules recipe system ++ optionalLocal "nixos.nix" ++ homeManager;
       };
@@ -194,7 +197,8 @@
         # macOS guests: darwin-guest + the recipe, activated on a clone of the base (spec §6.5, M9)
         // lib.genAttrs macRecipes (f: nix-darwin.lib.darwinSystem {
           specialArgs = { inherit settings nix-homebrew; };
-          modules = [ ./modules/darwin-guest.nix ] ++ recipeModules f "aarch64-darwin" ++ optionalLocal "darwin-guest.nix";
+          modules = [ ./modules/darwin-guest.nix ./modules/look.nix ] ++ recipeModules f "aarch64-darwin"
+            ++ optionalLocal "darwin-guest.nix";
         });
     };
 }

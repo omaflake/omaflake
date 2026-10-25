@@ -206,6 +206,8 @@
 "Locale" = "Sprache und Region";
 "Keyboard" = "Tastatur";
 "Time zone" = "Zeitzone";
+"Look" = "Look";
+"Each recipe's own" = "Wie im jeweiligen Rezept";
 "Remove Image …" = "Vorlage entfernen …";
 "Older Images" = "Ältere Vorlagen";
 "Remove %@, %@ …" = "%1$@ vom %2$@ entfernen …";
@@ -261,7 +263,7 @@
 "No image yet – a VM is created from an image, an image is built from a recipe." = "Noch keine Vorlage – eine VM entsteht aus einer Vorlage, eine Vorlage wird aus einem Rezept erstellt.";
 "Language and region" = "Sprache und Region";
 "Like this Mac – %@" = "Wie dieser Mac – %@";
-"Empty fields and \"Like this Mac\" use your Mac's values. The lists offer only what both NixOS and macOS VMs support. Your SSH keys from ~/.ssh are added automatically. macOS VMs always use the user of the macOS base. A developer flake's local/settings.nix overrides these values." = "Leere Felder und „Wie dieser Mac“ übernehmen die Werte deines Macs. Die Listen bieten nur an, was NixOS- und macOS-VMs beide können. Deine SSH-Schlüssel aus ~/.ssh kommen automatisch dazu. macOS-VMs nutzen immer den Benutzer der macOS-Base. local/settings.nix eines Entwickler-Flakes überschreibt diese Werte.";
+"Empty fields and \"Like this Mac\" use your Mac's values. The lists offer only what both NixOS and macOS VMs support. Your SSH keys from ~/.ssh are added automatically. macOS VMs always use the user of the macOS base. The look colours a NixOS VM's whole desktop and a macOS VM's terminal and editors; a changed look comes with the next build of an image. A developer flake's local/settings.nix overrides these values." = "Leere Felder und „Wie dieser Mac“ übernehmen die Werte deines Macs. Die Listen bieten nur an, was NixOS- und macOS-VMs beide können. Deine SSH-Schlüssel aus ~/.ssh kommen automatisch dazu. macOS-VMs nutzen immer den Benutzer der macOS-Base. Der Look färbt bei NixOS-VMs den ganzen Desktop, bei macOS-VMs Terminal und Editoren; ein geänderter Look kommt mit dem nächsten Bau eines Images. local/settings.nix eines Entwickler-Flakes überschreibt diese Werte.";
 "Developer Mode" = "Entwicklermodus";
 "Shows the lab recipes – omaflake's development recipes with test app and debug tools, and recipes others mark with lab = true." = "Zeigt die lab-Rezepte – omaflakes Entwicklungs-Rezepte mit Test-App und Debug-Werkzeugen sowie Rezepte, die andere mit lab = true kennzeichnen.";
 "Development recipe (developer mode)" = "Entwicklungs-Rezept (Entwicklermodus)";
@@ -613,7 +615,7 @@
 "Share a folder with the VM" = "Ordner mit der VM teilen";
 "omaflake uses what this computer already has. Set up missing parts here or enter their path." = "omaflake nutzt, was dieser Computer schon mitbringt. Fehlendes richtest du hier ein oder gibst den Pfad an.";
 "Like this computer – %@" = "Wie dieser Computer – %@";
-"Empty fields and \"Like this computer\" use this computer's values. The lists offer only what both NixOS and macOS VMs support. Your SSH keys from ~/.ssh are added automatically. A developer flake's local/settings.nix overrides these values." = "Leere Felder und „Wie dieser Computer“ übernehmen die Werte dieses Computers. Die Listen bieten nur an, was NixOS- und macOS-VMs beide können. Deine SSH-Schlüssel aus ~/.ssh kommen automatisch dazu. local/settings.nix eines Entwickler-Flakes überschreibt diese Werte.";
+"Empty fields and \"Like this computer\" use this computer's values. The lists offer only what both NixOS and macOS VMs support. Your SSH keys from ~/.ssh are added automatically. The look colours a NixOS VM's whole desktop and a macOS VM's terminal and editors; a changed look comes with the next build of an image. A developer flake's local/settings.nix overrides these values." = "Leere Felder und „Wie dieser Computer“ übernehmen die Werte dieses Computers. Die Listen bieten nur an, was NixOS- und macOS-VMs beide können. Deine SSH-Schlüssel aus ~/.ssh kommen automatisch dazu. Der Look färbt bei NixOS-VMs den ganzen Desktop, bei macOS-VMs Terminal und Editoren; ein geänderter Look kommt mit dem nächsten Bau eines Images. local/settings.nix eines Entwickler-Flakes überschreibt diese Werte.";
 "Not for this computer – built for %@" = "Nicht für diesen Computer – gebaut für %@";
 "Not for this computer – it is built for %@" = "Nicht für diesen Computer – gebaut für %@";
 "Not reviewed by the omaflake team – its Nix code runs on this computer when you build it." = "Nicht vom omaflake-Team geprüft – sein Nix-Code läuft auf diesem Computer, wenn du es baust.";

@@ -13,6 +13,39 @@ are collected under *Unreleased*. Releases: [GitHub](https://github.com/omaflake
 
 ## [Unreleased]
 
+The guests get looks: omaflake's own – black, high contrast – is the new standard, Catppuccin Mocha (the look so
+far), Rosé Pine Dawn and each program's own colours are a setting away. Your settings file becomes version 2 (an
+older omaflake will not change it any more). Rebuild an image to get any of this inside the VM.
+
+### Added
+
+- **Looks for the guests:** omaflake (black, white text, red and cyan only as fine accents – the logo's split on the
+  active window and workspace), Catppuccin Mocha, Rosé Pine Dawn (light and mild) and Vanilla (each program's own
+  colours). Choose one for all your VMs in the settings ("Look") or with `omaf config --guest-look …`; "Each recipe's
+  own" leaves it to the recipe (`omaflake.look` in its default.nix). A NixOS VM takes its whole desktop from it –
+  Hyprland, the bar, launcher, notifications, prompt, GTK apps and the pointer –, every VM its terminal (WezTerm,
+  Zellij) and editors (Neovim, Emacs); the macOS research recipe follows it too.
+- **Moving and resizing windows by keyboard in NixOS VMs:** Cmd + Shift + arrows moves a window, Cmd + R opens a
+  resize mode (arrows or h/j/k/l, Esc to leave) – like Zellij's modes. Rebuild an image to get it.
+
+### Changed
+
+- **The standard look of NixOS VMs is omaflake's** instead of Catppuccin Mocha; choose Catppuccin in the settings to
+  keep the old one.
+- **Every key omaflake binds in a VM starts with Cmd or Ctrl** (optionally with Shift): the area screenshot moved
+  from Print to Cmd + Shift + S.
+- **Zellij in the neovim line at a key:** Cmd + Shift + Enter opens a terminal in the Zellij session "main" – close the
+  window and it keeps running; `zj` attaches to it from any shell, also over SSH. Cmd + Enter stays a plain terminal
+  (macOS research: the same keys in WezTerm). Zellij uses its
+  "Unlock First" keys now, so Neovim gets every Ctrl key: Ctrl G unlocks Zellij's modes (pane, tab, resize, move …).
+  Rebuild an image to get it.
+
+### Fixed
+
+- **`omaf ui`: the action menu (`a`) follows its selection.** In a terminal too small for all of a VM's actions, the
+  last ones – "Remove …" among them – were cut off and could not be seen. The menu now scrolls with the selection, and
+  arrows on its frame show that more is above or below.
+
 ## [0.4.0] – 2026-10-24
 
 omaflake on a Linux PC, checked on real hardware: an x86_64 mini PC with Ubuntu 26.04 and GNOME 50 builds the official

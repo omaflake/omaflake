@@ -206,6 +206,15 @@ impl GuestChoices {
         ("cz", "cs_CZ"),
     ];
 
+    /// The guests' looks (plan B135), in the image flake's order (nix/looks/default.nix): (name, display name). NixOS
+    /// guests take the whole desktop from it, macOS guests their terminal's and editor's colours.
+    pub const LOOKS: [(&'static str, &'static str); 4] = [
+        ("omaflake", "omaflake"),
+        ("catppuccin", "Catppuccin Mocha"),
+        ("rose-pine-dawn", "Rosé Pine Dawn"),
+        ("vanilla", "Vanilla"),
+    ];
+
     /// glibc locales Foundation's `Locale.availableIdentifiers` lacks although their language has a macOS user interface
     /// (measured on macOS 27: Foundation names them with a script, zh_Hans_CN …)
     pub const NOT_IN_FOUNDATION: [&'static str; 4] = ["zh_CN", "zh_HK", "zh_SG", "zh_TW"];
@@ -379,6 +388,11 @@ impl GuestChoices {
         Self::english_name(locale).unwrap_or_else(|| code.to_string())
     }
 
+    /// "Rosé Pine Dawn" for "rose-pine-dawn"; the name itself when unknown
+    pub fn look_name(name: &str) -> String {
+        Self::LOOKS.iter().find(|(n, _)| *n == name).map_or_else(|| name.to_string(), |(_, d)| d.to_string())
+    }
+
     /// "de_DE" → "German (Germany)", "de" → "German"
     fn english_name(id: &str) -> Option<String> {
         let mut parts = id.split('_');
@@ -449,6 +463,16 @@ mod tests {
         for (code, _) in GuestChoices::KEYBOARDS {
             assert!(text.contains(&format!("    {code} = {{ id = ")), "{code}");
         }
+    }
+
+    /// The looks offered are the image flake's, in its order
+    #[test]
+    fn every_look_is_the_image_flakes() {
+        let looks = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../nix/looks/default.nix");
+        let text = std::fs::read_to_string(looks).unwrap();
+        let names: Vec<String> = GuestChoices::LOOKS.iter().map(|(n, _)| format!("\"{n}\"")).collect();
+        assert!(text.contains(&format!("names = [ {} ];", names.join(" "))), "nix/looks/default.nix `names`");
+        assert_eq!(GuestChoices::look_name("rose-pine-dawn"), "Rosé Pine Dawn");
     }
 
     #[test]

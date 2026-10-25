@@ -1,9 +1,9 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 # The neovim line (omaflake.editor = "neovim", modules/editor.nix): Neovim, preconfigured, and Zellij
-{ pkgs, lib, osConfig, ... }:
+{ config, pkgs, lib, osConfig, ... }:
 
 lib.mkIf (osConfig.omaflake.editor == "neovim") {
-  # ---------- Editor: Neovim (Catppuccin Mocha, preconfigured) ----------
+  # ---------- Editor: Neovim (preconfigured; colours: the guest's look, /etc/omaflake/look/nvim.lua) ----------
   programs.neovim = {
     enable = true;
     defaultEditor = true;
@@ -12,7 +12,6 @@ lib.mkIf (osConfig.omaflake.editor == "neovim") {
     withRuby = false;
     withPython3 = false;
     plugins = with pkgs.vimPlugins; [
-      catppuccin-nvim
       nvim-web-devicons
       lualine-nvim
       bufferline-nvim
@@ -56,14 +55,10 @@ lib.mkIf (osConfig.omaflake.editor == "neovim") {
       o.showmode = false            -- shown in lualine
       o.laststatus = 3
 
-      -- Look
-      require("catppuccin").setup({
-        flavour = "mocha",
-        integrations = { gitsigns = true, neotree = true, telescope = { enabled = true },
-                         which_key = true, indent_blankline = { enabled = true }, alpha = true },
-      })
-      vim.cmd.colorscheme("catppuccin")
-      require("lualine").setup({ options = { theme = "catppuccin-mocha", globalstatus = true,
+      -- Look: the guest's (modules/look.nix) – sets the colours, returns lualine's theme
+      local look_ok, lualine_theme = pcall(dofile, "/etc/omaflake/look/nvim.lua")
+      if not look_ok then lualine_theme = "auto" end
+      require("lualine").setup({ options = { theme = lualine_theme, globalstatus = true,
         component_separators = "", section_separators = { left = "", right = "" } } })
       require("bufferline").setup({ options = { diagnostics = false, separator_style = "slant",
         offsets = { { filetype = "neo-tree", text = "Files", separator = true } } } })
@@ -119,14 +114,22 @@ lib.mkIf (osConfig.omaflake.editor == "neovim") {
   # ---------- Multiplexer: Zellij ----------
   programs.zellij = {
     enable = true;
-    enableZshIntegration = false; # not in every shell – start `zellij` by hand
+    enableZshIntegration = false; # not in every shell: started on purpose – SUPER + SHIFT + Enter or `zj`
     settings = {
-      theme = "catppuccin-mocha";
       default_layout = "compact";
       pane_frames = false;
       simplified_ui = true;
       show_startup_tips = false;
       show_release_notes = false;
     };
+    # Keys that leave Neovim's Ctrl keys alone: locked until Ctrl g (the preset's comment says more)
+    extraConfig = builtins.readFile ./zellij-unlock-first.kdl;
   };
+
+  # A terminal is a plain shell (SUPER + Enter) – for zathura, a PDF, anything else; SUPER + SHIFT + Enter opens one in
+  # the Zellij session "main" (closing the window keeps it), `zj` attaches to it from any shell, also over SSH
+  wayland.windowManager.hyprland.extraConfig = lib.mkAfter ''
+    hl.bind(mod .. " + SHIFT + Return", hl.dsp.exec_cmd("wezterm start -- ${lib.getExe config.programs.zellij.package} attach --create main"))
+  '';
+  programs.zsh.shellAliases.zj = "zellij attach --create main";
 }

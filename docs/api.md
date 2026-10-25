@@ -317,7 +317,7 @@ Params and results in short; the types are those of §4.
 | `events.subscribe` | `topics` | `null` |
 | `shutdown` | – | `null` – ends this session (§2) |
 | `service.restart` | – | `{jobs}` – the service ends once no job waits or runs (§1, §2) |
-| `settings.get` | – | `{settings, guestDefaults, choices: {timeZones, locales, keyboards: [{code, locale}]}, isDefaultDataFolder}` – `settings`: config.json's values with their defaults applied (`developerMode, checkForUpdates, notifications, keepRecipeVersions, guest: {user?, fullName?, email?, timeZone?, locale?, keyboard?}, flake?, qemu?, nix?, runner?, flakeInUse?, dataFolder`); `guestDefaults`: this computer's values the guest overrides fall back to |
+| `settings.get` | – | `{settings, guestDefaults, choices: {timeZones, locales, keyboards: [{code, locale}], looks: [{name, title}]}, isDefaultDataFolder}` – `settings`: config.json's values with their defaults applied (`developerMode, checkForUpdates, notifications, keepRecipeVersions, guest: {user?, fullName?, email?, timeZone?, locale?, keyboard?, look?}, flake?, qemu?, nix?, runner?, flakeInUse?, dataFolder`); `guestDefaults`: this computer's values the guest overrides fall back to |
 | `settings.set` | any of `developerMode, checkForUpdates, notifications, keepRecipeVersions, guest, flake, qemu, nix, runner` (`null` or `""` = back to the default; keys not given stay) | `settings` – turning `keepRecipeVersions` off prunes older recipe versions |
 | `dataFolder.move` | `target` | Job `data-move` (all VMs must be stopped) |
 | `updates.check` | – | `{state: "noFeed"|"upToDate"|"available"|"off", release?: {version, url, sha256?, notes?, page?}}` – a feed that cannot be read is an error (`network`) |
@@ -728,7 +728,8 @@ name, icon (folder|github|url), badges (official, private with or without token)
 decides from `params.values.input`); `addAction` (primary) is `sources.add {input, private}` and asks the token for a
 private one; the two fields keep their values under `values.input` and `values.private`. `general.fields`: notifications, checkForUpdates, keepRecipeVersions, developerMode (toggles with `set`).
 `guest.fields`: user, fullName, email (placeholders: this computer's), locale, keyboard, timeZone (choices with "Like
-this Mac – …" as `null`; names are the plain values – UIs may name them in their language). `dataFolder: {title,
+this Mac – …" as `null`; names are the plain values – UIs may name them in their language), look (choices: "Each
+recipe's own" as `null`, then the looks by title; plan B135). `dataFolder: {title,
 location, isDefault, moving, actions: [default, move], note}` – both disabled while a VM runs. Launch at login and the
 UI's language are each UI's own.
 

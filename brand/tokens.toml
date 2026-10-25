@@ -2,8 +2,9 @@
 # omaflake design tokens – the one source for colours, spacing, radii, type and sizes of every interface
 # (SwiftUI on macOS, iced on Linux; plan B119) and for the brand artwork's palette (generate.py).
 #
-# Change a value here, then run `python3 brand/tokens.py` – it writes Sources/OmaflakeApp/BrandTokens.swift and
-# crates/omaflake-brand/src/tokens.rs. `python3 brand/tokens.py --check` fails when they are out of date.
+# Change a value here, then run `python3 brand/tokens.py` – it writes Sources/OmaflakeApp/BrandTokens.swift,
+# crates/omaflake-brand/src/tokens.rs and nix/looks/omaflake-palette.nix. `python3 brand/tokens.py --check` fails
+# when they are out of date.
 # Names are snake_case here; Swift gets lowerCamelCase, Rust UPPER_SNAKE_CASE.
 
 # --- brand palette (icons, banner, favicon, app) -----------------------------------------------------------------
@@ -177,3 +178,49 @@ weight = "regular"
 [text.caption2]
 size = 10
 weight = "medium"
+
+# --- the omaflake look of the guests (nix/looks/omaflake.nix, plan B135) --------------------------------------------
+# Black and high contrast; red and cyan – the hero's split – only as fine accents. Written to
+# nix/looks/omaflake-palette.nix as "RRGGBB" (the image flake cannot read brand/). Each entry is
+# `palette = "<name>"` or `hex = "#RRGGBB"`, no alpha.
+[look.base]             # windows, bar, terminal background
+palette = "black"
+
+[look.surface]          # menus, notifications, selection lines
+palette = "background"
+
+[look.overlay]          # inactive borders, raised surfaces
+hex = "#1E1E1E"
+
+[look.border]           # hairlines, the terminal's selection
+hex = "#2A2A2A"
+
+[look.muted]            # comments, inactive workspaces
+hex = "#6E6E6E"
+
+[look.subtext]          # secondary text
+hex = "#B3B3B3"
+
+[look.text]
+palette = "white"
+
+[look.red]              # the split's left half; errors
+palette = "red"
+
+[look.cyan]             # the split's right half; matches, cursor, success in the prompt
+palette = "cyan"
+
+[look.yellow]           # warnings, search hits
+palette = "yellow"
+
+[look.blue]             # the terminal's ANSI blue (directories, links) – the CI has none, a light blue beside cyan
+hex = "#4DA3FF"
+
+[look.magenta]          # the terminal's ANSI magenta – the CI has none
+hex = "#FF66CC"
+
+[look.green]            # added lines, running
+hex = "#30D158"
+
+[look.orange]           # changed lines, attention
+hex = "#FF9F0A"

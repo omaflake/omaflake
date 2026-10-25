@@ -7,6 +7,7 @@
   "guest": {
     "keyboard": "ch",
     "locale": "de_CH.UTF-8",
+    "look": "rose-pine-dawn",
     "user": "alex"
   },
   "keepRecipeVersions": false,

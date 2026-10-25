@@ -1,21 +1,23 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 # The emacs line (omaflake.editor = "emacs", modules/editor.nix): Emacs, preconfigured – pure GTK, native on Wayland,
-# in the desktop's colours. Vertico/Orderless/Marginalia/Consult for finding things, Corfu for completion, Magit,
+# in the guest look's colours. Vertico/Orderless/Marginalia/Consult for finding things, Corfu for completion, Magit,
 # Eglot (built in) and tree-sitter grammars from Nix. Cmd+E opens it; it runs a server, so $EDITOR (emacs-edit,
 # modules/editor.nix) opens files from the terminal in it. No multiplexer: Emacs has its own windows, tabs and shells.
 { pkgs, lib, osConfig, ... }:
 
+let
+  look = (import ../looks { inherit pkgs lib; }).get osConfig.omaflake.look;
+in
 lib.mkIf (osConfig.omaflake.editor == "emacs") {
   wayland.windowManager.hyprland.extraConfig = lib.mkAfter ''
     hl.bind(mod .. " + E", hl.dsp.exec_cmd("emacs"))
   '';
 
-  # ---------- Editor: Emacs (Catppuccin Mocha, preconfigured) ----------
+  # ---------- Editor: Emacs (preconfigured; colours: the guest's look, /etc/omaflake/look/emacs.el) ----------
   programs.emacs = {
     enable = true;
     package = pkgs.emacs-pgtk;
-    extraPackages = epkgs: with epkgs; [
-      catppuccin-theme
+    extraPackages = epkgs: look.emacs.packages epkgs ++ (with epkgs; [
       doom-modeline
       nerd-icons
       vertico
@@ -27,7 +29,7 @@ lib.mkIf (osConfig.omaflake.editor == "emacs") {
       diff-hl
       nix-ts-mode
       treesit-grammars.with-all-grammars
-    ];
+    ]);
     extraConfig = ''
       ;; Basics
       (setq inhibit-startup-screen t
@@ -58,8 +60,7 @@ lib.mkIf (osConfig.omaflake.editor == "emacs") {
 
       ;; Look
       (set-face-attribute 'default nil :family "JetBrainsMono Nerd Font" :height 120)
-      (setq catppuccin-flavor 'mocha)
-      (load-theme 'catppuccin t)
+      (load "/etc/omaflake/look/emacs.el" t t)   ; the guest's look (modules/look.nix)
       (setq doom-modeline-icon t)
       (doom-modeline-mode 1)
 

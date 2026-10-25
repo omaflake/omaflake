@@ -10,6 +10,7 @@ use std::time::{Duration, Instant};
 use chrono::Utc;
 use omaflake_core::builder_maintenance::BuilderMaintenance;
 use omaflake_core::cli_link::CliLink;
+use omaflake_core::guest_choices::GuestChoices;
 use omaflake_core::platform::is_executable_file;
 use omaflake_core::qemu_command::Accel;
 use omaflake_core::{
@@ -564,7 +565,14 @@ pub fn config(a: &cli::Config) -> Outcome {
     if let Some(nix) = &a.nix {
         s.nix = Some(folder_path(nix).to_string_lossy().into_owned());
     }
-    let guest = [&a.guest_user, &a.guest_full_name, &a.guest_locale, &a.guest_keyboard, &a.guest_time_zone];
+    if let Some(look) = a.guest_look.as_deref().filter(|l| !l.is_empty()) {
+        if !GuestChoices::LOOKS.iter().any(|(n, _)| *n == look) {
+            let names: Vec<&str> = GuestChoices::LOOKS.iter().map(|(n, _)| *n).collect();
+            return Err(usage(&["config"], format!("--guest-look: {} or empty", names.join(", "))));
+        }
+    }
+    let guest =
+        [&a.guest_user, &a.guest_full_name, &a.guest_locale, &a.guest_keyboard, &a.guest_time_zone, &a.guest_look];
     let guest_change = guest.iter().any(|v| v.is_some());
     if guest_change {
         // An empty value removes the override (the Mac's value applies again)
@@ -579,6 +587,7 @@ pub fn config(a: &cli::Config) -> Outcome {
         set(&mut g.locale, &a.guest_locale);
         set(&mut g.keyboard, &a.guest_keyboard);
         set(&mut g.time_zone, &a.guest_time_zone);
+        set(&mut g.look, &a.guest_look);
         s.guest = Some(g);
     }
     if let Some(keep) = &a.keep_recipe_versions {
@@ -624,6 +633,7 @@ pub fn config_lines(s: &omaflake_core::Settings, paths: &Paths, g: &GuestSetting
             g.mac_user.as_deref().unwrap_or(&g.user),
             g.authorized_keys.len()
         ),
+        format!("look:   {}", g.look.as_deref().map_or("– (each recipe's own)".to_string(), GuestChoices::look_name)),
         format!(
             "recipe versions: {}",
             if s.keep_recipe_versions.unwrap_or(false) {

@@ -597,6 +597,12 @@ pub struct Config {
     pub guest_time_zone: Option<String>,
     #[arg(
         long,
+        value_name = "guest-look",
+        help = "Look of the guests: omaflake, catppuccin, rose-pine-dawn or vanilla; empty: each recipe's own (default)"
+    )]
+    pub guest_look: Option<String>,
+    #[arg(
+        long,
         value_name = "keep-recipe-versions",
         help = "Keep older versions of a recipe when a newer one comes: on or off (default off; versions images use \
                 stay)"

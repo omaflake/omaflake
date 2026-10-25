@@ -183,7 +183,10 @@ The image flake `nix/` (this repo, shipped in the app – nix/README.md):
 - `modules/vm-guest.nix` (root flake output `nixosModules.vm-guest`) – guest hardware (UEFI, virtio, labels
   `nixos`/`ESP`, 9p share, option `vm.shareFolder.enable`) and the omaflake agent (§11.9)
 - `modules/base.nix` – guest user, locale, SSH (your public SSH keys), Nix settings; `modules/hyprland.nix` +
-  `home/` – desktop and styling of every NixOS image
+  `home/` – desktop and styling of every NixOS image; `modules/look.nix` + `looks/` – the look (plan B135): the
+  recipe's `omaflake.look`, the user's guest setting over it, one file per program under `/etc/omaflake/look/` for
+  NixOS and macOS guests. Every key omaflake binds in a guest starts with Cmd/SUPER or Ctrl, optionally with Shift;
+  plain keys only inside a mode
 - **macOS:** `modules/darwin-guest.nix` (guest user as `system.primaryUser`, Nix, SSH, widgets off)
 - inputs `omaflake-guest` (who you are) and `omaflake-recipes` (the recipes of the sources, staged by omaflake);
   outputs `images.<system>.<id>`, `nixosConfigurations.vm-<system>-<id>`, `darwinConfigurations.<id>`, `lib.recipeDefaults`
@@ -414,7 +417,8 @@ zone, locale, keyboard, SSH public keys and the macOS guest user come from omafl
 it on every `nix` call with `<data folder>/guest` (`--override-input … --no-write-lock-file`, so the lock file keeps
 only the relative default). Sources: the Mac (user, full name, time zone, locale, keyboard from the HIToolbox
 preferences, `~/.ssh/*.pub`), the macOS base (its guest user – images always match their base), and the overrides in
-the app's settings / `omaf config --guest-…`. A developer's `local/settings.nix` still overrides single values on top;
+the app's settings / `omaf config --guest-…` – there also the look (plan B135), which has no Mac value and otherwise is
+each recipe's. A developer's `local/settings.nix` still overrides single values on top;
 the Doctor flags a macOS user that then differs from the base's. Flakes without the input keep working (nothing is
 passed). With preset recipes (§11.3) a user therefore needs no settings file at all; later generic images move the same
 values to the first start of an instance.

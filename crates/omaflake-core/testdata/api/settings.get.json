@@ -14,6 +14,16 @@
       "de_CH.UTF-8",
       "en_US.UTF-8"
     ],
+    "looks": [
+      {
+        "name": "omaflake",
+        "title": "omaflake"
+      },
+      {
+        "name": "rose-pine-dawn",
+        "title": "Rosé Pine Dawn"
+      }
+    ],
     "timeZones": [
       "Europe/Berlin",
       "Europe/Zurich"
@@ -36,6 +46,7 @@
     "guest": {
       "keyboard": "ch",
       "locale": "de_CH.UTF-8",
+      "look": "rose-pine-dawn",
       "user": "alex"
     },
     "keepRecipeVersions": false,

@@ -1,18 +1,9 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
-# home-manager configuration of the guest user: Hyprland, terminal, shell (Catppuccin Mocha); the editor line is
-# neovim.nix or emacs.nix, chosen by the recipe's omaflake.editor (modules/editor.nix)
+# home-manager configuration of the guest user: Hyprland, terminal, shell; the editor line is neovim.nix or emacs.nix,
+# chosen by the recipe's omaflake.editor (modules/editor.nix); the colours are the look's (look.nix, modules/look.nix)
 { pkgs, lib, settings, osConfig, ... }:
 
 let
-  # Catppuccin Mocha
-  c = {
-    base = "1e1e2e"; mantle = "181825"; crust = "11111b";
-    surface0 = "313244"; surface1 = "45475a"; overlay0 = "6c7086";
-    text = "cdd6f4"; subtext = "a6adc8";
-    blue = "89b4fa"; mauve = "cba6f7"; green = "a6e3a1";
-    red = "f38ba8"; peach = "fab387"; yellow = "f9e2af";
-  };
-
   # The VM's window changes size → QEMU offers that size as the output's preferred mode (virtio-gpu, a DRM change
   # event), but Hyprland keeps the mode of an output that stays connected ("Skipping connector …", aquamarine with
   # Hyprland 0.56; plan B128). This follows the preferred mode of every connected output and keeps its scale: with
@@ -47,7 +38,7 @@ let
 
 in
 {
-  imports = [ ./neovim.nix ./emacs.nix ];
+  imports = [ ./look.nix ./neovim.nix ./emacs.nix ];
 
   home.username = settings.user;
   home.homeDirectory = "/home/${settings.user}";
@@ -89,10 +80,6 @@ in
           gaps_in = 5;
           gaps_out = 10;
           border_size = 2;
-          col = {
-            active_border = { colors = [ "rgba(${c.mauve}ff)" "rgba(${c.blue}ff)" ]; angle = 45; };
-            inactive_border = "rgba(${c.surface0}ff)";
-          };
           layout = "dwindle";
         };
 
@@ -105,13 +92,15 @@ in
 
         animations.enabled = true;
         dwindle.preserve_split = true;
-        # The background colour drawn by Hyprland itself: it always fills the output, also after the window of the VM
-        # changed size (swaybg kept its first size there, plan B128)
-        misc = { disable_hyprland_logo = true; disable_splash_rendering = true; background_color = "rgb(${c.base})"; };
+        # The background colour (look.nix) is drawn by Hyprland itself: it always fills the output, also after the
+        # window of the VM changed size (swaybg kept its first size there, plan B128)
+        misc = { disable_hyprland_logo = true; disable_splash_rendering = true; };
       };
     };
 
     extraConfig = ''
+      -- Every key omaflake binds starts with SUPER (the Mac's Cmd) or CTRL, optionally with SHIFT (plan B135); plain
+      -- keys only inside a mode (the resize mode below)
       local mod      = "SUPER" -- Mac: Cmd key
       local terminal = "wezterm"
       local menu     = "fuzzel"
@@ -135,7 +124,31 @@ in
       hl.bind(mod .. " + right",     hl.dsp.focus({ direction = "right" }))
       hl.bind(mod .. " + up",        hl.dsp.focus({ direction = "up" }))
       hl.bind(mod .. " + down",      hl.dsp.focus({ direction = "down" }))
-      hl.bind("Print", hl.dsp.exec_cmd([[grim -g "$(slurp)" - | wl-copy]]))
+      hl.bind(mod .. " + SHIFT + S", hl.dsp.exec_cmd([[grim -g "$(slurp)" - | wl-copy]]))
+
+      -- SUPER + SHIFT + arrows = move the window that way (as Zellij's move mode)
+      for _, d in ipairs({ "left", "right", "up", "down" }) do
+        hl.bind(mod .. " + SHIFT + " .. d, hl.dsp.window.move({ direction = d }))
+      end
+
+      -- SUPER + R = resize mode (as Zellij's): arrows or h j k l, held down they repeat; right/down grow, left/up shrink;
+      -- Esc or Enter leaves it
+      hl.bind(mod .. " + R", hl.dsp.submap("resize"))
+      hl.define_submap("resize", function()
+        local steps = {
+          { keys = { "right", "l" }, x = 40,  y = 0 },
+          { keys = { "left",  "h" }, x = -40, y = 0 },
+          { keys = { "down",  "j" }, x = 0,   y = 40 },
+          { keys = { "up",    "k" }, x = 0,   y = -40 },
+        }
+        for _, s in ipairs(steps) do
+          for _, key in ipairs(s.keys) do
+            hl.bind(key, hl.dsp.window.resize({ x = s.x, y = s.y, relative = true }), { repeating = true })
+          end
+        end
+        hl.bind("escape", hl.dsp.submap("reset"))
+        hl.bind("Return", hl.dsp.submap("reset"))
+      end)
 
       -- SUPER + 1..9 = switch workspace, SUPER + SHIFT + 1..9 = move window
       for i = 1, 9 do
@@ -154,7 +167,6 @@ in
   programs.wezterm = {
     enable = true;
     settings = {
-      color_scheme = "Catppuccin Mocha";
       font = lib.generators.mkLuaInline ''wezterm.font("JetBrainsMono Nerd Font")'';
       font_size = 12;
       window_padding = { left = 10; right = 10; top = 10; bottom = 10; };
@@ -170,14 +182,6 @@ in
     enable = true;
     settings = {
       main = { font = "JetBrainsMono Nerd Font:size=12"; terminal = "wezterm start --"; };
-      colors = {
-        background = "${c.base}f2";
-        text = "${c.text}ff";
-        match = "${c.mauve}ff";
-        selection = "${c.surface1}ff";
-        selection-text = "${c.text}ff";
-        border = "${c.mauve}ff";
-      };
       border = { width = 2; radius = 10; };
     };
   };
@@ -186,9 +190,6 @@ in
   services.mako = {
     enable = true;
     settings = {
-      background-color = "#${c.base}";
-      text-color = "#${c.text}";
-      border-color = "#${c.mauve}";
       border-radius = 10;
       default-timeout = 5000;
       font = "JetBrainsMono Nerd Font 11";
@@ -213,11 +214,8 @@ in
     };
     style = ''
       * { font-family: "JetBrainsMono Nerd Font"; font-size: 13px; }
-      window#waybar { background: alpha(#${c.base}, 0.9); color: #${c.text}; }
-      #workspaces button { color: #${c.overlay0}; padding: 0 8px; }
-      #workspaces button.active { color: #${c.mauve}; }
+      #workspaces button { padding: 0 8px; }
       #clock, #cpu, #memory, #network, #pulseaudio { padding: 0 10px; }
-      #clock { color: #${c.blue}; }
     '';
   };
 

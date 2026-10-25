@@ -1,0 +1,111 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://omaflake.dev/schema/settings/v2.json",
+  "title": "omaflake settings",
+  "description": "~/.omaflake/config.json – every setting is optional. v2: guest.look.",
+  "type": "object",
+  "properties": {
+    "$schema": {
+      "const": "https://omaflake.dev/schema/settings/v2.json"
+    },
+    "flake": {
+      "type": "string",
+      "description": "The image flake (folder or flake URL)"
+    },
+    "sources": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "kind",
+          "location"
+        ],
+        "properties": {
+          "kind": {
+            "enum": [
+              "github",
+              "url",
+              "folder"
+            ]
+          },
+          "location": {
+            "type": "string"
+          },
+          "branch": {
+            "type": "string"
+          },
+          "private": {
+            "type": "boolean"
+          },
+          "enabled": {
+            "type": "boolean"
+          }
+        }
+      }
+    },
+    "externalVMs": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "qemu": {
+      "type": "string"
+    },
+    "runner": {
+      "type": "string"
+    },
+    "nix": {
+      "type": "string"
+    },
+    "guest": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "user": {
+          "type": "string"
+        },
+        "fullName": {
+          "type": "string"
+        },
+        "email": {
+          "type": "string"
+        },
+        "timeZone": {
+          "type": "string"
+        },
+        "locale": {
+          "type": "string"
+        },
+        "keyboard": {
+          "type": "string"
+        },
+        "look": {
+          "enum": ["omaflake", "catppuccin", "rose-pine-dawn", "vanilla"],
+          "description": "The guests' look (v2); left out: each recipe's"
+        }
+      }
+    },
+    "home": {
+      "type": "string",
+      "description": "Data folder"
+    },
+    "developerMode": {
+      "type": "boolean"
+    },
+    "checkForUpdates": {
+      "type": "boolean"
+    },
+    "notifications": {
+      "type": "boolean"
+    },
+    "keepRecipeVersions": {
+      "type": "boolean"
+    }
+  },
+  "required": [
+    "$schema"
+  ],
+  "additionalProperties": false
+}

@@ -258,6 +258,7 @@ impl Server {
                 time_zone: Some(mac.time_zone),
                 locale: Some(mac.locale),
                 keyboard: Some(mac.keyboard),
+                look: None,
             },
             choices: Choices {
                 time_zones: GuestChoices::time_zones(),
@@ -265,6 +266,10 @@ impl Server {
                 keyboards: GuestChoices::KEYBOARDS
                     .iter()
                     .map(|(code, locale)| Keyboard { code: code.to_string(), locale: locale.to_string() })
+                    .collect(),
+                looks: GuestChoices::LOOKS
+                    .iter()
+                    .map(|(name, title)| Look { name: name.to_string(), title: title.to_string() })
                     .collect(),
             },
             is_default_data_folder: is_default_data_folder(&paths),
@@ -324,6 +329,12 @@ impl Server {
                 let g: GuestValues =
                     serde_json::from_value(v.clone()).map_err(|e| RpcError::invalid_params(format!("guest: {e}")))?;
                 let clean = |v: Option<String>| v.filter(|x| !x.trim().is_empty());
+                let look = clean(g.look);
+                if let Some(l) = &look {
+                    if !GuestChoices::LOOKS.iter().any(|(n, _)| n == l) {
+                        return Err(RpcError::invalid_params(format!("guest.look: no look \"{l}\"")));
+                    }
+                }
                 let o = GuestOverrides {
                     user: clean(g.user),
                     full_name: clean(g.full_name),
@@ -331,6 +342,7 @@ impl Server {
                     time_zone: clean(g.time_zone),
                     locale: clean(g.locale),
                     keyboard: clean(g.keyboard),
+                    look,
                 };
                 s.guest = (o != GuestOverrides::default()).then_some(o);
             }
@@ -1538,6 +1550,7 @@ pub(crate) fn settings_dto(paths: &Paths) -> SettingsDto {
             time_zone: g.time_zone,
             locale: g.locale,
             keyboard: g.keyboard,
+            look: g.look,
         },
         flake_in_use: s.flake_path().ok(),
         flake: s.flake,

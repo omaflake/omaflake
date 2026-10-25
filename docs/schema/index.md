@@ -23,7 +23,7 @@ one, and never removes a published version from this site. Editors use the URL t
 |---|---|---|
 | `image` | `image.json` in an image package | [v1](image/v1.json) |
 | `instance` | `instance.json` in a VM package | [v1](instance/v1.json) |
-| `settings` | `~/.omaflake/config.json` | [v1](settings/v1.json) |
+| `settings` | `~/.omaflake/config.json` | [v2](settings/v2.json) |
 | `installed` | `<data>/recipes/.installed.json` | [v1](installed/v1.json) |
 | `macos-vm` | `config.json` of a macOS VM folder | [v1](macos-vm/v1.json) |
 | `manifest` | `manifest.json` of an exported package | [v1](manifest/v1.json) |

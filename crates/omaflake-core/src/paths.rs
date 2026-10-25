@@ -297,7 +297,12 @@ fn settings_v0_to_v1(_: &mut Map<String, Value>) -> Result<()> {
     Ok(())
 }
 
-static SETTINGS_STEPS: [Step; 1] = [settings_v0_to_v1];
+/// 1 → 2 adds `guest.look` (plan B135): nothing to convert – a v1 file has none
+fn settings_v1_to_v2(_: &mut Map<String, Value>) -> Result<()> {
+    Ok(())
+}
+
+static SETTINGS_STEPS: [Step; 2] = [settings_v0_to_v1, settings_v1_to_v2];
 
 /// Settings in ~/.omaflake/config.json (optional). Keys as Swift writes them (`externalVMs`, `developerMode`, …);
 /// fields that are None are left out.
@@ -343,7 +348,7 @@ pub struct Settings {
 }
 
 impl Settings {
-    /// config.json (see `settings_v0_to_v1`)
+    /// config.json (see `settings_v0_to_v1`, `settings_v1_to_v2`)
     pub const FILE_FORMAT: FileFormat = FileFormat::new("settings", "config.json", 0, &SETTINGS_STEPS);
 
     /// Swift `Settings(flake:qemu:runner:)`
@@ -525,18 +530,30 @@ pub(crate) mod tests {
         assert_eq!(Settings::load(&p), Settings::default());
     }
 
-    /// config.json as the Swift version writes it (testdata/config-v1.json)
+    /// config.json as the Swift version wrote it, now v2 with a look (testdata/config-v2.json)
     #[test]
     fn swift_settings_fixture_round_trips() {
-        let data = include_bytes!("../testdata/config-v1.json");
+        let data = include_bytes!("../testdata/config-v2.json");
         let (s, migrated) = Settings::FILE_FORMAT.decode::<Settings>(data).unwrap();
         assert!(!migrated);
+        assert_eq!(s.guest.as_ref().and_then(|g| g.look.clone()), Some("rose-pine-dawn".into()));
         assert_eq!(s.external_vms.as_deref(), Some(&["/Volumes/stick/research.omaflake-vm".to_string()][..]));
         assert_eq!(s.developer_mode, Some(true));
         assert_eq!(s.guest.as_ref().and_then(|g| g.time_zone.clone()), Some("Europe/Berlin".into()));
         assert_eq!(s.sources.as_ref().unwrap()[1].is_private, Some(true));
         let written = Settings::FILE_FORMAT.encode(&s).unwrap();
         assert_eq!(String::from_utf8(written).unwrap(), String::from_utf8_lossy(data).trim_end());
+    }
+
+    /// A v1 file (before looks) is read as it is and written as v2
+    #[test]
+    fn version_one_settings_become_version_two() {
+        let data = include_bytes!("../testdata/config-v1.json");
+        let (s, migrated) = Settings::FILE_FORMAT.decode::<Settings>(data).unwrap();
+        assert!(migrated);
+        assert_eq!(s.guest.as_ref().and_then(|g| g.look.clone()), None);
+        let written = String::from_utf8(Settings::FILE_FORMAT.encode(&s).unwrap()).unwrap();
+        assert!(written.starts_with("{\n  \"$schema\" : \"https://omaflake.dev/schema/settings/v2.json\""));
     }
 
     #[test]
@@ -546,7 +563,7 @@ pub(crate) mod tests {
         let s = Settings::load(&p);
         assert_eq!(s.flake.as_deref(), Some("/f"));
         let text = fs::read_to_string(&p.config_file).unwrap();
-        assert!(text.starts_with("{\n  \"$schema\" : \"https://omaflake.dev/schema/settings/v1.json\""));
+        assert!(text.starts_with("{\n  \"$schema\" : \"https://omaflake.dev/schema/settings/v2.json\""));
     }
 
     #[test]

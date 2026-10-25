@@ -45,14 +45,25 @@ public struct SettingsInfo: Decodable, Sendable, Equatable {
             public var locale: String
         }
 
+        /// A guest look (plan B135)
+        public struct Look: Decodable, Sendable, Equatable, Hashable {
+            /// "rose-pine-dawn"
+            public var name: String
+            /// "Rosé Pine Dawn"
+            public var title: String
+        }
+
         public var timeZones: [String]
         public var locales: [String]
         public var keyboards: [Keyboard]
+        /// nil from a core before looks
+        public var looks: [Look]?
 
         public init() {
             timeZones = []
             locales = []
             keyboards = []
+            looks = nil
         }
     }
 
@@ -120,15 +131,18 @@ public struct GuestValues: Codable, Sendable, Equatable {
     public var timeZone: String?
     public var locale: String?
     public var keyboard: String?
+    /// The guests' look (plan B135); nil = each recipe's own – there is no Mac's look
+    public var look: String?
 
     public init(user: String? = nil, fullName: String? = nil, email: String? = nil, timeZone: String? = nil,
-                locale: String? = nil, keyboard: String? = nil) {
+                locale: String? = nil, keyboard: String? = nil, look: String? = nil) {
         self.user = user
         self.fullName = fullName
         self.email = email
         self.timeZone = timeZone
         self.locale = locale
         self.keyboard = keyboard
+        self.look = look
     }
 }
 

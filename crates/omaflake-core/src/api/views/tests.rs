@@ -667,8 +667,18 @@ fn settings_fields_store_themselves() {
     assert_eq!(dev["value"], true);
     let locale = action(&page["guest"]["fields"], "locale");
     assert_eq!(locale["set"]["param"], "guest.locale");
-    assert_eq!(locale["set"]["params"], json!({"guest": {"user": "alex", "locale": "de_CH.UTF-8", "keyboard": "ch"}}));
+    assert_eq!(
+        locale["set"]["params"],
+        json!({"guest": {"user": "alex", "locale": "de_CH.UTF-8", "keyboard": "ch", "look": "rose-pine-dawn"}})
+    );
     assert_eq!(locale["choices"][0]["label"]["text"], "Like this Mac – de_CH.UTF-8");
+    // The look: no computer's value – null is each recipe's own (plan B135)
+    let look = action(&page["guest"]["fields"], "look");
+    assert_eq!(look["value"], "rose-pine-dawn");
+    assert_eq!(look["set"]["param"], "guest.look");
+    assert_eq!(look["choices"][0]["value"], Value::Null);
+    assert_eq!(look["choices"][0]["label"]["key"], "Each recipe's own");
+    assert_eq!(look["choices"][2]["label"]["text"], "Rosé Pine Dawn");
     assert_eq!(action(&page["guest"]["fields"], "user")["placeholder"]["text"], "mac");
     // A VM runs: the data folder stays
     let df = &page["dataFolder"];

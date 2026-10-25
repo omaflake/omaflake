@@ -29,8 +29,8 @@ use crate::paths::{Paths, Settings};
 use crate::platform::{full_user_name, user_name};
 use crate::recipe_sources::RecipeLibrary;
 
-/// guest/settings.json. Keys: user, fullName, email, timeZone, locale, keyboard, macUser, authorizedKeys (None left
-/// out). Written like Swift's JSONEncoder (`json::to_pretty(…, escape_slashes: true)`), only when the bytes change.
+/// guest/settings.json. Keys: user, fullName, email, timeZone, locale, keyboard, macUser, look, authorizedKeys (None
+/// left out). Written like Swift's JSONEncoder (`json::to_pretty(…, escape_slashes: true)`), only when the bytes change.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct GuestSettings {
     pub user: String,
@@ -45,6 +45,9 @@ pub struct GuestSettings {
     /// Guest user of macOS VMs – fixed by the base; None = same as `user`
     #[serde(rename = "macUser", default, skip_serializing_if = "Option::is_none")]
     pub mac_user: Option<String>,
+    /// The look of the guests (`GuestChoices::LOOKS`, the image flake's modules/look.nix); None = the recipe's
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub look: Option<String>,
     #[serde(rename = "authorizedKeys")]
     pub authorized_keys: Vec<String>,
 }
@@ -61,6 +64,7 @@ impl GuestSettings {
             locale: Self::mac_locale(),
             keyboard: Self::mac_keyboard(),
             mac_user: None,
+            look: None,
             authorized_keys: MacBaseInstaller::default_public_keys(),
         }
     }
@@ -89,6 +93,7 @@ impl GuestSettings {
             if let Some(v) = set(o.keyboard) {
                 g.keyboard = v;
             }
+            g.look = set(o.look);
         }
         if let Some(base) = MacImageBuilder::newest_base_in(paths) {
             g.mac_user = MacBaseInstaller::user_of(&base, &paths.logs());
@@ -302,7 +307,7 @@ fn command_output(exe: &str, args: &[&str]) -> Option<String> {
 }
 
 /// Overrides for the guest values, from the app's settings (config.json `guest`). Keys: user, fullName, email,
-/// timeZone, locale, keyboard (None left out).
+/// timeZone, locale, keyboard, look (None left out).
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct GuestOverrides {
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -317,6 +322,9 @@ pub struct GuestOverrides {
     pub locale: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub keyboard: Option<String>,
+    /// The guests' look (settings v2); None = each recipe's
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub look: Option<String>,
 }
 
 impl ImageStore {
@@ -446,7 +454,12 @@ mod tests {
         use crate::mac_vm::{MacVmBundle, MacVmConfig};
         let (_t, p) = temp_paths();
         let s = Settings {
-            guest: Some(GuestOverrides { user: Some("dev".into()), keyboard: Some("us".into()), ..Default::default() }),
+            guest: Some(GuestOverrides {
+                user: Some("dev".into()),
+                keyboard: Some("us".into()),
+                look: Some("rose-pine-dawn".into()),
+                ..Default::default()
+            }),
             ..Default::default()
         };
         s.save(&p).unwrap();
@@ -456,6 +469,7 @@ mod tests {
         std::fs::write(base.join(MacBaseInstaller::READY_MARKER), "carol\n").unwrap();
         let g = GuestSettings::current(&p);
         assert!(g.user == "dev" && g.keyboard == "us" && g.mac_user.as_deref() == Some("carol"));
+        assert_eq!(g.look.as_deref(), Some("rose-pine-dawn"));
         // written once, stable content (no rewrite when unchanged)
         let dir = GuestSettings::write(&p).unwrap();
         let file = dir.join("settings.json");

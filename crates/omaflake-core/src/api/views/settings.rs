@@ -9,7 +9,7 @@ use serde_json::{json, Value};
 use super::common::*;
 use super::text::{tf, Arg, Text};
 use super::Ctx;
-use crate::api::types::{SettingsAnswer, SourceDto};
+use crate::api::types::{GuestValues, Look, SettingsAnswer, SourceDto};
 use crate::recipe_sources::RecipeSourceKind;
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -179,6 +179,15 @@ fn guest_choice(
     f
 }
 
+/// The guests' look (plan B135): "Each recipe's own" (null) or one of the looks – there is no computer's look
+fn look_choice(g: &GuestValues, looks: &[Look], base: &Value) -> Field {
+    let mut f =
+        Field::new("look", FieldKind::Choice, Text::new("Look"), json!(g.look)).settings("guest.look", base.clone());
+    f.choices = vec![Choice::new(Value::Null, Text::new("Each recipe's own"))];
+    f.choices.extend(looks.iter().map(|l| Choice::new(json!(l.name), Text::verbatim(l.title.clone()))));
+    f
+}
+
 pub(crate) fn page(ctx: &Ctx, answer: &SettingsAnswer, p: &SettingsParams) -> SettingsPage {
     let s = &answer.settings;
     let rows = ctx.sources.iter().enumerate().map(|(i, s)| source_row(ctx, s, i == 0)).collect();
@@ -272,10 +281,11 @@ pub(crate) fn page(ctx: &Ctx, answer: &SettingsAnswer, p: &SettingsParams) -> Se
             guest_choice(ctx, "locale", "Language and region", &g.locale, &d.locale, choices(&c.locales, |l| l.replace(".UTF-8", "")), &base),
             guest_choice(ctx, "keyboard", "Keyboard", &g.keyboard, &d.keyboard, keyboards, &base),
             guest_choice(ctx, "timeZone", "Time zone", &g.time_zone, &d.time_zone, choices(&c.time_zones, |z| z.replace('_', " ")), &base),
+            look_choice(g, &c.looks, &base),
         ],
         footer: Some(Text::new(ctx.on_host(
-            "Empty fields and \"Like this Mac\" use your Mac's values. The lists offer only what both NixOS and macOS VMs support. Your SSH keys from ~/.ssh are added automatically. macOS VMs always use the user of the macOS base. A developer flake's local/settings.nix overrides these values.",
-            "Empty fields and \"Like this computer\" use this computer's values. The lists offer only what both NixOS and macOS VMs support. Your SSH keys from ~/.ssh are added automatically. A developer flake's local/settings.nix overrides these values.",
+            "Empty fields and \"Like this Mac\" use your Mac's values. The lists offer only what both NixOS and macOS VMs support. Your SSH keys from ~/.ssh are added automatically. macOS VMs always use the user of the macOS base. The look colours a NixOS VM's whole desktop and a macOS VM's terminal and editors; a changed look comes with the next build of an image. A developer flake's local/settings.nix overrides these values.",
+            "Empty fields and \"Like this computer\" use this computer's values. The lists offer only what both NixOS and macOS VMs support. Your SSH keys from ~/.ssh are added automatically. The look colours a NixOS VM's whole desktop and a macOS VM's terminal and editors; a changed look comes with the next build of an image. A developer flake's local/settings.nix overrides these values.",
         ))),
     };
 

@@ -619,6 +619,9 @@ pub struct GuestValues {
     pub locale: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub keyboard: Option<String>,
+    /// The guests' look (`choices.looks`); unset = each recipe's – there is no computer's look (plan B135)
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub look: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -634,6 +637,16 @@ pub struct Choices {
     pub time_zones: Vec<String>,
     pub locales: Vec<String>,
     pub keyboards: Vec<Keyboard>,
+    /// The guests' looks (plan B135)
+    #[serde(default)]
+    pub looks: Vec<Look>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Look {
+    pub name: String,
+    /// "Rosé Pine Dawn"
+    pub title: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

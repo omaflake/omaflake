@@ -545,6 +545,69 @@ ffmpeg 71 frames in 5 s. On a Mac the same agent runs (not re-checked there, OPE
 `agent/target/`) to `<prefix>/share/omaflake/nix`; `Settings::bundled_flake` looks there next to `Resources/nix`.
 Checked: a fresh data folder's Doctor names it, `omaf build neovim-minimal` builds an x86_64 image with it.
 
+**B132 (2026-10-25): `omaf ui`'s action menu did not scroll.** A running VM's row has eight actions, most with a second
+line (help or reason); taller than the terminal, the menu was cut at its bottom and "Remove …" – the last – could be
+selected but not seen (found over RDP on the mini PC; `1`–`9` reach only the first nine). `ui.rs`: a modal leaves out
+lines at its top until the selected entry fits (`modal_scroll`, for the action menu and a field's choices), and its
+frame shows `↑`/`↓` where lines are left out. Test `the_action_menu_scrolls_to_its_selection_in_a_small_terminal`
+(100 × 14). The help (`?`) gets the arrows but does not scroll yet (OPEN).
+
+**B133 (2026-10-25): Zellij in the neovim line by itself, with keys that leave Neovim alone.** `nix/home/neovim.nix`:
+WezTerm's `default_prog` is `zellij attach --create main` (as the macOS research recipe's wezterm.lua), the zsh alias
+`zj` attaches from an SSH shell; the zsh integration stays off, so SSH and the console stay plain. Zellij's default keys
+take Ctrl o/n/p/s/h/t before Neovim sees them; `home/zellij-unlock-first.kdl` is Zellij's own "Unlock First" preset
+(0.45.1's `presets.rs`, Ctrl as its configuration screen sets it, MIT) as `programs.zellij.extraConfig` – without its
+Alt shortcuts: the guests' `lv3:alt_switch` makes both Option keys level 3, no Alt arrives (maintainer's decision: all
+through Ctrl g and the modes; moving tabs, swap layouts and pane groups go with them).
+Checked: the configuration evaluates (wezterm.lua with the store path, the alias), `zellij setup --check` on the
+generated config.kdl: "Well defined". Not yet in a running VM (OPEN).
+Changed after a look at the VM (maintainer, 2026-10-25): not every window – a plain terminal stays free for zathura
+and the like. WezTerm has no `default_prog` any more; SUPER + SHIFT + Enter (Hyprland, `home/neovim.nix`) opens
+`wezterm start -- zellij attach --create main`, `zj` stays. macos/research: the same as a WezTerm key
+(`CMD|SHIFT` Enter → `SpawnCommandInNewWindow`, with the look's `options`) and `environment.shellAliases.zj`.
+
+**B134 (2026-10-25): moving and resizing windows in Hyprland by keyboard.** `nix/home/default.nix`: SUPER + SHIFT +
+arrows → `hl.dsp.window.move({ direction })`; SUPER + R → submap `resize` (`hl.define_submap`): arrows and h/j/k/l
+→ `hl.dsp.window.resize({ x, y, relative = true })` in 40 px steps, `repeating`; escape/Return → `submap("reset")`.
+Argument shapes from Hyprland 0.56.2's `LuaBindingsDispatchers.cpp` (the stubs only say `fun(...)`). Checked: the
+generated hyprland.lua with `Hyprland --verify-config` (0.56.2, same nixpkgs): "config ok". Not yet pressed in a
+VM, nor whether the Mac lets Cmd + Shift + arrows through to the guest (OPEN).
+
+**B135 (2026-10-25): looks for the guests, and a rule for keys.** The maintainer's decisions: an own omaflake look –
+black, high contrast, the hero's red/cyan split only as fine accents – becomes the official recipes' standard; Catppuccin
+Mocha (the look so far), Rosé Pine Dawn (light, mild, no relation to the brand) and Vanilla (each program's own
+colours) stay choosable. A recipe picks the look like its editor line (`omaflake.look`), the user's guest setting
+wins over it. macOS guests get no system-wide look, only their terminal's and editors' colours, in step with NixOS.
+Every key omaflake binds starts with SUPER/Cmd or Ctrl (optionally Shift); plain keys only inside a mode.
+- **Nix:** `nix/looks/<look>.nix` – one source per program (`desktop` colours for NixOS; `wezterm`, `zellij`, `nvim`,
+  `emacs` for both kinds), `looks/default.nix` lists them. `modules/look.nix` (NixOS and nix-darwin): option
+  `omaflake.look` (enum, default `omaflake`), `settings.look` over it with `mkOverride 40` (checked: wins over a
+  recipe's value), read-only `omaflake.lookColors` for recipes (neovim-research's zathura), and the files
+  `/etc/omaflake/look/{name,wezterm.lua,nvim.lua,nvim/pack/look/opt/*,emacs.el,zellij/}`. `home/look.nix`: Hyprland
+  borders and background, Waybar, Fuzzel, Mako, Starship, BAT_THEME/fzf, GTK (adw-gtk3, dconf `color-scheme`; dconf
+  enabled in modules/hyprland.nix) and the pointer (Bibata); WezTerm merges `wezterm.lua`'s `config`, Zellij gets
+  `theme` + `theme_dir`; Neovim `dofile`s `nvim.lua` (it `packadd`s the theme plugin and returns lualine's theme),
+  Emacs `load`s `emacs.el`. The omaflake look's colours are `[look]` in `brand/tokens.toml`, written by `tokens.py` to
+  `nix/looks/omaflake-palette.nix` (`--check` in CI). Neovim: modus-themes.nvim (Modus Vivendi) with `on_colors`;
+  Emacs: its own Modus Vivendi with `modus-vivendi-palette-overrides`; Rosé Pine: rose-pine nvim, an own small Emacs
+  theme (nixpkgs has none); Zellij themes in its older palette format. Key rule: Print → SUPER + SHIFT + S.
+- **Recipes** (omaflake/recipes): `macos/research` – `wezterm.lua` merges the look's file and starts Zellij (on
+  Cmd + Shift + Enter, B133) with `options --theme-dir … --theme …` (falls back to its old colours without the file), `init.lua` `dofile`s
+  `nvim.lua`; `nixos/neovim-research` colours zathura from `omaflake.lookColors`.
+- **Setting:** config.json v2 (`guest.look`, `docs/schema/settings/v2.json`, step `settings_v1_to_v2` without
+  changes), `GuestOverrides`/`GuestSettings.look` (left out when unset; the flake reads `ownSettings.look or null`),
+  `GuestChoices::LOOKS` (test: the image flake's `names`), API `guest.look` and `choices.looks` (additive), settings
+  page field "Look" with "Each recipe's own" as null, `omaf config --guest-look` (an unknown look is refused), Swift
+  `GuestValues.look`, `Choices.looks` (optional), German texts.
+- **Checked:** all four looks evaluate for `neovim-minimal`, `neovim-research` and the macOS `research`; Hyprland
+  0.56.2 `--verify-config` "config ok" for each look's hyprland.lua (on the Linux builder); `zellij setup --check` with
+  each look's config and theme folder (a broken theme is caught); headless Neovim loads each `nvim.lua` (omaflake
+  #000000/#ffffff, Rosé Pine #faf4ed, lualine takes each theme); batch Emacs 31 loads each `emacs.el` (the Modus
+  overrides take: cyan #00E5FF, red #FF3B3B); every generated Lua file parses; research's wezterm.lua with and
+  without the look file (a stub `wezterm` module); `omaf config --guest-look` with a temporary `VM_HOME` (v1 → v2);
+  `cargo test`, `swift test`. **Not yet seen in a running VM (OPEN):** the Waybar CSS (text-shadow), GTK and the
+  pointer, Mako, how each look looks; VS Code's colours in `macos/research` do not follow the look yet (OPEN).
+
 **Found on the way:** environment variables of the CLI (`VM_FLAKE`, …) do not reach the core service – a build that
 runs there uses config.json's flake (OPEN).
 

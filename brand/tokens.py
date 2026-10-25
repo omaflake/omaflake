@@ -4,9 +4,10 @@
 
     Sources/OmaflakeApp/BrandTokens.swift   SwiftUI (Color, CGFloat, Font)
     crates/omaflake-brand/src/tokens.rs     Rust, no dependencies (colours as [u8; 4] and [f32; 4], lengths as f32)
+    nix/looks/omaflake-palette.nix          the omaflake look of the guests ([look]), colours as "RRGGBB"
 
 Needs Python 3.11+ (tomllib), nothing else. Run from anywhere:
-    python3 tokens.py            write both files
+    python3 tokens.py            write the generated files
     python3 tokens.py --check    fail (exit 1) when a generated file is out of date
 generate.py runs it as well and takes the palette from here.
 """
@@ -17,6 +18,7 @@ ROOT = os.path.dirname(HERE)
 SOURCE = os.path.join(HERE, "tokens.toml")
 SWIFT = os.path.join(ROOT, "Sources", "OmaflakeApp", "BrandTokens.swift")
 RUST = os.path.join(ROOT, "crates", "omaflake-brand", "src", "tokens.rs")
+NIX = os.path.join(ROOT, "nix", "looks", "omaflake-palette.nix")
 
 WEIGHTS = ("regular", "medium", "semibold", "bold", "heavy")
 LENGTH_GROUPS = ("spacing", "radius", "glow", "size", "icon")
@@ -200,11 +202,26 @@ def rust(t):
     return "".join(out)
 
 
+# --- Nix -------------------------------------------------------------------------------------------------------------
+
+def nix(t):
+    out = ["# " + HEADER.format(c="#"),
+           "# The omaflake look's colours ([look] in brand/tokens.toml) as \"RRGGBB\", used by nix/looks/omaflake.nix\n",
+           "{\n"]
+    for k, spec in t["look"].items():
+        if "alpha" in spec or "rgb" in spec:
+            raise ValueError(f"look.{k}: give palette or hex, no alpha or rgb")
+        r, g, b, _ = resolve(t, k, spec)
+        out.append(f'  {k} = "{round(r * 255):02X}{round(g * 255):02X}{round(b * 255):02X}";\n')
+    out.append("}\n")
+    return "".join(out)
+
+
 def main(argv):
     check = "--check" in argv
     t = load()
     stale = []
-    for path, content in ((SWIFT, swift(t)), (RUST, rust(t))):
+    for path, content in ((SWIFT, swift(t)), (RUST, rust(t)), (NIX, nix(t))):
         current = open(path).read() if os.path.exists(path) else None
         if current == content:
             continue

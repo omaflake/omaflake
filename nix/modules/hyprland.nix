@@ -18,6 +18,9 @@
     pulse.enable = true;
   };
 
+  # dconf: GTK's light/dark preference of the look (home/look.nix)
+  programs.dconf.enable = true;
+
   # Electron/Chromium apps natively on Wayland
   environment.sessionVariables.NIXOS_OZONE_WL = "1";
 
