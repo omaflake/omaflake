@@ -51,7 +51,7 @@ pub use activity::ActivityEntry;
 pub use text::{Arg, Text};
 
 /// Every page `views.get` knows
-pub const PAGES: [&str; 14] = [
+pub const PAGES: [&str; 15] = [
     "home",
     "vms",
     "vm",
@@ -66,6 +66,7 @@ pub const PAGES: [&str; 14] = [
     "activity",
     "import",
     "credentials",
+    "credential",
 ];
 
 /// The computer the core runs on (`initialize`'s `host`): texts that name the Mac, Finder or the Keychain have a

@@ -1138,7 +1138,7 @@ fn credentials_are_rows_and_a_used_one_keeps_its_values() {
     assert_eq!(edit["params"], json!({"page": "credential", "params": {"id": "c-1"}}));
     // Its form: images use it – only the name can change, the other fields say why
     let form = get(&c, "credential", json!({"id": "c-1"}));
-    assert!(form["locked"]["key"].as_str().unwrap().starts_with("%lld images are built with it"));
+    assert!(form["locked"]["key"].as_str().unwrap().starts_with("Images are built with it"));
     let fields = form["fields"].as_array().unwrap();
     assert_eq!(fields[0]["enabled"], true);
     for f in &fields[1..] {

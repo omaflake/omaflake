@@ -91,8 +91,7 @@ impl Server {
                 if used > 0 {
                     return Err(RpcError::from(vm_err!(
                         codes::IN_USE,
-                        "{} images are built with this credential – remove them first",
-                        used
+                        "Images are built with this credential – remove them first"
                     )));
                 }
                 let c = Credentials::new(self.paths()).remove(&id).map_err(err)?;
@@ -933,8 +932,7 @@ impl Server {
             {
                 return Err(RpcError::from(vm_err!(
                     codes::IN_USE,
-                    "{} images are built with this credential – only its name can change",
-                    used
+                    "Images are built with this credential – only its name can change"
                 )));
             }
         }

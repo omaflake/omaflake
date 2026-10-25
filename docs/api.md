@@ -323,7 +323,7 @@ Params and results in short; the types are those of §4.
 | `credentials.list` | – | `[{id, name, user?, fullName?, email?, hasPassword, isDefault}]` (plan B137; a password never leaves the keychain/keyring) |
 | `credentials.add` | `name, password, user?, fullName?, email?` | `{credential, note?}` – every credential has a password (plan B138); the first one becomes the default; `note` says when the password went to a file (no keyring) |
 | `credentials.update` | `id`, any of `name, user, fullName, email, password` (`""` clears a value; a password can be changed, not removed) | `{credential, note?}` – while images use it only `name` and `password` may change (`invalidParams` otherwise) |
-| `credentials.remove` | `id` | `null` – its password goes too; refused while images use it ("%@ images are built with this credential – remove them first") |
+| `credentials.remove` | `id` | `null` – its password goes too; refused while images use it ("Images are built with this credential – remove them first") |
 | `credentials.copyPassword` | `id` | `null` – asks the owner first (macOS: Touch ID or the login password, LocalAuthentication), copies the password to the clipboard and clears it after 90 s; refused when not confirmed (plan B138) |
 | `bases.list` | – | `[{name, path, osBuild?, user?, ready, newest, created?, sizeBytes?}]` – the macOS bases (`bases/mac-base-*`; plan B138) |
 | `bases.remove` | `name` | `null` – deletes the base; refused while a macOS base is installed or a macOS image is built |
@@ -486,6 +486,8 @@ Pages and their params:
 | `newVm` | `image, values?` | the New VM form for exactly that image (plan B100) |
 | `build` | `recipe` | the Build Image page of one recipe |
 | `doctor` | – | versions and updates, the checks in three sections with their actions |
+| `credentials` | – | the credentials, each with its usage and Copy Password (plan B137, B138) |
+| `credential` | `id?` | one credential's form: new, or to edit (only the name while images use it) |
 | `macBase` | `values?` | Create macOS Base |
 | `settings` | `values?` | recipe sources (with the new source's form), general switches, guest values, data folder |
 | `activity` | – | what happened in this server, newest first |

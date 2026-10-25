@@ -684,8 +684,15 @@ update below.
 - **CLI:** `omaf credentials copy-password`, `add` always asks the password, `--no-password` gone, `edit`/`rm` refused
   while used. **UIs:** TUI, iced and SwiftUI render the expandable rows, the form, the bases and the Doctor block.
 - **Checked:** `cargo test` (credentials rows/lock, bases section, golden files incl. `credential`, `credential.edit`),
-  TUI and iced tests, `swift test` (view contracts for the new pages). OPEN: the LocalAuthentication prompt from the
-  core service and the CLI on a real Mac, clicking it in the SwiftUI and iced apps.
+  TUI and iced tests, `swift test` (view contracts for the new pages). OPEN: clicking it in the SwiftUI and iced apps.
+- **Found in the 0.5.2 draft, fixed:** "New Credential …" showed a loading page forever – `views::PAGES` lacked
+  `credential`, so `views.get` refused it (the goldens built the page directly); `every_shown_page_is_served` now
+  checks every `ui.show` target of the view goldens. Texts said "1 images" – the counts left out of them.
+- **Checked by hand (temporary data folder, `omaf call --socket`):** add (refused without a password), the rows,
+  the form new/edit, rename, clearing the password refused; with an image built with the credential the form is
+  locked to the name, update of the user and remove refused (API and CLI); `credentials.copyPassword` through the
+  service shows the Touch ID / password prompt, copies, the clipboard is empty after 90 s (unanswered, the call waits
+  up to 5 minutes and says "not confirmed"); Doctor "App 0.5.2 · Core 0.5.2"; the bases section; "For new images".
 
 **Found on the way:** environment variables of the CLI (`VM_FLAKE`, …) do not reach the core service – a build that
 runs there uses config.json's flake (OPEN).

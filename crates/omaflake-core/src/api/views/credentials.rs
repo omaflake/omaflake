@@ -112,9 +112,8 @@ pub(crate) fn credential_page(ctx: &Ctx, p: &CredentialParams) -> Option<Credent
     let email = v.email.clone().unwrap_or_else(|| c.and_then(|c| c.email.clone()).unwrap_or_default());
     let used = c.map_or(0, |c| images_with(ctx, &c.id));
     let locked = (used > 0).then(|| {
-        tf!(
-            "%lld images are built with it, so only its name can change – they carry its user, full name and e-mail. For other values create a new credential (or remove those images first).",
-            used
+        Text::new(
+            "Images are built with it, so only its name can change – they carry its user, full name and e-mail. For other values create a new credential (or remove those images first).",
         )
     });
     let lock_reason = locked.as_ref().map(|_| Text::new("Used by images – only the name can change"));

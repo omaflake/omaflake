@@ -930,6 +930,34 @@ fn every_golden_file_is_known() {
 }
 
 #[test]
+fn every_shown_page_is_served() {
+    // A `ui.show` to a page `views.get` refuses leaves the UI loading forever (plan B138: "credential"); "guide" is
+    // the UIs' own page
+    fn shown(v: &Value, out: &mut Vec<String>) {
+        match v {
+            Value::Object(m) => {
+                if m.get("method").and_then(Value::as_str) == Some("ui.show") {
+                    if let Some(p) = m.get("params").and_then(|p| p.get("page")).and_then(Value::as_str) {
+                        out.push(p.to_string());
+                    }
+                }
+                m.values().for_each(|x| shown(x, out));
+            }
+            Value::Array(a) => a.iter().for_each(|x| shown(x, out)),
+            _ => {}
+        }
+    }
+    let mut pages = Vec::new();
+    for (_, value) in view_goldens() {
+        shown(&value, &mut pages);
+    }
+    assert!(pages.iter().any(|p| p == "credential"));
+    for p in pages {
+        assert!(p == "guide" || super::views::PAGES.contains(&p.as_str()), "ui.show {p}: not in views::PAGES");
+    }
+}
+
+#[test]
 fn golden_values_read_back() {
     // What the server sends, it can also read (a Rust UI linking the API uses the same types)
     let check = |name: &str, value: Value| -> Result<(), String> {

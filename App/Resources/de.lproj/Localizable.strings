@@ -965,8 +965,8 @@
 "macOS builds with this credential ask for it again." = "macOS-Builds mit diesem Zugang fragen dann wieder danach.";
 "removed – a new build needs another credential" = "entfernt – ein neuer Build braucht einen anderen Zugang";
 "Credential “%@” removed" = "Zugang „%@“ entfernt";
-"%@ images are built with this credential – only its name can change" = "%@ Vorlagen sind mit diesem Zugang gebaut – nur sein Name kann sich ändern";
-"%@ images are built with this credential – remove them first" = "%@ Vorlagen sind mit diesem Zugang gebaut – entferne sie zuerst";
+"Images are built with this credential – only its name can change" = "Vorlagen sind mit diesem Zugang gebaut – nur sein Name kann sich ändern";
+"Images are built with this credential – remove them first" = "Vorlagen sind mit diesem Zugang gebaut – entferne sie zuerst";
 "A credential needs a password" = "Ein Zugang braucht ein Passwort";
 "A credential's password cannot be removed – only changed" = "Das Passwort eines Zugangs lässt sich nicht entfernen – nur ändern";
 "A macOS base is being installed or a macOS image built – wait until it ends" = "Gerade wird eine macOS-Base installiert oder eine macOS-Vorlage gebaut – warte, bis es fertig ist";
@@ -974,7 +974,7 @@
 "No macOS base \"%@\"" = "Keine macOS-Base „%@“";
 "No password stored for \"%@\"" = "Für „%@“ ist kein Passwort hinterlegt";
 "Not copied – not confirmed" = "Nicht kopiert – nicht bestätigt";
-"%lld images are built with it, so only its name can change – they carry its user, full name and e-mail. For other values create a new credential (or remove those images first)." = "%lld Vorlagen sind damit gebaut, deshalb kann sich nur sein Name ändern – sie tragen seinen Benutzer, vollen Namen und seine E-Mail. Für andere Werte lege einen neuen Zugang an (oder entferne diese Vorlagen zuerst).";
+"Images are built with it, so only its name can change – they carry its user, full name and e-mail. For other values create a new credential (or remove those images first)." = "Vorlagen sind damit gebaut, deshalb kann sich nur sein Name ändern – sie tragen seinen Benutzer, vollen Namen und seine E-Mail. Für andere Werte lege einen neuen Zugang an (oder entferne diese Vorlagen zuerst).";
 "A base is a clean macOS installed from Apple's IPSW; macOS images are built from the newest one. Removing an older base frees its space." = "Eine Base ist ein frisches macOS aus Apples IPSW; macOS-Vorlagen werden aus der neuesten gebaut. Eine ältere Base zu entfernen, gibt ihren Platz frei.";
 "Copies the password to the clipboard after Touch ID or your login password; cleared after 90 s" = "Kopiert das Passwort nach Touch ID oder deinem Anmeldepasswort in die Zwischenablage; nach 90 s wird sie geleert";
 "Copies the password to the clipboard; cleared after 90 s" = "Kopiert das Passwort in die Zwischenablage; nach 90 s wird sie geleert";

@@ -89,7 +89,7 @@ pub fn edit(a: &cli::CredentialArgs) -> Outcome {
     if used > 0 && (a.user.is_some() || a.full_name.is_some() || a.email.is_some()) {
         return Err(usage(
             &["credentials", "edit"],
-            format!("{used} images are built with {} – only its name can change (--rename)", c.name),
+            format!("Images are built with {} ({used}) – only its name can change (--rename)", c.name),
         ));
     }
     let (c, place) = credentials.update(&c.id, change(a, a.rename.clone(), false)?)?;
@@ -106,7 +106,7 @@ pub fn remove(reference: &str) -> Outcome {
     if used > 0 {
         return Err(usage(
             &["credentials", "rm"],
-            format!("{used} images are built with {} – remove them first (omaf images rm)", c.name),
+            format!("Images are built with {} ({used}) – remove them first (omaf images rm)", c.name),
         ));
     }
     credentials.remove(&c.id)?;
