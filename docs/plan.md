@@ -723,6 +723,35 @@ gone).
   credential and a macOS build without a password prompt (needs a new base: ~30 minutes); assigning the credential to
   `mac-base-26A434` on the maintainer's Mac.
 
+**B140 (2026-10-25, decided, not built): one catalog for recipes, looks and later kinds; looks as data.** The
+maintainer's decisions after discussing a themes repository:
+- **Looks become data, not Nix code:** a look is a `look.toml` (schema `look` v1) – palette (background, surfaces,
+  text, accents, the 16 terminal colours) and a few choices (editor themes, cursor, GTK theme, border style such as a
+  two-colour gradient; Vanilla: "set no colours"). The image flake keeps the modules that turn a look into Hyprland,
+  Waybar, WezTerm, Zellij, Neovim, Emacs, GTK … configuration (`nix/home/looks/`); the schema is the only interface, so
+  the modules can change without breaking a look, and a look runs no code. omaflake writes the chosen look into the
+  guest folder at build time (like the credential), the flake reads it. The omaflake look and Vanilla stay built into
+  the image flake (a build never depends on a reachable source); Catppuccin Mocha and Rosé Pine Dawn move to the
+  catalog. OPEN: which fields the omaflake look needs (the red–cyan border, Waybar's underline) without the schema
+  becoming a second configuration language.
+- **Not a recipe variant:** looks are orthogonal to recipes (any look with any recipe, chosen at the build); a recipe
+  still names its default look (`omaflake.look`).
+- **One catalog system for several kinds:** a source is a repository with `catalog.json`; catalog v3 lists recipes and
+  looks (open for a third kind). Sources may offer one kind or several; official vs. "at your own risk", private
+  sources, versions, updates, install/remove work for every kind. Layout: `recipes/<author>/<kind>/<name>/recipe.toml`
+  as today, `looks/<author>/<name>/look.toml`.
+- **Repository `omaflake/catalog`** (new, MIT) replaces `omaflake/recipes` as the official source; `omaflake/recipes`
+  is archived (read-only, marked deprecated) and deleted with the stable 1.0 release. config.json gets a migration
+  step that points the official source to the new repository. Named "catalog" because the file (`catalog.json`), the
+  code (`RecipeCatalog`) and the docs already use the word ("library" would clash with `RecipeLibrary`, the locally
+  installed recipes).
+- **App:** a tab "Looks" next to "Recipes" – installed and offered looks, install/remove, usage (the images built with
+  a look; removing is refused while one uses it); macOS guests get the same palette for terminal and editor.
+- **Steps:** (1) the maintainer creates the empty repository `omaflake/catalog` (the agent token cannot create
+  repositories), (2) the recipes move over with their history, `tools/catalog.py` learns kinds, (3) `look.toml` v1 and
+  the four looks as data, the image flake reads them, (4) catalog v3 and the "Looks" tab in core, CLI and the three UIs,
+  (5) settings migration to the new official source, docs and website, (6) the maintainer archives `omaflake/recipes`.
+
 **Found on the way:** environment variables of the CLI (`VM_FLAKE`, …) do not reach the core service – a build that
 runs there uses config.json's flake (OPEN).
 
