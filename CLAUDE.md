@@ -44,8 +44,9 @@ any work and keep them up to date.
   tick it in the docs. Findings get ids `B…` (NixOS/general) and `BM…` (macOS).
 - **File versions:** a change to a file omaflake writes or reads (JSON, recipe.toml, catalog.json) gets a new schema
   version in `docs/schema/` and a migration step; older versions stay readable. Goal from 1.0.0 on: the minimum versions (`FileFormat`,
-  `RecipeLibrary.recipeMinimum`, `RecipeCatalog.minimum`, the image flake) are raised only with a major release; before
-  1.0.0 a minor release may raise them (noted in the changelog).
+  `RecipeLibrary.recipeMinimum`, `RecipeCatalog.minimum`, the image flake) are raised only with a major release.
+  **Before 1.0.0 backward compatibility does not matter** (the maintainer's decision, plan B141): a release may raise
+  the minimum versions, drop old API params, formats and migrations without a transition – noted in the changelog.
 - **Changelog:** every user-visible change gets a line under `## [Unreleased]` in `docs/changelog.md` (on omaflake.dev)
   in the same commit; a release turns that section into `## [x.y.z] – date`, and its text is the release's notes.
 - **No secrets** in the repository (passwords, tokens, keys). Developer-local files (e.g. tokens for tooling)

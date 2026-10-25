@@ -771,7 +771,19 @@ bindings.** The maintainer's decisions (the German draft with every current reci
 Entwurf-Baukasten.md):
 - **Guiding rule: the abstraction must not sprawl** – otherwise the building blocks are not worth it and one writes
   whole modules instead. So: a short, fixed list of capabilities; "needs" and "enhances" only; warnings, never refusals;
-  no version ranges, no conditions, no plugin system for checks.
+  no conditions, no plugin system for checks. Versions only as below (latest, a pin, a minimum).
+- **Decided later the same day:**
+  - **Neovim and Emacs together are reported as incompatible** (both `default-editor`): nobody would work like that,
+    and trying both is a second VM. Reconsidered only if the community asks for it explicitly.
+  - **Versions of references:** a recipe uses the newest version of a module, look or key binding set by default; it
+    may pin one version or set a minimum (as npm's dependencies) – no other range syntax.
+  - **Where references point:** only to the catalogs of the sources set up and to what is installed locally – the
+    official catalog always as the fallback and the default. A recipe never loads modules from a source by itself:
+    a module of another source must be installed (its source added) by hand first.
+  - **First-party modules live in the catalog** (omaflake/catalog `modules/omaflake/…`); the image flake keeps only
+    the bases and turns looks into configuration.
+  - **Backward compatibility does not matter before the stable 1.0** (see CLAUDE.md, File versions): formats, API
+    params and migrations may change or go without a transition until then.
 - **A recipe is always data** (`recipe.toml` v2): `base` (nixos | macos), `modules`, `look`, `keymap`, `requirements`
   (minimum cpus, memory, disk – a smaller profile is warned about, still allowed), `vm` (display, network, share,
   ephemeral, devices). No Nix in a recipe: an author who needs Nix writes a module. One click installs a recipe with
