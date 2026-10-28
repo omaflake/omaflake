@@ -28,7 +28,7 @@ or `macos`), its modules, a suggested look, key binding sets, what a VM needs at
 omaflake its ID is `<author>.<platform>.<name>@<words>` (the words spell its content hash) – the attribute names of
 `images` and `darwinConfigurations`; a catalog checkout gives `<author>.<platform>.<name>`.
 
-A **module** is Nix: `modules/<author>/<platform>/<name>/default.nix` with `module.toml` (schema module/v1) – its
+A **module** is Nix: `modules/<author>/<platform>/<name>/default.nix` with `module.toml` (schema module/v2) – its
 version, the capabilities it provides and needs, the modules it enhances, and its actions with default keys. The flake
 imports the recipe's modules in its order and hands each an argument `omaflake`:
 

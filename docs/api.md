@@ -197,8 +197,9 @@ the recipe has it –, `lab`, `display`, `tags`, `license`, `homepage`) plus:
 `parts?` (what it is made of, plan B142 – left out when its recipe.toml cannot be read): `{modules: [{reference (with
 the versions it allows, "omaflake/neovim ≥ 1.0.0"), title?, version?, provides}] (title and version: the module here,
 none when it is not here in an allowed version), look?, lookId? (the installed look when it is here), keymaps,
-bindings: [{module, action, title, key, context ("desktop" or a module), mode?, from? (the key binding set that gave
-the key)}], issues: [{kind: missingModule|missingKeymap {reference, have?} (they block a build) | needs {module,
+bindings: [{module, action, title, titleDe?, keys (each does it), context ("desktop" or a module), modes? (the module's
+modes it works in), after? (the mode afterwards), does? (the program's own command), own? (the program's key, shown
+only), from? (the key binding set that gave the key or `after`)}] (plan B147), issues: [{kind: missingModule|missingKeymap {reference, have?} (they block a build) | needs {module,
 capability} | incompatible {capability, modules} | keysOverlap {first, second} | keyRule {binding}}], unfree,
 requirements: {cpus, memory_gb, disk_gb}, locales: {rtl?, languages?}}`. `cpus`, `memoryGB`, `diskGB` are the
 recipe's `[requirements]`, `network`, `share`, … its `[vm]`. `lab` is a boolean here (false when unset).

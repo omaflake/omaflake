@@ -91,22 +91,32 @@
           {
             "action": "terminal",
             "context": "desktop",
-            "key": "Super+Return",
+            "keys": [
+              "Super+Return"
+            ],
             "module": "omaflake/hyprland",
             "title": "Open a terminal"
           },
           {
             "action": "quit",
             "context": "desktop",
-            "key": "Ctrl+q",
-            "mode": "normal",
+            "does": "Quit",
+            "keys": [
+              "Ctrl+q"
+            ],
+            "modes": [
+              "normal",
+              "pane"
+            ],
             "module": "omaflake/zellij",
             "title": "Quit Zellij"
           },
           {
             "action": "float",
             "context": "desktop",
-            "key": "t",
+            "keys": [
+              "t"
+            ],
             "module": "omaflake/hyprland",
             "title": "Float the window"
           }
@@ -121,7 +131,9 @@
             "binding": {
               "action": "float",
               "context": "desktop",
-              "key": "t",
+              "keys": [
+                "t"
+              ],
               "module": "omaflake/hyprland",
               "title": "Float the window"
             },

@@ -227,6 +227,9 @@ pub fn parse_key(key: &str) -> Option<Vec<Chord>> {
         "Right",
         "Up",
         "Down",
+        "PageUp",
+        "PageDown",
+        "Plus",
         "Digit",
         "Arrow",
         "F1",
@@ -299,14 +302,33 @@ pub struct Binding {
     pub module: String,
     pub action: String,
     pub title: String,
-    pub key: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub title_de: Option<String>,
+    /// Each of them does it
+    pub keys: Vec<String>,
     /// Where it works: "desktop" or a module ("omaflake/neovim")
     pub context: String,
+    /// The module's modes it works in; empty: whenever its program has the keys
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub modes: Vec<String>,
+    /// The mode afterwards (plan B147); None: it stays
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub mode: Option<String>,
+    pub after: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub does: Option<String>,
+    /// The program's own key, shown only
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub own: bool,
     /// The key binding set that gave the key; None: the module's default
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub from: Option<String>,
+}
+
+impl Binding {
+    /// For people: "Ctrl+g", "h / Left"
+    pub fn key_text(&self) -> String {
+        self.keys.join(" / ")
+    }
 }
 
 /// What is wrong with a recipe – blockers (`blocks`) and warnings
@@ -325,10 +347,10 @@ pub enum Issue {
     #[serde(rename_all = "camelCase")]
     Incompatible { capability: String, modules: Vec<String> },
     #[serde(rename_all = "camelCase")]
-    KeysOverlap { first: Binding, second: Binding },
+    KeysOverlap { first: Box<Binding>, second: Box<Binding> },
     /// Without a mode a key starts with Super or Ctrl (an editor's own keys excepted)
     #[serde(rename_all = "camelCase")]
-    KeyRule { binding: Binding },
+    KeyRule { binding: Box<Binding> },
 }
 
 impl Issue {
@@ -394,28 +416,35 @@ impl Composition {
         let bindings = Self::bindings(&present, &sets);
         let by_ref: BTreeMap<String, &Module> = present.iter().map(|m| (m.reference(), m)).collect();
         for (a, b) in overlaps(&bindings, &by_ref) {
-            issues.push(Issue::KeysOverlap { first: a, second: b });
+            issues.push(Issue::KeysOverlap { first: Box::new(a), second: Box::new(b) });
         }
         for b in &bindings {
             if breaks_key_rule(b, &by_ref) {
-                issues.push(Issue::KeyRule { binding: b.clone() });
+                issues.push(Issue::KeyRule { binding: Box::new(b.clone()) });
             }
         }
         let unfree = present.iter().filter(|m| m.unfree).map(Module::reference).collect();
         Composition { modules: present, keymaps: sets, bindings, issues, unfree }
     }
 
-    /// Each module's actions with their keys: the default, then the sets in order (a later one wins)
+    /// Each module's actions with their keys: the default, then the sets in order (a later one wins; a set gives keys,
+    /// `after` or both – never to the program's own keys)
     fn bindings(modules: &[Module], sets: &[Keymap]) -> Vec<Binding> {
         let mut out = Vec::new();
         for m in modules {
             let reference = m.reference();
             for (action, a) in &m.actions {
-                let mut key = a.key.clone();
+                let mut keys = a.key.clone();
+                let mut after = a.after.clone();
                 let mut from = None;
-                for s in sets {
-                    if let Some(k) = s.keys.get(&reference).and_then(|keys| keys.get(action)) {
-                        key = k.clone();
+                for s in sets.iter().filter(|_| !a.own) {
+                    if let Some(e) = s.keys.get(&reference).and_then(|keys| keys.get(action)) {
+                        if !e.key.is_empty() {
+                            keys = e.key.clone();
+                        }
+                        if e.after.is_some() {
+                            after = e.after.clone();
+                        }
                         from = Some(s.reference());
                     }
                 }
@@ -428,9 +457,13 @@ impl Composition {
                     module: reference.clone(),
                     action: action.clone(),
                     title: a.title.clone(),
-                    key,
+                    title_de: a.title_de.clone(),
+                    keys,
                     context,
-                    mode: a.mode.clone(),
+                    modes: a.mode.clone(),
+                    after,
+                    does: a.does.clone(),
+                    own: a.own,
                     from,
                 });
             }
@@ -451,8 +484,8 @@ fn overlaps(bindings: &[Binding], modules: &BTreeMap<String, &Module>) -> Vec<(B
     let runs_in = |r: &str| modules.get(r).map(|m| m.runs_in.clone()).unwrap_or_default();
     let nested = |outer: &str, inner: &str| provides(outer).iter().any(|c| runs_in(inner).contains(c));
     let together = |a: &Binding, b: &Binding| {
-        if a.mode.is_some() || b.mode.is_some() {
-            return a.context == b.context && a.mode == b.mode;
+        if !a.modes.is_empty() || !b.modes.is_empty() {
+            return a.context == b.context && a.modes.iter().any(|m| b.modes.contains(m));
         }
         a.context == b.context
             || a.context == "desktop"
@@ -461,15 +494,16 @@ fn overlaps(bindings: &[Binding], modules: &BTreeMap<String, &Module>) -> Vec<(B
             || nested(&b.context, &a.context)
     };
     let mut out = Vec::new();
+    let concrete = |b: &Binding| -> Vec<Vec<Chord>> {
+        b.keys.iter().filter_map(|k| parse_key(k)).flat_map(|k| expand(&k)).collect()
+    };
     for (i, a) in bindings.iter().enumerate() {
-        let Some(ka) = parse_key(&a.key) else { continue };
-        let ka = expand(&ka);
+        let ka = concrete(a);
         for b in &bindings[i + 1..] {
-            let Some(kb) = parse_key(&b.key) else { continue };
             if !together(a, b) {
                 continue;
             }
-            let kb = expand(&kb);
+            let kb = concrete(b);
             let hit = ka.iter().any(|x| kb.iter().any(|y| x.starts_with(y) || y.starts_with(x)));
             if hit {
                 out.push((a.clone(), b.clone()));
@@ -481,18 +515,19 @@ fn overlaps(bindings: &[Binding], modules: &BTreeMap<String, &Module>) -> Vec<(B
 
 /// omaflake's key rule: without a mode a key is one chord starting with Super or Ctrl – except an editor's own keys
 fn breaks_key_rule(b: &Binding, modules: &BTreeMap<String, &Module>) -> bool {
-    if b.mode.is_some() || modules.get(&b.context).is_some_and(|m| m.own_keys) {
+    if !b.modes.is_empty() || b.own || modules.get(&b.context).is_some_and(|m| m.own_keys) {
         return false;
     }
-    match parse_key(&b.key) {
+    b.keys.iter().any(|k| match parse_key(k) {
         Some(seq) => seq.len() != 1 || !seq[0].0.iter().any(|m| *m == "Super" || *m == "Ctrl"),
         None => true,
-    }
+    })
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::keymaps::KeyEntry;
     use crate::modules::ModuleAction;
     use std::path::PathBuf;
 
@@ -521,13 +556,14 @@ mod tests {
                         a.to_string(),
                         ModuleAction {
                             title: a.to_string(),
-                            key: k.to_string(),
-                            mode: mode.map(str::to_string),
+                            key: vec![k.to_string()],
+                            mode: mode.iter().map(|m| m.to_string()).collect(),
                             ..Default::default()
                         },
                     )
                 })
                 .collect(),
+            modes: BTreeMap::new(),
             source: "s".into(),
             hash: None,
             folder: PathBuf::new(),
@@ -635,7 +671,7 @@ mod tests {
         let rule: Vec<&str> = c
             .issues
             .iter()
-            .filter_map(|i| if let Issue::KeyRule { binding } = i { Some(binding.key.as_str()) } else { None })
+            .filter_map(|i| if let Issue::KeyRule { binding } = i { Some(binding.keys[0].as_str()) } else { None })
             .collect();
         assert_eq!(rule, ["t"]);
         // A set overrides a default
@@ -647,15 +683,97 @@ mod tests {
             title: "k".into(),
             description: String::new(),
             descriptions: BTreeMap::new(),
-            keys: BTreeMap::from([("o/hyprland".into(), BTreeMap::from([("terminal".into(), "Super+t".into())]))]),
+            keys: BTreeMap::from([(
+                "o/hyprland".into(),
+                BTreeMap::from([("terminal".into(), KeyEntry::key("Super+t"))]),
+            )]),
             source: "s".into(),
             hash: None,
             folder: PathBuf::new(),
         };
         let c = Composition::of(&spec(&["o/hyprland", "o/wezterm"], &["o/k"]), &all, &[set], &caps);
         let t = c.bindings.iter().find(|b| b.action == "terminal").unwrap();
-        assert_eq!((t.key.as_str(), t.from.as_deref(), t.context.as_str()), ("Super+t", Some("o/k"), "desktop"));
+        assert_eq!((t.key_text().as_str(), t.from.as_deref(), t.context.as_str()), ("Super+t", Some("o/k"), "desktop"));
         assert!(!c.blocked());
+    }
+
+    /// module/v2 and keymap/v2 (plan B147): several keys and modes, `after`, a program's own keys
+    #[test]
+    fn modes_after_and_own_keys() {
+        let toml = r#"
+            [modes.locked]
+            title = "Locked"
+            start = true
+            [modes.pane]
+            title = "Pane"
+            [actions.new-pane]
+            title = "New pane"
+            title_de = "Neuer Bereich"
+            key = "n"
+            mode = "pane"
+            does = "NewPane"
+            after = "locked"
+            [actions.focus-left]
+            title = "Focus left"
+            key = ["h", "Left"]
+            mode = ["pane", "move"]
+            [actions.close-pane]
+            title = "Close"
+            key = "Left"
+            mode = "move"
+            [actions.copy]
+            title = "Copy"
+            key = "Ctrl+Shift+c"
+            own = true
+        "#;
+        #[derive(Deserialize)]
+        struct T {
+            modes: BTreeMap<String, crate::modules::ModuleMode>,
+            actions: BTreeMap<String, ModuleAction>,
+        }
+        let t: T = toml::from_str(toml).unwrap();
+        let mut zellij = module("zellij", &["multiplexer"], &[], &[]);
+        zellij.modes = t.modes;
+        zellij.actions = t.actions;
+        assert_eq!(zellij.actions["new-pane"].title_in(Some("de")), "Neuer Bereich");
+        assert!(zellij.modes["locked"].start);
+        let set = Keymap {
+            id: "o.keymap.k".into(),
+            author: "o".into(),
+            name: "k".into(),
+            version: "1.0.0".into(),
+            title: "k".into(),
+            description: String::new(),
+            descriptions: BTreeMap::new(),
+            keys: BTreeMap::from([(
+                "o/zellij".into(),
+                BTreeMap::from([
+                    ("new-pane".into(), KeyEntry { key: vec![], after: Some("pane".into()) }),
+                    ("copy".into(), KeyEntry::key("Ctrl+c")),
+                ]),
+            )]),
+            source: "s".into(),
+            hash: None,
+            folder: PathBuf::new(),
+        };
+        let c = Composition::of(&spec(&["o/zellij"], &["o/k"]), &[zellij], &[set], &BTreeMap::new());
+        let by = |a: &str| c.bindings.iter().find(|b| b.action == a).unwrap();
+        // The set changes only `after`: the key stays
+        assert_eq!((by("new-pane").key_text(), by("new-pane").after.as_deref()), ("n".to_string(), Some("pane")));
+        assert_eq!(by("new-pane").from.as_deref(), Some("o/k"));
+        // A program's own key: no set changes it, the key rule does not apply
+        assert_eq!((by("copy").key_text(), by("copy").from.as_deref()), ("Ctrl+Shift+c".to_string(), None));
+        // "Left" in move: focus-left (pane, move) and close-pane (move) share a mode – they overlap
+        let overlaps: Vec<(&str, &str)> = c
+            .issues
+            .iter()
+            .filter_map(|i| match i {
+                Issue::KeysOverlap { first, second } => Some((first.action.as_str(), second.action.as_str())),
+                _ => None,
+            })
+            .collect();
+        assert_eq!(overlaps, [("close-pane", "focus-left")]);
+        assert!(!c.issues.iter().any(|i| matches!(i, Issue::KeyRule { .. })));
     }
 
     #[test]

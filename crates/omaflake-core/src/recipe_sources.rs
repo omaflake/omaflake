@@ -456,12 +456,12 @@ pub struct RecipeCatalog {
 }
 
 impl RecipeCatalog {
-    /// The catalog's version this omaflake reads – `$schema` https://omaflake.dev/schema/catalog/v4.json (recipes v2
-    /// with modules, key binding sets and looks, plan B142). Older catalogs are not read: their recipes are Nix, which
-    /// this omaflake no longer builds (no compatibility before 1.0, plan B141). A catalog comes from its source and is
-    /// only read, never rewritten.
-    pub const VERSION: usize = 4;
-    pub const MINIMUM: usize = 4;
+    /// The catalog's version this omaflake reads – `$schema` https://omaflake.dev/schema/catalog/v5.json (recipes v2
+    /// with modules, key binding sets and looks, plan B142; v5: modules v2 with modes, key binding sets v2, plan
+    /// B147). Older catalogs are not read (no compatibility before 1.0, plan B141). A catalog comes from its source and
+    /// is only read, never rewritten.
+    pub const VERSION: usize = 5;
+    pub const MINIMUM: usize = 5;
 
     /// Reads catalog.json: its version from `$schema` (type must be "catalog"), checked with
     /// `FileFormat::check(…, file: "catalog.json")`. Errors read "Not a recipe catalog (catalog.json): …".
@@ -1616,7 +1616,7 @@ mod tests {
     }
 
     fn catalog(recipes: &[Value]) -> RecipeCatalog {
-        let json = json!({"$schema": "https://omaflake.dev/schema/catalog/v4.json", "source": {"name": "test"},
+        let json = json!({"$schema": "https://omaflake.dev/schema/catalog/v5.json", "source": {"name": "test"},
                           "recipes": recipes});
         RecipeCatalog::decode(&serde_json::to_vec(&json).unwrap()).unwrap()
     }
@@ -1861,7 +1861,7 @@ mod tests {
         let local = local_root.join("recipes/omaflake/nixos/minimal");
         put(&local, "recipe.toml", &format!("{V2}modules = [\"omaflake/shell\", {{ id = \"omaflake/old\", min = \"2.0.0\" }}]\nkeymaps = [\"omaflake/default\"]\n"));
         let module = |name: &str| {
-            format!("\"$schema\" = \"https://omaflake.dev/schema/module/v1.json\"\nversion = \"1.0.0\"\ntitle = \"{name}\"\n")
+            format!("\"$schema\" = \"https://omaflake.dev/schema/module/v2.json\"\nversion = \"1.0.0\"\ntitle = \"{name}\"\n")
         };
         put(&local_root, "modules/omaflake/nixos/shell/module.toml", &module("shell"));
         put(&local_root, "modules/omaflake/nixos/shell/default.nix", "{ ... }: { }");
@@ -1870,7 +1870,7 @@ mod tests {
         put(
             &local_root,
             "keymaps/omaflake/default/keymap.toml",
-            "\"$schema\" = \"https://omaflake.dev/schema/keymap/v1.json\"\nversion = \"1.0.0\"\n",
+            "\"$schema\" = \"https://omaflake.dev/schema/keymap/v2.json\"\nversion = \"1.0.0\"\n",
         );
         let local_source = RecipeSource::new(RecipeSourceKind::Folder, &local_root.to_string_lossy(), None, None, None);
         settings.sources = Some(vec![local_source.clone()]);
@@ -2247,21 +2247,27 @@ mod tests {
 
     #[test]
     fn catalog_versions() {
-        let v4 = br#"{"$schema":"https://omaflake.dev/schema/catalog/v4.json","source":{"name":"x"},"recipes":[],
+        let v5 = br#"{"$schema":"https://omaflake.dev/schema/catalog/v5.json","source":{"name":"x"},"recipes":[],
             "modules":[{"id":"a.nixos.m","author":"a","platform":"nixos","name":"m","path":"modules/a/nixos/m","version":"1.0.0",
             "title":"M","description":"d","provides":["editor"],"hash":"h","files":[]}],
+            "keymaps":[{"id":"a.keymap.k","author":"a","name":"k","path":"keymaps/a/k","version":"1.0.0","title":"K",
+            "description":"d","keys":{"a/m":{"one":"Ctrl+g","two":["h","Left"],"three":{"after":"pane"}}},"hash":"h","files":[]}],
             "capabilities":{"editor":{"exclusive":false,"description":"e"}}}"#;
-        let c = RecipeCatalog::decode(v4).unwrap();
+        let c = RecipeCatalog::decode(v5).unwrap();
         assert_eq!((c.modules[0].reference().as_str(), c.capabilities.len()), ("a/m", 1));
-        // older catalogs are not read: their recipes are Nix (plan B142); newer ones neither
+        let keys = &c.keymaps[0].keys["a/m"];
+        assert_eq!((keys["one"].describe(), keys["two"].describe()), ("Ctrl+g".to_string(), "h / Left".to_string()));
+        assert_eq!((keys["three"].key.len(), keys["three"].after.as_deref()), (0, Some("pane")));
+        // older catalogs are not read (no compatibility before 1.0, plan B141); newer ones neither
         for old in [
             &br#"{"schema":1,"source":{"name":"old"},"recipes":[]}"#[..],
             br#"{"$schema":"https://omaflake.dev/schema/catalog/v3.json","source":{"name":"x"},"recipes":[]}"#,
+            br#"{"$schema":"https://omaflake.dev/schema/catalog/v4.json","source":{"name":"x"},"recipes":[]}"#,
         ] {
             assert_eq!(RecipeCatalog::decode(old).unwrap_err().code(), Some(codes::UNREADABLE_FILE));
         }
-        let v5 = br#"{"$schema":"https://omaflake.dev/schema/catalog/v5.json","source":{"name":"x"},"recipes":[]}"#;
-        assert_eq!(RecipeCatalog::decode(v5).unwrap_err().code(), Some(codes::NEWER_FILE));
+        let v6 = br#"{"$schema":"https://omaflake.dev/schema/catalog/v6.json","source":{"name":"x"},"recipes":[]}"#;
+        assert_eq!(RecipeCatalog::decode(v6).unwrap_err().code(), Some(codes::NEWER_FILE));
         let foreign = br#"{"$schema":"https://omaflake.dev/schema/image/v1.json","source":{"name":"x"},"recipes":[]}"#;
         assert!(RecipeCatalog::decode(foreign)
             .unwrap_err()

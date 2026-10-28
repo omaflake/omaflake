@@ -3,8 +3,8 @@
 #
 # A key is a chord – modifiers and a key joined by "+", e.g. "Super+Shift+Return", "Ctrl+g" – or, for editors, a
 # sequence of chords separated by spaces ("Space f f"). Modifiers: Super (the Mac's Cmd), Ctrl, Alt, Shift. Keys:
-# lowercase letters, digits, punctuation, Return, Space, Escape, Tab, Backspace, Left, Right, Up, Down, F1–F12, and
-# two placeholders a module expands itself: Digit (1–9) and Arrow (the four arrows).
+# lowercase letters, digits, punctuation, Plus, Return, Space, Escape, Tab, Backspace, Left, Right, Up, Down, PageUp,
+# PageDown, F1–F12, and two placeholders a module expands itself: Digit (1–9) and Arrow (the four arrows).
 { lib }:
 
 let
@@ -32,19 +32,22 @@ rec {
       k = keyOf c;
       name = {
         Return = "Return"; Space = "space"; Escape = "escape"; Tab = "Tab"; Backspace = "BackSpace";
-        Left = "left"; Right = "right"; Up = "up"; Down = "down";
+        Left = "left"; Right = "right"; Up = "up"; Down = "down"; Plus = "plus"; PageUp = "Prior"; PageDown = "Next";
       }.${k} or (if builtins.stringLength k == 1 then lib.toUpper k else k);
     in
     lib.concatStringsSep " + " (map lib.toUpper (modsOf c) ++ [ name ]);
 
-  # Zellij's KDL: "Ctrl g", "Ctrl Shift Enter"
+  # Zellij's KDL: "Ctrl g", "Ctrl Shift Enter"; Shift and a letter alone is the capital ("Shift+h" → "H"), as
+  # Zellij's presets write it
   zellij = key:
     let
       c = single key;
       k = keyOf c;
-      name = { Return = "Enter"; Escape = "Esc"; }.${k} or k;
+      m = modsOf c;
+      name = { Return = "Enter"; Escape = "Esc"; Plus = "+"; }.${k} or k;
+      letter = builtins.match "[a-z]" k != null;
     in
-    lib.concatStringsSep " " (modsOf c ++ [ name ]);
+    if m == [ "Shift" ] && letter then lib.toUpper k else lib.concatStringsSep " " (m ++ [ name ]);
 
   # WezTerm's key table entry: { key = "Enter"; mods = "SUPER|SHIFT"; } (on macOS SUPER is Cmd)
   wezterm = key:
@@ -54,7 +57,7 @@ rec {
     in
     {
       key = { Return = "Enter"; Escape = "Escape"; Left = "LeftArrow"; Right = "RightArrow"; Up = "UpArrow";
-        Down = "DownArrow"; Space = " "; }.${k} or k;
+        Down = "DownArrow"; Space = " "; PageUp = "PageUp"; PageDown = "PageDown"; Plus = "+"; }.${k} or k;
       mods = lib.concatStringsSep "|" (map lib.toUpper (modsOf c));
     };
 
@@ -62,7 +65,7 @@ rec {
   neovim = key:
     let
       special = { Return = "CR"; Space = "Space"; Escape = "Esc"; Tab = "Tab"; Backspace = "BS"; Left = "Left";
-        Right = "Right"; Up = "Up"; Down = "Down"; };
+        Right = "Right"; Up = "Up"; Down = "Down"; PageUp = "PageUp"; PageDown = "PageDown"; Plus = "+"; };
       mod = { Super = "D"; Ctrl = "C"; Alt = "M"; Shift = "S"; };
       one = c:
         let m = modsOf c; k = keyOf c; in
@@ -76,7 +79,7 @@ rec {
     let
       mod = { Super = "s"; Ctrl = "C"; Alt = "M"; Shift = "S"; };
       special = { Return = "RET"; Space = "SPC"; Escape = "ESC"; Tab = "TAB"; Backspace = "DEL"; Left = "<left>";
-        Right = "<right>"; Up = "<up>"; Down = "<down>"; };
+        Right = "<right>"; Up = "<up>"; Down = "<down>"; PageUp = "<prior>"; PageDown = "<next>"; Plus = "+"; };
       one = c: lib.concatMapStrings (x: mod.${x} + "-") (modsOf c) + (special.${keyOf c} or (keyOf c));
     in
     lib.concatMapStringsSep " " one (chords key);

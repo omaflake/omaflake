@@ -77,8 +77,8 @@
       # What a recipe of each platform can be built for (plan B114, Platform.swift); recipe.toml lists its own
       kindSystems = { nixos = [ "aarch64-linux" "x86_64-linux" ]; macos = [ "aarch64-darwin" ]; };
       recipeSchema = "https://omaflake.dev/schema/recipe/v2.json";
-      moduleSchema = "https://omaflake.dev/schema/module/v1.json";
-      keymapSchema = "https://omaflake.dev/schema/keymap/v1.json";
+      moduleSchema = "https://omaflake.dev/schema/module/v2.json";
+      keymapSchema = "https://omaflake.dev/schema/keymap/v2.json";
       validName = what: s: lib.assertMsg (builtins.match "[a-z0-9][a-z0-9-]*" s != null)
         "${what} \"${s}\" – use lowercase letters, digits and -";
       dirsIn = dir: if builtins.pathExists dir
@@ -106,7 +106,7 @@
             let m = readToml (dir + "/module.toml"); in
             assert lib.assertMsg ((m."$schema" or "") == moduleSchema)
               "${ref}: module.toml needs \"$schema\" = \"${moduleSchema}\"";
-            { inherit ref dir; actions = m.actions or { }; };
+            { inherit ref dir; actions = m.actions or { }; modes = m.modes or { }; };
           modules = map moduleOf refs;
           # Keys: each module's defaults, then the recipe's key binding sets in order (a later set wins)
           sets = map (k:
@@ -115,9 +115,12 @@
             let m = readToml f; in
             assert lib.assertMsg ((m."$schema" or "") == keymapSchema) "${refOf k}: keymap.toml needs \"$schema\" = \"${keymapSchema}\"";
             m.keys or { }) (d.keymaps or [ ]);
-          keys = lib.listToAttrs (map (m: lib.nameValuePair m.ref
-            (lib.foldl (acc: set: acc // lib.filterAttrs (a: _: m.actions ? ${a}) (set.${m.ref} or { }))
-              (lib.mapAttrs (_: a: a.key) m.actions) sets)) modules);
+          # A set's entry is a key ("Ctrl+g"), several keys, or a table with `key` and/or `after` (keymap/v2)
+          entry = v: if builtins.isAttrs v then v else { key = v; };
+          bindings = lib.listToAttrs (map (m: lib.nameValuePair m.ref
+            (lib.foldl (acc: set: acc // lib.mapAttrs (a: v: acc.${a} // entry v)
+              (lib.filterAttrs (a: _: m.actions ? ${a}) (set.${m.ref} or { }))) m.actions sets)) modules);
+          keys = lib.mapAttrs (_: lib.mapAttrs (_: b: b.key)) bindings;
         in
         assert validName "recipe author" author && validName "recipe name" name;
         assert lib.assertMsg ((d.author or author) == author)
@@ -128,7 +131,7 @@
         assert lib.assertMsg (builtins.isList systems && systems != [ ] && lib.all (s: builtins.elem s kindSystems.${kind}) systems)
           "${where}: systems in recipe.toml must list some of ${lib.concatStringsSep ", " kindSystems.${kind}}";
         {
-          inherit id systems modules keys;
+          inherit id systems modules keys bindings;
           recipe = { inherit name author kind; modules = refs; };
           # What omaflake reads (`lib.recipeDefaults`): the VM's values flat, as before recipe v2
           defaults = { user = if kind == "macos" then settings.macUser else settings.user; }
@@ -163,8 +166,10 @@
       recipesFor = kind: system: builtins.filter (id: builtins.elem system recipeDefaults.${id}.systems) (recipesOfKind kind);
       macRecipes = recipesFor "macos" "aarch64-darwin";
 
-      # A recipe's modules, each with its `omaflake` argument: its keys (the recipe's), every module's keys, whether
-      # the recipe has another module (`has "author/name"` – for what it enhances), the key notations (lib/keys.nix)
+      # A recipe's modules, each with its `omaflake` argument: its keys (the recipe's), its bindings (each action with
+      # its key, modes, `after` and `does` after the recipe's key binding sets – to write a program's configuration),
+      # its modes, every module's keys, whether the recipe has another module (`has "author/name"` – for what it
+      # enhances), the key notations (lib/keys.nix)
       recipeModules = id:
         let e = recipes.${id}; in
         map (m:
@@ -173,6 +178,8 @@
             arg = {
               id = m.ref;
               keys = e.keys.${m.ref};
+              bindings = e.bindings.${m.ref};
+              inherit (m) modes;
               allKeys = e.keys;
               has = ref: builtins.elem ref e.recipe.modules;
               inherit keyLib;

@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 //! Modules (plan B141, B142): what is in a recipe – a desktop, a terminal, an editor, LaTeX … – as Nix (`default.nix`)
-//! with a description (`module.toml`, schema module/v1): its version, the capabilities it provides and needs, the
+//! with a description (`module.toml`, schema module/v2): its version, the capabilities it provides and needs, the
 //! modules it enhances, and the actions people can bind keys to, each with a default key. They come from the sources'
 //! catalogs (`modules/<author>/<platform>/<name>/`) and are installed into `<data>/modules/` (`parts::PartStore`), or
 //! used as they are on disk from a local folder source. Modules are code: only reviewed sources should provide them.
@@ -24,21 +24,89 @@ use crate::paths::{Paths, Settings};
 use crate::recipe_sources::{CatalogFile, RecipeCatalog, RecipeSourceKind, SourceClient};
 use crate::vm_err;
 
-/// An action a module offers for key bindings (module.toml `[actions.<name>]`)
+/// One key or mode, or several: module.toml and keymap.toml write a single one as a string, several as a list
+pub mod one_or_many {
+    use serde::{Deserialize, Deserializer, Serialize, Serializer};
+
+    #[derive(Deserialize)]
+    #[serde(untagged)]
+    enum Form {
+        One(String),
+        Many(Vec<String>),
+    }
+
+    pub fn deserialize<'de, D: Deserializer<'de>>(d: D) -> Result<Vec<String>, D::Error> {
+        Ok(match Form::deserialize(d)? {
+            Form::One(s) => vec![s],
+            Form::Many(v) => v,
+        })
+    }
+
+    pub fn serialize<S: Serializer>(v: &[String], s: S) -> Result<S::Ok, S::Error> {
+        match v {
+            [one] => one.serialize(s),
+            _ => v.serialize(s),
+        }
+    }
+}
+
+/// An action a module offers for key bindings (module.toml `[actions.<name>]`, module/v2: plan B147)
 #[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize)]
 pub struct ModuleAction {
     pub title: String,
-    /// The default key ("Super+Return", "Space f f")
-    pub key: String,
-    /// Only in this mode of the module (Zellij's "normal")
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub mode: Option<String>,
+    pub title_de: Option<String>,
+    /// The default keys ("Super+Return", "Space f f"; several: each does it)
+    #[serde(with = "one_or_many")]
+    pub key: Vec<String>,
+    /// Only in these modes of the module (Zellij's "pane"); none: whenever its program has the keys
+    #[serde(default, with = "one_or_many", skip_serializing_if = "Vec::is_empty")]
+    pub mode: Vec<String>,
+    /// The mode the program is in afterwards; None: it stays
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub after: Option<String>,
+    /// What it does in the program's own words (Zellij's `NewPane "Down"`, a Hyprland dispatcher)
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub does: Option<String>,
+    /// The program's own key, shown for reference – key binding sets do not change it
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub own: bool,
     /// Works everywhere on the desktop (a launcher)
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub desktop: bool,
     /// Bound inside another module's program ("omaflake/neovim")
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub context: Option<String>,
+}
+
+impl ModuleAction {
+    /// The title in `language` when the module has it
+    pub fn title_in(&self, language: Option<&str>) -> &str {
+        match (language, &self.title_de) {
+            (Some("de"), Some(t)) => t,
+            _ => &self.title,
+        }
+    }
+}
+
+/// A mode of a module's program (module.toml `[modes.<name>]`): its keys differ there
+#[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize)]
+pub struct ModuleMode {
+    pub title: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub title_de: Option<String>,
+    /// The program starts in it
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub start: bool,
+}
+
+impl ModuleMode {
+    pub fn title_in(&self, language: Option<&str>) -> &str {
+        match (language, &self.title_de) {
+            (Some("de"), Some(t)) => t,
+            _ => &self.title,
+        }
+    }
 }
 
 /// One module in catalog.json (catalog v4)
@@ -114,6 +182,7 @@ pub struct Module {
     /// Not free software
     pub unfree: bool,
     pub actions: BTreeMap<String, ModuleAction>,
+    pub modes: BTreeMap<String, ModuleMode>,
     /// `RecipeSource::id` it came from
     pub source: String,
     /// The catalog's content hash it was installed at; None for a local folder's
@@ -161,6 +230,8 @@ struct ModuleToml {
     unfree: bool,
     #[serde(default)]
     actions: BTreeMap<String, ModuleAction>,
+    #[serde(default)]
+    modes: BTreeMap<String, ModuleMode>,
     #[serde(flatten)]
     rest: BTreeMap<String, Value>,
 }
@@ -181,8 +252,9 @@ pub struct ModuleStore {
 }
 
 impl ModuleStore {
-    /// module.toml's version this omaflake reads (`"$schema" = "https://omaflake.dev/schema/module/v1.json"`)
-    pub const MODULE_VERSION: usize = 1;
+    /// module.toml's version this omaflake reads (`"$schema" = "https://omaflake.dev/schema/module/v2.json"`; v2:
+    /// modes, several keys and modes, `after`, `does`, `own`, `title_de` – plan B147)
+    pub const MODULE_VERSION: usize = 2;
 
     pub fn new(paths: Paths) -> Self {
         ModuleStore { paths }
@@ -232,6 +304,7 @@ impl ModuleStore {
             own_keys: m.own_keys,
             unfree: m.unfree,
             actions: m.actions,
+            modes: m.modes,
             source,
             hash,
             folder: folder.to_path_buf(),
@@ -336,7 +409,7 @@ pub(crate) mod tests {
     pub(crate) fn module_toml(provides: &[&str], needs: &[&str], actions: &[(&str, &str)]) -> String {
         let list = |l: &[&str]| l.iter().map(|x| format!("\"{x}\"")).collect::<Vec<_>>().join(", ");
         let mut s = format!(
-            "\"$schema\" = \"https://omaflake.dev/schema/module/v1.json\"\nversion = \"1.2.0\"\ntitle = \"T\"\n\
+            "\"$schema\" = \"https://omaflake.dev/schema/module/v2.json\"\nversion = \"1.2.0\"\ntitle = \"T\"\n\
              description = \"D\"\ndescription_de = \"De\"\nprovides = [{}]\nneeds = [{}]\n",
             list(provides),
             list(needs)
@@ -381,7 +454,7 @@ pub(crate) mod tests {
         assert_eq!(errors.len(), 1);
         let latex = store.find(&s, "alice/latex", GuestKind::Nixos).unwrap();
         assert_eq!((latex.version.as_str(), latex.needs.clone()), ("1.2.0", vec!["pdf-viewer".to_string()]));
-        assert_eq!(latex.actions["build"].key, "Ctrl+b");
+        assert_eq!(latex.actions["build"].key, ["Ctrl+b"]);
         assert_eq!(latex.description_in(Some("de")), "De");
         assert!(store.find(&s, "alice/latex", GuestKind::Macos).is_none());
         assert!(!store.capabilities(&s)["pdf-viewer"].exclusive);

@@ -274,10 +274,10 @@ pub(crate) fn page(ctx: &Ctx, p: &EditorParams) -> Option<CredentialPage> {
                 Some(tf!("%@ do not go together: each is the %@", modules.join(" + "), capability))
             }
             Issue::KeysOverlap { first, second } => {
-                Some(tf!("Keys overlap: %@ and %@ (%@)", &first.title, &second.title, &first.key))
+                Some(tf!("Keys overlap: %@ and %@ (%@)", &first.title, &second.title, first.key_text()))
             }
             Issue::KeyRule { binding } => {
-                Some(tf!("%@ (%@): without a mode a key starts with Super or Ctrl", &binding.title, &binding.key))
+                Some(tf!("%@ (%@): without a mode a key starts with Super or Ctrl", &binding.title, binding.key_text()))
             }
             _ => None,
         })

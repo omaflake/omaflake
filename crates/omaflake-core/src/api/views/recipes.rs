@@ -444,16 +444,16 @@ pub(crate) fn notes(ctx: &Ctx, recipe: &str, p: &RecipePartsDto) -> Vec<Hint> {
                 "Keys overlap: %@ (%@, %@) and %@ (%@, %@)",
                 &first.title,
                 &first.module,
-                &first.key,
+                first.key_text(),
                 &second.title,
                 &second.module,
-                &second.key
+                second.key_text()
             ),
             Issue::KeyRule { binding } => tf!(
                 "%@ (%@, %@): without a mode a key starts with Super or Ctrl",
                 &binding.title,
                 &binding.module,
-                &binding.key
+                binding.key_text()
             ),
             _ => continue,
         };
@@ -569,10 +569,10 @@ fn detail(ctx: &Ctx, r: &RecipeDto) -> RecipeDetail {
             .map(|b| InfoLine {
                 // The module's own words (module.toml), like its description
                 label: Text::verbatim(&b.title),
-                value: Text::verbatim(&b.key),
-                note: Some(match &b.mode {
-                    Some(mode) => tf!("%@, in its %@ mode", &b.module, mode),
-                    None => Text::verbatim(&b.module),
+                value: Text::verbatim(b.key_text()),
+                note: Some(match b.modes.as_slice() {
+                    [] => Text::verbatim(&b.module),
+                    modes => tf!("%@, in its %@ mode", &b.module, modes.join(", ")),
                 }),
                 tone: Some(Tone::Normal),
                 full: None,

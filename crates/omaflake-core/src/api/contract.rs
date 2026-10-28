@@ -465,9 +465,13 @@ pub(crate) fn recipe_parts() -> RecipePartsDto {
         module: module.into(),
         action: action.into(),
         title: title.into(),
-        key: key.into(),
+        title_de: None,
+        keys: vec![key.into()],
         context: "desktop".into(),
-        mode: None,
+        modes: vec![],
+        after: None,
+        does: None,
+        own: false,
         from: None,
     };
     RecipePartsDto {
@@ -493,12 +497,16 @@ pub(crate) fn recipe_parts() -> RecipePartsDto {
         keymaps: vec!["omaflake/default".into()],
         bindings: vec![
             binding("omaflake/hyprland", "terminal", "Open a terminal", "Super+Return"),
-            Binding { mode: Some("normal".into()), ..binding("omaflake/zellij", "quit", "Quit Zellij", "Ctrl+q") },
+            Binding {
+                modes: vec!["normal".into(), "pane".into()],
+                does: Some("Quit".into()),
+                ..binding("omaflake/zellij", "quit", "Quit Zellij", "Ctrl+q")
+            },
             binding("omaflake/hyprland", "float", "Float the window", "t"),
         ],
         issues: vec![
             Issue::MissingModule { reference: "omaflake/neovim ≥ 1.0.0".into(), have: None },
-            Issue::KeyRule { binding: binding("omaflake/hyprland", "float", "Float the window", "t") },
+            Issue::KeyRule { binding: Box::new(binding("omaflake/hyprland", "float", "Float the window", "t")) },
         ],
         unfree: vec![],
         requirements: Requirements { cpus: 4, memory_gb: 8, disk_gb: 40 },

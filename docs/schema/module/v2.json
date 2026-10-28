@@ -1,0 +1,184 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://omaflake.dev/schema/module/v2.json",
+  "title": "omaflake module (module.toml)",
+  "description": "module.toml (plan B142; v2, plan B147: modes, several keys and modes, after, does, own, title_de): what a module is – its version, the capabilities it provides and needs, the modules it enhances, and the actions people can bind keys to. Its Nix is default.nix next to it.",
+  "type": "object",
+  "additionalProperties": false,
+  "patternProperties": {
+    "^description_[a-z]{2,3}$": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "$schema",
+    "version",
+    "author",
+    "license",
+    "title",
+    "description"
+  ],
+  "properties": {
+    "$schema": {
+      "const": "https://omaflake.dev/schema/module/v2.json"
+    },
+    "version": {
+      "type": "string",
+      "pattern": "^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)$"
+    },
+    "author": {
+      "type": "string"
+    },
+    "license": {
+      "type": "string"
+    },
+    "title": {
+      "type": "string"
+    },
+    "description": {
+      "type": "string"
+    },
+    "tags": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "homepage": {
+      "type": "string"
+    },
+    "provides": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "Capabilities (capabilities.toml)"
+    },
+    "needs": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "enhances": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "\"<author>/<name>\" of modules it adds to when they are in the recipe"
+    },
+    "runs_in": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "Capabilities whose programs it runs inside (key overlaps)"
+    },
+    "desktop": {
+      "type": "boolean",
+      "description": "All its keys work on the whole desktop"
+    },
+    "own_keys": {
+      "type": "boolean",
+      "description": "An editor's keys: the key rule does not apply"
+    },
+    "unfree": {
+      "type": "boolean",
+      "description": "Not free software"
+    },
+    "actions": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "title",
+          "key"
+        ],
+        "properties": {
+          "title": {
+            "type": "string"
+          },
+          "title_de": {
+            "type": "string"
+          },
+          "key": {
+            "oneOf": [
+              {
+                "type": "string",
+                "description": "A chord – modifiers (Super, Ctrl, Alt, Shift) and a key joined by \"+\" (\"Super+Shift+Return\", \"Ctrl+g\") – or chords separated by spaces (\"Space f f\"); Digit and Arrow stand for 1–9 and the arrows"
+              },
+              {
+                "type": "array",
+                "minItems": 1,
+                "items": {
+                  "type": "string",
+                  "description": "A chord – modifiers (Super, Ctrl, Alt, Shift) and a key joined by \"+\" (\"Super+Shift+Return\", \"Ctrl+g\") – or chords separated by spaces (\"Space f f\"); Digit and Arrow stand for 1–9 and the arrows"
+                },
+                "description": "Several keys – each does it"
+              }
+            ]
+          },
+          "mode": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "array",
+                "minItems": 1,
+                "items": {
+                  "type": "string"
+                }
+              }
+            ],
+            "description": "Only in this mode of the module, or in these"
+          },
+          "after": {
+            "type": "string",
+            "description": "The mode the program is in afterwards; without it, it stays"
+          },
+          "does": {
+            "type": "string",
+            "description": "What it does in the program's own words (Zellij's NewPane \"Down\"); a module may write the program's configuration from it"
+          },
+          "own": {
+            "type": "boolean",
+            "description": "The program's own key, shown for reference – key binding sets do not change it"
+          },
+          "desktop": {
+            "type": "boolean",
+            "description": "Works everywhere on the desktop"
+          },
+          "context": {
+            "type": "string",
+            "description": "Bound inside another module's program (\"<author>/<name>\")"
+          }
+        }
+      }
+    },
+    "modes": {
+      "type": "object",
+      "description": "The modes of the module's program: its keys differ there",
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "title"
+        ],
+        "properties": {
+          "title": {
+            "type": "string"
+          },
+          "title_de": {
+            "type": "string"
+          },
+          "start": {
+            "type": "boolean",
+            "description": "The program starts in it (exactly one mode)"
+          }
+        }
+      }
+    }
+  }
+}

@@ -13,6 +13,14 @@ are collected under *Unreleased*. Releases: [GitHub](https://github.com/omaflake
 
 ## [Unreleased]
 
+### Changed
+
+- Modules list all their key bindings, with the modes they work in and the mode they lead to (module.toml v2:
+  `[modes]`, several keys and modes per action, `after`, `does`, `own`). Zellij's are complete – about 100 in 12
+  modes – and its configuration is written from them, so a key binding set can also change where a key leads
+  (`new-pane = { after = "pane" }` stays in pane mode). Key binding sets v2: a key, several keys, or `{ key, after }`.
+  This omaflake reads catalog v5 only; older catalogs are not read (before 1.0 without a transition).
+
 ### Fixed
 
 - After a macOS update the Doctor no longer calls the IPSW missing: an older one keeps creating bases, and a newer

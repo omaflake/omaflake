@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Key binding sets (plan B141, B142): data (`keymap.toml`, schema keymap/v1) that gives keys to the actions modules
-//! offer – `[keys."<author>/<name>"]` tables of action → key. A module works without any set (its module.toml has a
+//! Key binding sets (plan B141, B142): data (`keymap.toml`, schema keymap/v2) that gives keys to the actions modules
+//! offer – `[keys."<author>/<name>"]` tables of action → key, keys, or `{ key, after }` (plan B147). A module works without any set (its module.toml has a
 //! default key for each action); a recipe names sets in order and a later one wins for the same action. They come from
 //! the sources' catalogs (`keymaps/<author>/<name>/`) and are installed into `<data>/keymaps/` (`parts::PartStore`),
 //! or used as they are on disk from a local folder source.
@@ -19,8 +19,67 @@ use crate::paths::{Paths, Settings};
 use crate::recipe_sources::{CatalogFile, RecipeCatalog, SourceClient};
 use crate::vm_err;
 
-/// module "<author>/<name>" → action → key
-pub type Keys = BTreeMap<String, BTreeMap<String, String>>;
+/// What a set gives an action (keymap/v2, plan B147): a key ("Ctrl+g"), several keys, or a table with `key` and/or
+/// `after` (the mode the program is in afterwards)
+#[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[serde(from = "EntryForm", into = "EntryForm")]
+pub struct KeyEntry {
+    /// Empty: the module's key stays
+    pub key: Vec<String>,
+    pub after: Option<String>,
+}
+
+#[derive(Serialize, Deserialize)]
+#[serde(untagged)]
+enum EntryForm {
+    One(String),
+    Many(Vec<String>),
+    Table {
+        #[serde(default, with = "crate::modules::one_or_many", skip_serializing_if = "Vec::is_empty")]
+        key: Vec<String>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        after: Option<String>,
+    },
+}
+
+impl From<EntryForm> for KeyEntry {
+    fn from(f: EntryForm) -> Self {
+        match f {
+            EntryForm::One(k) => KeyEntry { key: vec![k], after: None },
+            EntryForm::Many(key) => KeyEntry { key, after: None },
+            EntryForm::Table { key, after } => KeyEntry { key, after },
+        }
+    }
+}
+
+impl From<KeyEntry> for EntryForm {
+    fn from(e: KeyEntry) -> Self {
+        match (e.key.len(), e.after) {
+            (1, None) => EntryForm::One(e.key.into_iter().next().unwrap_or_default()),
+            (_, None) if !e.key.is_empty() => EntryForm::Many(e.key),
+            (_, after) => EntryForm::Table { key: e.key, after },
+        }
+    }
+}
+
+impl KeyEntry {
+    pub fn key(k: &str) -> Self {
+        KeyEntry { key: vec![k.to_string()], after: None }
+    }
+
+    /// For people: "Ctrl+g", "h / Left", "Ctrl+g, then Pane"
+    pub fn describe(&self) -> String {
+        let keys = self.key.join(" / ");
+        match &self.after {
+            Some(a) if keys.is_empty() => format!("then {a}"),
+            Some(a) => format!("{keys}, then {a}"),
+            None => keys,
+        }
+    }
+}
+
+/// module "<author>/<name>" → action → what the set gives it
+pub type Keys = BTreeMap<String, BTreeMap<String, KeyEntry>>;
 
 /// One key binding set in catalog.json (catalog v4)
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -104,7 +163,7 @@ pub struct KeymapStore {
 
 impl KeymapStore {
     /// keymap.toml's version this omaflake reads
-    pub const KEYMAP_VERSION: usize = 1;
+    pub const KEYMAP_VERSION: usize = 2;
 
     pub fn new(paths: Paths) -> Self {
         KeymapStore { paths }
@@ -202,7 +261,7 @@ mod tests {
         fs::create_dir_all(&f).unwrap();
         fs::write(
             f.join("keymap.toml"),
-            "\"$schema\" = \"https://omaflake.dev/schema/keymap/v1.json\"\nversion = \"1.0.0\"\ntitle = \"Vim\"\n\
+            "\"$schema\" = \"https://omaflake.dev/schema/keymap/v2.json\"\nversion = \"1.0.0\"\ntitle = \"Vim\"\n\
              description = \"x\"\n[keys.\"omaflake/hyprland\"]\nterminal = \"Super+t\"\n",
         )
         .unwrap();
@@ -211,6 +270,6 @@ mod tests {
             Some(vec![RecipeSource::new(RecipeSourceKind::Folder, &src.path().to_string_lossy(), None, None, None)]);
         s.save(&paths).unwrap();
         let k = KeymapStore::new(paths).find(&s, "alice/vim").unwrap();
-        assert_eq!((k.title.as_str(), k.keys["omaflake/hyprland"]["terminal"].as_str()), ("Vim", "Super+t"));
+        assert_eq!((k.title.as_str(), k.keys["omaflake/hyprland"]["terminal"].describe().as_str()), ("Vim", "Super+t"));
     }
 }

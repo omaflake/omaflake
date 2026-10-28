@@ -501,8 +501,13 @@ pub fn show(a: &cli::RecipesShow) -> Outcome {
     if !c.bindings.is_empty() {
         println!("keys:");
         for b in &c.bindings {
-            let mode = b.mode.as_ref().map(|m| format!(" ({m} mode)")).unwrap_or_default();
-            println!("  {}{}{}{mode}", pad(&b.key, 22), pad(&b.module, 22), b.title);
+            let mode = match (b.modes.as_slice(), &b.after) {
+                ([], None) => String::new(),
+                ([], Some(after)) => format!(" (then {after})"),
+                (modes, None) => format!(" (in {})", modes.join(", ")),
+                (modes, Some(after)) => format!(" (in {}, then {after})", modes.join(", ")),
+            };
+            println!("  {}{}{}{mode}", pad(&b.key_text(), 22), pad(&b.module, 22), b.title);
         }
     }
     for i in &c.issues {
@@ -517,11 +522,18 @@ pub fn show(a: &cli::RecipesShow) -> Outcome {
             }
             Issue::KeysOverlap { first, second } => format!(
                 "keys overlap: {} {} ({}) and {} {} ({})",
-                first.module, first.action, first.key, second.module, second.action, second.key
+                first.module,
+                first.action,
+                first.key_text(),
+                second.module,
+                second.action,
+                second.key_text()
             ),
             Issue::KeyRule { binding } => format!(
                 "{} {} ({}): without a mode a key starts with Super or Ctrl",
-                binding.module, binding.action, binding.key
+                binding.module,
+                binding.action,
+                binding.key_text()
             ),
         };
         println!("{} {text}", if i.blocks() { "✗" } else { "⚠" });

@@ -1357,7 +1357,7 @@ impl Server {
                 provides: m.provides.clone(),
                 needs: m.needs.clone(),
                 enhances: m.enhances.clone(),
-                keys: m.actions.iter().map(|(a, x)| (a.clone(), x.key.clone())).collect(),
+                keys: m.actions.iter().map(|(a, x)| (a.clone(), x.key.join(" / "))).collect(),
                 unfree: m.unfree,
                 source: m.source.clone(),
                 source_name: source_name(&m.source),
@@ -2930,7 +2930,9 @@ struct AssignParams {
 
 /// A key binding set's keys as one list: "<module> <action>" → key
 fn keys_of(keys: &crate::keymaps::Keys) -> BTreeMap<String, String> {
-    keys.iter().flat_map(|(m, a)| a.iter().map(move |(action, key)| (format!("{m} {action}"), key.clone()))).collect()
+    keys.iter()
+        .flat_map(|(m, a)| a.iter().map(move |(action, key)| (format!("{m} {action}"), key.describe())))
+        .collect()
 }
 
 #[cfg(test)]
