@@ -44,10 +44,10 @@ extension APIContractTests {
                 #expect(p.head.actions.map(\.id) == ["import", "external"] && p.head.actions[0].ask.first?.multiple == true)
                 #expect(p.head.actions[0].ask.first?.check?.method == "packages.inspect" && p.head.actions[1].ask.first?.multiple == false)
                 let r = try #require(p.rows.first)
-                #expect(r.lamp.state == .on && r.actions.map(\.id) == ["showShare", "terminal", "stop"])
+                #expect(r.lamp.state == .on && r.actions.map(\.id) == ["keys", "showShare", "terminal", "stop"])
                 // The running VM's default is its terminal; the other row has none
                 #expect(r.actions.primary?.id == "terminal" && p.rows.last?.actions.primary == nil)
-                #expect(r.actions[1].then == .terminal && r.actions[2].destructive && r.vm.name == "research")
+                #expect(r.actions[2].then == .terminal && r.actions[3].destructive && r.vm.name == "research")
                 #expect(r.detail.switches.first?.on == true && r.detail.switchesNote != nil)
                 #expect(r.detail.actions.allSatisfy { !$0.enabled && $0.reason?.key == "Shut the VM down first" })
                 #expect(r.detail.info.first { $0.label.key == "Created" }?.value.args.first.map { if case .date = $0 { true } else { false } } == true)
@@ -80,7 +80,7 @@ extension APIContractTests {
                 #expect(job.state == .running && job.fraction != nil && job.actions.first?.method == "jobs.cancel")
                 #expect(job.open.method == "ui.show" && job.open.params["page"] == .string("build") && job.open.primary)
                 let row = try #require(p.rows.first)
-                #expect(row.actions.map(\.id) == ["reveal", "newVm"] || row.actions.map(\.id) == ["reveal", "doctor"])
+                #expect(row.actions.map(\.id) == ["keys", "reveal", "newVm"] || row.actions.map(\.id) == ["keys", "reveal", "doctor"])
                 #expect(p.rows.map { $0.actions.primary?.id } == ["doctor", "newVm"])
                 #expect(row.detail.actions.map(\.id) == ["export", "remove"])
             },
@@ -97,8 +97,9 @@ extension APIContractTests {
                 let r = try #require(p.rows.first { $0.recipe.id == "omaflake.nixos.dev@velvet-tiger-orbit" })
                 #expect(r.lamp.state == .working || r.lamp.state == .attention)
                 #expect(!r.detail.versions.isEmpty && r.detail.versions[0].actions.map(\.id) == ["export", "remove"])
-                // What it is made of (plan B142): a missing module with its install action, its keys
-                #expect(r.detail.notes?.first?.action?.method == "recipes.installParts" && r.detail.keys?.isEmpty == false)
+                // What it is made of (plan B142): a missing module with its install action; its keys in a window (plan B147)
+                #expect(r.detail.notes?.first?.action?.method == "recipes.installParts")
+                #expect(r.actions.first?.id == "keys" && r.actions.first?.params["page"] == .string("keys"))
                 #expect(p.head.filter?.groups.contains { $0.kind == .toggle && $0.id == "otherSystems" } == true)
                 #expect(p.offeredTitle?.key == "More recipes in your sources" && p.loadingText == nil && p.labHint == nil)
                 #expect(p.offered.allSatisfy { $0.actions.primary?.id == "install" })
@@ -197,6 +198,19 @@ extension APIContractTests {
                 #expect(p.fields.allSatisfy { $0.enabled && $0.valueParam == $0.param })
                 let create = try #require(p.actions.last)
                 #expect(create.method == "credentials.add" && create.ask.first?.kind == .password && create.then == .back)
+            },
+            "keys": {
+                // By module and mode, the way to a mode as key caps, where a key leads (plan B147)
+                guard case .keys(let p) = try page("keys", as: "keys") else { throw Unexpected() }
+                #expect(p.modules.map(\.reference) == ["omaflake/hyprland", "omaflake/zellij"])
+                let pane = try #require(p.modules[1].groups.first { $0.mode == "pane" })
+                #expect(pane.way.count == 2 && pane.way[1].caps == [["p"]])
+                let newPane = try #require(pane.rows.first { $0.action == "new-pane" })
+                #expect(newPane.after?.key == "then %@" && newPane.backToStart && newPane.does == "NewPane")
+            },
+            "keys.vm": {
+                guard case .keys(let p) = try page("keys.vm", as: "keys") else { throw Unexpected() }
+                #expect(p.subtitle.key == "VM %@" && p.notes.count == 1)
             },
             "baseCredential": {
                 // A base from before bases kept their credential: the same form, one choice (plan B139)

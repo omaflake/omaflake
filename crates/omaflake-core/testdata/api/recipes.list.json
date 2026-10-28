@@ -112,6 +112,62 @@
             "title": "Quit Zellij"
           },
           {
+            "action": "unlock",
+            "after": "normal",
+            "context": "omaflake/zellij",
+            "keys": [
+              "Ctrl+g"
+            ],
+            "modes": [
+              "locked"
+            ],
+            "module": "omaflake/zellij",
+            "title": "Unlock"
+          },
+          {
+            "action": "pane-mode",
+            "after": "pane",
+            "context": "omaflake/zellij",
+            "keys": [
+              "p"
+            ],
+            "modes": [
+              "normal"
+            ],
+            "module": "omaflake/zellij",
+            "title": "Pane mode"
+          },
+          {
+            "action": "new-pane",
+            "after": "locked",
+            "context": "omaflake/zellij",
+            "does": "NewPane",
+            "from": "omaflake/default",
+            "keys": [
+              "n"
+            ],
+            "modes": [
+              "pane"
+            ],
+            "module": "omaflake/zellij",
+            "title": "New pane",
+            "titleDe": "Neuer Bereich"
+          },
+          {
+            "action": "focus-left",
+            "context": "omaflake/zellij",
+            "does": "MoveFocus \"Left\"",
+            "keys": [
+              "h",
+              "Left"
+            ],
+            "modes": [
+              "pane"
+            ],
+            "module": "omaflake/zellij",
+            "title": "Focus left"
+          },
+          {
             "action": "float",
             "context": "desktop",
             "keys": [
@@ -164,6 +220,27 @@
             "reference": "omaflake/wezterm",
             "title": "WezTerm",
             "version": "1.0.0"
+          },
+          {
+            "modes": {
+              "locked": {
+                "start": true,
+                "title": "Locked",
+                "title_de": "Gesperrt"
+              },
+              "normal": {
+                "title": "Unlocked"
+              },
+              "pane": {
+                "title": "Pane"
+              }
+            },
+            "provides": [
+              "multiplexer"
+            ],
+            "reference": "omaflake/zellij",
+            "title": "Zellij",
+            "version": "2.0.0"
           },
           {
             "reference": "omaflake/neovim ≥ 1.0.0"

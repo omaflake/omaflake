@@ -402,12 +402,8 @@ struct RecipeRowView: View {
                     Text(description).font(.caption).fixedSize(horizontal: false, vertical: true)
                 }
                 InfoLines(lines: row.detail.info, model: model)
-                // What is missing or wrong, its keys (plan B142)
+                // What is missing or wrong (plan B142); its keys have a window of their own (plan B147)
                 ForEach(Array((row.detail.notes ?? []).enumerated()), id: \.offset) { HintRow(hint: $1, model: model) }
-                if let keys = row.detail.keys, !keys.isEmpty {
-                    Text("Keys").font(.caption.weight(.medium)).foregroundStyle(.secondary)
-                    InfoLines(lines: keys, model: model)
-                }
                 // The line's versions, always as sub-rows – words, export and remove always in the same place
                 VStack(spacing: 0) {
                     ForEach(Array(row.detail.versions.enumerated()), id: \.element.id) { i, v in

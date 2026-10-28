@@ -1275,3 +1275,22 @@
 "Nix is installed, but its volume is not mounted at /nix – usually after a restart without its mount settings. Mount it; NixOS images, the Linux builder and omaflake's QEMU are back then." = "Nix ist installiert, aber sein Volume ist nicht unter /nix eingehängt – meist nach einem Neustart ohne seine Einhänge-Einstellungen. Einhängen; danach sind NixOS-Images, der Linux-Builder und omaflakes QEMU wieder da.";
 "Nix Store mounted at /nix" = "Nix-Store unter /nix eingehängt";
 "No Nix Store volume on this Mac" = "Kein Volume „Nix Store“ auf diesem Mac";
+
+/* Keys page (plan B147) */
+"Keys …" = "Tasten …";
+"Keys of %@" = "Tasten von %@";
+"VM %@" = "VM %@";
+"Image %@" = "Vorlage %@";
+"Search keys" = "Tasten suchen";
+"then %@" = "dann %@";
+"Anywhere on the desktop" = "Überall auf dem Desktop";
+"In the program" = "Im Programm";
+"In every mode" = "In jedem Modus";
+"By module and by the mode its program is in. A mode shows the keys that lead there; “then …” is the mode a key leads to." = "Nach Modul und nach dem Modus, in dem sein Programm ist. Ein Modus zeigt die Tasten, die dorthin führen; „dann …“ ist der Modus, in den eine Taste führt.";
+"As its recipe has them now – a module or key binding set updated since the build may differ." = "So, wie sein Rezept sie jetzt hat – ein seit dem Bauen aktualisiertes Modul oder Tasten-Set kann abweichen.";
+"Its recipe is not here – its keys are not known." = "Sein Rezept ist nicht da – seine Tasten sind nicht bekannt.";
+"start" = "Start";
+"own" = "eigene";
+"The program starts in this mode" = "Das Programm startet in diesem Modus";
+"The program's own key – key bindings do not change it" = "Die eigene Taste des Programms – Tasten-Sets ändern sie nicht";
+"Key from %@" = "Taste aus %@";

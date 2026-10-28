@@ -135,6 +135,7 @@ pub(crate) fn modules_fixture() -> crate::api::types::ModulesAnswer {
 pub(crate) fn ctx() -> Ctx {
     let answer = fx::settings_answer();
     Ctx {
+        language: None,
         paths: Paths::new("/data", None),
         vms: vec![fx::vm_full(), fx::vm_mac()],
         unreadable_vms: vec![Unreadable {
@@ -257,8 +258,8 @@ fn vm_rows_say_what_the_app_said() {
     assert_eq!(research["subtitle"]["text"], "dev (velvet) · Work · omaflake · 4 CPU · 8 GB · SSH 2201");
     let badges: Vec<&str> = research["badges"].as_array().unwrap().iter().map(|b| b["id"].as_str().unwrap()).collect();
     assert_eq!(badges, ["external", "clipboard", "sound", "upgradable"]);
-    // Running: share folder, terminal, stop
-    assert_eq!(ids(&research["actions"]), ["showShare", "terminal", "stop"]);
+    // Running: its keys, share folder, terminal, stop
+    assert_eq!(ids(&research["actions"]), ["keys", "showShare", "terminal", "stop"]);
     assert_eq!(action(&research["actions"], "terminal")["then"], "terminal");
     assert_eq!(action(&research["actions"], "showShare")["then"], "reveal");
     // Its details while it runs: everything that changes it waits for the shutdown
@@ -342,14 +343,14 @@ fn vms_filter_and_start_rules() {
     // Stopped NixOS VM with QEMU missing: the Doctor's warning instead of the start buttons
     c.vms[0].status = VmStatus::Stopped;
     let row = &get(&c, "vms", json!({}))["rows"][0];
-    assert_eq!(ids(&row["actions"]), ["showShare", "doctor"]);
-    assert_eq!(row["actions"][1]["help"]["text"], "Open the Doctor first: QEMU (NixOS guests)");
+    assert_eq!(ids(&row["actions"]), ["keys", "showShare", "doctor"]);
+    assert_eq!(row["actions"][2]["help"]["text"], "Open the Doctor first: QEMU (NixOS guests)");
     assert_eq!(row["detail"]["actions"][0]["enabled"], true);
 
     // Without blockers it starts; two macOS VMs run: a third waits
     c.doctor.as_mut().unwrap().start_blockers.nixos.clear();
     let row = &get(&c, "vms", json!({}))["rows"][0];
-    assert_eq!(ids(&row["actions"]), ["showShare", "startHeadless", "startWindow"]);
+    assert_eq!(ids(&row["actions"]), ["keys", "showShare", "startHeadless", "startWindow"]);
     assert_eq!(action(&row["actions"], "startWindow")["params"], json!({"name": "research", "display": "auto"}));
     c.vms[1].busy = false;
     for n in ["m1", "m2"] {
@@ -419,7 +420,7 @@ fn image_rows_and_builds() {
     let used = &page["rows"][0];
     assert_eq!(used["lamp"]["state"], "on");
     assert_eq!(used["subtitle"]["args"][2]["key"], "1 VM");
-    assert_eq!(ids(&used["actions"]), ["reveal", "doctor"], "QEMU missing: no new VM from a NixOS image");
+    assert_eq!(ids(&used["actions"]), ["keys", "reveal", "doctor"], "QEMU missing: no new VM from a NixOS image");
     let remove = action(&used["detail"]["actions"], "remove");
     assert_eq!(
         (remove["enabled"].clone(), remove["reason"]["key"].clone()),
@@ -457,8 +458,9 @@ fn recipe_rows_by_line_with_offers_and_updates() {
     assert_eq!(dev["lamp"]["state"], "working", "j1 builds it");
     assert_eq!(dev["secondary"], json!(["velvet"]));
     // The Linux builder does not answer: the build button stays, greyed out with the Doctor's sign
-    assert_eq!(ids(&dev["actions"]), ["reveal", "build"]);
-    let build = &dev["actions"][1];
+    assert_eq!(ids(&dev["actions"]), ["keys", "reveal", "build"]);
+    assert_eq!(action(&dev["actions"], "keys")["params"]["page"], "keys");
+    let build = &dev["actions"][2];
     assert_eq!(
         (build["enabled"].clone(), build["badge"].clone(), build["primary"].clone()),
         (json!(false), json!(1), json!(true))
@@ -468,15 +470,12 @@ fn recipe_rows_by_line_with_offers_and_updates() {
     assert_eq!(d["info"][3]["value"]["text"], "Clipboard · Sound · Share folder");
     assert_eq!(d["info"][4]["value"]["key"], "%lld built, the newest %@");
     assert_eq!(ids(&d["actions"]), ["update", "copy", "removeAll"]);
-    // What it is made of (plan B142): its modules, look, key bindings, keys and what is wrong
+    // What it is made of (plan B142): its modules, look, key bindings and what is wrong – its keys on a page of their own
     let info: Vec<&str> = d["info"].as_array().unwrap().iter().filter_map(|l| l["label"]["key"].as_str()).collect();
     assert!(info.contains(&"Modules") && info.contains(&"Look") && info.contains(&"Key bindings"), "{info:?}");
     assert_eq!(d["notes"][0]["action"]["method"], "recipes.installParts");
     assert_eq!(d["notes"][1]["text"]["key"], "%@ (%@, %@): without a mode a key starts with Super or Ctrl");
-    assert_eq!(
-        (d["keys"][0]["label"]["text"].clone(), d["keys"][0]["value"]["text"].clone()),
-        (json!("Open a terminal"), json!("Super+Return"))
-    );
+    assert!(d.get("keys").is_none(), "the keys page has them (plan B147)");
     assert_eq!(dev["lamp"]["state"], "working");
     assert_eq!(action(&d["actions"], "removeAll")["enabled"], true, "the older version has no image");
     let versions = d["versions"].as_array().unwrap();
@@ -685,6 +684,58 @@ fn build_page_follows_the_job() {
     c.bases[0].credential = Some("c-1".into());
     let page = get(&c, "build", json!({"recipe": "omaflake.nixos.dev@velvet-tiger-orbit"}));
     assert_eq!(action(&page["actions"], "build")["enabled"], false);
+}
+
+// MARK: Keys
+
+/// The keys page (plan B147): by module, the desktop's first; a mode with the way there and where each key leads
+#[test]
+fn keys_page_by_module_and_mode() {
+    let mut c = ctx();
+    c.language = Some("de".into());
+    c.host = super::HostOs::Macos;
+    let page = get(&c, "keys", json!({"recipe": "omaflake.nixos.dev@velvet-tiger-orbit"}));
+    assert_eq!(page["title"]["key"], "Keys of %@");
+    let modules: Vec<&str> =
+        page["modules"].as_array().unwrap().iter().map(|m| m["reference"].as_str().unwrap()).collect();
+    assert_eq!(modules, ["omaflake/hyprland", "omaflake/zellij"], "the desktop's first; WezTerm has no keys");
+    let hyprland = &page["modules"][0]["groups"][0];
+    assert_eq!(hyprland["title"]["key"], "Anywhere on the desktop");
+    let terminal = hyprland["rows"].as_array().unwrap().iter().find(|r| r["action"] == "terminal").unwrap();
+    assert_eq!(terminal["caps"][0], json!([["⌘", "↩"]]), "Super is ⌘ on a Mac");
+    let groups = page["modules"][1]["groups"].as_array().unwrap();
+    let titles: Vec<&str> = groups.iter().map(|g| g["title"]["text"].as_str().unwrap()).collect();
+    assert_eq!(titles, ["Gesperrt", "Unlocked", "Pane"], "the start mode first, then as they are reached");
+    assert_eq!(groups[0]["start"], true);
+    // Pane: Ctrl+g › p
+    let way: Vec<&Value> = groups[2]["way"].as_array().unwrap().iter().map(|s| &s["caps"]).collect();
+    assert_eq!(way, [&json!([["⌃", "g"]]), &json!([["p"]])]);
+    assert_eq!(groups[2]["way"][1]["mode"]["text"], "Pane");
+    let rows = groups[2]["rows"].as_array().unwrap();
+    let new_pane = rows.iter().find(|r| r["action"] == "new-pane").unwrap();
+    assert_eq!(new_pane["title"]["text"], "Neuer Bereich");
+    assert_eq!(
+        (new_pane["after"]["key"].clone(), new_pane["after"]["args"][0]["text"].clone()),
+        (json!("then %@"), json!("Gesperrt"))
+    );
+    assert_eq!((new_pane["backToStart"].clone(), new_pane["switches"].clone()), (json!(true), json!(false)));
+    assert_eq!((new_pane["does"].clone(), new_pane["from"].clone()), (json!("NewPane"), json!("omaflake/default")));
+    let focus = rows.iter().find(|r| r["action"] == "focus-left").unwrap();
+    assert_eq!(focus["caps"], json!([[["h"]], [["←"]]]));
+    assert!(focus.get("after").is_none(), "it stays in the mode");
+    // Quit works in two modes: listed in both
+    assert!(groups[1]["rows"].as_array().unwrap().iter().any(|r| r["action"] == "quit"));
+    assert!(rows.iter().any(|r| r["action"] == "quit"));
+    // An image or a VM: through its recipe, with a note
+    let vm = get(&c, "keys", json!({"vm": "research"}));
+    assert_eq!(vm["subtitle"]["key"], "VM %@");
+    assert_eq!(
+        vm["notes"][0]["text"]["key"],
+        "As its recipe has them now – a module or key binding set updated since the build may differ."
+    );
+    let gone = get(&c, "keys", json!({"recipe": "nope"}));
+    assert_eq!(gone["notes"][0]["tone"], "warning");
+    assert!(gone["modules"].as_array().unwrap().is_empty());
 }
 
 // MARK: Doctor
@@ -1212,7 +1263,7 @@ fn linux_hosts_get_their_own_words() {
         "Private – token stored (keyring or tokens.json)"
     );
     let images = get(&c, "images", json!({}));
-    assert_eq!(images["rows"][0]["actions"][0]["label"]["key"], "Show in File Manager");
+    assert_eq!(action(&images["rows"][0]["actions"], "reveal")["label"]["key"], "Show in File Manager");
     let recipes = get(&c, "recipes", json!({"filter": {"otherSystems": true}}));
     assert_eq!(recipes["rows"][1]["actions"][1]["reason"]["key"], "Not for this computer – it is built for %@");
     // Every text that names the Mac, Finder or the Keychain has its other variant

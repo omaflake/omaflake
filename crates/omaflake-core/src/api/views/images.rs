@@ -415,16 +415,15 @@ pub(crate) fn row(ctx: &Ctx, i: &ImageDto) -> ImageRowView {
     } else {
         Action::doctor_warning(&blockers)
     };
-    let actions = vec![
-        Action::call(
-            "reveal",
-            Text::new(ctx.on_host("Show in Finder", "Show in File Manager")),
-            Some("folder"),
-            "ui.reveal",
-            json!({"path": i.path}),
-        ),
-        new_vm,
-    ];
+    let reveal = Action::call(
+        "reveal",
+        Text::new(ctx.on_host("Show in Finder", "Show in File Manager")),
+        Some("folder"),
+        "ui.reveal",
+        json!({"path": i.path}),
+    );
+    let keys = super::keys::action(ctx, &i.recipe, json!({"image": i.name}));
+    let actions = keys.into_iter().chain([reveal, new_vm]).collect();
     ImageRowView {
         name: i.name.clone(),
         lamp: if used_by.is_empty() {

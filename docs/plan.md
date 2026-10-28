@@ -1082,6 +1082,22 @@ navigation → recipe studio → key binding studio.
   plugins' keys, WezTerm, Emacs, Zathura); the installed 0.6.2 does not read catalog v5 – the local catalog source
   needs a development build until the next release.
 
+**B147, step 2 (2026-10-28): the keys view.** Page `keys` (`views/keys.rs`, params `recipe` | `image` | `vm` – an image
+or VM through its recipe, with the note that a module or set updated since the build may differ): modules in the
+recipe's order, those with desktop keys first; per module a group for keys without a mode ("Anywhere on the desktop",
+"In the program", "In every mode"), then the start mode, then the modes by distance and name; each mode with its way
+from the start mode (shortest, keys that only switch preferred); rows doing something before rows that only switch,
+each with caps (⌘ ⌃ ⇧ ↩ on a Mac host, "1–9", "←↑→↓"), "then <mode>", `backToStart`, `does`, `from`, `own`, the title
+in German where the module has `title_de`. `ModuleUseDto.modes` carries the module's modes; `Ctx.language`. The row
+button `keys` (icon `keyboard`) on recipes, images and VMs whose recipe has keys; `RecipeDetail.keys` is gone. macOS
+app: `Window` "keys" (`KeysView`, a search field filtering titles, keys, `does` and modes; a click on a row shows
+`does` and the set), opened by `ui.show` with page `keys`; Linux app (iced) and `omaf ui`: a page (Enter on a row shows
+`does`). **Checked:** `cargo test` (page test `keys_page_by_module_and_mode`, goldens `keys`, `keys.vm`), `swift test`
+(contracts), the TUI draws it; with a development build and a scratch data folder on the real catalog,
+neovim-minimal's page: Hyprland 14 keys, Zellij 162 rows in 12 modes plus the desktop, Neovim 9. **OPEN:** the macOS
+window and the iced page not clicked (no way to drive the apps from here); search in the Linux app and `omaf ui`;
+the Linux app as a window of its own.
+
 **B129 (2026-10-24): clipboard on a GNOME host.** Mutter has no data-control protocol: `wl-paste --watch` ends at once.
 `Wayland::start` now treats an end within 500 ms as refused, and `detect` falls back to xclip through Xwayland, which
 Mutter keeps in sync (`X11::through_xwayland`, Mutter's `.mutter-Xwaylandauth.*` cookie when XAUTHORITY is unset; its

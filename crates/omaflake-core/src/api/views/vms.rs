@@ -183,7 +183,7 @@ pub(crate) fn row(ctx: &Ctx, v: &Vm) -> VmRowView {
     };
     subtitle.extend(ssh);
 
-    let mut actions = Vec::new();
+    let mut actions: Vec<Action> = super::keys::action(ctx, &v.recipe, json!({"vm": name})).into_iter().collect();
     if v.share {
         actions.push(
             Action::call(

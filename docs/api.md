@@ -533,6 +533,7 @@ Pages and their params:
 | `recipeEditor` | `id?, values?` | a recipe of your own put together from modules, a look and key bindings (plan B142; the credential form's shape) |
 | `credential` | `id?` | one credential's form: new, or to edit (only the name while images use it) |
 | `baseCredential` | `name` | the same form for a macOS base from before bases kept their credential: which one its user has (plan B139) |
+| `keys` | `recipe` \| `image` \| `vm` | a recipe's keys – of an image or a VM through its recipe – by module and by the mode of its program (plan B147): `{title, subtitle, intro, notes, modules: [{reference, title, groups: [{mode?, title, start, way: [{caps, mode}], rows: [{action, keys, caps, title, after?, backToStart, switches, does?, from?, own}]}]}], keymaps, search}`; `caps` are a key's chords as key caps (⌘ ⌃ ⇧ on a Mac host). Rows of recipes, images and VMs whose recipe has keys open it with `ui.show` (action `keys`, icon `keyboard`); the macOS app shows it in a window of its own |
 | `macBase` | `values?` | Create macOS Base |
 | `settings` | `values?` | recipe sources (with the new source's form), general switches, guest values, data folder |
 | `activity` | – | what happened in this server, newest first |

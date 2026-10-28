@@ -586,6 +586,22 @@
       "actions": [
         {
           "enabled": true,
+          "icon": "keyboard",
+          "id": "keys",
+          "label": {
+            "key": "Keys …",
+            "text": "Keys …"
+          },
+          "method": "ui.show",
+          "params": {
+            "page": "keys",
+            "params": {
+              "recipe": "omaflake.nixos.dev@velvet-tiger-orbit"
+            }
+          }
+        },
+        {
+          "enabled": true,
           "icon": "folder",
           "id": "reveal",
           "label": {
@@ -787,13 +803,13 @@
             }
           },
           {
-            "full": "omaflake/hyprland, omaflake/wezterm, omaflake/neovim ≥ 1.0.0",
+            "full": "omaflake/hyprland, omaflake/wezterm, omaflake/zellij, omaflake/neovim ≥ 1.0.0",
             "label": {
               "key": "Modules",
               "text": "Modules"
             },
             "value": {
-              "text": "Hyprland 1.0.0, WezTerm 1.0.0, omaflake/neovim ≥ 1.0.0"
+              "text": "Hyprland 1.0.0, WezTerm 1.0.0, Zellij 2.0.0, omaflake/neovim ≥ 1.0.0"
             }
           },
           {
@@ -821,49 +837,6 @@
             },
             "value": {
               "text": "4 CPU · 8 GB RAM · 40 GB"
-            }
-          }
-        ],
-        "keys": [
-          {
-            "label": {
-              "text": "Open a terminal"
-            },
-            "note": {
-              "text": "omaflake/hyprland"
-            },
-            "tone": "normal",
-            "value": {
-              "text": "Super+Return"
-            }
-          },
-          {
-            "label": {
-              "text": "Quit Zellij"
-            },
-            "note": {
-              "args": [
-                "omaflake/zellij",
-                "normal, pane"
-              ],
-              "key": "%@, in its %@ mode",
-              "text": "omaflake/zellij, in its normal, pane mode"
-            },
-            "tone": "normal",
-            "value": {
-              "text": "Ctrl+q"
-            }
-          },
-          {
-            "label": {
-              "text": "Float the window"
-            },
-            "note": {
-              "text": "omaflake/hyprland"
-            },
-            "tone": "normal",
-            "value": {
-              "text": "t"
             }
           }
         ],
@@ -1186,6 +1159,62 @@
               "title": "Quit Zellij"
             },
             {
+              "action": "unlock",
+              "after": "normal",
+              "context": "omaflake/zellij",
+              "keys": [
+                "Ctrl+g"
+              ],
+              "modes": [
+                "locked"
+              ],
+              "module": "omaflake/zellij",
+              "title": "Unlock"
+            },
+            {
+              "action": "pane-mode",
+              "after": "pane",
+              "context": "omaflake/zellij",
+              "keys": [
+                "p"
+              ],
+              "modes": [
+                "normal"
+              ],
+              "module": "omaflake/zellij",
+              "title": "Pane mode"
+            },
+            {
+              "action": "new-pane",
+              "after": "locked",
+              "context": "omaflake/zellij",
+              "does": "NewPane",
+              "from": "omaflake/default",
+              "keys": [
+                "n"
+              ],
+              "modes": [
+                "pane"
+              ],
+              "module": "omaflake/zellij",
+              "title": "New pane",
+              "titleDe": "Neuer Bereich"
+            },
+            {
+              "action": "focus-left",
+              "context": "omaflake/zellij",
+              "does": "MoveFocus \"Left\"",
+              "keys": [
+                "h",
+                "Left"
+              ],
+              "modes": [
+                "pane"
+              ],
+              "module": "omaflake/zellij",
+              "title": "Focus left"
+            },
+            {
               "action": "float",
               "context": "desktop",
               "keys": [
@@ -1238,6 +1267,27 @@
               "reference": "omaflake/wezterm",
               "title": "WezTerm",
               "version": "1.0.0"
+            },
+            {
+              "modes": {
+                "locked": {
+                  "start": true,
+                  "title": "Locked",
+                  "title_de": "Gesperrt"
+                },
+                "normal": {
+                  "title": "Unlocked"
+                },
+                "pane": {
+                  "title": "Pane"
+                }
+              },
+              "provides": [
+                "multiplexer"
+              ],
+              "reference": "omaflake/zellij",
+              "title": "Zellij",
+              "version": "2.0.0"
             },
             {
               "reference": "omaflake/neovim ≥ 1.0.0"

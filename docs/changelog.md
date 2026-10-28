@@ -13,6 +13,13 @@ are collected under *Unreleased*. Releases: [GitHub](https://github.com/omaflake
 
 ## [Unreleased]
 
+### Added
+
+- A keyboard button at recipes, images and VMs opens their keys: by module and by the mode of its program, with
+  the way to each mode (Zellij: Ctrl+g › p › Pane), where a key leads afterwards ("then Locked") and, on a click, what
+  it does in the program's own words. The macOS app shows them in a window of its own, the Linux app and `omaf ui` on
+  a page. The keys no longer fill a recipe's details.
+
 ### Changed
 
 - Modules list all their key bindings, with the modes they work in and the mode they lead to (module.toml v2:

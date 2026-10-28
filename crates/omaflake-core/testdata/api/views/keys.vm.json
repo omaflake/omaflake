@@ -1,0 +1,319 @@
+{
+  "intro": {
+    "key": "By module and by the mode its program is in. A mode shows the keys that lead there; “then …” is the mode a key leads to.",
+    "text": "By module and by the mode its program is in. A mode shows the keys that lead there; “then …” is the mode a key leads to."
+  },
+  "keymaps": [
+    "omaflake/default"
+  ],
+  "modules": [
+    {
+      "groups": [
+        {
+          "rows": [
+            {
+              "action": "float",
+              "backToStart": false,
+              "caps": [
+                [
+                  [
+                    "t"
+                  ]
+                ]
+              ],
+              "keys": [
+                "t"
+              ],
+              "own": false,
+              "switches": false,
+              "title": {
+                "text": "Float the window"
+              }
+            },
+            {
+              "action": "terminal",
+              "backToStart": false,
+              "caps": [
+                [
+                  [
+                    "⌘",
+                    "↩"
+                  ]
+                ]
+              ],
+              "keys": [
+                "Super+Return"
+              ],
+              "own": false,
+              "switches": false,
+              "title": {
+                "text": "Open a terminal"
+              }
+            }
+          ],
+          "start": false,
+          "title": {
+            "key": "Anywhere on the desktop",
+            "text": "Anywhere on the desktop"
+          },
+          "way": []
+        }
+      ],
+      "reference": "omaflake/hyprland",
+      "title": "Hyprland"
+    },
+    {
+      "groups": [
+        {
+          "mode": "locked",
+          "rows": [
+            {
+              "action": "unlock",
+              "after": {
+                "args": [
+                  {
+                    "text": "Unlocked"
+                  }
+                ],
+                "key": "then %@",
+                "text": "then Unlocked"
+              },
+              "backToStart": false,
+              "caps": [
+                [
+                  [
+                    "⌃",
+                    "g"
+                  ]
+                ]
+              ],
+              "keys": [
+                "Ctrl+g"
+              ],
+              "own": false,
+              "switches": true,
+              "title": {
+                "text": "Unlock"
+              }
+            }
+          ],
+          "start": true,
+          "title": {
+            "text": "Locked"
+          },
+          "way": []
+        },
+        {
+          "mode": "normal",
+          "rows": [
+            {
+              "action": "quit",
+              "backToStart": false,
+              "caps": [
+                [
+                  [
+                    "⌃",
+                    "q"
+                  ]
+                ]
+              ],
+              "does": "Quit",
+              "keys": [
+                "Ctrl+q"
+              ],
+              "own": false,
+              "switches": false,
+              "title": {
+                "text": "Quit Zellij"
+              }
+            },
+            {
+              "action": "pane-mode",
+              "after": {
+                "args": [
+                  {
+                    "text": "Pane"
+                  }
+                ],
+                "key": "then %@",
+                "text": "then Pane"
+              },
+              "backToStart": false,
+              "caps": [
+                [
+                  [
+                    "p"
+                  ]
+                ]
+              ],
+              "keys": [
+                "p"
+              ],
+              "own": false,
+              "switches": true,
+              "title": {
+                "text": "Pane mode"
+              }
+            }
+          ],
+          "start": false,
+          "title": {
+            "text": "Unlocked"
+          },
+          "way": [
+            {
+              "caps": [
+                [
+                  "⌃",
+                  "g"
+                ]
+              ],
+              "mode": {
+                "text": "Unlocked"
+              }
+            }
+          ]
+        },
+        {
+          "mode": "pane",
+          "rows": [
+            {
+              "action": "focus-left",
+              "backToStart": false,
+              "caps": [
+                [
+                  [
+                    "h"
+                  ]
+                ],
+                [
+                  [
+                    "←"
+                  ]
+                ]
+              ],
+              "does": "MoveFocus \"Left\"",
+              "keys": [
+                "h",
+                "Left"
+              ],
+              "own": false,
+              "switches": false,
+              "title": {
+                "text": "Focus left"
+              }
+            },
+            {
+              "action": "new-pane",
+              "after": {
+                "args": [
+                  {
+                    "text": "Locked"
+                  }
+                ],
+                "key": "then %@",
+                "text": "then Locked"
+              },
+              "backToStart": true,
+              "caps": [
+                [
+                  [
+                    "n"
+                  ]
+                ]
+              ],
+              "does": "NewPane",
+              "from": "omaflake/default",
+              "keys": [
+                "n"
+              ],
+              "own": false,
+              "switches": false,
+              "title": {
+                "text": "New pane"
+              }
+            },
+            {
+              "action": "quit",
+              "backToStart": false,
+              "caps": [
+                [
+                  [
+                    "⌃",
+                    "q"
+                  ]
+                ]
+              ],
+              "does": "Quit",
+              "keys": [
+                "Ctrl+q"
+              ],
+              "own": false,
+              "switches": false,
+              "title": {
+                "text": "Quit Zellij"
+              }
+            }
+          ],
+          "start": false,
+          "title": {
+            "text": "Pane"
+          },
+          "way": [
+            {
+              "caps": [
+                [
+                  "⌃",
+                  "g"
+                ]
+              ],
+              "mode": {
+                "text": "Unlocked"
+              }
+            },
+            {
+              "caps": [
+                [
+                  "p"
+                ]
+              ],
+              "mode": {
+                "text": "Pane"
+              }
+            }
+          ]
+        }
+      ],
+      "reference": "omaflake/zellij",
+      "title": "Zellij"
+    }
+  ],
+  "notes": [
+    {
+      "icon": "info",
+      "text": {
+        "key": "As its recipe has them now – a module or key binding set updated since the build may differ.",
+        "text": "As its recipe has them now – a module or key binding set updated since the build may differ."
+      },
+      "tone": "normal"
+    }
+  ],
+  "search": {
+    "key": "Search keys",
+    "text": "Search keys"
+  },
+  "subtitle": {
+    "args": [
+      "research"
+    ],
+    "key": "VM %@",
+    "text": "VM research"
+  },
+  "title": {
+    "args": [
+      "dev"
+    ],
+    "key": "Keys of %@",
+    "text": "Keys of dev"
+  }
+}

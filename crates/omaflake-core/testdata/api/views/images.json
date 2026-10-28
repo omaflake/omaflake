@@ -502,6 +502,22 @@
       "actions": [
         {
           "enabled": true,
+          "icon": "keyboard",
+          "id": "keys",
+          "label": {
+            "key": "Keys …",
+            "text": "Keys …"
+          },
+          "method": "ui.show",
+          "params": {
+            "page": "keys",
+            "params": {
+              "image": "omaflake.nixos.dev@cedar-mango-lift"
+            }
+          }
+        },
+        {
+          "enabled": true,
           "icon": "folder",
           "id": "reveal",
           "label": {

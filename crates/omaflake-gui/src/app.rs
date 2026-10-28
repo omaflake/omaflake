@@ -50,6 +50,8 @@ pub enum Model {
     Activity(Box<ActivityPage>),
     Vm(Box<VmPage>),
     Image(Box<ImagePage>),
+    /// A recipe's keys by module and mode (plan B147)
+    Keys(Box<omaflake_core::api::views::keys::KeysPage>),
     /// A page that cannot be built (`model: {error}`) or that this app cannot read
     Error(String),
 }
@@ -113,6 +115,7 @@ pub fn decode(page: &str, v: Value) -> Model {
         "looks" => de(v, Model::Looks),
         "vm" => de(v, Model::Vm),
         "image" => de(v, Model::Image),
+        "keys" => de(v, Model::Keys),
         other => Model::Error(trf("Unknown page %@", &[other.into()])),
     }
 }
@@ -136,6 +139,7 @@ impl Model {
             Model::Credential(p) => &p.title,
             Model::Vm(p) => &p.title,
             Model::Image(p) => &p.title,
+            Model::Keys(p) => &p.title,
             Model::Error(_) => return None,
         })
     }

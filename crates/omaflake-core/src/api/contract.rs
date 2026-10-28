@@ -481,15 +481,38 @@ pub(crate) fn recipe_parts() -> RecipePartsDto {
                 title: Some("Hyprland".into()),
                 version: Some("1.0.0".into()),
                 provides: vec!["desktop".into()],
+                modes: Default::default(),
             },
             ModuleUseDto {
                 reference: "omaflake/wezterm".into(),
                 title: Some("WezTerm".into()),
                 version: Some("1.0.0".into()),
                 provides: vec!["terminal".into()],
+                modes: Default::default(),
             },
             ModuleUseDto {
-                reference: "omaflake/neovim ≥ 1.0.0".into(), title: None, version: None, provides: vec![]
+                reference: "omaflake/zellij".into(),
+                title: Some("Zellij".into()),
+                version: Some("2.0.0".into()),
+                provides: vec!["multiplexer".into()],
+                modes: [
+                    ("locked", "Locked", Some("Gesperrt"), true),
+                    ("normal", "Unlocked", None, false),
+                    ("pane", "Pane", None, false),
+                ]
+                .into_iter()
+                .map(|(id, title, de, start)| {
+                    let mode = crate::modules::ModuleMode { title: title.into(), title_de: de.map(Into::into), start };
+                    (id.to_string(), mode)
+                })
+                .collect(),
+            },
+            ModuleUseDto {
+                reference: "omaflake/neovim ≥ 1.0.0".into(),
+                title: None,
+                version: None,
+                provides: vec![],
+                modes: Default::default(),
             },
         ],
         look: Some("omaflake/omaflake".into()),
@@ -501,6 +524,34 @@ pub(crate) fn recipe_parts() -> RecipePartsDto {
                 modes: vec!["normal".into(), "pane".into()],
                 does: Some("Quit".into()),
                 ..binding("omaflake/zellij", "quit", "Quit Zellij", "Ctrl+q")
+            },
+            Binding {
+                context: "omaflake/zellij".into(),
+                modes: vec!["locked".into()],
+                after: Some("normal".into()),
+                ..binding("omaflake/zellij", "unlock", "Unlock", "Ctrl+g")
+            },
+            Binding {
+                context: "omaflake/zellij".into(),
+                modes: vec!["normal".into()],
+                after: Some("pane".into()),
+                ..binding("omaflake/zellij", "pane-mode", "Pane mode", "p")
+            },
+            Binding {
+                context: "omaflake/zellij".into(),
+                title_de: Some("Neuer Bereich".into()),
+                modes: vec!["pane".into()],
+                after: Some("locked".into()),
+                does: Some("NewPane".into()),
+                from: Some("omaflake/default".into()),
+                ..binding("omaflake/zellij", "new-pane", "New pane", "n")
+            },
+            Binding {
+                context: "omaflake/zellij".into(),
+                modes: vec!["pane".into()],
+                does: Some("MoveFocus \"Left\"".into()),
+                keys: vec!["h".into(), "Left".into()],
+                ..binding("omaflake/zellij", "focus-left", "Focus left", "h")
             },
             binding("omaflake/hyprland", "float", "Float the window", "t"),
         ],
@@ -864,6 +915,8 @@ fn view_goldens() -> Vec<(&'static str, Value)> {
         ("credential.edit", page("credential", json!({"id": "c-1"}))),
         ("credentials.linux", build(&linux, &PageRef { page: "credentials".into(), params: json!({}) }).unwrap()),
         ("baseCredential", page("baseCredential", json!({"name": "mac-base-26A434"}))),
+        ("keys", page("keys", json!({"recipe": "omaflake.nixos.dev@velvet-tiger-orbit"}))),
+        ("keys.vm", page("keys", json!({"vm": "research"}))),
         ("macBase", page("macBase", json!({}))),
         (
             "macBase.ipsw",

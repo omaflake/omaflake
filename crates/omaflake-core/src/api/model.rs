@@ -125,6 +125,7 @@ pub(crate) fn parts_dto(
                     title: here.map(|m| m.title.clone()),
                     version: here.map(|m| m.version.clone()),
                     provides: here.map(|m| m.provides.clone()).unwrap_or_default(),
+                    modes: here.map(|m| m.modes.clone()).unwrap_or_default(),
                 }
             })
             .collect(),

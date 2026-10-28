@@ -83,6 +83,11 @@ final class AppModel {
         }
     }
 
+    /// The keys window's page (plan B147); nil while it was never opened
+    var keysRef: PageRef? {
+        didSet { subscribe() }
+    }
+
     func back() {
         guard let last = path.popLast() else { return }
         formValues[last.page] = nil
@@ -139,6 +144,7 @@ final class AppModel {
             let full = fullRef(ref)
             if !pages.contains(full) { pages.append(full) }
         }
+        if let keysRef, !pages.contains(keysRef) { pages.append(keysRef) }
         guard force || pages != subscribed else { return }
         subscribed = pages
         // Models of pages no longer subscribed go (the newest per page stays in `latest`)
@@ -457,6 +463,12 @@ final class AppModel {
             // A guide the app cannot show itself (no file of it here) opens on omaflake.dev
             if page == "guide", GuideView.source(pageParams) == nil {
                 if let url = pageParams["url"]?.string.flatMap(URL.init(string:)) { NSWorkspace.shared.open(url) }
+                return
+            }
+            // A recipe's keys open in a window of their own, next to the VM (plan B147)
+            if page == "keys" {
+                keysRef = PageRef(page, pageParams)
+                AppDelegate.openKeys?()
                 return
             }
             show(PageRef(page, pageParams))

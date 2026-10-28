@@ -13,6 +13,7 @@ use omaflake_core::api::views::common::{Action, Blockers, Field, FieldKind, Filt
 use omaflake_core::api::views::credentials::{CredentialPage, CredentialRow, CredentialsPage};
 use omaflake_core::api::views::doctor::{DoctorItem, DoctorPage, Download, MacBasePage};
 use omaflake_core::api::views::images::{BuildJobRow, ImageRowView, ImagesPage};
+use omaflake_core::api::views::keys::KeysPage;
 use omaflake_core::api::views::new_vm::NewVmPage;
 use omaflake_core::api::views::recipes::{OfferedRow, RecipeRowView, RecipesPage};
 use omaflake_core::api::views::settings::{SettingsPage, SettingsSection};
@@ -536,13 +537,9 @@ pub fn recipe_row<'a>(app: &'a App, r: &'a RecipeRowView) -> El<'a> {
             c = c.push(text(desc.clone()).size(text_size::CAPTION));
         }
         c = c.push(Column::with_children(d.info.iter().map(info_line)).spacing(spacing::S));
-        // What is missing or wrong, and its keys (plan B142)
+        // What is missing or wrong (plan B142); its keys are a page of their own (plan B147)
         if !d.notes.is_empty() {
             c = c.push(notes(app, &d.notes));
-        }
-        if !d.keys.is_empty() {
-            c = c.push(caption(tr("Keys")).color(style::SECONDARY));
-            c = c.push(Column::with_children(d.keys.iter().map(info_line)).spacing(spacing::XS));
         }
         if !d.versions.is_empty() {
             let mut v = column![].spacing(spacing::XS);
@@ -643,9 +640,86 @@ pub fn page<'a>(app: &'a App, p: &PageRef, m: &'a Model) -> El<'a> {
         Model::Settings(st) => settings(app, &p.page, st),
         Model::Vm(v) => detail_page(vm_row(app, &v.row)),
         Model::Image(i) => detail_page(image_row(app, &i.row)),
+        Model::Keys(k) => keys(app, k),
         Model::Error(e) => error(e),
         other => list(app, &p.page, other),
     }
+}
+
+/// One key as caps: chords side by side, the caps of a chord in one box ("⌃ g")
+fn key_caps<'a>(chords: &[Vec<String>]) -> El<'a> {
+    let mut r = row![].spacing(spacing::XS);
+    for chord in chords {
+        r = r.push(
+            container(text(chord.join(" ")).size(text_size::CAPTION).font(iced::Font::MONOSPACE))
+                .padding([1.0, spacing::S])
+                .style(style::card),
+        );
+    }
+    r.into()
+}
+
+/// A recipe's keys (plan B147): by module, by mode with the way there, where each key leads and what it does
+fn keys<'a>(app: &'a App, p: &'a KeysPage) -> El<'a> {
+    let mut c = column![
+        text(s(&p.title)).size(text_size::HEADLINE).font(style::bold()),
+        secondary(s(&p.subtitle)),
+        caption(s(&p.intro)).color(style::SECONDARY),
+    ]
+    .spacing(spacing::L);
+    if !p.notes.is_empty() {
+        c = c.push(notes(app, &p.notes));
+    }
+    for m in &p.modules {
+        let mut card =
+            column![text(m.title.clone()).size(text_size::CALLOUT).font(style::semibold())].spacing(spacing::L);
+        for g in &m.groups {
+            let mut head = row![text(s(&g.title)).size(text_size::CAPTION).font(style::semibold()).color(style::CYAN)]
+                .spacing(spacing::M)
+                .align_y(Alignment::Center);
+            if g.start {
+                head = head.push(caption(tr("start")).color(style::SECONDARY));
+            }
+            head = head.push(space::horizontal());
+            for (i, step) in g.way.iter().enumerate() {
+                if i > 0 {
+                    head = head.push(caption("›").color(style::tertiary()));
+                }
+                head = head.push(key_caps(&step.caps));
+            }
+            let mut rows = column![head].spacing(spacing::S);
+            for r in &g.rows {
+                let mut keys = row![].spacing(spacing::XS).align_y(Alignment::Center);
+                for (i, k) in r.caps.iter().enumerate() {
+                    if i > 0 {
+                        keys = keys.push(caption("/").color(style::tertiary()));
+                    }
+                    keys = keys.push(key_caps(k));
+                }
+                let title = text(s(&r.title)).size(text_size::CAPTION);
+                let title = if r.switches { title.color(style::SECONDARY) } else { title };
+                let mut line = row![container(keys).width(Length::Fixed(150.0)), title.width(Length::Fill)]
+                    .spacing(spacing::L)
+                    .align_y(Alignment::Center);
+                if let Some(after) = &r.after {
+                    let arrow = if r.back_to_start { "↩ " } else { "→ " };
+                    let color = if r.back_to_start { style::SECONDARY } else { style::CYAN };
+                    line = line.push(caption(format!("{arrow}{}", s(after))).color(color));
+                }
+                let mut entry = column![line].spacing(spacing::XXS);
+                if let Some(does) = &r.does {
+                    entry = entry.push(
+                        container(caption(does.clone()).font(iced::Font::MONOSPACE).color(style::tertiary()))
+                            .padding(iced::Padding::ZERO.left(158.0)),
+                    );
+                }
+                rows = rows.push(entry);
+            }
+            card = card.push(rows);
+        }
+        c = c.push(container(card).padding(spacing::CARD_PADDING).width(Length::Fill).style(style::card));
+    }
+    c.into()
 }
 
 /// A VM's or image's page: its row (opened with a click) in a card

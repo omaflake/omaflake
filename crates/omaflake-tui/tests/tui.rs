@@ -155,9 +155,10 @@ fn draws_the_vms_tab() {
         "/ Filter",
         "i ⇩ Import",
         "r ↗ Run from There",
-        "1 ▤ Show Share Folder",
-        "2 ›_ Open Terminal with SSH",
-        "3 ■ Shut down",
+        "1 ⌨ Keys …",
+        "2 ▤ Show Share Folder",
+        "3 ›_ Open Terminal with SSH",
+        "4 ■ Shut down",
     ] {
         assert!(s.contains(want), "missing {want:?} in\n{s}");
     }
@@ -170,7 +171,7 @@ fn draws_the_vms_tab() {
         "omaflake.nixos.dev@cedar-mango-lift",
         "newer image available",
         "Runs from",
-        "8 ⇧ Export …",
+        "9 ⇧ Export …",
         "Remove …",
     ] {
         assert!(s.contains(want), "missing {want:?} in\n{s}");
@@ -208,6 +209,12 @@ fn draws_every_page() {
             ],
         ),
         ("activity", "activity", vec!["research is ready", "work: running – stop it first", "c ✕ Clear History"]),
+        // A recipe's keys (plan B147): by module and mode, the way there, where a key leads
+        (
+            "keys",
+            "keys",
+            vec!["Hyprland", "Zellij", "Locked", "⌃+g › p", "h / ←", "New pane", "→ then Pane", "↩ then Locked"],
+        ),
         (
             "build",
             "build",
@@ -357,7 +364,7 @@ fn enter_does_the_primary_action_only() {
     let images = fixture("images");
     let page = h.app.page();
     let row = page.items.iter().find(|i| i.key.starts_with("image:")).unwrap();
-    assert_eq!(row.default.map(|d| row.actions[d]["id"].clone()), Some(images["rows"][0]["actions"][1]["id"].clone()));
+    assert_eq!(row.default.map(|d| row.actions[d]["id"].clone()), Some(images["rows"][0]["actions"][2]["id"].clone()));
     // A hint without a primary (the lab hint) has no default: Enter opens its actions
     let mut h = Harness::new(none);
     h.key(KeyCode::Tab);
@@ -385,8 +392,8 @@ fn enter_runs_the_default_action_and_then_terminal() {
             ["/usr/bin/ssh", "-p", "2201", "alex@127.0.0.1"].map(String::from).to_vec()
         )))
     );
-    // 1 = show the share folder: vms.share, then reveal its path
-    h.key(KeyCode::Char('1'));
+    // 1 = its keys (plan B147), 2 = show the share folder: vms.share, then reveal its path
+    h.key(KeyCode::Char('2'));
     assert_eq!(h.calls("vms.share").len(), 1);
 }
 

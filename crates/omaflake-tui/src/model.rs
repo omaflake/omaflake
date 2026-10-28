@@ -13,7 +13,7 @@ use ratatui::text::{Line, Span};
 use serde_json::Value;
 
 use crate::icons::IconSet;
-use crate::text::{arr, b, bytes_text, date_text, duration_text, parse_date, s, t, tr};
+use crate::text::{arr, b, bytes_text, date_text, duration_text, parse_date, s, t, tr, trf};
 use crate::theme::{Theme, Tone};
 
 /// What the drawing needs besides the model
@@ -339,14 +339,6 @@ fn list_row(ctx: &Ctx, prefix: &str, row: &Value, out: &mut Vec<Item>) {
             for info in arr(d, "info") {
                 lines.push(info_line(ctx, info, 4));
             }
-            // A recipe's keys (plan B142)
-            let keys = arr(d, "keys");
-            if !keys.is_empty() {
-                lines.push(secondary_line(ctx, tr("Keys"), 4));
-                for k in keys {
-                    lines.push(info_line(ctx, k, 6));
-                }
-            }
             let detail_actions = arr(d, "actions");
             if !detail_actions.is_empty() {
                 // Numbered as in the footer (the row's actions, the switches, then these)
@@ -518,6 +510,7 @@ pub fn page(ctx: &Ctx, name: &str, model: &Value) -> Page {
         "credential" => credential(ctx, "credential", model, &mut p),
         // The credential of a macOS base from before bases kept theirs: the same form (plan B139)
         "baseCredential" => credential(ctx, "baseCredential", model, &mut p),
+        "keys" => keys(ctx, model, &mut p),
         _ => {}
     }
     if p.title.is_empty() {
@@ -683,6 +676,71 @@ fn activity(ctx: &Ctx, model: &Value, p: &mut Page) {
         p.items.push(Item { key: format!("entry:{id}"), lines: vec![line], selectable: true, ..Item::default() });
     }
     empty_and_unreadable(ctx, model, p);
+}
+
+/// One key as caps: "⌃+g", a sequence with spaces ("␣ f f")
+fn caps(key: &Value) -> String {
+    let list = |v: &Value| v.as_array().cloned().unwrap_or_default();
+    list(key)
+        .iter()
+        .map(|chord| list(chord).iter().filter_map(Value::as_str).collect::<Vec<_>>().join("+"))
+        .collect::<Vec<_>>()
+        .join(" ")
+}
+
+/// A recipe's keys (plan B147): a heading per module, per mode its way there, a row per key with where it leads;
+/// Enter on a row shows what it does in the program's own words
+fn keys(ctx: &Ctx, model: &Value, p: &mut Page) {
+    let th = ctx.theme;
+    p.title = t(&model["title"]);
+    p.items.push(Item::line("", secondary_line(ctx, t(&model["subtitle"]), 1)));
+    p.items.push(Item::line("", secondary_line(ctx, t(&model["intro"]), 1)));
+    for (i, n) in arr(model, "notes").iter().enumerate() {
+        p.items.push(hint(ctx, format!("note:{i}"), n));
+    }
+    for m in arr(model, "modules") {
+        p.items.push(Item::blank());
+        p.items.push(heading(ctx, format!(" {}", s(m, "title"))));
+        for (gi, g) in arr(m, "groups").iter().enumerate() {
+            let mut head = vec![Span::raw("  "), Span::styled(t(&g["title"]), th.accent())];
+            if g["start"].as_bool() == Some(true) {
+                head.push(Span::styled(format!("  {}", tr("start")), th.secondary()));
+            }
+            let way: Vec<String> = arr(g, "way").iter().map(|st| caps(&st["caps"])).collect();
+            if !way.is_empty() {
+                head.push(Span::styled(format!("   {}", way.join(" › ")), th.key()));
+            }
+            p.items.push(Item::line("", Line::from(head)));
+            for r in arr(g, "rows") {
+                let key = format!("key:{}:{gi}:{}", s(m, "reference"), s(r, "action"));
+                let keys: Vec<String> = arr(r, "caps").iter().map(caps).collect();
+                let mut line = vec![
+                    Span::raw("    "),
+                    Span::styled(format!("{:<16}", keys.join(" / ")), th.key()),
+                    Span::raw(" "),
+                    Span::styled(
+                        t(&r["title"]),
+                        if r["switches"].as_bool() == Some(true) { th.secondary() } else { th.text() },
+                    ),
+                ];
+                if let Some(after) = r.get("after") {
+                    let back = r["backToStart"].as_bool() == Some(true);
+                    let style = if back { th.secondary() } else { th.tone(Tone::Accent) };
+                    line.push(Span::styled(format!("  {} {}", if back { "↩" } else { "→" }, t(after)), style));
+                }
+                let mut lines = vec![Line::from(line)];
+                if is_open(ctx, &key, false) {
+                    if let Some(does) = r.get("does").and_then(Value::as_str) {
+                        lines.push(secondary_line(ctx, does.to_string(), 21));
+                    }
+                    if let Some(from) = r.get("from").and_then(Value::as_str) {
+                        lines.push(secondary_line(ctx, trf("Key from %@", &[from.into()]), 21));
+                    }
+                }
+                p.items.push(Item { key, lines, selectable: true, ..Item::default() });
+            }
+        }
+    }
 }
 
 fn build(ctx: &Ctx, model: &Value, p: &mut Page) {

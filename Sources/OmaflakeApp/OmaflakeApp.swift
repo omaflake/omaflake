@@ -43,6 +43,18 @@ struct OmaflakeApp: App {
         .defaultLaunchBehavior(frame.showsWindow ? .presented : .suppressed)
         .restorationBehavior(.disabled)
         .commands { MainCommands(model: model) }
+
+        // A recipe's keys – of an image or a VM through its recipe – by module and mode (plan B147)
+        Window(String(localized: "Keys"), id: KeysView.windowID) {
+            KeysView(model: model)
+                .environment(model)
+                .preferredColorScheme(.dark)
+                .tint(BrandStyle.cyan)
+                .containerBackground(for: .window) { BrandStyle.background }
+        }
+        .defaultSize(width: 600, height: 720)
+        .restorationBehavior(.disabled)
+        .defaultLaunchBehavior(.suppressed)
     }
 }
 
@@ -57,6 +69,8 @@ struct OmaflakeApp: App {
 
     /// Opens the app window (set by `MainView` once it is shown somewhere; used for a click on the Dock icon)
     static var openMain: (() -> Void)?
+    /// Opens the keys window (set by `MainView`)
+    static var openKeys: (() -> Void)?
 
     func applicationWillTerminate(_ notification: Notification) { Self.terminate?() }
 
@@ -137,7 +151,10 @@ struct MainView: View {
         .frame(minWidth: Self.size.width, idealWidth: Self.size.width, maxWidth: inWindow ? .infinity : Self.size.width,
                minHeight: Self.size.height, idealHeight: Self.size.height, maxHeight: inWindow ? .infinity : Self.size.height)
         .overlay { if let c = model.confirmation { ConfirmationOverlay(confirmation: c) } }
-        .onAppear { AppDelegate.openMain = { [openWindow] in openWindow(id: AppFrame.windowID); NSApp.activate() } }
+        .onAppear {
+            AppDelegate.openMain = { [openWindow] in openWindow(id: AppFrame.windowID); NSApp.activate() }
+            AppDelegate.openKeys = { [openWindow] in openWindow(id: KeysView.windowID); NSApp.activate() }
+        }
     }
 
     /// The page's title: the core's (the guide's in its params)

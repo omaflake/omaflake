@@ -78,9 +78,6 @@ pub struct RecipeDetail {
     /// What is missing (with "Install Missing Parts"), what is wrong, unfree software (plan B142)
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub notes: Vec<Hint>,
-    /// Its keys: an action's title, its key, the module it belongs to (plan B142)
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub keys: Vec<InfoLine>,
     pub versions: Vec<VersionRow>,
     /// Update (when its source has a newer version) on the left, remove all versions on the right
     pub actions: Vec<Action>,
@@ -381,7 +378,7 @@ pub(crate) fn row(ctx: &Ctx, r: &RecipeDto) -> RecipeRowView {
         secondary,
         badges,
         tags: r.tags.clone(),
-        actions: vec![reveal, build],
+        actions: super::keys::action(ctx, &r.id, json!({"recipe": r.id})).into_iter().chain([reveal, build]).collect(),
         detail: detail(ctx, r),
         recipe: r.clone(),
     }
@@ -533,7 +530,6 @@ fn detail(ctx: &Ctx, r: &RecipeDto) -> RecipeDetail {
         info.push(InfoLine::new("License", Text::verbatim(l)));
     }
     // What it is made of (plan B142)
-    let mut keys = Vec::new();
     let mut notes_here = Vec::new();
     if let Some(p) = &r.parts {
         let modules: Vec<String> = p
@@ -563,21 +559,6 @@ fn detail(ctx: &Ctx, r: &RecipeDto) -> RecipeDetail {
                 )),
             ));
         }
-        keys = p
-            .bindings
-            .iter()
-            .map(|b| InfoLine {
-                // The module's own words (module.toml), like its description
-                label: Text::verbatim(&b.title),
-                value: Text::verbatim(b.key_text()),
-                note: Some(match b.modes.as_slice() {
-                    [] => Text::verbatim(&b.module),
-                    modes => tf!("%@, in its %@ mode", &b.module, modes.join(", ")),
-                }),
-                tone: Some(Tone::Normal),
-                full: None,
-            })
-            .collect();
         notes_here = notes(ctx, &r.id, p);
     }
     let n = ctx.recipes.id_lengths.recipe;
@@ -623,7 +604,7 @@ fn detail(ctx: &Ctx, r: &RecipeDto) -> RecipeDetail {
             )
             .enabled_if(r.versions.iter().any(|v| !v.live && v.images.is_empty()), None),
     );
-    RecipeDetail { description: r.description.clone(), info, notes: notes_here, keys, versions, actions }
+    RecipeDetail { description: r.description.clone(), info, notes: notes_here, versions, actions }
 }
 
 fn version_row(v: &VersionDto, words: usize) -> VersionRow {

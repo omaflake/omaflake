@@ -553,13 +553,59 @@ public struct LooksPage: Decodable, Sendable, Equatable {
     }
 }
 
+/// `keys` (plan B147): a recipe's keys – of an image or a VM through its recipe – by module and mode
+public struct KeysPage: Decodable, Sendable, Equatable {
+    public struct Module: Decodable, Sendable, Equatable, Identifiable {
+        public var reference: String
+        public var title: String
+        public var groups: [Group]
+        public var id: String { reference }
+    }
+
+    /// A mode's keys (or those without a mode) with the way there from the start mode
+    public struct Group: Decodable, Sendable, Equatable {
+        public var mode: String?
+        public var title: ViewText
+        public var start: Bool
+        public var way: [Step]
+        public var rows: [Row]
+    }
+
+    public struct Step: Decodable, Sendable, Equatable {
+        /// The key's chords, each a list of caps
+        public var caps: [[String]]
+        public var mode: ViewText
+    }
+
+    public struct Row: Decodable, Sendable, Equatable {
+        public var action: String
+        public var keys: [String]
+        /// Each key's chords, each a list of caps
+        public var caps: [[[String]]]
+        public var title: ViewText
+        public var after: ViewText?
+        public var backToStart: Bool
+        public var switches: Bool
+        public var does: String?
+        public var from: String?
+        public var own: Bool
+    }
+
+    public var title: ViewText
+    public var subtitle: ViewText
+    public var intro: ViewText
+    public var notes: [Hint]
+    public var modules: [Module]
+    public var keymaps: [String]
+    public var search: ViewText
+}
+
 public struct RecipeRow: Decodable, Sendable, Equatable, Identifiable {
     public struct Detail: Decodable, Sendable, Equatable {
         public var description: String?
         public var info: [InfoLine]
-        /// What is missing or wrong, its keys (plan B142)
+        /// What is missing or wrong (plan B142); its keys are on the keys page (plan B147)
         public var notes: [Hint]?
-        public var keys: [InfoLine]?
         public var versions: [VersionRow]
         public var actions: [ViewAction]
     }
@@ -921,7 +967,7 @@ public enum PageModel: Sendable, Equatable {
     case home(HomePage), vms(VmsPage), vm(VmPage), images(ImagesPage), image(ImagePage), recipes(RecipesPage)
     case newVm(NewVmPage), build(BuildPage), doctor(DoctorPage), macBase(MacBasePage), settings(SettingsPage)
     case activity(ActivityPage), importStep(ImportPage), credentials(CredentialsPage), credential(CredentialPage)
-    case looks(LooksPage)
+    case looks(LooksPage), keys(KeysPage)
     /// The page could not be built
     case error(ViewError)
     /// A page this client does not know
@@ -960,6 +1006,7 @@ public enum PageModel: Sendable, Equatable {
         case "activity": self = .activity(try ActivityPage(from: decoder))
         case "looks": self = .looks(try LooksPage(from: decoder))
         case "import": self = .importStep(try ImportPage(from: decoder))
+        case "keys": self = .keys(try KeysPage(from: decoder))
         default: self = .unknown(page)
         }
     }

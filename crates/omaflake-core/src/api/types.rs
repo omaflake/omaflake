@@ -423,6 +423,9 @@ pub struct ModuleUseDto {
     pub version: Option<String>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub provides: Vec<String>,
+    /// The modes of its program (module.toml `[modes]`, plan B147)
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub modes: BTreeMap<String, crate::modules::ModuleMode>,
 }
 
 /// `recipes.list` and the `recipes.changed` event
