@@ -1014,16 +1014,21 @@ impl Prerequisites {
     }
 }
 
-/// What a volume of its own holds (`statvfs`: blocks less free blocks – per volume on APFS); None when `path` is no
-/// mount point of its own (on most Linux hosts /nix is a folder of the root file system: no size of the store alone)
+/// What a volume of its own holds; None when `path` is no mount point of its own (on most Linux hosts /nix is a folder
+/// of the root file system: no size of the store alone). On a Mac `df` says it: `statvfs` there gives the whole APFS
+/// container's use (seen 2026-10-28: 3.5 TB for a 5 GB Nix Store volume), `df -k` the volume's own.
 pub fn volume_used(path: &Path) -> Option<i64> {
-    use std::os::unix::ffi::OsStrExt;
     use std::os::unix::fs::MetadataExt;
     let own = fs::metadata(path).ok()?.dev();
     let parent = fs::metadata(path.parent()?).ok()?.dev();
     if own == parent {
         return None;
     }
+    if cfg!(target_os = "macos") {
+        let out = std::process::Command::new("/bin/df").arg("-k").arg(path).output().ok()?;
+        return df_used(&String::from_utf8_lossy(&out.stdout));
+    }
+    use std::os::unix::ffi::OsStrExt;
     let c = std::ffi::CString::new(path.as_os_str().as_bytes()).ok()?;
     // SAFETY: a zeroed statvfs is a valid out-parameter; `c` is NUL-terminated and outlives the call
     let mut st: libc::statvfs = unsafe { std::mem::zeroed() };
@@ -1033,6 +1038,12 @@ pub fn volume_used(path: &Path) -> Option<i64> {
     #[allow(clippy::unnecessary_cast)] // the field types differ between macOS and Linux
     let used = (st.f_blocks as u64).saturating_sub(st.f_bfree as u64).saturating_mul(st.f_frsize as u64);
     Some(used.min(i64::MAX as u64) as i64)
+}
+
+/// `df -k`'s "Used" (the third column of its second line, in KiB) → bytes
+fn df_used(out: &str) -> Option<i64> {
+    let kib: i64 = out.lines().nth(1)?.split_whitespace().nth(2)?.parse().ok()?;
+    Some(kib * 1024)
 }
 
 #[cfg(test)]
@@ -1048,6 +1059,13 @@ mod tests {
 
     fn no_file(_: &str) -> Option<String> {
         None
+    }
+
+    #[test]
+    fn df_says_what_a_volume_holds() {
+        let out = "Filesystem 1024-blocks Used Available Capacity iused ifree %iused Mounted on\n/dev/disk3s7 3907018584 5452436 462440128 2% 306k 4.6G 0% /nix\n";
+        assert_eq!(df_used(out), Some(5_452_436 * 1024));
+        assert_eq!(df_used("nonsense"), None);
     }
 
     #[test]

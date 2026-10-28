@@ -1239,8 +1239,9 @@ Decided (the maintainer): omaflake removes its own leftovers and the Doctor offe
 - `ImageStore::build` deletes the image's store path after copying the disk out (`nix store delete`, as the user –
   the daemon refuses a path something still uses; a failure is only logged). The system closure stays for faster
   rebuilds. A rebuild of the same version builds the disk again (minutes) and then finds the image.
-- Doctor, `nixSpace`: what the store holds where /nix is a volume of its own (`prerequisites::volume_used`: statvfs
-  blocks less free blocks, a mount point of its own – none on most Linux hosts), and "Clean Up …" (`nix.cleanUp`, job
+- Doctor, `nixSpace`: what the store holds where /nix is a volume of its own (`prerequisites::volume_used`: a mount point
+  of its own – none on most Linux hosts; on a Mac `df -k`, as `statvfs` there gives the whole APFS container's use –
+  3.5 TB for a 5 GB volume, seen in the development build), and "Clean Up …" (`nix.cleanUp`, job
   `nix-clean-up`: `nix-collect-garbage` as the user, profiles' generations stay, not during a build), primary while the
   space is short; the result says the store's size before and after.
 - **Checked:** `cargo test` (`doctor_cleans_up_the_nix_store`, `nix_clean_up_says_what_it_freed`), `swift test`,
