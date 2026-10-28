@@ -13,6 +13,15 @@ are collected under *Unreleased*. Releases: [GitHub](https://github.com/omaflake
 
 ## [Unreleased]
 
+## [0.7.0] – 2026-10-28
+
+Everything omaflake reads as data can now be made in the app: a **Recipe Studio**, a **Key Binding Studio** and a
+**Look Studio** in the new Workshop. Key bindings know the modes of their programs – Zellij's are complete – and every
+recipe, image and VM shows its keys as key caps by module and mode. The app is in four groups – Run, Workshop, Catalog,
+Profiles – with a sidebar in its window; the menu bar keeps what runs. Image builds no longer fill the Nix Store, and
+the Doctor cleans it up. **This version reads catalog v5 only** (module.toml v2, keymap v2): Refresh in the catalog
+tabs gets the official catalog anew; config.json becomes version 6 (the help switch).
+
 ### Added
 
 - A keyboard button at recipes, images and VMs opens their keys: by module and by the mode of its program, with

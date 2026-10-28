@@ -503,6 +503,15 @@ for `omaf ui` and the Linux app and German error messages everywhere (B125), the
 for `omaf new -r` when its recipe line names another computer's folder; click tests of B119/B121 (macOS app, Linux app on a real desktop). Then M12 once the Developer ID
 is there.
 
+**Release 0.7.0 (2026-10-28):** B146–B154 – the IPSW after a macOS update and its download (B146); key bindings with
+modes, the keys view, the four groups, the recipe and key binding studios (B147); key caps, the help switch, the menu
+bar for running things, the studios as kits with search, chips and pages, a key editor with recording, the catalog tabs
+browsing the same way (B148); the Nix Store kept small and cleaned up from the Doctor (B149); the look studio (B150);
+the Dock icon with the app window, "Regionen" in German (B151); header and sidebar always there (B152); any number of
+key binding sets, a sidebar that never scrolls (B153); the review before the release (B154). Catalog v5 only – the
+official catalog (omaflake/catalog, its module v2 commit) and the website's catalog page must be pushed with it.
+Unsigned, for the maintainer to try first – OPEN until then.
+
 **Release 0.6.2 (2026-10-26):** the fixes of B145 – the recipe list without Nix (installed recipes stay installed
 while Nix is unavailable), QEMU with 3D before the first on PATH, the Doctor's Mount … for a Nix Store that is not at
 /nix –, and a recipe's build button greyed out with the Doctor's sign instead of a Doctor button. Unsigned, for the
@@ -1293,6 +1302,29 @@ is a list like the modules: a row per set with Earlier, Later and Remove, a menu
 `ui.field` on `values.keymaps` with the whole list. The app window's sidebar is no scroll view any more: its full height
 is the content's least and, with `windowResizability(.contentMinSize)`, the window's (German labels included); the
 Linux app's window is at least 720 high. **Checked:** `cargo test`, `swift test`. **OPEN:** tried in the apps.
+
+**B154 (2026-10-28): review before 0.7.0.** Two read-only reviews (the changes since 0.6.2; the three UIs against each
+other), then fixed:
+- Key binding studio: a set of yours only for macOS was saved empty (the platform was always NixOS, and only the shown
+  platform's installed modules were written) – the platform now follows the set's modules, and what the base names for
+  modules not shown is kept. "Apply" or "The module's own" on an action without `after` wrote `after = <its mode>` –
+  staying in the mode is no change now. Taking out the last key kept the old one; a key "/" ("Ctrl+/") could not be
+  typed (keys are apart by " / " now).
+- Studio tabs: a studio opened as a page (Edit, Copy, New …) shared its form values with the tab of the same name – the
+  tab's values wait aside now and come back (SwiftUI `tabValues`, iced `tab_forms`); Save and Cancel on a tab start it
+  afresh (they did nothing there).
+- Catalog: Reset Filter of the catalog's recipes reset the Build Images tab; a look of the studio lacked `license` and
+  empty `tags` (look v1 asks for both); a key binding set or look that is not one is checked before it replaces the one
+  on disk; action names in keymap.toml are quoted; the recipe studio's search starts on the first page (`pageSearch`);
+  no build while the Nix Store is cleaned up.
+- Linux app: the search in recipeCatalog, modules and keymaps went to the wrong filter (fixed page names); each catalog
+  tab fetches its catalogs once (it was one flag for all); the key editor's composed key replaced the keys and lost to
+  typed text – now "Use as the Key" or "Add as Another".
+- `omaf ui`: a field's help with the help switch on; "↩" for keys that go back to the start mode; chips with their
+  count; the catalog tabs recipeCatalog and keymaps fetch their catalogs; icons `down`, `chevron-*`, `update` (also in
+  the macOS app, with `arch`). The macOS key editor's "after" switches name staying and going back by their labels.
+- **OPEN:** the look studio cannot go back from a border gradient to one colour in the macOS app; the Nix clean-up's
+  activity line is English in German too (as the builder's).
 
 **B129 (2026-10-24): clipboard on a GNOME host.** Mutter has no data-control protocol: `wl-paste --watch` ends at once.
 `Wayland::start` now treats an end within 500 ms as refused, and `detect` falls back to xclip through Xwayland, which

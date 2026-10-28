@@ -92,8 +92,8 @@ The rest holds for both:
 The first request is `initialize`; anything before it is refused with `-32002`.
 
 ```json
-→ {"jsonrpc":"2.0","id":1,"method":"initialize","params":{"client":"omaflake-macos","clientVersion":"0.6.2","apiVersion":1,"language":"de","updateFeed":"https://…/feed.json"}}
-← {"jsonrpc":"2.0","id":1,"result":{"apiVersion":1,"omafVersion":"0.6.2","host":{"system":"aarch64-darwin","os":"macOS 27.0.1"},"dataFolder":"/Users/…/.omaflake","configFile":"/Users/…/.omaflake/config.json"}}
+→ {"jsonrpc":"2.0","id":1,"method":"initialize","params":{"client":"omaflake-macos","clientVersion":"0.7.0","apiVersion":1,"language":"de","updateFeed":"https://…/feed.json"}}
+← {"jsonrpc":"2.0","id":1,"result":{"apiVersion":1,"omafVersion":"0.7.0","host":{"system":"aarch64-darwin","os":"macOS 27.0.1"},"dataFolder":"/Users/…/.omaflake","configFile":"/Users/…/.omaflake/config.json"}}
 ```
 
 - `apiVersion` is an integer. Within a version, changes are **additive only** (new methods, new optional params, new
