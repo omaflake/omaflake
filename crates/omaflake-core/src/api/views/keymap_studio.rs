@@ -1,13 +1,17 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! The key binding studio (`keymapStudio`, plan B147): a key binding set of your own. It starts from a set here (a copy)
-//! or from the modules' own keys; one module at a time, by the mode of its program as the keys page shows them, each
-//! action has its keys and – where its program has modes – the mode it leads to afterwards (Zellij: does `n` in pane
-//! mode lock again, or stay in pane mode). What overlaps is said while you choose, across every module of the
-//! platform. Saved into My Recipes' folder (`keymaps/my/<name>/`); only what differs from the modules' own keys is
-//! written. The program's own keys (`own`) are shown, not changed.
+//! The key binding studio (`keymapStudio`, plan B147, B148): a key binding set of your own. It starts from a set here
+//! (a copy) or from the modules' own keys. The modules it covers are chips (one more is added from the platform's
+//! modules with keys); each is a card that opens, its keys by the mode of its program as the keys page shows them –
+//! caps, what a key does, where it leads afterwards – read only. A key is changed in the key editor (`editor`, a sheet
+//! of its own): its keys – recorded by the UI or put together from modifiers and a key, never typed as "Ctrl" –, the
+//! mode afterwards, what it overlaps while you choose, the module's own key to go back to. Saved into My Recipes'
+//! folder (`keymaps/my/<name>/`); only what differs from the modules' own keys is written. The program's own keys
+//! (`own`) are shown, not changed.
 //!
 //! Everything chosen is a form value of the page: name, title, description, platform, base (the set it starts from),
-//! module, search, and per action `key:<module>:<action>` ("h / Left") and `after:<module>:<action>` (a mode).
+//! modules (the references it covers), search, per action `key:<module>:<action>` (a list of keys, or "h / Left") and
+//! `after:<module>:<action>` (a mode); while the editor is open `edit` ("<module>:<action>"), `draft` (its keys),
+//! `draftText` (the keys typed, "Ctrl+g / Left" – for a terminal) and `draftAfter`.
 
 use std::collections::BTreeMap;
 
@@ -15,7 +19,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::{json, Map, Value};
 
 use super::common::*;
-use super::keys::{caps, mode_title, ways};
+use super::keys::{caps, key_caps, mode_title, ways};
 use super::text::{tf, Text};
 use super::Ctx;
 use crate::composition::{parse_key, Binding, Composition, Issue, PartRef, RecipeSpec};
@@ -45,16 +49,45 @@ pub struct KeymapStudioPage {
     pub intro: Text,
     /// Name, title, description, platform, the set it starts from
     pub about: Vec<Field>,
-    /// The module whose keys are shown, and the search
-    pub module: Field,
+    /// The platform's modules with keys: those the set covers (`on`, a click takes one out) and those to add
+    pub modules: Vec<StudioModuleChip>,
     pub search: Field,
     /// What overlaps or breaks the key rule, across the platform's modules
     pub hints: Vec<Hint>,
-    /// The module's keys by mode
-    pub groups: Vec<StudioGroup>,
-    /// "12 keys changed"
+    /// A card per module the set covers: its keys by mode
+    pub cards: Vec<StudioCard>,
+    /// "12 keys differ from the modules' own"
     pub changed: Text,
+    /// The key editor, while a key is being changed (`values.edit`)
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub editor: Option<KeyEditor>,
     pub actions: Vec<Action>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct StudioModuleChip {
+    pub reference: String,
+    pub title: String,
+    pub on: bool,
+    /// Adds it to the set, or takes it out (its changes are not saved then)
+    pub action: Action,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct StudioCard {
+    pub reference: String,
+    pub title: String,
+    /// "96 keys"
+    pub count: Text,
+    /// Keys that differ from the module's own
+    pub changed: usize,
+    /// Keys that overlap another
+    pub conflicts: usize,
+    /// Open at first: the first card, or every card the search finds something in
+    pub open: bool,
+    pub groups: Vec<StudioGroup>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -64,6 +97,8 @@ pub struct StudioGroup {
     pub start: bool,
     /// The way there from the start mode, as key caps
     pub way: Vec<Vec<Vec<String>>>,
+    /// Open at first: the keys without a mode and the start mode, or every group the search finds something in
+    pub open: bool,
     pub rows: Vec<StudioKeyRow>,
 }
 
@@ -72,22 +107,82 @@ pub struct StudioGroup {
 pub struct StudioKeyRow {
     pub action: String,
     pub title: Text,
-    /// Its keys ("h / Left"); disabled for the program's own keys
-    pub key: Field,
-    /// The mode afterwards – for an action in one mode of a program with modes
+    /// Its keys as caps (each key's chords)
+    pub caps: Vec<Vec<Vec<String>>>,
+    /// "then Locked"; None: it stays in the mode
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub after: Option<Field>,
+    pub after: Option<Text>,
+    /// It leads back to the mode its program starts in
+    pub back_to_start: bool,
     /// Not the module's own key or mode afterwards
     pub changed: bool,
-    /// Undo the key and mode chosen here (back to where the page started)
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub reset: Option<Action>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub does: Option<String>,
-    /// It overlaps another key ("Overlaps New tab (n)")
+    /// It overlaps another key ("Overlaps New tab")
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub conflict: Option<Text>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub does: Option<String>,
     pub own: bool,
+    /// Opens the key editor (none for the program's own keys)
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub edit: Option<Action>,
+    /// Undo what was chosen here (back to where the page started)
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub reset: Option<Action>,
+}
+
+/// The key editor (plan B148): one action's keys and the mode afterwards, changed apart from the list
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct KeyEditor {
+    pub module: String,
+    pub action: String,
+    pub title: Text,
+    /// "Zellij · Pane"
+    pub context: Text,
+    /// The way to its mode, as caps
+    pub way: Vec<Vec<Vec<String>>>,
+    /// The keys chosen so far (`values.draft`), as written ("Ctrl+g") – a UI adds to or replaces them
+    pub keys: Vec<String>,
+    /// The same as caps
+    pub caps: Vec<Vec<Vec<String>>>,
+    /// Takes the key at the same place out
+    pub remove: Vec<Action>,
+    /// The keys as text ("Ctrl+g / Left", `values.draftText`) – for a UI that cannot record or put keys together
+    pub text: Field,
+    /// The modifiers to put a key together with: `value` as written ("Super"), `label` as on the host's keyboard
+    pub modifiers: Vec<KeyChoice>,
+    /// The keys to put together with, in groups (letters, digits, function keys, arrows and others)
+    pub key_groups: Vec<KeyChoiceGroup>,
+    /// Several chords one after the other are allowed (Emacs' Ctrl+x Ctrl+f)
+    pub sequences: bool,
+    /// The mode afterwards (`values.draftAfter`): its choices stay first, then the start mode, then the others
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub after: Option<Field>,
+    /// What the keys chosen overlap, or the key rule they break
+    pub conflicts: Vec<Hint>,
+    /// The module's own keys
+    pub own_caps: Vec<Vec<Vec<String>>>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub does: Option<String>,
+    /// Back to the module's own keys and mode (and closes)
+    pub default: Action,
+    pub cancel: Action,
+    /// Takes the keys and the mode into the set (and closes)
+    pub apply: Action,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct KeyChoice {
+    pub value: String,
+    pub label: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct KeyChoiceGroup {
+    pub title: Text,
+    pub keys: Vec<KeyChoice>,
 }
 
 fn keys_text(keys: &[String]) -> String {
@@ -100,11 +195,78 @@ fn parse_keys(text: &str) -> Option<Vec<String>> {
     (!keys.is_empty() && keys.iter().all(|k| parse_key(k).is_some())).then_some(keys)
 }
 
-/// Sets the values `key:` and `after:` of an action (`ui.field` on this page)
-fn set_value(id: &str, label: Text, page_params: &Value, value_param: &str, value: Value) -> Action {
-    let mut a = Action::field(id, label, Some("reset"), PAGE, page_params.clone(), value_param, value_param);
-    a.params["value"] = value;
+/// A value of keys: a list (the key editor's) or a text ("h / Left"); Err when one is not a key
+fn keys_of(v: &Value) -> Result<Vec<String>, ()> {
+    match v {
+        Value::Array(list) => {
+            let keys: Vec<String> = list.iter().filter_map(Value::as_str).map(str::to_string).collect();
+            if !keys.is_empty() && keys.iter().all(|k| parse_key(k).is_some()) {
+                Ok(keys)
+            } else {
+                Err(())
+            }
+        }
+        Value::String(t) => parse_keys(t).ok_or(()),
+        _ => Err(()),
+    }
+}
+
+/// Sets a value of this page (`ui.field`), and more at once (`also`: value param → value, null clears)
+fn set_values(
+    id: &str,
+    label: Text,
+    icon: Option<&str>,
+    page_params: &Value,
+    first: (&str, Value),
+    also: &[(&str, Value)],
+) -> Action {
+    let mut a = Action::field(id, label, icon, PAGE, page_params.clone(), first.0, first.0);
+    a.params["value"] = first.1;
+    if !also.is_empty() {
+        a.params["also"] = Value::Array(also.iter().map(|(k, v)| json!({"valueParam": k, "value": v})).collect());
+    }
     a
+}
+
+/// The editor's own values, cleared when it closes
+const DRAFTS: [&str; 4] = ["edit", "draft", "draftText", "draftAfter"];
+
+/// The keys a key is put together from: `value` as written, `label` as the cap shows it on this host
+fn key_groups(host: super::HostOs) -> Vec<KeyChoiceGroup> {
+    let choice = |v: &str| KeyChoice { value: v.to_string(), label: caps(v, host)[0][0].clone() };
+    let group = |title: &str, keys: Vec<String>| KeyChoiceGroup {
+        title: Text::new(title),
+        keys: keys.iter().map(|k| choice(k)).collect(),
+    };
+    vec![
+        group("Letters", ('a'..='z').map(String::from).collect()),
+        group("Digits", ('0'..='9').map(String::from).collect()),
+        group(
+            "Arrows and others",
+            [
+                "Left",
+                "Right",
+                "Up",
+                "Down",
+                "Return",
+                "Escape",
+                "Tab",
+                "Space",
+                "Backspace",
+                "PageUp",
+                "PageDown",
+                "Plus",
+            ]
+            .iter()
+            .map(|s| s.to_string())
+            .collect(),
+        ),
+        group("Function keys", (1..=12).map(|i| format!("F{i}")).collect()),
+        group(
+            "Signs",
+            [",", ".", "/", ";", "'", "[", "]", "-", "=", "`", "\\"].iter().map(|s| s.to_string()).collect(),
+        ),
+    ]
 }
 
 pub(crate) fn page(ctx: &Ctx, p: &KeymapStudioParams) -> KeymapStudioPage {
@@ -127,36 +289,75 @@ pub(crate) fn page(ctx: &Ctx, p: &KeymapStudioParams) -> KeymapStudioPage {
     let base_ref = text("base").unwrap_or_else(|| from.map(Keymap::reference).unwrap_or_default());
     let base = sets.iter().find(|k| k.reference() == base_ref);
 
-    // The platform's modules with keys
+    // The platform's modules with keys; those the set covers: as chosen, else those the base set names, else all
     let store = ModuleStore::new(ctx.paths.clone());
     let mut modules: Vec<Module> =
         store.list(&settings).into_iter().filter(|m| m.platform == platform && !m.actions.is_empty()).collect();
     modules.sort_by_key(|m| (!m.desktop, m.title.to_lowercase()));
-    let module_ref = text("module")
-        .filter(|r| modules.iter().any(|m| &m.reference() == r))
-        .or_else(|| modules.first().map(Module::reference))
-        .unwrap_or_default();
+    let covered: Vec<String> = match v.get("modules").and_then(Value::as_array) {
+        Some(list) => list.iter().filter_map(Value::as_str).map(str::to_string).collect(),
+        None => {
+            let named: Vec<String> = modules
+                .iter()
+                .map(Module::reference)
+                .filter(|r| base.is_some_and(|b| b.keys.contains_key(r)))
+                .collect();
+            if named.is_empty() {
+                modules.iter().map(Module::reference).collect()
+            } else {
+                named
+            }
+        }
+    };
+    let covered: Vec<String> = modules.iter().map(Module::reference).filter(|r| covered.contains(r)).collect();
+
+    // The key being changed: its draft keys and mode afterwards count while the editor is open
+    let edit = text("edit").and_then(|e| {
+        let (m, a) = e.rsplit_once(':')?;
+        let module = modules.iter().find(|x| x.reference() == m && covered.contains(&x.reference()))?;
+        module.actions.get(a).filter(|x| !x.own)?;
+        Some((m.to_string(), a.to_string()))
+    });
+    let mut draft_error = None;
+    let draft_keys: Option<Vec<String>> = edit.as_ref().and_then(|_| {
+        if let Some(t) = text("draftText") {
+            match parse_keys(&t) {
+                Some(k) => return Some(k),
+                None => draft_error = Some(Text::new("Keys like Ctrl+g, Super+Return, Space f f – several with /")),
+            }
+        }
+        v.get("draft").and_then(|d| keys_of(d).ok())
+    });
+    let draft_after = edit.as_ref().and_then(|_| text("draftAfter"));
 
     // The set as chosen: the base set's entries, then the page's values – only what differs from the modules' keys
     let mut keys: Keys = BTreeMap::new();
     let mut errors: BTreeMap<String, Text> = BTreeMap::new();
-    for m in &modules {
+    for m in modules.iter().filter(|m| covered.contains(&m.reference())) {
         let r = m.reference();
         for (action, a) in m.actions.iter().filter(|(_, a)| !a.own) {
             let from_base = base.and_then(|b| b.keys.get(&r)).and_then(|x| x.get(action));
             let mut key = from_base.filter(|e| !e.key.is_empty()).map(|e| e.key.clone()).unwrap_or(a.key.clone());
             let mut after = from_base.and_then(|e| e.after.clone()).or(a.after.clone());
             let id = format!("key:{r}:{action}");
-            if let Some(t) = text(&id) {
-                match parse_keys(&t) {
-                    Some(k) => key = k,
-                    None => {
+            if let Some(value) = v.get(&id).filter(|x| !x.is_null()) {
+                match keys_of(value) {
+                    Ok(k) => key = k,
+                    Err(()) => {
                         errors.insert(id, Text::new("Keys like Ctrl+g, Super+Return, Space f f – several with /"));
                     }
                 }
             }
             if let Some(t) = text(&format!("after:{r}:{action}")) {
                 after = Some(t);
+            }
+            if edit.as_ref() == Some(&(r.clone(), action.clone())) {
+                if let Some(k) = &draft_keys {
+                    key = k.clone();
+                }
+                if let Some(t) = &draft_after {
+                    after = Some(t.clone());
+                }
             }
             let entry = KeyEntry {
                 key: if key != a.key { key } else { vec![] },
@@ -194,6 +395,7 @@ pub(crate) fn page(ctx: &Ctx, p: &KeymapStudioParams) -> KeymapStudioPage {
     };
     let composition = Composition::of(&spec, &modules, std::slice::from_ref(&draft), &store.capabilities(&settings));
     let mut conflicts: BTreeMap<(String, String), Text> = BTreeMap::new();
+    let mut rule: BTreeMap<(String, String), Text> = BTreeMap::new();
     let mut hints = Vec::new();
     for i in &composition.issues {
         match i {
@@ -203,93 +405,84 @@ pub(crate) fn page(ctx: &Ctx, p: &KeymapStudioParams) -> KeymapStudioPage {
                 }
                 hints.push(
                     Hint::new("warning", tf!("Keys overlap: %@ and %@", &first.title, &second.title), Tone::Warning)
-                        .keys(super::keys::key_caps(&first.keys, ctx.host)),
+                        .keys(key_caps(&first.keys, ctx.host)),
                 );
             }
-            Issue::KeyRule { binding } => hints.push(
-                Hint::new(
-                    "warning",
-                    tf!("%@: without a mode a key starts with Super or Ctrl", &binding.title),
-                    Tone::Warning,
-                )
-                .keys(super::keys::key_caps(&binding.keys, ctx.host)),
-            ),
+            Issue::KeyRule { binding } => {
+                let t = tf!("%@: without a mode a key starts with Super or Ctrl", &binding.title);
+                rule.insert((binding.module.clone(), binding.action.clone()), t.clone());
+                hints.push(Hint::new("warning", t, Tone::Warning).keys(key_caps(&binding.keys, ctx.host)));
+            }
             _ => {}
         }
     }
 
-    // The module's keys by mode, as the keys page groups them
-    let module = modules.iter().find(|m| m.reference() == module_ref);
-    let bindings: Vec<&Binding> = composition.bindings.iter().filter(|b| b.module == module_ref).collect();
+    // A card per module the set covers: its keys by mode, as the keys page groups them
     let search = text("search").unwrap_or_default().trim().to_lowercase();
-    let mut groups = Vec::new();
-    if let Some(m) = module {
+    let closing: Vec<(&str, Value)> = DRAFTS[1..].iter().map(|k| (*k, Value::Null)).collect();
+    let mut cards = Vec::new();
+    for (ci, m) in modules.iter().filter(|m| covered.contains(&m.reference())).enumerate() {
+        let r = m.reference();
+        let bindings: Vec<&Binding> = composition.bindings.iter().filter(|b| b.module == r).collect();
         let start = m.modes.iter().find(|(_, x)| x.start).map(|(id, _)| id.clone());
         let found = ways(&bindings, start.as_deref());
-        let row = |b: &Binding| -> Option<StudioKeyRow> {
+        let row = |b: &Binding, here: Option<&str>| -> Option<StudioKeyRow> {
             let a = m.actions.get(&b.action)?;
             let title = a.title_in(lang).to_string();
-            let hay = format!("{} {} {}", title, b.key_text(), b.does.clone().unwrap_or_default()).to_lowercase();
+            let hay =
+                format!("{} {} {} {}", title, b.key_text(), b.does.clone().unwrap_or_default(), m.title).to_lowercase();
             if !search.is_empty() && !search.split_whitespace().all(|w| hay.contains(w)) {
                 return None;
             }
             let id = format!("key:{}:{}", b.module, b.action);
-            let mut key =
-                Field::new(&id, FieldKind::Text, Text::verbatim(&title), json!(keys_text(&b.keys))).value_param(&id);
-            if let Some(t) = text(&id) {
-                key.value = json!(t);
-            }
-            key.error = errors.get(&id).cloned();
-            if a.own {
-                key.enabled = false;
-                key.reason = Some(Text::new("The program's own key – key bindings do not change it"));
-            }
-            // The mode afterwards: for an action in one mode, choosing among the module's modes
-            let after = (!a.own && b.modes.len() == 1 && !m.modes.is_empty()).then(|| {
-                let here = &b.modes[0];
-                let id = format!("after:{}:{}", b.module, b.action);
-                let value = b.after.clone().unwrap_or_else(|| here.clone());
-                let mut f = Field::new(&id, FieldKind::Choice, Text::new("then"), json!(value)).value_param(&id);
-                f.choices = m
-                    .modes
-                    .keys()
-                    .map(|mode| {
-                        let label = if mode == here {
-                            tf!("stays in %@", mode_title(&m.modes, mode, lang))
-                        } else {
-                            mode_title(&m.modes, mode, lang)
-                        };
-                        Choice::new(json!(mode), label)
-                    })
-                    .collect();
-                f
-            });
-            let changed = !a.own && (b.keys != a.key || b.after != a.after);
-            // Undo what was chosen here: both values back to where the page started (the base set, or the module's)
             let after_id = format!("after:{}:{}", b.module, b.action);
+            let after = b.after.as_deref().filter(|x| Some(*x) != here);
+            let edit = (!a.own).then(|| {
+                let mut also = closing.clone();
+                also.retain(|(k, _)| *k != "edit");
+                set_values(
+                    "edit",
+                    Text::new("Change …"),
+                    Some("edit"),
+                    &page_params,
+                    ("edit", json!(format!("{}:{}", b.module, b.action))),
+                    &also,
+                )
+            });
             let touched = v.contains_key(&id) || v.contains_key(&after_id);
             let reset = touched.then(|| {
-                let mut r = set_value("reset", Text::new("Undo"), &page_params, &id, Value::Null);
-                r.params["also"] = json!([{"valueParam": after_id, "value": null}]);
-                r
+                set_values(
+                    "reset",
+                    Text::new("Undo"),
+                    Some("reset"),
+                    &page_params,
+                    (&id, Value::Null),
+                    &[(&after_id, Value::Null)],
+                )
             });
             Some(StudioKeyRow {
                 action: b.action.clone(),
                 title: Text::verbatim(&title),
-                key,
-                after,
-                changed,
-                reset,
+                caps: key_caps(&b.keys, ctx.host),
+                after: after.map(|x| tf!("then %@", mode_title(&m.modes, x, lang))),
+                back_to_start: after.is_some() && after == start.as_deref(),
+                changed: !a.own && (b.keys != a.key || b.after != a.after),
+                conflict: conflicts
+                    .get(&(b.module.clone(), b.action.clone()))
+                    .or_else(|| rule.get(&(b.module.clone(), b.action.clone())))
+                    .cloned(),
                 does: b.does.clone(),
-                conflict: conflicts.get(&(b.module.clone(), b.action.clone())).cloned(),
                 own: a.own,
+                edit,
+                reset,
             })
         };
+        let mut groups = Vec::new();
         let modeless: Vec<StudioKeyRow> =
-            bindings.iter().filter(|b| b.modes.is_empty()).filter_map(|b| row(b)).collect();
+            bindings.iter().filter(|b| b.modes.is_empty()).filter_map(|b| row(b, None)).collect();
         if !modeless.is_empty() {
             let title = if m.modes.is_empty() { Text::new("In the program") } else { Text::new("In every mode") };
-            groups.push(StudioGroup { title, start: false, way: vec![], rows: modeless });
+            groups.push(StudioGroup { title, start: false, way: vec![], open: true, rows: modeless });
         }
         let mut order: Vec<&String> = m.modes.keys().collect();
         order.sort_by_key(|id| {
@@ -297,18 +490,184 @@ pub(crate) fn page(ctx: &Ctx, p: &KeymapStudioParams) -> KeymapStudioPage {
         });
         for id in order {
             let rows: Vec<StudioKeyRow> =
-                bindings.iter().filter(|b| b.modes.contains(id)).filter_map(|b| row(b)).collect();
+                bindings.iter().filter(|b| b.modes.contains(id)).filter_map(|b| row(b, Some(id))).collect();
             if rows.is_empty() {
                 continue;
             }
+            let is_start = Some(id) == start.as_ref();
             groups.push(StudioGroup {
                 title: mode_title(&m.modes, id, lang),
-                start: Some(id) == start.as_ref(),
+                start: is_start,
                 way: found.get(id).map(|w| w.iter().map(|(k, _)| caps(k, ctx.host)).collect()).unwrap_or_default(),
+                open: is_start || !search.is_empty(),
                 rows,
             });
         }
+        if groups.is_empty() && !search.is_empty() {
+            continue;
+        }
+        let all: Vec<&Binding> = bindings.iter().copied().filter(|b| !b.own).collect();
+        cards.push(StudioCard {
+            reference: r.clone(),
+            title: m.title.clone(),
+            count: if m.actions.len() == 1 { Text::new("1 key") } else { tf!("%lld keys", m.actions.len()) },
+            changed: keys.get(&r).map(|a| a.len()).unwrap_or(0),
+            conflicts: all.iter().filter(|b| conflicts.contains_key(&(b.module.clone(), b.action.clone()))).count(),
+            open: ci == 0 || !search.is_empty(),
+            groups,
+        });
     }
+
+    // The chips: the modules it covers, then those to add
+    let chips: Vec<StudioModuleChip> = modules
+        .iter()
+        .map(|m| {
+            let r = m.reference();
+            let on = covered.contains(&r);
+            let list: Vec<String> = if on {
+                covered.iter().filter(|x| **x != r).cloned().collect()
+            } else {
+                modules.iter().map(Module::reference).filter(|x| covered.contains(x) || *x == r).collect()
+            };
+            let label = if on { tf!("Take %@ out of the set", &m.title) } else { tf!("Add %@", &m.title) };
+            StudioModuleChip {
+                reference: r,
+                title: m.title.clone(),
+                on,
+                action: set_values(
+                    if on { "remove" } else { "add" },
+                    label,
+                    Some(if on { "minus" } else { "add" }),
+                    &page_params,
+                    ("modules", json!(list)),
+                    &[],
+                ),
+            }
+        })
+        .collect();
+
+    // The key editor
+    let editor = edit.as_ref().and_then(|(mr, ar)| {
+        let m = modules.iter().find(|x| &x.reference() == mr)?;
+        let a = m.actions.get(ar)?;
+        let b = composition.bindings.iter().find(|b| &b.module == mr && &b.action == ar)?;
+        let start = m.modes.iter().find(|(_, x)| x.start).map(|(id, _)| id.clone());
+        let bindings: Vec<&Binding> = composition.bindings.iter().filter(|x| &x.module == mr).collect();
+        let found = ways(&bindings, start.as_deref());
+        let here = (b.modes.len() == 1).then(|| b.modes[0].clone());
+        let current = b.keys.clone();
+        let key_id = format!("key:{mr}:{ar}");
+        let after_id = format!("after:{mr}:{ar}");
+        let mut text_field = Field::new(
+            "draftText",
+            FieldKind::Text,
+            Text::new("Keys"),
+            json!(text("draftText").unwrap_or_else(|| keys_text(&current))),
+        )
+        .value_param("draftText");
+        text_field.placeholder = Some(Text::new("Ctrl+g / Left"));
+        text_field.error = draft_error.clone();
+        let after = here.as_ref().filter(|_| !m.modes.is_empty()).map(|here| {
+            let value = b.after.clone().unwrap_or_else(|| here.clone());
+            let mut f = Field::new("draftAfter", FieldKind::Choice, Text::new("Afterwards"), json!(value))
+                .value_param("draftAfter");
+            let mut order: Vec<&String> = m.modes.keys().collect();
+            order.sort_by_key(|id| {
+                (*id != here, Some(*id) != start.as_ref(), mode_title(&m.modes, id, lang).text.to_lowercase())
+            });
+            f.choices = order
+                .into_iter()
+                .map(|mode| {
+                    let label = if mode == here {
+                        tf!("stays in %@", mode_title(&m.modes, mode, lang))
+                    } else if Some(mode) == start.as_ref() {
+                        tf!("back to %@", mode_title(&m.modes, mode, lang))
+                    } else {
+                        tf!("to %@", mode_title(&m.modes, mode, lang))
+                    };
+                    Choice::new(json!(mode), label)
+                })
+                .collect();
+            f
+        });
+        let mut problems = Vec::new();
+        if let Some(t) = conflicts.get(&(mr.clone(), ar.clone())) {
+            problems.push(Hint::new("warning", t.clone(), Tone::Warning).keys(key_caps(&current, ctx.host)));
+        }
+        if let Some(t) = rule.get(&(mr.clone(), ar.clone())) {
+            problems.push(Hint::new("warning", t.clone(), Tone::Warning));
+        }
+        let close = |extra: Vec<(&str, Value)>| -> Vec<(String, Value)> {
+            let mut out: Vec<(String, Value)> = extra.into_iter().map(|(k, v)| (k.to_string(), v)).collect();
+            out.extend(DRAFTS.iter().map(|k| (k.to_string(), Value::Null)));
+            out
+        };
+        let action_of = |id: &str, label: Text, icon: Option<&str>, values: Vec<(String, Value)>| {
+            let (first, rest) = values.split_first().expect("a value");
+            let rest: Vec<(&str, Value)> = rest.iter().map(|(k, v)| (k.as_str(), v.clone())).collect();
+            set_values(id, label, icon, &page_params, (first.0.as_str(), first.1.clone()), &rest)
+        };
+        let mut apply_values = vec![(key_id.as_str(), json!(current))];
+        if after.is_some() {
+            apply_values.push((after_id.as_str(), json!(b.after.clone().or(here.clone()))));
+        }
+        let apply = action_of("apply", Text::new("Apply"), Some("apply"), close(apply_values))
+            .enabled_if(!current.is_empty() && draft_error.is_none(), draft_error.clone())
+            .primary();
+        let default = action_of(
+            "default",
+            Text::new("The module's own"),
+            Some("reset"),
+            close(vec![(key_id.as_str(), json!(a.key)), (after_id.as_str(), json!(a.after.clone().or(here.clone())))]),
+        );
+        let cancel = action_of("cancel", Text::new("Cancel"), None, close(vec![]));
+        let remove = (0..current.len())
+            .map(|i| {
+                let rest: Vec<&String> = current.iter().enumerate().filter(|(j, _)| *j != i).map(|(_, k)| k).collect();
+                set_values(
+                    "removeKey",
+                    Text::new("Remove this key"),
+                    Some("minus"),
+                    &page_params,
+                    ("draft", json!(rest)),
+                    &[("draftText", Value::Null)],
+                )
+            })
+            .collect();
+        let way = here
+            .as_ref()
+            .and_then(|h| found.get(h))
+            .map(|w| w.iter().map(|(k, _)| caps(k, ctx.host)).collect())
+            .unwrap_or_default();
+        let mode = here.as_ref().map(|h| mode_title(&m.modes, h, lang));
+        Some(KeyEditor {
+            module: mr.clone(),
+            action: ar.clone(),
+            title: Text::verbatim(a.title_in(lang)),
+            context: match mode {
+                Some(t) => Text::joined(vec![Text::verbatim(&m.title), t]),
+                None => Text::verbatim(&m.title),
+            },
+            way,
+            caps: key_caps(&current, ctx.host),
+            keys: current,
+            remove,
+            text: text_field,
+            modifiers: ["Ctrl", "Alt", "Shift", "Super"]
+                .iter()
+                .map(|x| KeyChoice { value: x.to_string(), label: caps(x, ctx.host)[0][0].clone() })
+                .collect(),
+            key_groups: key_groups(ctx.host),
+            sequences: true,
+            after,
+            conflicts: problems,
+            own_caps: key_caps(&a.key, ctx.host),
+            does: b.does.clone(),
+            default,
+            cancel,
+            apply,
+        })
+    });
 
     // About
     let taken = sets.iter().any(|k| k.author == MyRecipes::AUTHOR && k.name == name && mine.as_deref() != Some(&name));
@@ -344,20 +703,6 @@ pub(crate) fn page(ctx: &Ctx, p: &KeymapStudioParams) -> KeymapStudioPage {
         platform_field,
         base_field,
     ];
-    let mut module_field =
-        Field::new("module", FieldKind::Choice, Text::new("Module"), json!(module_ref)).value_param("module");
-    module_field.choices = modules
-        .iter()
-        .map(|m| {
-            let n = keys.get(&m.reference()).map(|a| a.len()).unwrap_or(0);
-            let label = match (m.actions.len(), n) {
-                (1, 0) => tf!("%@ – 1 key", &m.title),
-                (all, 0) => tf!("%@ – %lld keys", &m.title, all),
-                (all, n) => tf!("%@ – %lld keys, %lld changed", &m.title, all, n),
-            };
-            Choice::new(json!(m.reference()), label)
-        })
-        .collect();
     let mut search_field =
         Field::new("search", FieldKind::Text, Text::new("Search"), json!(text("search").unwrap_or_default()))
             .value_param("search");
@@ -399,14 +744,15 @@ pub(crate) fn page(ctx: &Ctx, p: &KeymapStudioParams) -> KeymapStudioPage {
         }),
         id: mine,
         intro: Text::new(
-            "Key bindings of your own: change a key, or where a key leads afterwards – one module at a time, by the mode of its program. What overlaps is said while you choose. Only what differs from the modules' own keys is saved, in My Recipes' folder; recipes name the set my/<name>.",
+            "Key bindings of your own: open a module, then “Change …” at a key – record it or put it together, and choose where it leads afterwards. What overlaps is said while you choose. Only what differs from the modules' own keys is saved, in My Recipes' folder; recipes name the set my/<name>.",
         ),
         about,
-        module: module_field,
+        modules: chips,
         search: search_field,
         hints,
-        groups,
+        cards,
         changed: tf!("%lld keys differ from the modules' own", changed_count),
+        editor,
         actions,
     }
 }

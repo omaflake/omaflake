@@ -32,9 +32,10 @@ are collected under *Unreleased*. Releases: [GitHub](https://github.com/omaflake
   together what is missing (with a button that adds the module providing it), what does not go together and which
   keys overlap, and shows its keys before it is saved. It is the workshop's first tab and opens from "New Recipe …",
   "Edit …" and "Copy to My Recipes …".
-- The Key Binding Studio: key binding sets of your own. Starting from a set or from the modules' own keys, one module
-  at a time by the mode of its program, every key can be changed – and where a key leads afterwards (Zellij: whether
-  `n` in pane mode locks again or stays in pane mode). Overlaps are said while you choose. Only what differs from the
+- The Key Binding Studio: key binding sets of your own. Starting from a set or from the modules' own keys, the modules
+  it covers are cards that open to their keys by the mode of their program. "Change …" opens a key editor: record the
+  key (macOS app) or put it together from modifiers and a key, add more keys for the same, and choose where it leads
+  afterwards (Zellij: whether `n` in pane mode locks again or stays in pane mode). Overlaps are said while you choose. Only what differs from the
   modules' own keys is saved, in My Recipes' folder as `my/<name>`, which recipes name like any set.
 
 - A help switch in the header, off by default: the pages' explanations show only while it is on, each in a box of

@@ -27,7 +27,7 @@ use serde_json::{json, Value};
 use crate::app::{App, Message, Model};
 use crate::icons::icon;
 use crate::style::{self, spacing, text_size};
-use crate::text::{date_time, duration, s, tr, trf};
+use crate::text::{date_time, duration, s, tr, trf, I18nArg};
 use crate::widgets::{
     self, action_button, action_icon, badge, caption, chip, detail_box, divider, expandable, hint, info_line, kind,
     lamp, primary_button, secondary, section_title, wrap, El,
@@ -1011,58 +1011,231 @@ fn studio<'a>(app: &'a App, page: &str, st: &'a RecipeStudioPage) -> El<'a> {
 fn keymap_studio<'a>(app: &'a App, page: &str, k: &'a KeymapStudioPage) -> El<'a> {
     let card =
         |c: Column<'a, Message>| container(c).padding(spacing::CARD_PADDING).width(Length::Fill).style(style::card);
+    // The key editor (plan B148) takes the page while it is open
+    if let Some(e) = &k.editor {
+        return key_editor(app, page, e);
+    }
     let mut about = Column::new().spacing(spacing::L);
     for f in &k.about {
         about = about.push(field_view(app, page, f, false));
     }
     let mut c = column![widgets::help_note(s(&k.intro)), card(about)].spacing(spacing::L);
-    let mut pick = column![field_view(app, page, &k.module, false), field_view(app, page, &k.search, false)]
-        .spacing(spacing::L)
-        .push(caption(s(&k.changed)).color(style::SECONDARY));
+    // The modules the set covers as chips (a click takes one out), then those to add
+    let chips: Vec<El<'a>> = k
+        .modules
+        .iter()
+        .map(|m| {
+            let label = if m.on { format!("{} ✕", m.title) } else { format!("+ {}", m.title) };
+            button(text(label).size(text_size::CAPTION).color(if m.on { style::CYAN } else { style::SECONDARY }))
+                .padding([2.0, spacing::L])
+                .style(style::tab(m.on))
+                .on_press_maybe(widgets::message_of(&m.action, None))
+                .into()
+        })
+        .collect();
+    let mut pick = column![
+        row![
+            text(tr("Modules")).size(text_size::CALLOUT).font(style::semibold()).width(Length::Fill),
+            caption(s(&k.changed)).color(style::SECONDARY)
+        ],
+        iced::widget::Row::with_children(chips).spacing(spacing::S).wrap().vertical_spacing(spacing::S),
+        field_view(app, page, &k.search, false),
+    ]
+    .spacing(spacing::L);
     if !k.hints.is_empty() {
         pick = pick.push(notes(app, &k.hints));
     }
     c = c.push(card(pick));
-    for g in &k.groups {
-        let mut head = row![text(s(&g.title)).size(text_size::CAPTION).font(style::semibold()).color(style::CYAN)]
-            .spacing(spacing::M)
-            .align_y(Alignment::Center);
-        if g.start {
-            head = head.push(caption(tr("start")).color(style::SECONDARY));
+    // A card per module: it opens to its modes, each opening to its keys – read only, Change … at each
+    for m in &k.cards {
+        let key = format!("kcard:{}", m.reference);
+        let open = m.open != app.expanded.contains(&key);
+        let mut head = row![
+            text(m.title.clone()).size(text_size::HEADLINE).font(style::semibold()),
+            caption(s(&m.count)).color(style::SECONDARY)
+        ]
+        .spacing(spacing::L)
+        .align_y(Alignment::Center)
+        .push(space::horizontal());
+        if m.changed > 0 {
+            head = head.push(caption(trf("%lld changed", &[I18nArg::Int(m.changed.to_string())])).color(style::CYAN));
         }
-        head = head.push(space::horizontal());
-        for (i, step) in g.way.iter().enumerate() {
-            if i > 0 {
-                head = head.push(caption("›").color(style::tertiary()));
-            }
-            head = head.push(widgets::key_caps(step));
+        if m.conflicts > 0 {
+            head =
+                head.push(caption(trf("%lld overlap", &[I18nArg::Int(m.conflicts.to_string())])).color(style::WARNING));
         }
-        let mut rows = column![head].spacing(spacing::L);
-        for r in &g.rows {
-            let mut line = row![container(field_view(app, page, &r.key, false)).width(Length::Fill)]
-                .spacing(spacing::L)
-                .align_y(Alignment::Center);
-            if r.changed {
-                line = line.push(caption("●").color(style::CYAN));
+        let mut body = column![expandable(key.clone(), open, head.into(), || column![].into())].spacing(spacing::S);
+        if open {
+            for (gi, g) in m.groups.iter().enumerate() {
+                let gkey = format!("kgroup:{}:{gi}", m.reference);
+                let gopen = g.open != app.expanded.contains(&gkey);
+                let mut ghead =
+                    row![text(s(&g.title)).size(text_size::CALLOUT).font(style::semibold()).color(style::CYAN)]
+                        .spacing(spacing::M)
+                        .align_y(Alignment::Center);
+                if g.start {
+                    ghead = ghead.push(caption(tr("start")).color(style::SECONDARY));
+                }
+                ghead =
+                    ghead.push(caption(g.rows.len().to_string()).color(style::tertiary())).push(space::horizontal());
+                for (i, step) in g.way.iter().enumerate() {
+                    if i > 0 {
+                        ghead = ghead.push(caption("›").color(style::tertiary()));
+                    }
+                    ghead = ghead.push(widgets::key_caps(step));
+                }
+                body = body.push(expandable(gkey, gopen, ghead.into(), || {
+                    let mut rows = Column::new().spacing(spacing::M);
+                    for r in &g.rows {
+                        let mut line = row![
+                            container(widgets::key_alternatives(&r.caps)).width(150),
+                            text(s(&r.title)).size(text_size::CALLOUT).color(if r.own {
+                                style::SECONDARY
+                            } else {
+                                style::TEXT
+                            }),
+                        ]
+                        .spacing(spacing::L)
+                        .align_y(Alignment::Center);
+                        if r.changed {
+                            line = line.push(caption("●").color(style::CYAN));
+                        }
+                        line = line.push(space::horizontal());
+                        if let Some(a) = &r.after {
+                            line = line.push(
+                                caption(format!("{} {}", if r.back_to_start { "↩" } else { "→" }, s(a)))
+                                    .color(style::CYAN),
+                            );
+                        }
+                        if let Some(reset) = &r.reset {
+                            line = line.push(action_button(reset, None, app.pulse));
+                        }
+                        if let Some(edit) = &r.edit {
+                            line = line.push(action_button(edit, None, app.pulse));
+                        }
+                        let mut entry = column![line].spacing(spacing::XS);
+                        if let Some(conflict) = &r.conflict {
+                            entry = entry.push(caption(s(conflict)).color(style::WARNING));
+                        }
+                        rows = rows.push(entry);
+                    }
+                    rows.into()
+                }));
             }
-            if let Some(reset) = &r.reset {
-                line = line.push(action_button(reset, None, app.pulse));
-            }
-            let mut entry = column![line].spacing(spacing::XS);
-            if let Some(a) = &r.after {
-                entry = entry.push(field_view(app, page, a, false));
-            }
-            if let Some(conflict) = &r.conflict {
-                entry = entry.push(caption(s(conflict)).color(style::WARNING));
-            }
-            if let Some(does) = &r.does {
-                entry = entry.push(caption(does.clone()).font(iced::Font::MONOSPACE).color(style::tertiary()));
-            }
-            rows = rows.push(entry);
         }
-        c = c.push(card(rows));
+        c = c.push(card(body));
     }
     c.push(page_actions(app, page, &k.actions)).into()
+}
+
+/// The key editor (plan B148): the keys now (each to take out), a key put together from modifiers and a key – never
+/// typed as "Ctrl" – or typed, the mode afterwards, what it overlaps, the module's own, Cancel and Apply
+fn key_editor<'a>(app: &'a App, page: &str, e: &'a omaflake_core::api::views::keymap_studio::KeyEditor) -> El<'a> {
+    let card =
+        |c: Column<'a, Message>| container(c).padding(spacing::CARD_PADDING).width(Length::Fill).style(style::card);
+    let mut head = row![caption(s(&e.context)).color(style::SECONDARY)].spacing(spacing::M).align_y(Alignment::Center);
+    for step in &e.way {
+        head = head.push(caption("›").color(style::tertiary())).push(widgets::key_caps(step));
+    }
+    let mut c = column![text(s(&e.title)).size(text_size::HEADLINE).font(style::bold()), head].spacing(spacing::L);
+    // The keys now
+    let mut now = row![].spacing(spacing::L).align_y(Alignment::Center);
+    for (i, k) in e.caps.iter().enumerate() {
+        if i > 0 {
+            now = now.push(caption(tr("or")).color(style::tertiary()));
+        }
+        now = now.push(widgets::key_caps(k));
+        if e.caps.len() > 1 {
+            if let Some(r) = e.remove.get(i) {
+                now = now.push(widgets::icon_button(
+                    "minus",
+                    s(&r.label),
+                    widgets::message_of(r, None),
+                    style::SECONDARY,
+                    false,
+                ));
+            }
+        }
+    }
+    let own = row![caption(tr("The module's own:")).color(style::SECONDARY), widgets::key_alternatives(&e.own_caps)]
+        .spacing(spacing::M)
+        .align_y(Alignment::Center);
+    c = c.push(card(column![now, own].spacing(spacing::L)));
+    // Put together: the modifiers switch (kept as the page's `draftMods`), a key click makes the key
+    let mods: Vec<String> = app
+        .forms
+        .get(page)
+        .and_then(|f| f.get("draftMods"))
+        .and_then(Value::as_array)
+        .map(|l| l.iter().filter_map(Value::as_str).map(str::to_string).collect())
+        .unwrap_or_default();
+    let mut mod_row = row![].spacing(spacing::S);
+    for m in &e.modifiers {
+        let on = mods.contains(&m.value);
+        let next: Vec<String> = if on {
+            mods.iter().filter(|x| **x != m.value).cloned().collect()
+        } else {
+            [mods.clone(), vec![m.value.clone()]].concat()
+        };
+        mod_row = mod_row.push(
+            button(text(m.label.clone()).size(text_size::CALLOUT))
+                .padding([2.0, spacing::L])
+                .style(style::tab(on))
+                .on_press(Message::FormSet { page: page.to_string(), key: "draftMods".into(), value: json!(next) }),
+        );
+    }
+    let order = ["Super", "Ctrl", "Alt", "Shift"];
+    let mut compose = column![caption(tr("Put Together")).color(style::SECONDARY), mod_row].spacing(spacing::M);
+    for g in &e.key_groups {
+        let keys: Vec<El<'a>> = g
+            .keys
+            .iter()
+            .map(|k| {
+                let combo: Vec<String> = order
+                    .iter()
+                    .filter(|o| mods.iter().any(|m| m == *o))
+                    .map(|o| o.to_string())
+                    .chain([k.value.clone()])
+                    .collect();
+                button(text(k.label.clone()).size(text_size::CAPTION).font(style::semibold()))
+                    .padding([1.0, spacing::S])
+                    .style(style::tab(false))
+                    .on_press(Message::FormSet {
+                        page: page.to_string(),
+                        key: "draft".into(),
+                        value: json!([combo.join("+")]),
+                    })
+                    .into()
+            })
+            .collect();
+        compose = compose
+            .push(caption(s(&g.title)).color(style::tertiary()))
+            .push(iced::widget::Row::with_children(keys).spacing(spacing::XS).wrap().vertical_spacing(spacing::XS));
+    }
+    c = c.push(card(compose));
+    // Typed, for several keys at once ("h / Left")
+    let mut more = column![field_view(app, page, &e.text, false)].spacing(spacing::L);
+    if let Some(after) = &e.after {
+        more = more.push(field_view(app, page, after, false));
+    }
+    c = c.push(card(more));
+    if !e.conflicts.is_empty() {
+        c = c.push(notes(app, &e.conflicts));
+    }
+    if let Some(does) = &e.does {
+        c = c.push(widgets::help_note(trf("What it does: %@", &[I18nArg::Text(does.clone())])));
+    }
+    c.push(
+        row![
+            action_button(&e.default, None, app.pulse),
+            space::horizontal(),
+            action_button(&e.cancel, None, app.pulse),
+            widgets::primary_button(&e.apply, None, app.pulse),
+        ]
+        .spacing(spacing::L)
+        .align_y(Alignment::Center),
+    )
+    .into()
 }
 
 fn build<'a>(app: &'a App, page: &str, b: &'a BuildPage) -> El<'a> {

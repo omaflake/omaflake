@@ -1200,6 +1200,25 @@ at the bottom; iced the same in one column (suggestions, wrapping chips, expanda
 as rows, the chips and the pager as button bars, details with Space. **Checked:** `cargo test` (new
 `recipe_studio_pages_through_the_catalog`), `swift test`, clippy. **OPEN:** clicked in the apps.
 
+**B148, step 3 (2026-10-28): the key binding studio with a key editor.** `keymapStudio` has no module choice and no key
+text fields any more: `modules` are chips (the set covers those the base set names, else all; `values.modules`; a
+module taken out is not saved), `cards` per module that open (the first, or every one the search finds something in)
+with their modes as groups that open (the keys without a mode and the start mode), rows read only (`caps`, `after`,
+`changed`, `conflict`, `edit`, `reset`). `editor` while `values.edit` names a key: the draft keys (`values.draft`, a
+list; or `draftText` typed), `modifiers` and `keyGroups` to put one together, the mode afterwards (`draftAfter`: stay,
+then back to the start mode, then the others), what the draft overlaps (it counts in the composition while the editor
+is open), the module's own keys, `default`, `cancel`, `apply` (each `ui.field` with `also`, clearing the editor's
+values). Key values may be lists now. UIs: SwiftUI sections per module with disclosure groups per mode, chips with
+"Add Module", the editor in a sheet – **recording** (`KeyRecorder`: `NSEvent.addLocalMonitorForEvents` for keyDown and
+flagsChanged, ⌘ as Super, a sequence's next chord within 1.2 s, the keys swallowed while recording) or putting
+together (modifier switches, a grid of keys), "Use as the Key" / "Add as Another", the mode afterwards as two segments
+and a menu; iced cards and groups that open, the editor taking the page (modifier switches kept as the client's own
+`draftMods`, a key click makes the key; the typed field for several); `omaf ui` the same with the typed field.
+**Checked:** `cargo test` (`keymap_studio_changes_keys_and_modes` rewritten: chips, cards, the editor, a draft, apply's
+values, a module taken out, a typed key that is not one), `swift test`, clippy. **OPEN:** clicked in the apps; which
+keys macOS keeps for itself while recording (Cmd+Tab, Cmd+Space, Mission Control's Ctrl+arrows by the docs – not
+tried); recording in the Linux app; swapping a key with the one it overlaps.
+
 **B129 (2026-10-24): clipboard on a GNOME host.** Mutter has no data-control protocol: `wl-paste --watch` ends at once.
 `Wayland::start` now treats an end within 500 ms as refused, and `detect` falls back to xclip through Xwayland, which
 Mutter keeps in sync (`X11::through_xwayland`, Mutter's `.mutter-Xwaylandauth.*` cookie when XAUTHORITY is unset; its

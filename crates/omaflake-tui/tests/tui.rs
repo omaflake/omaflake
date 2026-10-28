@@ -281,7 +281,7 @@ fn draws_every_page() {
         ("modules", "modules", vec!["Modules", "Hyprland", "omaflake/hyprland · 1.0.0 · NixOS module", "VS Code"]),
         ("profiles", "profiles", vec!["Profiles", "Small", "2 CPU · 4 GB RAM", "New Profile …"]),
         ("profile", "profile", vec!["New Profile", "CPU cores: 8", "Create"]),
-        ("keymapStudio", "keymapStudio", vec!["Key Binding Studio", "Starts from", "Module", "Save"]),
+        ("keymapStudio", "keymapStudio", vec!["Key Binding Studio", "Starts from", "Search keys", "Save"]),
         (
             "recipeStudio",
             "recipeStudio",

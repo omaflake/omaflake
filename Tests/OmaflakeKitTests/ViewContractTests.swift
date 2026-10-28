@@ -275,6 +275,8 @@ extension APIContractTests {
                 // The key binding studio (plan B147): a new set, its fields, Save waits for nothing but a name
                 guard case .keymapStudio(let p) = try page("keymapStudio", as: "keymapStudio") else { throw Unexpected() }
                 #expect(p.about.map(\.id) == ["name", "title", "description", "platform", "base"] && p.actions.last?.method == "keymaps.save")
+                // Cards per module and the key editor only while a key is changed (plan B148)
+                #expect(p.editor == nil && p.fields.contains { $0.id == "search" })
             },
             "keys.draft": {
                 guard case .keys(let p) = try page("keys.draft", as: "keys") else { throw Unexpected() }

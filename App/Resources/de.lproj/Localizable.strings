@@ -1396,3 +1396,35 @@
 "In the recipe" = "Im Rezept";
 "In the recipe – a click takes it out" = "Im Rezept – ein Klick nimmt es heraus";
 "Clear" = "Leeren";
+
+/* Key binding studio: cards and the key editor (plan B148) */
+"Key bindings of your own: open a module, then “Change …” at a key – record it or put it together, and choose where it leads afterwards. What overlaps is said while you choose. Only what differs from the modules' own keys is saved, in My Recipes' folder; recipes name the set my/<name>." = "Eigene Tastenbelegungen: ein Modul aufklappen, dann „Ändern …“ an einer Taste – aufnehmen oder zusammenstellen und wählen, wohin sie danach führt. Was sich überschneidet, steht schon während der Wahl da. Gespeichert wird nur, was von den eigenen Tasten der Module abweicht, im Ordner von Meine Rezepte; Rezepte nennen das Set my/<name>.";
+"Change …" = "Ändern …";
+"Take %@ out of the set" = "%@ aus dem Set nehmen";
+"Afterwards" = "Danach";
+"back to %@" = "zurück zu %@";
+"to %@" = "nach %@";
+"The module's own" = "Wie im Modul";
+"Remove this key" = "Diese Taste entfernen";
+"Letters" = "Buchstaben";
+"Digits" = "Ziffern";
+"Arrows and others" = "Pfeile und andere";
+"Function keys" = "Funktionstasten";
+"Signs" = "Zeichen";
+"Ctrl+g / Left" = "Ctrl+g / Left";
+"Add Module" = "Modul hinzufügen";
+"%lld changed" = "%lld geändert";
+"%lld overlap" = "%lld überschneiden sich";
+"No key yet" = "Noch keine Taste";
+"The module's own:" = "Im Modul:";
+"Record" = "Aufnehmen";
+"Put Together" = "Zusammenstellen";
+"New:" = "Neu:";
+"Use as the Key" = "Als Taste nehmen";
+"Add as Another" = "Als weitere Taste";
+"What it does: %@" = "Was sie tut: %@";
+"Press the keys … (click to stop)" = "Tasten drücken … (Klick beendet)";
+"Record a Key" = "Taste aufnehmen";
+"Waiting for a key" = "Warte auf eine Taste";
+"Keys the Mac keeps for itself (Cmd+Tab, Cmd+Space, Ctrl with arrows) do not reach the app – put those together instead." = "Tasten, die der Mac für sich behält (Cmd+Tab, Cmd+Leertaste, Ctrl mit Pfeilen), kommen nicht an – die bitte zusammenstellen.";
+"Another Mode …" = "Anderer Modus …";

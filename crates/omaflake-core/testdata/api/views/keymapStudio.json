@@ -121,6 +121,7 @@
       "then": "back"
     }
   ],
+  "cards": [],
   "changed": {
     "args": [
       0
@@ -128,23 +129,12 @@
     "key": "%lld keys differ from the modules' own",
     "text": "0 keys differ from the modules' own"
   },
-  "groups": [],
   "hints": [],
   "intro": {
-    "key": "Key bindings of your own: change a key, or where a key leads afterwards – one module at a time, by the mode of its program. What overlaps is said while you choose. Only what differs from the modules' own keys is saved, in My Recipes' folder; recipes name the set my/<name>.",
-    "text": "Key bindings of your own: change a key, or where a key leads afterwards – one module at a time, by the mode of its program. What overlaps is said while you choose. Only what differs from the modules' own keys is saved, in My Recipes' folder; recipes name the set my/<name>."
+    "key": "Key bindings of your own: open a module, then “Change …” at a key – record it or put it together, and choose where it leads afterwards. What overlaps is said while you choose. Only what differs from the modules' own keys is saved, in My Recipes' folder; recipes name the set my/<name>.",
+    "text": "Key bindings of your own: open a module, then “Change …” at a key – record it or put it together, and choose where it leads afterwards. What overlaps is said while you choose. Only what differs from the modules' own keys is saved, in My Recipes' folder; recipes name the set my/<name>."
   },
-  "module": {
-    "enabled": true,
-    "id": "module",
-    "kind": "choice",
-    "label": {
-      "key": "Module",
-      "text": "Module"
-    },
-    "value": "",
-    "valueParam": "module"
-  },
+  "modules": [],
   "search": {
     "enabled": true,
     "id": "search",

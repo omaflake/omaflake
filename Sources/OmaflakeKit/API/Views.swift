@@ -690,41 +690,100 @@ public struct RecipeStudioPage: Decodable, Sendable, Equatable {
 
 /// `keymapStudio` (plan B147): a key binding set of your own, one module at a time by mode
 public struct KeymapStudioPage: Decodable, Sendable, Equatable {
+    /// A module of the platform with keys: in the set (`on`) or to add (plan B148)
+    public struct ModuleChip: Decodable, Sendable, Equatable, Identifiable {
+        public var reference: String
+        public var title: String
+        public var on: Bool
+        public var action: ViewAction
+        public var id: String { reference }
+    }
+
+    /// A module the set covers: its keys by mode
+    public struct Card: Decodable, Sendable, Equatable, Identifiable {
+        public var reference: String
+        public var title: String
+        public var count: ViewText
+        public var changed: Int
+        public var conflicts: Int
+        public var open: Bool
+        public var groups: [Group]
+        public var id: String { reference }
+    }
+
     public struct Group: Decodable, Sendable, Equatable {
         public var title: ViewText
         public var start: Bool
         /// The way there: each step's key as chords of caps
         public var way: [[[String]]]
+        public var open: Bool
         public var rows: [Row]
     }
 
+    /// One action, read only: its caps, where it leads, Change … and Undo
     public struct Row: Decodable, Sendable, Equatable {
         public var action: String
         public var title: ViewText
-        public var key: Field
-        public var after: Field?
+        public var caps: [[[String]]]
+        public var after: ViewText?
+        public var backToStart: Bool
         public var changed: Bool
-        public var reset: ViewAction?
-        public var does: String?
         public var conflict: ViewText?
+        public var does: String?
         public var own: Bool
+        public var edit: ViewAction?
+        public var reset: ViewAction?
+    }
+
+    public struct KeyChoice: Decodable, Sendable, Equatable, Identifiable {
+        public var value: String
+        public var label: String
+        public var id: String { value }
+    }
+
+    public struct KeyChoiceGroup: Decodable, Sendable, Equatable {
+        public var title: ViewText
+        public var keys: [KeyChoice]
+    }
+
+    /// The key editor (plan B148): one action's keys and the mode afterwards, in a sheet of its own
+    public struct Editor: Decodable, Sendable, Equatable {
+        public var module: String
+        public var action: String
+        public var title: ViewText
+        public var context: ViewText
+        public var way: [[[String]]]
+        /// The keys so far as written ("Ctrl+g"): `values.draft`
+        public var keys: [String]
+        public var caps: [[[String]]]
+        public var remove: [ViewAction]
+        public var text: Field
+        public var modifiers: [KeyChoice]
+        public var keyGroups: [KeyChoiceGroup]
+        public var sequences: Bool
+        public var after: Field?
+        public var conflicts: [Hint]
+        public var ownCaps: [[[String]]]
+        public var does: String?
+        public var `default`: ViewAction
+        public var cancel: ViewAction
+        public var apply: ViewAction
     }
 
     public var title: ViewText
     public var id: String?
     public var intro: ViewText
     public var about: [Field]
-    public var module: Field
+    public var modules: [ModuleChip]
     public var search: Field
     public var hints: [Hint]
-    public var groups: [Group]
+    public var cards: [Card]
     public var changed: ViewText
+    public var editor: Editor?
     public var actions: [ViewAction]
 
     /// Every field whose value the page keeps
-    public var fields: [Field] {
-        about + [module, search] + groups.flatMap { $0.rows.flatMap { [$0.key] + ($0.after.map { [$0] } ?? []) } }
-    }
+    public var fields: [Field] { about + [search] + (editor.map { [$0.text] + ($0.after.map { [$0] } ?? []) } ?? []) }
 }
 
 /// `keys` (plan B147): a recipe's keys – of an image or a VM through its recipe – by module and mode

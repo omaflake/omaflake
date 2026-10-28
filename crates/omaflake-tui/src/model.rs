@@ -1223,46 +1223,141 @@ fn studio(ctx: &Ctx, model: &Value, p: &mut Page) {
 fn keymap_studio(ctx: &Ctx, model: &Value, p: &mut Page) {
     let th = ctx.theme;
     let page = "keymapStudio";
+    // The key editor (plan B148) takes the page while it is open: the keys typed ("Ctrl+g / Left"), where it leads,
+    // what it overlaps, the module's own, Cancel and Apply
+    if let Some(e) = model.get("editor").filter(|e| e.is_object()) {
+        p.items.push(heading(ctx, format!(" {}", t(&e["title"]))));
+        let way: Vec<String> = arr(e, "way").iter().map(caps).collect();
+        let mut ctx_line = vec![Span::raw("  "), Span::styled(t(&e["context"]), th.secondary())];
+        if !way.is_empty() {
+            ctx_line.push(Span::styled(format!("   {}", way.join(" › ")), th.key()));
+        }
+        p.items.push(Item::line("", Line::from(ctx_line)));
+        let now: Vec<String> = arr(e, "caps").iter().map(caps).collect();
+        let own: Vec<String> = arr(e, "ownCaps").iter().map(caps).collect();
+        p.items.push(Item::line(
+            "",
+            Line::from(vec![
+                Span::raw("  "),
+                Span::styled(now.join(&format!(" {} ", tr("or"))), th.key()),
+                Span::styled(
+                    format!("   {} {}", tr("The module's own:"), own.join(&format!(" {} ", tr("or")))),
+                    th.secondary(),
+                ),
+            ]),
+        ));
+        p.items.push(field(ctx, page, &e["text"]));
+        if e["after"].is_object() {
+            p.items.push(field(ctx, page, &e["after"]));
+        }
+        for (i, h) in arr(e, "conflicts").iter().enumerate() {
+            p.items.push(hint(ctx, format!("keymapStudio:conflict:{i}"), h));
+        }
+        if let Some(does) = e.get("does").and_then(Value::as_str) {
+            p.items.extend(help_item(ctx, does.to_string(), 2));
+        }
+        let buttons = [e["default"].clone(), e["cancel"].clone(), e["apply"].clone()];
+        if let Some(bar) = button_bar(ctx, "keymapStudio:editor", &buttons) {
+            p.items.push(bar);
+        }
+        return;
+    }
     p.items.extend(help_item(ctx, t(&model["intro"]), 2));
     for f in arr(model, "about") {
         p.items.push(field(ctx, page, f));
     }
     p.items.push(Item::blank());
-    p.items.push(field(ctx, page, &model["module"]));
+    let chips: Vec<Value> = arr(model, "modules").iter().map(|m| m["action"].clone()).collect();
+    if let Some(bar) = button_bar(ctx, "keymapStudio:modules", &chips) {
+        p.items.push(bar);
+    }
     p.items.push(field(ctx, page, &model["search"]));
     p.items.push(Item::line("", secondary_line(ctx, t(&model["changed"]), 2)));
     for (i, h) in arr(model, "hints").iter().enumerate() {
         p.items.push(hint(ctx, format!("keymapStudio:hint:{i}"), h));
     }
-    for (gi, g) in arr(model, "groups").iter().enumerate() {
+    // A card per module, a group per mode – each opens with Space; a row's Change … opens the editor
+    for card in arr(model, "cards") {
+        let key = format!("kcard:{}", s(card, "reference"));
+        let open = opened(ctx, &key, b(card, "open"));
         p.items.push(Item::blank());
-        let way: Vec<String> = arr(g, "way").iter().map(caps).collect();
-        let mut head = vec![Span::raw(" "), Span::styled(t(&g["title"]), th.accent())];
-        if g["start"].as_bool() == Some(true) {
-            head.push(Span::styled(format!("  {}", tr("start")), th.secondary()));
+        let mut head = vec![
+            Span::raw(" "),
+            Span::styled(s(card, "title").to_string(), th.title()),
+            Span::styled(format!("  {}", t(&card["count"])), th.secondary()),
+        ];
+        if card["conflicts"].as_u64().unwrap_or(0) > 0 {
+            head.push(Span::styled(format!("  ⚠ {}", card["conflicts"]), th.tone(Tone::Warning)));
         }
-        if !way.is_empty() {
-            head.push(Span::styled(format!("   {}", way.join(" › ")), th.key()));
+        p.items.push(Item {
+            key: key.clone(),
+            lines: vec![Line::from(head)],
+            selectable: true,
+            expandable: true,
+            open,
+            ..Item::default()
+        });
+        if !open {
+            continue;
         }
-        p.items.push(Item::line("", Line::from(head)));
-        for r in arr(g, "rows") {
-            p.items.push(field(ctx, page, &r["key"]));
-            if r["after"].is_object() {
-                p.items.push(field(ctx, page, &r["after"]));
+        for (gi, g) in arr(card, "groups").iter().enumerate() {
+            let gkey = format!("kgroup:{}:{gi}", s(card, "reference"));
+            let gopen = opened(ctx, &gkey, b(g, "open"));
+            let way: Vec<String> = arr(g, "way").iter().map(caps).collect();
+            let mut head = vec![Span::raw("   "), Span::styled(t(&g["title"]), th.accent())];
+            if g["start"].as_bool() == Some(true) {
+                head.push(Span::styled(format!("  {}", tr("start")), th.secondary()));
             }
-            if let Some(c) = r.get("conflict") {
-                p.items.push(Item::line("", toned_line(ctx, t(c), Tone::Warning, 4)));
+            if !way.is_empty() {
+                head.push(Span::styled(format!("   {}", way.join(" › ")), th.key()));
             }
-            if let Some(bar) = r.get("reset").and_then(|a| {
-                button_bar(ctx, &format!("keymapStudio:reset:{gi}:{}", s(r, "action")), std::slice::from_ref(a))
-            }) {
-                p.items.push(bar);
+            p.items.push(Item {
+                key: gkey,
+                lines: vec![Line::from(head)],
+                selectable: true,
+                expandable: true,
+                open: gopen,
+                ..Item::default()
+            });
+            if !gopen {
+                continue;
+            }
+            for r in arr(g, "rows") {
+                let keys: Vec<String> = arr(r, "caps").iter().map(caps).collect();
+                let mut line = vec![
+                    Span::raw("     "),
+                    Span::styled(format!("{:<20}", keys.join(&format!(" {} ", tr("or")))), th.key()),
+                    Span::raw(" "),
+                    Span::styled(t(&r["title"]), if b(r, "own") { th.secondary() } else { th.text() }),
+                ];
+                if b(r, "changed") {
+                    line.push(Span::styled(" ●", th.accent()));
+                }
+                if let Some(a) = r.get("after") {
+                    line.push(Span::styled(format!("  → {}", t(a)), th.accent()));
+                }
+                let mut lines = vec![Line::from(line)];
+                if let Some(c) = r.get("conflict") {
+                    lines.push(toned_line(ctx, t(c), Tone::Warning, 7));
+                }
+                let actions: Vec<Value> =
+                    ["edit", "reset"].iter().filter_map(|k| r.get(*k).filter(|a| a.is_object()).cloned()).collect();
+                p.items.push(Item::row(
+                    format!("krow:{}:{gi}:{}", s(card, "reference"), s(r, "action")),
+                    lines,
+                    actions,
+                ));
             }
         }
     }
     if let Some(bar) = button_bar(ctx, &format!("{page}:actions"), arr(model, "actions")) {
         p.items.push(bar);
     }
+}
+
+/// Open as the user left it, else as the model says
+fn opened(ctx: &Ctx, key: &str, default: bool) -> bool {
+    ctx.expanded.contains(key) || (default && !ctx.collapsed.contains(key))
 }
 
 /// The recipe sources (plan B147: a tab of the catalog): in their order, and a new one

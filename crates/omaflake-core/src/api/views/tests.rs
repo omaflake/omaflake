@@ -818,16 +818,29 @@ own = true
     c.paths = paths;
     c.language = Some("de".into());
     c.host = super::HostOs::Macos;
-    // A copy of alice/base: its key, the module's otherwise
+    // A copy of alice/base: its key, the module's otherwise; the set covers the modules the base names (plan B148)
     let page = get(&c, "keymapStudio", json!({"id": "alice.keymap.base", "values": {"name": "mine"}}));
     assert_eq!(page["title"]["key"], "Copy Key Bindings");
-    assert_eq!(page["module"]["value"], "alice/mux");
-    let groups = page["groups"].as_array().unwrap();
+    let chips: Vec<(&str, bool)> = page["modules"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|c| (c["reference"].as_str().unwrap(), c["on"].as_bool().unwrap()))
+        .collect();
+    assert!(chips.contains(&("alice/mux", true)), "{chips:?}");
+    let card = &page["cards"][0];
+    assert_eq!((card["reference"].as_str(), card["open"].as_bool()), (Some("alice/mux"), Some(true)));
+    let groups = card["groups"].as_array().unwrap();
     let titles: Vec<&str> = groups.iter().map(|g| g["title"]["text"].as_str().unwrap()).collect();
     assert_eq!(titles, ["In every mode", "Gesperrt", "Pane"]);
+    assert_eq!(
+        (groups[1]["open"].as_bool(), groups[2]["open"].as_bool()),
+        (Some(true), Some(false)),
+        "the start mode open"
+    );
     assert_eq!(groups[2]["way"], json!([[["Ctrl", "a"]]]), "the way to Pane with the set's key");
-    let row = |groups: &Value, action: &str| -> Value {
-        groups
+    let row = |page: &Value, action: &str| -> Value {
+        page["cards"][0]["groups"]
             .as_array()
             .unwrap()
             .iter()
@@ -835,19 +848,43 @@ own = true
             .find(|r| r["action"] == action)
             .unwrap()
     };
-    let unlock = row(&page["groups"], "unlock");
-    assert_eq!((unlock["key"]["value"].clone(), unlock["changed"].clone()), (json!("Ctrl+a"), json!(true)));
-    let copy = row(&page["groups"], "copy");
-    assert_eq!((copy["own"].clone(), copy["key"]["enabled"].clone()), (json!(true), json!(false)));
-    let new = row(&page["groups"], "new");
+    let unlock = row(&page, "unlock");
+    assert_eq!((unlock["caps"].clone(), unlock["changed"].clone()), (json!([[["Ctrl", "a"]]]), json!(true)));
+    let copy = row(&page, "copy");
+    assert_eq!(copy["own"], true);
+    assert!(copy.get("edit").is_none(), "the program's own key is not changed");
+    let new = row(&page, "new");
     assert_eq!(new["title"]["text"], "Neuer Bereich");
-    assert_eq!(new["after"]["value"], "locked");
-    assert_eq!(new["after"]["choices"][1]["label"]["key"], "stays in %@");
-    // Values: new stays in pane mode, left gets n too – they overlap
-    let values = json!({"name": "mine", "after:alice/mux:new": "pane", "key:alice/mux:left": "n / Left"});
+    assert_eq!(new["after"]["args"][0]["text"], "Gesperrt");
+    assert_eq!(new["edit"]["params"]["value"], "alice/mux:new");
+    // The key editor: the keys as caps, the modifiers and keys to put one together, where it leads
+    let editing = json!({"id": "alice.keymap.base", "values": {"name": "mine", "edit": "alice/mux:new"}});
+    let ed = get(&c, "keymapStudio", editing)["editor"].clone();
+    assert_eq!(ed["keys"], json!(["n"]));
+    assert_eq!(ed["modifiers"][3], json!({"value": "Super", "label": "Cmd"}), "the Mac's name for Super");
+    assert_eq!(ed["keyGroups"][0]["keys"][0]["value"], "a");
+    assert_eq!(ed["after"]["value"], "locked");
+    assert_eq!(ed["after"]["choices"][0]["label"]["key"], "stays in %@", "staying first");
+    assert_eq!(ed["after"]["choices"][1]["label"]["key"], "back to %@", "then the start mode");
+    assert_eq!(ed["apply"]["params"]["value"], json!(["n"]));
+    // A draft: Alt+n staying in pane mode – Apply takes it, closing the editor
+    let values = json!({"name": "mine", "edit": "alice/mux:new", "draft": ["Alt+n"], "draftAfter": "pane"});
     let page = get(&c, "keymapStudio", json!({"id": "alice.keymap.base", "values": values}));
-    let left = row(&page["groups"], "left");
+    let ed = &page["editor"];
+    assert_eq!(ed["caps"], json!([[["Opt", "n"]]]));
+    let apply = &ed["apply"]["params"];
+    assert_eq!((apply["valueParam"].as_str(), &apply["value"]), (Some("key:alice/mux:new"), &json!(["Alt+n"])));
+    let also: Vec<(&str, &Value)> =
+        apply["also"].as_array().unwrap().iter().map(|a| (a["valueParam"].as_str().unwrap(), &a["value"])).collect();
+    assert_eq!(also[0], ("after:alice/mux:new", &json!("pane")));
+    assert!(also.contains(&("edit", &Value::Null)) && also.contains(&("draft", &Value::Null)));
+    assert_eq!(ed["default"]["params"]["value"], json!(["n"]), "back to the module's own");
+    // Values: new stays in pane mode, left gets n too – they overlap
+    let values = json!({"name": "mine", "after:alice/mux:new": "pane", "key:alice/mux:left": ["n", "Left"]});
+    let page = get(&c, "keymapStudio", json!({"id": "alice.keymap.base", "values": values}));
+    let left = row(&page, "left");
     assert_eq!(left["conflict"]["key"], "Overlaps %@");
+    assert_eq!(page["cards"][0]["conflicts"], 2);
     assert_eq!(page["hints"][0]["text"]["key"], "Keys overlap: %@ and %@");
     assert_eq!(left["reset"]["params"]["also"][0]["valueParam"], "after:alice/mux:left");
     let save = action(&page["actions"], "save");
@@ -857,10 +894,16 @@ own = true
     );
     assert_eq!(save["params"]["name"], "mine");
     assert!(save["params"].get("previous").is_none(), "a copy");
-    // A key that is not one: said at the field, Save waits
-    let page = get(&c, "keymapStudio", json!({"values": {"name": "mine", "key:alice/mux:left": "Hyper+x"}}));
-    assert!(row(&page["groups"], "left")["key"]["error"].is_object());
-    assert_eq!(action(&page["actions"], "save")["enabled"], false);
+    // A module taken out of the set: its changes are not saved
+    let values = json!({"name": "mine", "modules": [], "key:alice/mux:left": ["n"]});
+    let page = get(&c, "keymapStudio", json!({"id": "alice.keymap.base", "values": values}));
+    assert_eq!(action(&page["actions"], "save")["params"]["keys"], json!({}));
+    assert!(page["cards"].as_array().unwrap().is_empty());
+    // Typed keys (a terminal's editor): one that is not a key is said there, Apply waits
+    let values = json!({"name": "mine", "edit": "alice/mux:left", "draftText": "Hyper+x"});
+    let ed = get(&c, "keymapStudio", json!({"values": values}))["editor"].clone();
+    assert!(ed["text"]["error"].is_object());
+    assert_eq!(ed["apply"]["enabled"], false);
 }
 
 // MARK: Doctor
