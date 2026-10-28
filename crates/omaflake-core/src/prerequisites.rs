@@ -464,6 +464,10 @@ impl Prerequisites {
     }
 
     /// The start of the Nix item's detail when its volume is here but not at /nix (the Doctor's view offers Mount …)
+    /// The IPSW's hint when an older one is here: it keeps working, Apple's newer one is optional (plan B146)
+    pub const IPSW_NEWER: &'static str = "A newer macOS is available – the IPSW you have keeps working";
+    pub const IPSW_PARTIAL: &'static str = "Partly downloaded – continues where it stopped";
+
     pub const NIX_NOT_MOUNTED: &'static str = "Nix Store volume not at /nix";
 
     pub(crate) fn nix_not_mounted(v: &NixVolume) -> Prerequisite {
@@ -709,7 +713,8 @@ impl Prerequisites {
             return Vec::new();
         }
         let ipsw_item = self.ipsw(latest);
-        let missing_ipsw = if ipsw_item.status != PrerequisiteStatus::Ok {
+        // An older IPSW still creates bases: the newer one is not counted as needed space
+        let missing_ipsw = if ipsw_item.status != PrerequisiteStatus::Ok && ipsw_item.hint != Self::IPSW_NEWER {
             latest.and_then(|l| l.bytes).unwrap_or(27_000_000_000)
         } else {
             0
@@ -803,18 +808,19 @@ impl Prerequisites {
             );
         }
         let partial = IpswDownloader::resume_file_for(latest, &dir).exists();
-        Prerequisite::new(
-            PrerequisiteItem::Ipsw,
-            if partial { PrerequisiteStatus::Limited } else { PrerequisiteStatus::Missing },
-            &format!(
-                "macOS {} ({}), {} from Apple",
-                latest.version,
-                latest.build,
-                latest.bytes.map(gigabytes).unwrap_or_else(|| "?".into())
-            ),
-            if partial { "Partly downloaded – continues where it stopped" } else { "Download it from Apple" },
-            None,
-        )
+        let offered = format!(
+            "macOS {} ({}), {} from Apple",
+            latest.version,
+            latest.build,
+            latest.bytes.map(gigabytes).unwrap_or_else(|| "?".into())
+        );
+        let (status, detail, hint) = match local.last() {
+            _ if partial => (PrerequisiteStatus::Limited, offered, Self::IPSW_PARTIAL),
+            // After a macOS update Apple offers a newer one; the one here still creates bases (plan B146)
+            Some(older) => (PrerequisiteStatus::Limited, format!("{offered} – here: {older}"), Self::IPSW_NEWER),
+            None => (PrerequisiteStatus::Missing, offered, "Download it from Apple"),
+        };
+        Prerequisite::new(PrerequisiteItem::Ipsw, status, &detail, hint, None)
     }
 
     pub(crate) fn mac_base(&self) -> Prerequisite {
@@ -1203,8 +1209,13 @@ mod tests {
         assert_eq!(missing.status, PrerequisiteStatus::Missing);
         assert_eq!(missing.detail, "macOS 27.0.1 (26A434), 26.6 GB from Apple");
         fs::create_dir_all(p.ipsw()).unwrap();
+        fs::write(p.ipsw().join("26A123.ipsw"), "").unwrap();
+        let newer = pre.ipsw(Some(&release));
+        assert_eq!((newer.status, newer.hint.as_str()), (PrerequisiteStatus::Limited, Prerequisites::IPSW_NEWER));
+        assert_eq!(newer.detail, "macOS 27.0.1 (26A434), 26.6 GB from Apple – here: 26A123.ipsw");
         fs::write(IpswDownloader::resume_file_for(&release, &p.ipsw()), "").unwrap();
-        assert_eq!(pre.ipsw(Some(&release)).status, PrerequisiteStatus::Limited);
+        let partial = pre.ipsw(Some(&release));
+        assert_eq!((partial.status, partial.hint.as_str()), (PrerequisiteStatus::Limited, Prerequisites::IPSW_PARTIAL));
         fs::write(IpswDownloader::file(&release, &p.ipsw()), "").unwrap();
         let ok = pre.ipsw(Some(&release));
         assert_eq!((ok.status, ok.detail.as_str()), (PrerequisiteStatus::Ok, "macOS 27.0.1 (26A434) – 26A434.ipsw"));

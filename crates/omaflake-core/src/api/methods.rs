@@ -2117,6 +2117,7 @@ impl Server {
                 // Cancel pauses: the download continues from there next time
                 let file = installer.download_ipsw(
                     &release,
+                    MacBaseInstaller::DOWNLOAD_RESERVE,
                     &|d| {
                         let d = d.clone();
                         JobCtx { job: job.clone() }.on_cancel(move || d.cancel());

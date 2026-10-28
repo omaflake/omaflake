@@ -1028,6 +1028,34 @@ nix-daemon. Asked with it: a recipe's build button stays, greyed out with the Do
 the daemon mounted the volume at /nix). OPEN: Mount … clicked in the app on a Mac with the volume under /Volumes; the
 build button's sign looked at in the macOS app, the Linux app and `omaf ui`.
 
+**B146 (2026-10-28, after 0.6.2): the IPSW after a macOS update; a download that failed at once.** Found by the
+maintainer: after macOS 27.2 the Doctor called the IPSW missing (Apple offers 26B123, here 26A434), and Download
+seemed to do nothing. The log (`ipsw-download.log`): "Not enough space: 47.8 GB free, about 55.6 GB needed (IPSW,
+installation, image)" – the download on its own checked the space of a base and an image too, failed within
+milliseconds, and its error reached only the activity log. Fixed: **(1)** `Prerequisites::ipsw` – an older IPSW here
+makes it Limited with `IPSW_NEWER` ("A newer macOS is available …"), not Missing; the macOS space check counts the
+newer IPSW only when none is here or it is partly downloaded. **(2)** `MacBaseInstaller::download_ipsw(reserve)` – the
+download needs what is still to download (less a `.partial`) plus `DOWNLOAD_RESERVE` (2 GB); creating a base passes
+`MAC_SPACE_NEEDED` as before. **(3)** The Doctor's IPSW row shows "Download failed: …" from the last
+`ipsw-download` job while none runs. Test `doctor_newer_ipsw_and_a_failed_download`, `ipsw_item_without_and_with_a_release`
+extended. OPEN: clicked in the app (the maintainer's disk had 26 GiB free on 2026-10-28 – the 26.6 GB IPSW needs
+space freed first).
+
+**B147 (2026-10-28, wishes of the maintainer – decided the same day, not built): every key binding with its modes, a
+key binding view, a key binding studio, a recipe studio, navigation.** The German draft with recommendations and open
+questions: the private workspace's Entwurf-Tasten-und-Navigation.md. In short: modules describe all their bindings
+(module.toml v2: modes, `then` – the mode after an action –, `does` – the program's own command); configurations
+such as Zellij's KDL are generated from that data so a key binding set can change a key and its `then`; a keyboard
+button at VMs, images and recipes opens their keys grouped by module and mode, showing the chain (Ctrl g › p › n,
+then locked); a studio for own key binding sets; a recipe studio picking modules from the catalog with search and
+filters (B144); the navigation split into the running side (VMs, images, recipes) and a workshop (studios, catalog,
+credentials, locales, profiles). Today: Zellij's `unlock-first.kdl` has about 100 bindings in 12 modes, its
+module.toml names 4.
+The maintainer's decisions: all recommendations – bindings omaflake sets or changes plus the program defaults one
+needs to know (shown, not changeable), not every built-in key; configurations generated from the data; one window
+with a sidebar in two groups (running, workshop); order: module.toml v2 with Zellij complete → the key binding view →
+navigation → recipe studio → key binding studio.
+
 **B129 (2026-10-24): clipboard on a GNOME host.** Mutter has no data-control protocol: `wl-paste --watch` ends at once.
 `Wayland::start` now treats an end within 500 ms as refused, and `detect` falls back to xclip through Xwayland, which
 Mutter keeps in sync (`X11::through_xwayland`, Mutter's `.mutter-Xwaylandauth.*` cookie when XAUTHORITY is unset; its

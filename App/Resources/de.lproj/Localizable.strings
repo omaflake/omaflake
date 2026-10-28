@@ -176,6 +176,8 @@
 "Your recipes do not evaluate – see the message." = "Deine Rezepte werten nicht aus – siehe Meldung.";
 "Not enough free space – free some up first." = "Zu wenig freier Platz – zuerst Platz schaffen.";
 "Partly downloaded – continues where it stopped." = "Teilweise geladen – geht dort weiter, wo es aufgehört hat.";
+"A newer macOS is available from Apple. Your bases and the IPSW you have keep working; download it for new bases with the newer macOS." = "Apple bietet ein neueres macOS an. Deine Basen und das vorhandene IPSW funktionieren weiter; lade es für neue Basen mit dem neueren macOS.";
+"Download failed: %@" = "Laden fehlgeschlagen: %@";
 "Download macOS from Apple, or choose an IPSW file you already have." = "macOS von Apple laden oder eine vorhandene IPSW-Datei wählen.";
 "Create it once from the IPSW – about 5 minutes, no manual steps." = "Einmalig aus der IPSW erstellen – etwa 5 Minuten, ohne Handarbeit.";
 "Unfinished – Create Base continues it; use the same password as before." = "Unfertig – „Base erstellen“ setzt sie fort; dasselbe Passwort wie zuvor verwenden.";
@@ -842,6 +844,7 @@
 "Not a macOS VM (config.json missing): %@" = "Keine macOS-VM (config.json fehlt): %@";
 "Not a recipe catalog (catalog.json): not JSON" = "Kein Rezept-Katalog (catalog.json): kein JSON";
 "Not enough space: %@ free, about %@ needed (IPSW, installation, image)" = "Nicht genug Platz: %1$@ frei, etwa %2$@ nötig (IPSW, Installation, Vorlage)";
+"Not enough space for the download: %@ free, about %@ needed" = "Nicht genug Platz zum Laden: %1$@ frei, etwa %2$@ nötig";
 "Path %@ too long for a Unix socket (max. 103 bytes) – choose a shorter name or VM_HOME" = "Pfad %@ ist zu lang für einen Unix-Socket (max. 103 Byte) – wähle einen kürzeren Namen oder VM_HOME";
 "Program not found: %@" = "Programm nicht gefunden: %@";
 "QEMU does not answer over QMP (%@)" = "QEMU antwortet nicht über QMP (%@)";

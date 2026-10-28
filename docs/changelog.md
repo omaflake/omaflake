@@ -13,6 +13,13 @@ are collected under *Unreleased*. Releases: [GitHub](https://github.com/omaflake
 
 ## [Unreleased]
 
+### Fixed
+
+- After a macOS update the Doctor no longer calls the IPSW missing: an older one keeps creating bases, and a newer
+  macOS from Apple is offered as an optional download.
+- Downloading macOS on its own needs only the space of the IPSW, not that of a base and an image too. A download
+  that fails says why at the Doctor's row instead of only in the activity log.
+
 ## [0.6.2] – 2026-10-26
 
 A fix for a Mac whose Nix Store was not mounted at `/nix` after a restart: Nix, omaflake's QEMU and the installed

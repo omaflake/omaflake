@@ -135,6 +135,8 @@ impl MacBaseInstaller {
     /// Marker of a finished base (keys installed, shut down, read-only); not one of the VM files, so clones skip it.
     /// It holds the guest user's name.
     pub const READY_MARKER: &'static str = ".omaflake-base-ready";
+    /// Space left over after a download on its own (plan B146)
+    pub const DOWNLOAD_RESERVE: i64 = 2_000_000_000;
 
     pub fn new(paths: Paths, vz: VzBackend) -> Self {
         MacBaseInstaller { paths, vz }
@@ -168,11 +170,14 @@ impl MacBaseInstaller {
     }
 
     /// Downloads the IPSW of `release` into `ipsw/` (continues an interrupted download); `started` gets the
-    /// downloader so the caller can pause it (`IpswDownloader::cancel`). Checks free space first (IPSW size or 27 GB,
-    /// plus `Prerequisites::MAC_SPACE_NEEDED`). Progress goes to `log` in whole percent ("Download: <n> %").
+    /// downloader so the caller can pause it (`IpswDownloader::cancel`). Checks free space first: what is still to
+    /// download (IPSW size or 27 GB, less a partial file) plus `reserve` – `Self::DOWNLOAD_RESERVE` for a download on
+    /// its own, `Prerequisites::MAC_SPACE_NEEDED` when a base is created from it (plan B146). Progress goes to `log` in
+    /// whole percent ("Download: <n> %").
     pub fn download_ipsw(
         &self,
         release: &MacOsRelease,
+        reserve: i64,
         started: &dyn Fn(&IpswDownloader),
         progress: &(dyn Fn(i64, i64) + Send + Sync + '_),
         log: &(dyn Fn(&str) + Send + Sync + '_),
@@ -181,15 +186,26 @@ impl MacBaseInstaller {
         if file.exists() {
             return Ok(file);
         }
-        let needed = release.bytes.unwrap_or(27_000_000_000) + Prerequisites::MAC_SPACE_NEEDED;
+        let received =
+            fs::metadata(IpswDownloader::resume_file_for(release, &self.paths.ipsw())).map(|m| m.len() as i64);
+        let needed = (release.bytes.unwrap_or(27_000_000_000) - received.unwrap_or(0)).max(0) + reserve;
         if let Some(free) = free_space(&self.paths.root) {
             if free < needed {
-                return Err(vm_err!(
-                    codes::PREREQUISITE,
-                    "Not enough space: {} free, about {} needed (IPSW, installation, image)",
-                    gigabytes(free),
-                    gigabytes(needed)
-                ));
+                return Err(if reserve >= Prerequisites::MAC_SPACE_NEEDED {
+                    vm_err!(
+                        codes::PREREQUISITE,
+                        "Not enough space: {} free, about {} needed (IPSW, installation, image)",
+                        gigabytes(free),
+                        gigabytes(needed)
+                    )
+                } else {
+                    vm_err!(
+                        codes::PREREQUISITE,
+                        "Not enough space for the download: {} free, about {} needed",
+                        gigabytes(free),
+                        gigabytes(needed)
+                    )
+                });
             }
         }
         let downloader = IpswDownloader::new(release.clone(), &self.paths.ipsw());
@@ -271,7 +287,7 @@ impl MacBaseInstaller {
                     log(&format!("{} exists – reusing it", file_name(&fresh)));
                     fresh
                 } else {
-                    let ipsw = self.download_ipsw(&release, started, progress, log)?;
+                    let ipsw = self.download_ipsw(&release, Prerequisites::MAC_SPACE_NEEDED, started, progress, log)?;
                     self.install_fresh(r, &ipsw, log)?
                 }
             }
@@ -829,7 +845,7 @@ mod tests {
         };
         fs::create_dir_all(p.ipsw()).unwrap();
         fs::write(p.ipsw().join("26A434.ipsw"), "x").unwrap();
-        let file = i.download_ipsw(&release, &|_| panic!("no download"), &|_, _| {}, &|_| {}).unwrap();
+        let file = i.download_ipsw(&release, 0, &|_| panic!("no download"), &|_, _| {}, &|_| {}).unwrap();
         assert_eq!(file, p.ipsw().join("26A434.ipsw"));
     }
 }

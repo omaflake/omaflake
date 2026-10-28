@@ -743,6 +743,28 @@ fn doctor_offers_to_mount_the_nix_store() {
         .starts_with("Nix is installed, but its volume is not mounted at /nix"));
 }
 
+/// Apple offers a newer macOS than the IPSW here; a download that failed at once says why at the row (plan B146)
+#[test]
+fn doctor_newer_ipsw_and_a_failed_download() {
+    use crate::prerequisites::{PrerequisiteItem as I, PrerequisiteStatus as S, Prerequisites};
+    let mut c = ctx();
+    let mut ipsw = fx::prerequisite(I::Ipsw, S::Limited);
+    ipsw.hint = Prerequisites::IPSW_NEWER.into();
+    c.doctor.as_mut().unwrap().macos_preflight[0] = ipsw;
+    c.jobs.retain(|j| j.id != "j4");
+    let page = get(&c, "doctor", json!({}));
+    let row = &page["sections"][2]["items"][0];
+    assert!(row["hint"]["key"].as_str().unwrap().starts_with("A newer macOS is available from Apple."));
+    assert_eq!(action(&row["actions"], "download")["label"]["key"], "Download");
+    let j5 = c.jobs.iter_mut().find(|j| j.id == "j5").unwrap();
+    j5.state = JobState::Failed;
+    j5.error = Some("Not enough space for the download: 20.0 GB free, about 28.6 GB needed".into());
+    let page = get(&c, "doctor", json!({}));
+    let row = &page["sections"][2]["items"][0];
+    assert_eq!(row["hint"]["key"], "Download failed: %@");
+    assert_eq!(row["expanded"], true);
+}
+
 #[test]
 fn doctor_linux_builder_tasks() {
     use crate::prerequisites::{PrerequisiteItem as I, PrerequisiteStatus as S};

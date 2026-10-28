@@ -9,7 +9,7 @@ use serde_json::{json, Value};
 use super::common::*;
 use super::text::{tf, Arg, Text};
 use super::Ctx;
-use crate::api::types::{CliLinkDto, JobDto, JobKind, PrerequisiteDto, UpdateState};
+use crate::api::types::{CliLinkDto, JobDto, JobKind, JobState, PrerequisiteDto, UpdateState};
 use crate::prerequisites::{PrerequisiteItem as I, PrerequisiteStatus as S, Prerequisites};
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -146,6 +146,7 @@ pub fn hint_on(p: &PrerequisiteDto, host: super::HostOs) -> Text {
         }
         I::FlakeEval => "Your recipes do not evaluate – see the message.",
         I::NixSpace | I::MacSpace => "Not enough free space – free some up first.",
+        I::Ipsw if p.hint == Prerequisites::IPSW_NEWER => "A newer macOS is available from Apple. Your bases and the IPSW you have keep working; download it for new bases with the newer macOS.",
         I::Ipsw if limited => "Partly downloaded – continues where it stopped.",
         I::Ipsw => "Download macOS from Apple, or choose an IPSW file you already have.",
         I::MacBase if limited => "Unfinished – Create Base continues it; use the same password as before.",
@@ -159,6 +160,16 @@ fn detail(p: &PrerequisiteDto) -> Text {
         (Some(free), Some(needed)) => Text::fmt("%@ free, about %@ needed", vec![Arg::bytes(free), Arg::bytes(needed)]),
         _ => Text::verbatim(&p.detail),
     }
+}
+
+/// The last IPSW download's error when it failed and none runs now – it may end before a page shows it (plan B146)
+fn download_failure(ctx: &Ctx) -> Option<Text> {
+    let last = ctx.jobs.iter().rev().find(|j| j.kind == JobKind::IpswDownload)?;
+    (last.state == JobState::Failed).then(|| {
+        let error =
+            last.error_text.clone().unwrap_or_else(|| Text::verbatim(last.error.as_deref().unwrap_or_default()));
+        tf!("Download failed: %@", error)
+    })
 }
 
 /// The IPSW download: on its own, or while the base's creation downloads
@@ -376,7 +387,7 @@ fn item(ctx: &Ctx, p: &PrerequisiteDto) -> DoctorItem {
             None => actions.push(
                 Action::call(
                     "download",
-                    Text::new(if p.status == S::Limited { "Continue Download" } else { "Download" }),
+                    Text::new(if p.hint == Prerequisites::IPSW_PARTIAL { "Continue Download" } else { "Download" }),
                     Some("download"),
                     "macos.downloadIpsw",
                     json!({}),
@@ -404,7 +415,10 @@ fn item(ctx: &Ctx, p: &PrerequisiteDto) -> DoctorItem {
         title: Text::new(&p.title),
         detail: show_detail.then(|| detail(p)),
         hint: (p.status != S::Ok).then(|| {
-            if p.item == I::Cli {
+            if let Some(failure) = (p.item == I::Ipsw && downloading.is_none()).then(|| download_failure(ctx)).flatten()
+            {
+                failure
+            } else if p.item == I::Cli {
                 cli_hint(p, cli, ctx.host)
             } else {
                 hint_on(p, ctx.host)
