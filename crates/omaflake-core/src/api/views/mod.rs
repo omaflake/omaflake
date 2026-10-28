@@ -24,6 +24,7 @@ pub mod doctor;
 pub mod home;
 pub mod images;
 pub mod import;
+pub mod keymap_studio;
 pub mod keys;
 pub mod locales;
 pub mod looks;
@@ -57,7 +58,7 @@ pub use activity::ActivityEntry;
 pub use text::{Arg, Text};
 
 /// Every page `views.get` knows
-pub const PAGES: [&str; 24] = [
+pub const PAGES: [&str; 25] = [
     "home",
     "vms",
     "vm",
@@ -82,6 +83,7 @@ pub const PAGES: [&str; 24] = [
     "recipeStudio",
     "baseCredential",
     "keys",
+    "keymapStudio",
 ];
 
 /// The computer the core runs on (`initialize`'s `host`): texts that name the Mac, Finder or the Keychain have a
@@ -367,6 +369,7 @@ pub(crate) fn build(ctx: &Ctx, page: &PageRef) -> Result<Value, RpcError> {
         }
         "activity" => to_value(activity::page(&ctx.activity, ctx.settings.notifications)),
         "keys" => to_value(keys::page(ctx, &page_params(p)?)),
+        "keymapStudio" => to_value(keymap_studio::page(ctx, &page_params(p)?)),
         other => Err(RpcError::invalid_params(format!("page \"{other}\": {}", PAGES.join(", ")))),
     }
 }

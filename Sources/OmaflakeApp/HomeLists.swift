@@ -56,6 +56,8 @@ struct HomeList: View {
             CredentialsView(page: p, model: model)
         case .studio(let p)?:
             RecipeStudioView(page: p, ref: model.listRef(tab), model: model)
+        case .keymapStudio(let p)?:
+            KeymapStudioView(page: p, ref: model.listRef(tab), model: model)
         case .looks(let p)?:
             section(p.head) {
                 if p.loading, let text = p.loadingText {

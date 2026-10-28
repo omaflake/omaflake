@@ -273,8 +273,10 @@ pub(crate) fn page(ctx: &Ctx, p: &StudioParams) -> Option<RecipeStudioPage> {
         if !m.needs.is_empty() {
             sub.push(tf!("needs %@", m.needs.join(", ")));
         }
-        if !m.keys.is_empty() {
-            sub.push(tf!("%lld keys", m.keys.len()));
+        match m.keys.len() {
+            0 => {}
+            1 => sub.push(Text::new("1 key")),
+            n => sub.push(tf!("%lld keys", n)),
         }
         sub.push(Text::verbatim(&m.source_name));
         let mut badges = Vec::new();

@@ -178,6 +178,15 @@
     },
     {
       "group": "workshop",
+      "icon": "keyboard",
+      "id": "keymapStudio",
+      "label": {
+        "key": "Key Binding Studio",
+        "text": "Key Binding Studio"
+      }
+    },
+    {
+      "group": "workshop",
       "icon": "module",
       "id": "modules",
       "label": {

@@ -1324,3 +1324,35 @@
 "The recipe being put together" = "Das Rezept, das du gerade zusammenstellst";
 "Put a recipe of your own together: find modules in the catalog and add them – what is missing or does not fit is said while you build. Saved in My Recipes, a folder in the data folder that is one of your sources, and built like any other recipe." = "Stell dein eigenes Rezept zusammen: Module im Katalog finden und hinzufügen – was fehlt oder nicht passt, steht schon beim Bauen da. Gespeichert in „Meine Rezepte“, einem Ordner im Datenordner, der eine deiner Quellen ist, und gebaut wie jedes andere Rezept.";
 "Search" = "Suchen";
+
+/* Key binding studio (plan B147) */
+"Key Binding Studio" = "Tasten-Studio";
+"Edit Key Bindings" = "Tasten-Set bearbeiten";
+"Copy Key Bindings" = "Tasten-Set kopieren";
+"Copy to My Key Bindings …" = "In meine Tasten-Sets kopieren …";
+"Key bindings of your own: change a key, or where a key leads afterwards – one module at a time, by the mode of its program. What overlaps is said while you choose. Only what differs from the modules' own keys is saved, in My Recipes' folder; recipes name the set my/<name>." = "Eigene Tasten-Sets: eine Taste ändern oder wohin eine Taste danach führt – Modul für Modul, nach dem Modus seines Programms. Was sich überschneidet, steht schon bei der Auswahl da. Gespeichert wird nur, was von den eigenen Tasten der Module abweicht, im Ordner von „Meine Rezepte“; Rezepte nennen das Set my/<name>.";
+"lowercase letters, digits and - – recipes name the set my/<name>" = "Kleinbuchstaben, Ziffern und - – Rezepte nennen das Set my/<name>";
+"A name is lowercase letters, digits and -" = "Ein Name besteht aus Kleinbuchstaben, Ziffern und -";
+"There are key bindings \"%@\" of yours already" = "Es gibt schon ein Tasten-Set „%@“ von dir";
+"Title" = "Titel";
+"Whose modules are shown – a set may name modules of both" = "Wessen Module gezeigt werden – ein Set darf Module beider nennen";
+"Starts from" = "Ausgehend von";
+"The set whose keys it starts with; without one, every module's own keys" = "Das Set, mit dessen Tasten es beginnt; ohne eines die eigenen Tasten jedes Moduls";
+"the modules' own keys" = "die eigenen Tasten der Module";
+"Module" = "Modul";
+"%@ – 1 key" = "%@ – 1 Taste";
+"%@ – %lld keys" = "%1$@ – %2$lld Tasten";
+"%@ – %lld keys, %lld changed" = "%1$@ – %2$lld Tasten, %3$lld geändert";
+"1 key" = "1 Taste";
+"Search keys: what it does, its key" = "Tasten suchen: was sie tut, die Taste";
+"Keys like Ctrl+g, Super+Return, Space f f – several with /" = "Tasten wie Ctrl+g, Super+Return, Space f f – mehrere mit /";
+"Overlaps %@ (%@)" = "Überschneidet sich mit %1$@ (%2$@)";
+"then" = "danach";
+"stays in %@" = "bleibt in %@";
+"Undo" = "Rückgängig";
+"%lld keys differ from the modules' own" = "%lld Tasten weichen von den eigenen der Module ab";
+"Delete the key bindings “%@”?" = "Tasten-Set „%@“ löschen?";
+"Recipes that name them get each module's own keys." = "Rezepte, die es nennen, bekommen die eigenen Tasten jedes Moduls.";
+"Differs from the module's own" = "Weicht von der eigenen Taste des Moduls ab";
+"No key bindings \"%@\" of yours" = "Kein Tasten-Set „%@“ von dir";
+"There are key bindings \"%@\" already" = "Es gibt schon ein Tasten-Set „%@“";

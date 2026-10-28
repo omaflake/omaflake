@@ -143,6 +143,7 @@ pub(crate) fn page(ctx: &Ctx) -> HomePage {
         ),
         tab("activity", "Activity", "activity", "run", None),
         tab("recipeStudio", "Recipe Studio", "studio", "workshop", None),
+        tab("keymapStudio", "Key Binding Studio", "keyboard", "workshop", None),
         tab("modules", "Modules", "module", "workshop", None),
         tab(
             "looks",

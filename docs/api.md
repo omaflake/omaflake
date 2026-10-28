@@ -406,6 +406,8 @@ values (plan B141). A recipe whose modules or key binding sets are not here is r
 | `recipes.installParts` | `id` | Job `recipe-install` – what a recipe here is made of and is missing (the build page's "Install Missing Parts") |
 | `recipes.save` | `name, platform, description?, modules: ["<author>/<name>"], look?, keymaps?, requirements: {cpus, memory_gb, disk_gb}, vm: {display, network, share, ephemeral}, previous?` | `{base}` – a recipe of your own, written into My Recipes (`<data>/my-recipes/recipes/my/<platform>/<name>/recipe.toml`, recipe v2), which becomes the first source; `previous` ("my.nixos.work"): the recipe edited – renamed, its old folder goes |
 | `recipes.delete` | `base` | `null` – deletes one of your own recipes ("my.<platform>.<name>"); images built from it stay |
+| `keymaps.save` | `name, title?, description?, keys: {"<author>/<name>": {"<action>": key \| [keys] \| {key?, after?}}}, previous?` | `{reference}` ("my/<name>") – a key binding set of your own, written into My Recipes' folder (`keymaps/my/<name>/keymap.toml`, keymap v2; plan B147), which becomes the first source; `previous`: the set edited – renamed, its old folder goes |
+| `keymaps.delete` | `name` | `null` – deletes one of your own key binding sets; recipes that name it get each module's own keys |
 | `recipes.installSuggested` | – | `[Job]` |
 | `recipes.remove` | `id` | `null` |
 | `recipes.removeLine` | `line` | `{removed: [id], kept: [id]}` – kept: images use them, or they live in a local folder |
@@ -533,6 +535,7 @@ Pages and their params:
 | `recipeStudio` | `id?, values?` | a recipe of your own put together from the catalog's modules, a look and key bindings (plan B147; before it `recipeEditor`, plan B142) |
 | `credential` | `id?` | one credential's form: new, or to edit (only the name while images use it) |
 | `baseCredential` | `name` | the same form for a macOS base from before bases kept their credential: which one its user has (plan B139) |
+| `keymapStudio` | `id?, values?` | a key binding set of your own (plan B147): `{title, id?, intro, about (name, title, description, platform, base), module, search, hints, groups: [{title, start, way, rows: [{action, title, key (a text field, "h / Left"), after? (a choice of the module's modes), changed, reset? (ui.field with `also`), does?, conflict?, own}]}], changed, actions}`; values `key:<module>:<action>`, `after:<module>:<action>`; Save (`keymaps.save`) gets only what differs from the modules' own keys |
 | `keys` | `recipe` \| `image` \| `vm` | a recipe's keys – of an image or a VM through its recipe – by module and by the mode of its program (plan B147): `{title, subtitle, intro, notes, modules: [{reference, title, groups: [{mode?, title, start, way: [{caps, mode}], rows: [{action, keys, caps, title, after?, backToStart, switches, does?, from?, own}]}]}], keymaps, search}`; `caps` are a key's chords as key caps (⌘ ⌃ ⇧ on a Mac host). Rows of recipes, images and VMs whose recipe has keys open it with `ui.show` (action `keys`, icon `keyboard`); the macOS app shows it in a window of its own |
 | `macBase` | `values?` | Create macOS Base |
 | `settings` | `values?` | recipe sources (with the new source's form), general switches, guest values, data folder |
@@ -654,7 +657,7 @@ a change at once: send `method` with `params` and the new value at `param` (`nul
 | `ui.back` | – | leave the page |
 | `ui.step` | `page, params` | get that page (only `import`) and run its `action` at once – asking its `confirm` first – or show its `reason`; with an `ask` of `multiple`, once per chosen value |
 | `ui.filter` | `page, filter` | set the list's filter (`null`: reset) and ask for the page again |
-| `ui.field` | `page, params, field, valueParam, value?` | set `values.<valueParam>` of the form page `page` with `params` (field `field`; `ask` asks the value; `value: null` = back to the page's default) and ask that page again |
+| `ui.field` | `page, params, field, valueParam, value?, also?` | set `values.<valueParam>` of the form page `page` with `params` (field `field`; `ask` asks the value; `value: null` = back to the page's default) and ask that page again; `also: [{valueParam, value}]` sets more values of the page at once (plan B147) |
 | `ui.reveal` | `path` | show in the file manager (a TUI prints the path) |
 | `ui.open` | `path` or `url` | open with the system's default app (a log file, the data folder, a release page) |
 | `ui.terminal` | `line` | run a command line in a terminal (the Doctor's install commands) |

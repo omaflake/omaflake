@@ -114,6 +114,12 @@ while omaflake is not in front (menu window closed, app window hidden or in the 
     and overlapping keys, the catalog to find more (search, capability, tag, author; Add), look and up to two key
     binding sets, what a VM needs at least and how it runs, its keys before it is saved – saved in My Recipes, a
     source in the data folder
+  - **Key Binding Studio** (the workshop, plan B147): a key binding set of your own – a name, the set it starts from
+    (or the modules' own keys), then one module at a time by the mode of its program (the way there as key caps):
+    each action's keys ("h / Left") and, in a program with modes, the mode it leads to afterwards; a dot marks what
+    differs from the module's own, Undo takes back what was chosen, overlaps are said at the row; the program's own
+    keys are shown, not changed. Saved in My Recipes' folder (`my/<name>`); a key binding set's row in Modules opens
+    it ("Edit …" for one of yours, "Copy to My Key Bindings …" for any other)
   - **Modules** (plan B142): the modules and key binding sets here, with the recipes made of them, and what the
     sources offer – the same rows as Looks (install, update, remove)
   - **Activity** (badge: dot for unread messages): what happened in the core service, newest first (the same list in

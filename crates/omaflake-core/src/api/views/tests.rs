@@ -746,6 +746,110 @@ fn keys_page_by_module_and_mode() {
     assert!(gone["modules"].as_array().unwrap().is_empty());
 }
 
+/// The key binding studio (plan B147): a module of a local folder source with modes, a set to start from; values
+/// change a key and the mode after one; what overlaps is said; only differences are saved
+#[test]
+fn keymap_studio_changes_keys_and_modes() {
+    use crate::recipe_sources::{RecipeSource, RecipeSourceKind};
+    let (_t, paths) = crate::paths::tests::temp_paths();
+    let src = tempfile::tempdir().unwrap();
+    let module = src.path().join("modules/alice/nixos/mux");
+    std::fs::create_dir_all(&module).unwrap();
+    std::fs::write(module.join("default.nix"), "{ ... }: { }\n").unwrap();
+    std::fs::write(
+        module.join("module.toml"),
+        r#""$schema" = "https://omaflake.dev/schema/module/v2.json"
+version = "1.0.0"
+title = "Mux"
+[modes.locked]
+title = "Locked"
+title_de = "Gesperrt"
+start = true
+[modes.pane]
+title = "Pane"
+[actions.unlock]
+title = "Unlock"
+key = "Ctrl+g"
+mode = "locked"
+after = "pane"
+[actions.new]
+title = "New pane"
+title_de = "Neuer Bereich"
+key = "n"
+mode = "pane"
+does = "NewPane"
+after = "locked"
+[actions.left]
+title = "Focus left"
+key = ["h", "Left"]
+mode = "pane"
+[actions.copy]
+title = "Copy"
+key = "Ctrl+Shift+c"
+own = true
+"#,
+    )
+    .unwrap();
+    let set = src.path().join("keymaps/alice/base");
+    std::fs::create_dir_all(&set).unwrap();
+    std::fs::write(
+        set.join("keymap.toml"),
+        "\"$schema\" = \"https://omaflake.dev/schema/keymap/v2.json\"\nversion = \"1.0.0\"\ntitle = \"Base\"\n[keys.\"alice/mux\"]\nunlock = \"Ctrl+a\"\n",
+    )
+    .unwrap();
+    let mut s = crate::paths::Settings::load(&paths);
+    s.sources =
+        Some(vec![RecipeSource::new(RecipeSourceKind::Folder, &src.path().to_string_lossy(), None, None, None)]);
+    s.save(&paths).unwrap();
+    let mut c = ctx();
+    c.paths = paths;
+    c.language = Some("de".into());
+    c.host = super::HostOs::Macos;
+    // A copy of alice/base: its key, the module's otherwise
+    let page = get(&c, "keymapStudio", json!({"id": "alice.keymap.base", "values": {"name": "mine"}}));
+    assert_eq!(page["title"]["key"], "Copy Key Bindings");
+    assert_eq!(page["module"]["value"], "alice/mux");
+    let groups = page["groups"].as_array().unwrap();
+    let titles: Vec<&str> = groups.iter().map(|g| g["title"]["text"].as_str().unwrap()).collect();
+    assert_eq!(titles, ["In every mode", "Gesperrt", "Pane"]);
+    assert_eq!(groups[2]["way"], json!([[["⌃", "a"]]]), "the way to Pane with the set's key");
+    let row = |groups: &Value, action: &str| -> Value {
+        groups
+            .as_array()
+            .unwrap()
+            .iter()
+            .flat_map(|g| g["rows"].as_array().unwrap().clone())
+            .find(|r| r["action"] == action)
+            .unwrap()
+    };
+    let unlock = row(&page["groups"], "unlock");
+    assert_eq!((unlock["key"]["value"].clone(), unlock["changed"].clone()), (json!("Ctrl+a"), json!(true)));
+    let copy = row(&page["groups"], "copy");
+    assert_eq!((copy["own"].clone(), copy["key"]["enabled"].clone()), (json!(true), json!(false)));
+    let new = row(&page["groups"], "new");
+    assert_eq!(new["title"]["text"], "Neuer Bereich");
+    assert_eq!(new["after"]["value"], "locked");
+    assert_eq!(new["after"]["choices"][1]["label"]["key"], "stays in %@");
+    // Values: new stays in pane mode, left gets n too – they overlap
+    let values = json!({"name": "mine", "after:alice/mux:new": "pane", "key:alice/mux:left": "n / Left"});
+    let page = get(&c, "keymapStudio", json!({"id": "alice.keymap.base", "values": values}));
+    let left = row(&page["groups"], "left");
+    assert_eq!(left["conflict"]["key"], "Overlaps %@ (%@)");
+    assert_eq!(page["hints"][0]["text"]["key"], "Keys overlap: %@ and %@ (%@)");
+    assert_eq!(left["reset"]["params"]["also"][0]["valueParam"], "after:alice/mux:left");
+    let save = action(&page["actions"], "save");
+    assert_eq!(
+        save["params"]["keys"],
+        json!({"alice/mux": {"unlock": "Ctrl+a", "new": {"after": "pane"}, "left": ["n", "Left"]}})
+    );
+    assert_eq!(save["params"]["name"], "mine");
+    assert!(save["params"].get("previous").is_none(), "a copy");
+    // A key that is not one: said at the field, Save waits
+    let page = get(&c, "keymapStudio", json!({"values": {"name": "mine", "key:alice/mux:left": "Hyper+x"}}));
+    assert!(row(&page["groups"], "left")["key"]["error"].is_object());
+    assert_eq!(action(&page["actions"], "save")["enabled"], false);
+}
+
 // MARK: Doctor
 
 #[test]
@@ -1517,6 +1621,7 @@ fn looks_are_a_tab_with_their_colours_usage_and_offers() {
             "recipes",
             "activity",
             "recipeStudio",
+            "keymapStudio",
             "modules",
             "looks",
             "credentials",
@@ -1534,7 +1639,7 @@ fn looks_are_a_tab_with_their_colours_usage_and_offers() {
         .filter(|t| t["group"] == "workshop")
         .map(|t| t["id"].as_str().unwrap())
         .collect();
-    assert_eq!(workshop, ["recipeStudio", "modules", "looks", "credentials", "locales", "profiles"]);
+    assert_eq!(workshop, ["recipeStudio", "keymapStudio", "modules", "looks", "credentials", "locales", "profiles"]);
     let page = get(&c, "looks", json!({}));
     assert_eq!(page["title"]["key"], "Looks");
     let rose = &page["rows"][0];

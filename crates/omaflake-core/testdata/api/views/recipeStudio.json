@@ -407,18 +407,15 @@
               "text": "needs terminal"
             },
             {
-              "args": [
-                1
-              ],
-              "key": "%lld keys",
-              "text": "1 keys"
+              "key": "1 key",
+              "text": "1 key"
             },
             {
               "text": "omaflake/recipes"
             }
           ],
           "key": "%@ · %@ · %@ · %@",
-          "text": "desktop · needs terminal · 1 keys · omaflake/recipes"
+          "text": "desktop · needs terminal · 1 key · omaflake/recipes"
         },
         "tags": [],
         "title": "Hyprland"

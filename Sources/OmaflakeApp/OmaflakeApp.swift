@@ -194,6 +194,7 @@ struct MainView: View {
         case .credentials(let p)?: return model.t(p.title)
         case .credential(let p)?: return model.t(p.title)
         case .studio(let p)?: return model.t(p.title)
+        case .keymapStudio(let p)?: return model.t(p.title)
         case .newVm(let p)?: return model.t(p.title)
         case .build(let p)?: return model.t(p.title)
         case .macBase(let p)?: return model.t(p.title)

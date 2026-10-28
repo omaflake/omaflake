@@ -616,6 +616,45 @@ public struct RecipeStudioPage: Decodable, Sendable, Equatable {
     public var fields: [Field] { about + [catalog.search] + catalog.filters + dress + vm }
 }
 
+/// `keymapStudio` (plan B147): a key binding set of your own, one module at a time by mode
+public struct KeymapStudioPage: Decodable, Sendable, Equatable {
+    public struct Group: Decodable, Sendable, Equatable {
+        public var title: ViewText
+        public var start: Bool
+        /// The way there: each step's key as chords of caps
+        public var way: [[[String]]]
+        public var rows: [Row]
+    }
+
+    public struct Row: Decodable, Sendable, Equatable {
+        public var action: String
+        public var title: ViewText
+        public var key: Field
+        public var after: Field?
+        public var changed: Bool
+        public var reset: ViewAction?
+        public var does: String?
+        public var conflict: ViewText?
+        public var own: Bool
+    }
+
+    public var title: ViewText
+    public var id: String?
+    public var intro: ViewText
+    public var about: [Field]
+    public var module: Field
+    public var search: Field
+    public var hints: [Hint]
+    public var groups: [Group]
+    public var changed: ViewText
+    public var actions: [ViewAction]
+
+    /// Every field whose value the page keeps
+    public var fields: [Field] {
+        about + [module, search] + groups.flatMap { $0.rows.flatMap { [$0.key] + ($0.after.map { [$0] } ?? []) } }
+    }
+}
+
 /// `keys` (plan B147): a recipe's keys – of an image or a VM through its recipe – by module and mode
 public struct KeysPage: Decodable, Sendable, Equatable {
     public struct Module: Decodable, Sendable, Equatable, Identifiable {
@@ -1030,7 +1069,7 @@ public enum PageModel: Sendable, Equatable {
     case home(HomePage), vms(VmsPage), vm(VmPage), images(ImagesPage), image(ImagePage), recipes(RecipesPage)
     case newVm(NewVmPage), build(BuildPage), doctor(DoctorPage), macBase(MacBasePage), settings(SettingsPage)
     case activity(ActivityPage), importStep(ImportPage), credentials(CredentialsPage), credential(CredentialPage)
-    case looks(LooksPage), keys(KeysPage), studio(RecipeStudioPage)
+    case looks(LooksPage), keys(KeysPage), studio(RecipeStudioPage), keymapStudio(KeymapStudioPage)
     /// The page could not be built
     case error(ViewError)
     /// A page this client does not know
@@ -1064,6 +1103,7 @@ public enum PageModel: Sendable, Equatable {
         case "profiles": self = .credentials(try CredentialsPage(from: decoder))
         case "profile": self = .credential(try CredentialPage(from: decoder))
         case "recipeStudio": self = .studio(try RecipeStudioPage(from: decoder))
+        case "keymapStudio": self = .keymapStudio(try KeymapStudioPage(from: decoder))
         case "modules": self = .looks(try LooksPage(from: decoder))
         // The credential of a macOS base from before bases kept theirs: the same form (plan B139)
         case "baseCredential": self = .credential(try CredentialPage(from: decoder))

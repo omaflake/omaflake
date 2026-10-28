@@ -54,6 +54,8 @@ pub enum Model {
     Keys(Box<omaflake_core::api::views::keys::KeysPage>),
     /// The recipe studio (plan B147)
     Studio(Box<omaflake_core::api::views::recipe_studio::RecipeStudioPage>),
+    /// The key binding studio (plan B147)
+    KeymapStudio(Box<omaflake_core::api::views::keymap_studio::KeymapStudioPage>),
     /// A page that cannot be built (`model: {error}`) or that this app cannot read
     Error(String),
 }
@@ -110,6 +112,7 @@ pub fn decode(page: &str, v: Value) -> Model {
         "profiles" => de(v, Model::Credentials),
         "profile" => de(v, Model::Credential),
         "recipeStudio" => de(v, Model::Studio),
+        "keymapStudio" => de(v, Model::KeymapStudio),
         "modules" => de(v, Model::Looks),
         // The credential of a macOS base from before bases kept theirs: the same form (plan B139)
         "baseCredential" => de(v, Model::Credential),
@@ -143,6 +146,7 @@ impl Model {
             Model::Image(p) => &p.title,
             Model::Keys(p) => &p.title,
             Model::Studio(p) => &p.title,
+            Model::KeymapStudio(p) => &p.title,
             Model::Error(_) => return None,
         })
     }
@@ -1214,10 +1218,14 @@ impl App {
                     self.say("ui.field without page or valueParam", true);
                     return Task::none();
                 };
-                match p.get("value") {
-                    Some(v) => self.set_form(page, key, Some(v.clone())),
-                    None => return Task::none(),
+                let Some(v) = p.get("value") else { return Task::none() };
+                // `also`: more values of the same page at once (plan B147: a key and the mode after it)
+                for m in p.get("also").and_then(Value::as_array).cloned().unwrap_or_default() {
+                    if let Some(k) = m.get("valueParam").and_then(Value::as_str) {
+                        self.set_form(page.clone(), k.to_string(), m.get("value").cloned());
+                    }
                 }
+                self.set_form(page, key, Some(v.clone()));
                 self.resubscribe()
             }
             "reveal" => done(system::reveal(&str_of("path").unwrap_or_default()), self),

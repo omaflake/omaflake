@@ -1129,6 +1129,27 @@ together", search "term" finds WezTerm, Shell, Zellij; a draft's keys page shows
 for the preview); two columns (catalog next to the recipe) in a wide window; the recipes the sources offer still in
 the Recipes tab.
 
+**B147, step 5 (2026-10-28): the key binding studio.** Page `keymapStudio` (`views/keymap_studio.rs`, params `id?`
+– a set here: one of yours ("my.keymap.<name>") is edited, any other copied –, `values`): `about` (name, title,
+description, platform, base – the set it starts from), `module` (the platform's modules with actions, "Zellij – 96
+keys, 2 changed"), `search`, `hints` (overlaps and the key rule, from the composition of every module of the platform
+with the set as chosen), `groups` (the module's keys without a mode, then by mode with the way there as caps) of rows
+`{key, after?, changed, reset?, does?, conflict?, own}`. Values `key:<module>:<action>` ("h / Left", checked with
+`parse_key`, an error at the field and Save waiting) and `after:<module>:<action>` (a choice of the module's modes,
+"stays in <mode>" for its own; only for actions in one mode). The set is the base's entries, then the values; Save
+(`keymaps.save`) gets only what differs from the modules' own keys and `after`. Storage: `MyRecipes::save_keymap` /
+`delete_keymap` – `<data>/my-recipes/keymaps/my/<name>/keymap.toml` (keymap v2, read back before it counts; the
+folder becomes the first source). `ui.field` takes `also: [{valueParam, value}]` (Undo resets the key and the mode at
+once; SwiftUI, iced, `omaf ui`). A workshop tab, and "Edit …" / "Copy to My Key Bindings …" on a key binding set's
+row in Modules. **Checked:** `cargo test` (`keymap_studio_changes_keys_and_modes`: a copy of a set, its way with the
+set's key, own keys read-only, German titles, after and a key changed, the overlap at the row and as a hint, Save's
+keys, an invalid key; `key_bindings_save_rename_delete`; goldens; iced and TUI draw it), `swift test`; with a
+development build on the real catalog: a copy of omaflake/default with Zellij's `new-pane` after `pane` and
+`focus-left` on `n / Left` says the overlap at both rows, Save gets exactly those two; `keymaps.save` wrote
+`my/mine`, and a draft recipe naming it shows New pane staying in pane mode, from `my/mine`. **OPEN:** clicked in the
+apps; a recipe built with an own set and Zellij's keys pressed in the VM; editing an action that works in several
+modes' `after` (left out: one choice would change it in each).
+
 **B129 (2026-10-24): clipboard on a GNOME host.** Mutter has no data-control protocol: `wl-paste --watch` ends at once.
 `Wayland::start` now treats an end within 500 ms as refused, and `detect` falls back to xclip through Xwayland, which
 Mutter keeps in sync (`X11::through_xwayland`, Mutter's `.mutter-Xwaylandauth.*` cookie when XAUTHORITY is unset; its

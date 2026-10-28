@@ -13,6 +13,7 @@ use omaflake_core::api::views::common::{Action, Blockers, Field, FieldKind, Filt
 use omaflake_core::api::views::credentials::{CredentialPage, CredentialRow, CredentialsPage};
 use omaflake_core::api::views::doctor::{DoctorItem, DoctorPage, Download, MacBasePage};
 use omaflake_core::api::views::images::{BuildJobRow, ImageRowView, ImagesPage};
+use omaflake_core::api::views::keymap_studio::KeymapStudioPage;
 use omaflake_core::api::views::keys::KeysPage;
 use omaflake_core::api::views::new_vm::NewVmPage;
 use omaflake_core::api::views::recipe_studio::{RecipeStudioPage, StudioModule};
@@ -75,6 +76,7 @@ pub fn list<'a>(app: &'a App, tab: &str, m: &'a Model) -> El<'a> {
         // Credentials, locales, profiles: tabs of the workshop (plan B147)
         Model::Credentials(c) => credentials(app, tab, c),
         Model::Studio(st) => studio(app, tab, st),
+        Model::KeymapStudio(k) => keymap_studio(app, tab, k),
         Model::Error(e) => error(e),
         _ => error(&format!("{tab}: not a list")),
     }
@@ -646,6 +648,7 @@ pub fn page<'a>(app: &'a App, p: &PageRef, m: &'a Model) -> El<'a> {
         Model::Image(i) => detail_page(image_row(app, &i.row)),
         Model::Keys(k) => keys(app, k),
         Model::Studio(st) => studio(app, &p.page, st),
+        Model::KeymapStudio(k) => keymap_studio(app, &p.page, k),
         Model::Error(e) => error(e),
         other => list(app, &p.page, other),
     }
@@ -924,6 +927,65 @@ fn studio<'a>(app: &'a App, page: &str, st: &'a RecipeStudioPage) -> El<'a> {
     c = c.push(section_title(&st.titles.dress)).push(fields(&st.dress));
     c = c.push(section_title(&st.titles.vm)).push(fields(&st.vm));
     c.push(page_actions(app, page, &st.actions)).into()
+}
+
+/// The key binding studio (plan B147): name and the set it starts from, the module and search, what overlaps, then the
+/// module's keys by mode – each with its keys and the mode afterwards
+fn keymap_studio<'a>(app: &'a App, page: &str, k: &'a KeymapStudioPage) -> El<'a> {
+    let card =
+        |c: Column<'a, Message>| container(c).padding(spacing::CARD_PADDING).width(Length::Fill).style(style::card);
+    let mut about = Column::new().spacing(spacing::L);
+    for f in &k.about {
+        about = about.push(field_view(app, page, f, false));
+    }
+    let mut c = column![secondary(s(&k.intro)), card(about)].spacing(spacing::L);
+    let mut pick = column![field_view(app, page, &k.module, false), field_view(app, page, &k.search, false)]
+        .spacing(spacing::L)
+        .push(caption(s(&k.changed)).color(style::SECONDARY));
+    if !k.hints.is_empty() {
+        pick = pick.push(notes(app, &k.hints));
+    }
+    c = c.push(card(pick));
+    for g in &k.groups {
+        let mut head = row![text(s(&g.title)).size(text_size::CAPTION).font(style::semibold()).color(style::CYAN)]
+            .spacing(spacing::M)
+            .align_y(Alignment::Center);
+        if g.start {
+            head = head.push(caption(tr("start")).color(style::SECONDARY));
+        }
+        head = head.push(space::horizontal());
+        for (i, step) in g.way.iter().enumerate() {
+            if i > 0 {
+                head = head.push(caption("›").color(style::tertiary()));
+            }
+            head = head.push(key_caps(step));
+        }
+        let mut rows = column![head].spacing(spacing::L);
+        for r in &g.rows {
+            let mut line = row![container(field_view(app, page, &r.key, false)).width(Length::Fill)]
+                .spacing(spacing::L)
+                .align_y(Alignment::Center);
+            if r.changed {
+                line = line.push(caption("●").color(style::CYAN));
+            }
+            if let Some(reset) = &r.reset {
+                line = line.push(action_button(reset, None, app.pulse));
+            }
+            let mut entry = column![line].spacing(spacing::XS);
+            if let Some(a) = &r.after {
+                entry = entry.push(field_view(app, page, a, false));
+            }
+            if let Some(conflict) = &r.conflict {
+                entry = entry.push(caption(s(conflict)).color(style::WARNING));
+            }
+            if let Some(does) = &r.does {
+                entry = entry.push(caption(does.clone()).font(iced::Font::MONOSPACE).color(style::tertiary()));
+            }
+            rows = rows.push(entry);
+        }
+        c = c.push(card(rows));
+    }
+    c.push(page_actions(app, page, &k.actions)).into()
 }
 
 fn build<'a>(app: &'a App, page: &str, b: &'a BuildPage) -> El<'a> {
@@ -1513,6 +1575,7 @@ pub mod tests {
             "profiles" => "profiles",
             "profile" => "profile",
             "recipeStudio" => "recipeStudio",
+            "keymapStudio" => "keymapStudio",
             "keys" => "keys",
             "newVm" => "newVm",
             "build" => "build",

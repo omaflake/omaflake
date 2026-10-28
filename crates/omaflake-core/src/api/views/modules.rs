@@ -97,6 +97,20 @@ fn row(p: &PartDto) -> LookRow {
     if used > 0 {
         remove = remove.help(tf!("Used by %@", p.recipes.join(", ")));
     }
+    // A key binding set opens in the key binding studio: one of yours is edited, any other copied (plan B147)
+    if p.kind == "keymap" {
+        let mine = p.id.starts_with(&format!("{}.keymap.", crate::my_recipes::MyRecipes::AUTHOR));
+        actions.insert(
+            0,
+            Action::show(
+                "studio",
+                Text::new(if mine { "Edit …" } else { "Copy to My Key Bindings …" }),
+                Some("keyboard"),
+                "keymapStudio",
+                json!({"id": p.id}),
+            ),
+        );
+    }
     actions.push(remove);
     let mut lines = info(p);
     lines.push(InfoLine::new(

@@ -238,6 +238,25 @@ impl Server {
                 self.reload_recipes().map_err(err)?;
                 Answer::of(json!({"base": base}))
             }
+            "keymaps.save" => {
+                let p: SaveKeymapParams = params(p)?;
+                let draft = crate::my_recipes::KeymapDraft {
+                    name: p.name,
+                    title: p.title,
+                    description: p.description,
+                    keys: p.keys,
+                };
+                let reference =
+                    crate::my_recipes::MyRecipes::new(self.paths()).save_keymap(&draft, p.previous).map_err(err)?;
+                self.reload_recipes().map_err(err)?;
+                Answer::of(json!({"reference": reference}))
+            }
+            "keymaps.delete" => {
+                let name = p.get("name").and_then(Value::as_str).unwrap_or_default().to_string();
+                crate::my_recipes::MyRecipes::new(self.paths()).delete_keymap(&name).map_err(err)?;
+                self.reload_recipes().map_err(err)?;
+                Answer::of(Value::Null)
+            }
             "recipes.delete" => {
                 let base = params::<BaseParams>(p)?.base;
                 let mut parts = base.split('.');
@@ -2687,6 +2706,21 @@ pub(crate) fn profile_dtos(paths: &Paths) -> Vec<ProfileDto> {
             memory_gb: p.memory_gb,
         })
         .collect()
+}
+
+/// `keymaps.save` (plan B147)
+#[derive(Deserialize)]
+struct SaveKeymapParams {
+    name: String,
+    #[serde(default)]
+    title: String,
+    #[serde(default)]
+    description: String,
+    #[serde(default)]
+    keys: crate::keymaps::Keys,
+    /// The set edited ("vim"): renamed, its old folder goes
+    #[serde(default)]
+    previous: Option<String>,
 }
 
 #[derive(Deserialize)]

@@ -51,10 +51,10 @@ final class AppModel {
 
     /// Tabs of the main page (plan B91); the core's `home` page names them
     enum HomeTab: String, CaseIterable {
-        case vms, images, recipes, activity, recipeStudio, modules, looks, credentials, locales, profiles
+        case vms, images, recipes, activity, recipeStudio, keymapStudio, modules, looks, credentials, locales, profiles
 
-        /// The recipe studio, credentials, locales and profiles are forms that scroll themselves
-        var isForm: Bool { [.recipeStudio, .credentials, .locales, .profiles].contains(self) }
+        /// The studios, credentials, locales and profiles are forms that scroll themselves
+        var isForm: Bool { [.recipeStudio, .keymapStudio, .credentials, .locales, .profiles].contains(self) }
     }
 
     /// The group of the open tab (plan B147): `run` or `workshop`, as the core's tabs say
@@ -94,7 +94,7 @@ final class AppModel {
     /// Opens a page one level deeper; the same page already open further up becomes the current one again
     func show(_ ref: PageRef) {
         // The studio is a tab too: a recipe opened in it starts from that recipe, not from the tab's choices
-        if ref.page == "recipeStudio" { formValues[ref.page] = nil }
+        if ref.page == "recipeStudio" || ref.page == "keymapStudio" { formValues[ref.page] = nil }
         if let i = path.firstIndex(where: { $0.page == ref.page }) {
             path = Array(path[..<i]) + [ref]
         } else {
@@ -435,12 +435,13 @@ final class AppModel {
         case .credential(let p)?: p.fields
         case .settings(let p)?: p.sources.add.fields
         case .studio(let p)?: p.fields
+        case .keymapStudio(let p)?: p.fields
         default: []
         }
     }
 
     /// The params that make a page another page (not form values)
-    static let identity: [String: [String]] = ["newVm": ["image"], "build": ["recipe"], "credential": ["id"], "baseCredential": ["name"], "locale": ["id"], "recipeStudio": ["id"]]
+    static let identity: [String: [String]] = ["newVm": ["image"], "build": ["recipe"], "credential": ["id"], "baseCredential": ["name"], "locale": ["id"], "recipeStudio": ["id"], "keymapStudio": ["id"]]
 
     private func send(_ a: ViewAction, params: JSONValue, shown: [String: String], form: PageRef?) async {
         var params = params
@@ -506,6 +507,12 @@ final class AppModel {
             // `value` already)
             guard let page = params["page"]?.string, let key = params["valueParam"]?.string,
                   let value = params["value"] else { return }
+            // `also`: more values of the same page at once (plan B147: a key and the mode after it)
+            if case .array(let more)? = params["also"] {
+                for m in more {
+                    if let k = m["valueParam"]?.string { setFormValue(page, key: k, (m["value"] ?? .null).isNull ? nil : m["value"]) }
+                }
+            }
             setFormValue(page, key: key, value.isNull ? nil : value)
         case "ui.reveal":
             if let path = params["path"]?.string { reveal(path) }

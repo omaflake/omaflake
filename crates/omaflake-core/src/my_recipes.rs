@@ -3,7 +3,8 @@
 //! needs and how it runs – without writing a file by hand. They are written as recipe.toml (v2) into
 //! `<data>/my-recipes/recipes/my/<platform>/<name>/`, a folder laid out like a catalog that is a local folder source
 //! (added to the sources, first, the first time a recipe is saved there). So they are built like any recipe, and a
-//! changed one makes its images outdated.
+//! changed one makes its images outdated. Key binding sets made in the key binding studio (plan B147) go into the same
+//! folder: `keymaps/my/<name>/keymap.toml` (v2), found as any key binding set of a local folder source.
 
 use std::collections::BTreeMap;
 use std::fs;
@@ -33,6 +34,15 @@ pub struct RecipeDraft {
     /// display, network, share, ephemeral, audio, microphone, clipboard, camera
     pub vm: BTreeMap<String, Value>,
     pub locales: LocaleRules,
+}
+
+/// A key binding set as the key binding studio has it: module "<author>/<name>" → action → what the set gives it
+#[derive(Debug, Clone, PartialEq, Default)]
+pub struct KeymapDraft {
+    pub name: String,
+    pub title: String,
+    pub description: String,
+    pub keys: crate::keymaps::Keys,
 }
 
 pub struct MyRecipes {
@@ -166,6 +176,71 @@ impl MyRecipes {
         Disposal::delete(&[folder])
     }
 
+    pub fn keymap_folder(&self, name: &str) -> PathBuf {
+        self.root().join("keymaps").join(Self::AUTHOR).join(name)
+    }
+
+    /// keymap.toml v2 of a draft; an entry is a key, keys, or `{ key, after }`
+    pub fn keymap_toml(d: &KeymapDraft) -> Result<String> {
+        let q = |s: &str| toml::Value::String(s.to_string()).to_string();
+        let list = |keys: &[String]| format!("[{}]", keys.iter().map(|k| q(k)).collect::<Vec<_>>().join(", "));
+        let mut t = format!(
+            "# Key bindings {}/{} – made in omaflake's key binding studio; edit them there or here.\n\n",
+            Self::AUTHOR,
+            d.name
+        );
+        t.push_str(&format!("\"$schema\" = {}\n", q("https://omaflake.dev/schema/keymap/v2.json")));
+        t.push_str(&format!("version = {}\nauthor = {}\nlicense = {}\n", q("1.0.0"), q(Self::AUTHOR), q("MIT")));
+        let title = if d.title.trim().is_empty() { d.name.as_str() } else { d.title.trim() };
+        t.push_str(&format!("title = {}\ndescription = {}\n", q(title), q(d.description.trim())));
+        for (module, actions) in d.keys.iter().filter(|(_, a)| !a.is_empty()) {
+            t.push_str(&format!("\n[keys.{}]\n", q(module)));
+            for (action, e) in actions {
+                let value = match (e.key.as_slice(), &e.after) {
+                    ([one], None) => q(one),
+                    (keys, None) => list(keys),
+                    ([], Some(a)) => format!("{{ after = {} }}", q(a)),
+                    ([one], Some(a)) => format!("{{ key = {}, after = {} }}", q(one), q(a)),
+                    (keys, Some(a)) => format!("{{ key = {}, after = {} }}", list(keys), q(a)),
+                };
+                t.push_str(&format!("{action} = {value}\n"));
+            }
+        }
+        Ok(t)
+    }
+
+    /// Writes a key binding set (replacing `previous` when its name changed) and makes the folder a source; returns
+    /// its reference ("my/vim")
+    pub fn save_keymap(&self, d: &KeymapDraft, previous: Option<String>) -> Result<String> {
+        if !RecipeRef::valid_name(&d.name) {
+            return Err(vm_err!("A name is lowercase letters, digits and -"));
+        }
+        let text = Self::keymap_toml(d)?;
+        let folder = self.keymap_folder(&d.name);
+        let renamed = previous.as_ref().is_some_and(|p| *p != d.name);
+        if renamed && folder.exists() {
+            return Err(vm_err!(codes::EXISTS, "There are key bindings \"{}\" already", d.name));
+        }
+        fs::create_dir_all(&folder).with_path(&folder)?;
+        write_atomic(&folder.join("keymap.toml"), text.as_bytes())?;
+        // What is written must be key bindings this omaflake reads
+        let id = format!("{}.keymap.{}", Self::AUTHOR, d.name);
+        crate::keymaps::KeymapStore::read(&id, &folder, String::new(), None)?;
+        if let (true, Some(p)) = (renamed, previous) {
+            let _ = Disposal::delete(&[self.keymap_folder(&p)]);
+        }
+        self.add_source()?;
+        Ok(format!("{}/{}", Self::AUTHOR, d.name))
+    }
+
+    pub fn delete_keymap(&self, name: &str) -> Result<()> {
+        let folder = self.keymap_folder(name);
+        if !folder.join("keymap.toml").exists() {
+            return Err(vm_err!(codes::NOT_FOUND, "No key bindings \"{}\" of yours", name));
+        }
+        Disposal::delete(&[folder])
+    }
+
     /// The folder as a source, first in the order (its recipes are the user's own)
     fn add_source(&self) -> Result<()> {
         let mut s = Settings::load(&self.paths);
@@ -220,5 +295,36 @@ mod tests {
         assert!(my.save(&RecipeDraft { modules: vec![], ..d.clone() }, None).is_err());
         my.delete(GuestKind::Nixos, "play").unwrap();
         assert!(my.delete(GuestKind::Nixos, "play").is_err());
+    }
+
+    /// Key binding sets of the studio (plan B147): a key, keys, `{ after }`, `{ key, after }`; read back as written
+    #[test]
+    fn key_bindings_save_rename_delete() {
+        use crate::keymaps::{KeyEntry, KeymapStore};
+        let (_t, p) = temp_paths();
+        let my = MyRecipes::new(p.clone());
+        let zellij = BTreeMap::from([
+            ("unlock".to_string(), KeyEntry::key("Ctrl+a")),
+            ("focus-left".to_string(), KeyEntry { key: vec!["h".into(), "Left".into()], after: None }),
+            ("new-pane".to_string(), KeyEntry { key: vec![], after: Some("pane".into()) }),
+            ("close-pane".to_string(), KeyEntry { key: vec!["q".into()], after: Some("pane".into()) }),
+        ]);
+        let mut d = KeymapDraft {
+            name: "tmux-like".into(),
+            title: "Like tmux".into(),
+            description: "Ctrl+a \"first\"".into(),
+            keys: BTreeMap::from([("omaflake/zellij".to_string(), zellij.clone())]),
+        };
+        assert_eq!(my.save_keymap(&d, None).unwrap(), "my/tmux-like");
+        let k = KeymapStore::read("my.keymap.tmux-like", &my.keymap_folder("tmux-like"), String::new(), None).unwrap();
+        assert_eq!((k.title.as_str(), k.description.as_str()), ("Like tmux", "Ctrl+a \"first\""));
+        assert_eq!(k.keys["omaflake/zellij"], zellij);
+        assert_eq!(Settings::load(&p).recipe_sources()[0], my.source());
+        d.name = "mine".into();
+        my.save_keymap(&d, Some("tmux-like".into())).unwrap();
+        assert!(!my.keymap_folder("tmux-like").exists() && my.keymap_folder("mine").exists());
+        assert!(my.save_keymap(&KeymapDraft { name: "Bad".into(), ..d.clone() }, None).is_err());
+        my.delete_keymap("mine").unwrap();
+        assert!(my.delete_keymap("mine").is_err());
     }
 }

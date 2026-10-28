@@ -1,0 +1,167 @@
+{
+  "about": [
+    {
+      "enabled": true,
+      "help": {
+        "key": "lowercase letters, digits and - – recipes name the set my/<name>",
+        "text": "lowercase letters, digits and - – recipes name the set my/<name>"
+      },
+      "id": "name",
+      "kind": "text",
+      "label": {
+        "key": "Name",
+        "text": "Name"
+      },
+      "value": "mine",
+      "valueParam": "name"
+    },
+    {
+      "enabled": true,
+      "id": "title",
+      "kind": "text",
+      "label": {
+        "key": "Title",
+        "text": "Title"
+      },
+      "value": "",
+      "valueParam": "title"
+    },
+    {
+      "enabled": true,
+      "id": "description",
+      "kind": "text",
+      "label": {
+        "key": "Description",
+        "text": "Description"
+      },
+      "value": "",
+      "valueParam": "description"
+    },
+    {
+      "choices": [
+        {
+          "label": {
+            "text": "NixOS"
+          },
+          "value": "nixos"
+        },
+        {
+          "label": {
+            "text": "macOS"
+          },
+          "value": "macos"
+        }
+      ],
+      "enabled": true,
+      "help": {
+        "key": "Whose modules are shown – a set may name modules of both",
+        "text": "Whose modules are shown – a set may name modules of both"
+      },
+      "id": "platform",
+      "kind": "choice",
+      "label": {
+        "key": "Platform",
+        "text": "Platform"
+      },
+      "value": "nixos",
+      "valueParam": "platform"
+    },
+    {
+      "choices": [
+        {
+          "label": {
+            "key": "the modules' own keys",
+            "text": "the modules' own keys"
+          },
+          "value": ""
+        }
+      ],
+      "enabled": true,
+      "help": {
+        "key": "The set whose keys it starts with; without one, every module's own keys",
+        "text": "The set whose keys it starts with; without one, every module's own keys"
+      },
+      "id": "base",
+      "kind": "choice",
+      "label": {
+        "key": "Starts from",
+        "text": "Starts from"
+      },
+      "value": "",
+      "valueParam": "base"
+    }
+  ],
+  "actions": [
+    {
+      "enabled": true,
+      "id": "cancel",
+      "label": {
+        "key": "Cancel",
+        "text": "Cancel"
+      },
+      "method": "ui.back",
+      "params": {}
+    },
+    {
+      "enabled": true,
+      "icon": "apply",
+      "id": "save",
+      "label": {
+        "key": "Save",
+        "text": "Save"
+      },
+      "method": "keymaps.save",
+      "params": {
+        "description": "",
+        "keys": {},
+        "name": "mine",
+        "title": ""
+      },
+      "primary": true,
+      "then": "back"
+    }
+  ],
+  "changed": {
+    "args": [
+      0
+    ],
+    "key": "%lld keys differ from the modules' own",
+    "text": "0 keys differ from the modules' own"
+  },
+  "groups": [],
+  "hints": [],
+  "intro": {
+    "key": "Key bindings of your own: change a key, or where a key leads afterwards – one module at a time, by the mode of its program. What overlaps is said while you choose. Only what differs from the modules' own keys is saved, in My Recipes' folder; recipes name the set my/<name>.",
+    "text": "Key bindings of your own: change a key, or where a key leads afterwards – one module at a time, by the mode of its program. What overlaps is said while you choose. Only what differs from the modules' own keys is saved, in My Recipes' folder; recipes name the set my/<name>."
+  },
+  "module": {
+    "enabled": true,
+    "id": "module",
+    "kind": "choice",
+    "label": {
+      "key": "Module",
+      "text": "Module"
+    },
+    "value": "",
+    "valueParam": "module"
+  },
+  "search": {
+    "enabled": true,
+    "id": "search",
+    "kind": "text",
+    "label": {
+      "key": "Search",
+      "text": "Search"
+    },
+    "placeholder": {
+      "key": "Search keys: what it does, its key",
+      "text": "Search keys: what it does, its key"
+    },
+    "value": "",
+    "valueParam": "search"
+  },
+  "title": {
+    "key": "Key Binding Studio",
+    "text": "Key Binding Studio"
+  }
+}

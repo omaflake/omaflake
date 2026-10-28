@@ -507,6 +507,7 @@ pub fn page(ctx: &Ctx, name: &str, model: &Value) -> Page {
         "profile" => credential(ctx, "profile", model, &mut p),
         // The recipe studio (plan B147)
         "recipeStudio" => studio(ctx, model, &mut p),
+        "keymapStudio" => keymap_studio(ctx, model, &mut p),
         "credential" => credential(ctx, "credential", model, &mut p),
         // The credential of a macOS base from before bases kept theirs: the same form (plan B139)
         "baseCredential" => credential(ctx, "baseCredential", model, &mut p),
@@ -1136,6 +1137,53 @@ fn studio(ctx: &Ctx, model: &Value, p: &mut Page) {
         p.items.push(heading(ctx, format!(" {}", t(&model["titles"][title]))));
         for f in arr(model, list) {
             p.items.push(field(ctx, page, f));
+        }
+    }
+    if let Some(bar) = button_bar(ctx, &format!("{page}:actions"), arr(model, "actions")) {
+        p.items.push(bar);
+    }
+}
+
+/// The key binding studio (plan B147): its fields, the module and search, what overlaps, then the module's keys by
+/// mode – each row a key field (and the mode afterwards), with what overlaps and Undo
+fn keymap_studio(ctx: &Ctx, model: &Value, p: &mut Page) {
+    let th = ctx.theme;
+    let page = "keymapStudio";
+    p.items.push(Item::line("", secondary_line(ctx, t(&model["intro"]), 2)));
+    for f in arr(model, "about") {
+        p.items.push(field(ctx, page, f));
+    }
+    p.items.push(Item::blank());
+    p.items.push(field(ctx, page, &model["module"]));
+    p.items.push(field(ctx, page, &model["search"]));
+    p.items.push(Item::line("", secondary_line(ctx, t(&model["changed"]), 2)));
+    for (i, h) in arr(model, "hints").iter().enumerate() {
+        p.items.push(hint(ctx, format!("keymapStudio:hint:{i}"), h));
+    }
+    for (gi, g) in arr(model, "groups").iter().enumerate() {
+        p.items.push(Item::blank());
+        let way: Vec<String> = arr(g, "way").iter().map(caps).collect();
+        let mut head = vec![Span::raw(" "), Span::styled(t(&g["title"]), th.accent())];
+        if g["start"].as_bool() == Some(true) {
+            head.push(Span::styled(format!("  {}", tr("start")), th.secondary()));
+        }
+        if !way.is_empty() {
+            head.push(Span::styled(format!("   {}", way.join(" › ")), th.key()));
+        }
+        p.items.push(Item::line("", Line::from(head)));
+        for r in arr(g, "rows") {
+            p.items.push(field(ctx, page, &r["key"]));
+            if r["after"].is_object() {
+                p.items.push(field(ctx, page, &r["after"]));
+            }
+            if let Some(c) = r.get("conflict") {
+                p.items.push(Item::line("", toned_line(ctx, t(c), Tone::Warning, 4)));
+            }
+            if let Some(bar) = r.get("reset").and_then(|a| {
+                button_bar(ctx, &format!("keymapStudio:reset:{gi}:{}", s(r, "action")), std::slice::from_ref(a))
+            }) {
+                p.items.push(bar);
+            }
         }
     }
     if let Some(bar) = button_bar(ctx, &format!("{page}:actions"), arr(model, "actions")) {

@@ -25,7 +25,7 @@ extension APIContractTests {
                 guard case .home(let h) = try page("home", as: "home") else { throw Unexpected() }
                 #expect(h.actions.map(\.id) == ["doctor", "settings", "dataFolder", "quit"] && h.actions[0].badge == 3)
                 #expect(h.actions[3].confirm?.text.args == [.string("research")] && h.firstTab == "vms")
-                #expect(h.tabs.map(\.id) == ["vms", "images", "recipes", "activity", "recipeStudio", "modules", "looks", "credentials", "locales", "profiles"] && h.tabs[0].badge?.count == 1)
+                #expect(h.tabs.map(\.id) == ["vms", "images", "recipes", "activity", "recipeStudio", "keymapStudio", "modules", "looks", "credentials", "locales", "profiles"] && h.tabs[0].badge?.count == 1)
                 #expect(h.tabs[1].badge?.kind == "working" && h.tabs[2].badge?.tone == .warning && h.tabs[3].badge == nil)
                 // Two groups (plan B147): every tab names one of them, and each tab is one of the app's
                 #expect(h.groups.map(\.id) == ["run", "workshop"] && h.tabs.allSatisfy { t in h.groups.contains { $0.id == t.group } })
@@ -252,6 +252,11 @@ extension APIContractTests {
                 #expect(p.recipe.rows.map(\.reference) == ["omaflake/hyprland", "omaflake/wezterm"] && p.catalog.empty != nil)
                 #expect(p.recipe.rows[1].action.method == "ui.field" && p.recipe.rows[1].action.params["valueParam"] == .string("modules"))
                 #expect(p.fields.contains { $0.id == "search" } && p.actions.last?.method == "recipes.save")
+            },
+            "keymapStudio": {
+                // The key binding studio (plan B147): a new set, its fields, Save waits for nothing but a name
+                guard case .keymapStudio(let p) = try page("keymapStudio", as: "keymapStudio") else { throw Unexpected() }
+                #expect(p.about.map(\.id) == ["name", "title", "description", "platform", "base"] && p.actions.last?.method == "keymaps.save")
             },
             "keys.draft": {
                 guard case .keys(let p) = try page("keys.draft", as: "keys") else { throw Unexpected() }

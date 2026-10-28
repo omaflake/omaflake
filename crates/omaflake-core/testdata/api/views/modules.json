@@ -489,6 +489,22 @@
       "detail": {
         "actions": [
           {
+            "enabled": true,
+            "icon": "keyboard",
+            "id": "studio",
+            "label": {
+              "key": "Copy to My Key Bindings …",
+              "text": "Copy to My Key Bindings …"
+            },
+            "method": "ui.show",
+            "params": {
+              "page": "keymapStudio",
+              "params": {
+                "id": "omaflake.keymap.default"
+              }
+            }
+          },
+          {
             "confirm": {
               "button": {
                 "key": "Remove",

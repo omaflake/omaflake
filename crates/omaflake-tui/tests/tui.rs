@@ -141,6 +141,8 @@ fn tab_goes_on_into_the_workshop() {
     }
     assert_eq!(h.app.tab, "recipeStudio", "the workshop's first tab");
     h.key(KeyCode::Tab);
+    assert_eq!(h.app.tab, "keymapStudio");
+    h.key(KeyCode::Tab);
     assert_eq!(h.app.tab, "modules");
     h.model("modules", json!({}), fixture("modules"));
     let s = h.screen();
@@ -282,6 +284,7 @@ fn draws_every_page() {
         ("modules", "modules", vec!["Modules", "Hyprland", "omaflake/hyprland · 1.0.0 · NixOS module", "VS Code"]),
         ("profiles", "profiles", vec!["Profiles", "Small", "2 CPU · 4 GB RAM", "New Profile …"]),
         ("profile", "profile", vec!["New Profile", "CPU cores: 8", "Create"]),
+        ("keymapStudio", "keymapStudio", vec!["Key Binding Studio", "Starts from", "Module", "Save"]),
         (
             "recipeStudio",
             "recipeStudio",

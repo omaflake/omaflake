@@ -22,8 +22,19 @@ use crate::text::{arr, b, fill, s, set_path, t, tr, trf};
 use crate::theme::{Theme, Tone};
 
 /// The tabs before `home` arrives
-const TABS: [&str; 10] =
-    ["vms", "images", "recipes", "activity", "recipeStudio", "modules", "looks", "credentials", "locales", "profiles"];
+const TABS: [&str; 11] = [
+    "vms",
+    "images",
+    "recipes",
+    "activity",
+    "recipeStudio",
+    "keymapStudio",
+    "modules",
+    "looks",
+    "credentials",
+    "locales",
+    "profiles",
+];
 
 /// Keys every page has; a page's tools get the other lowercase letters, `home`'s actions uppercase ones
 pub const RESERVED: &[char] = &['q', 'j', 'k', 'g', 'h', 'l', 'a', 'G'];
@@ -551,6 +562,10 @@ impl App {
                 // `value: null` puts the default back
                 let value = p.get("value").cloned().unwrap_or(Value::Null);
                 let target = PageRef::new(s(p, "page"), p["params"].clone());
+                // `also`: more values of the same page at once (plan B147: a key and the mode after it)
+                for m in arr(p, "also") {
+                    self.set_value(Some(&target), s(m, "valueParam"), m.get("value").cloned().unwrap_or(Value::Null));
+                }
                 self.set_value(Some(&target), s(p, "valueParam"), value);
             }
             "reveal" => match p.get("path").and_then(Value::as_str) {

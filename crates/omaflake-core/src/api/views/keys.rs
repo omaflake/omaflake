@@ -262,7 +262,7 @@ fn modules(ctx: &Ctx, parts: &RecipePartsDto) -> Vec<KeyModule> {
     out.into_iter().map(|(_, m)| m).collect()
 }
 
-fn mode_title(modes: &BTreeMap<String, ModuleMode>, id: &str, lang: Option<&str>) -> Text {
+pub(crate) fn mode_title(modes: &BTreeMap<String, ModuleMode>, id: &str, lang: Option<&str>) -> Text {
     Text::verbatim(modes.get(id).map(|m| m.title_in(lang)).unwrap_or(id))
 }
 
@@ -343,7 +343,7 @@ fn groups(ctx: &Ctx, bindings: &[&Binding], modes: &BTreeMap<String, ModuleMode>
 
 /// The shortest way from the start mode to each mode: (key, mode reached) per step. Keys that only change the mode
 /// are preferred, then the first key of an action.
-fn ways(bindings: &[&Binding], start: Option<&str>) -> BTreeMap<String, Vec<(String, String)>> {
+pub(crate) fn ways(bindings: &[&Binding], start: Option<&str>) -> BTreeMap<String, Vec<(String, String)>> {
     let mut found: BTreeMap<String, Vec<(String, String)>> = BTreeMap::new();
     let Some(start) = start else { return found };
     let mut edges: Vec<&Binding> =
