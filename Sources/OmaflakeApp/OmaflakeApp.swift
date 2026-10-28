@@ -155,20 +155,29 @@ struct MainView: View {
                     header.padding([.horizontal, .top], BrandStyle.margin).padding(.bottom, BrandTokens.Spacing.xl)
                     MenuTabBar(model: model).padding(.horizontal, BrandStyle.margin).padding(.bottom, BrandTokens.Spacing.xxl)
                     content(model.menuTab)
-                    Divider()
+                    // The way to the whole app: the workshop, the catalog and the profiles are in its window
                     Button { model.selectGroup("workshop"); openWindow(id: AppFrame.windowID); NSApp.activate() } label: {
-                        HStack(spacing: BrandTokens.Spacing.m) {
-                            Image(systemName: "wrench.and.screwdriver")
-                            Text("Workshop, Catalog and Profiles …")
+                        HStack(spacing: BrandTokens.Spacing.l) {
+                            Image(systemName: "macwindow.on.rectangle").font(.system(size: 18, weight: .medium))
+                            VStack(alignment: .leading, spacing: 1) {
+                                Text("Open omaflake").font(.body.weight(.semibold))
+                                Text("Workshop, Catalog and Profiles – everything in one window")
+                                    .font(.caption).foregroundStyle(.secondary)
+                            }
                             Spacer()
-                            Image(systemName: "macwindow").foregroundStyle(.tertiary)
+                            Image(systemName: "arrow.up.right").font(.system(size: 13, weight: .semibold))
                         }
-                        .font(.callout).foregroundStyle(.secondary)
-                        .padding(.horizontal, BrandStyle.margin).padding(.vertical, BrandTokens.Spacing.xl)
+                        .foregroundStyle(BrandStyle.cyan)
+                        .padding(.horizontal, BrandTokens.Spacing.xl).padding(.vertical, BrandTokens.Spacing.l)
+                        .background(BrandStyle.cyan.opacity(BrandTokens.Opacity.tintFill),
+                                    in: RoundedRectangle(cornerRadius: BrandStyle.radius + 2, style: .continuous))
+                        .overlay(RoundedRectangle(cornerRadius: BrandStyle.radius + 2, style: .continuous)
+                            .strokeBorder(BrandStyle.cyan.opacity(0.55)))
                         .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)
                     .help("Opens the app window with every group")
+                    .padding(.horizontal, BrandStyle.margin).padding(.top, BrandTokens.Spacing.l).padding(.bottom, BrandStyle.margin)
                 }
             }
         }

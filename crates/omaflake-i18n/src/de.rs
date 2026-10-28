@@ -1217,6 +1217,7 @@ pub static DE: &[(&str, &str)] = &[
     ("Works headless and in 2D – without 3D; a QEMU with virglrenderer (nixpkgs#qemu) adds it.", "Funktioniert ohne Fenster und in 2D – ohne 3D; ein QEMU mit virglrenderer (nixpkgs#qemu) bringt es mit."),
     ("Works with", "Arbeitet zusammen mit"),
     ("Workshop", "Werkstatt"),
+    ("Workshop, Catalog and Profiles – everything in one window", "Werkstatt, Katalog und Profile – alles in einem Fenster"),
     ("Workshop, Catalog and Profiles …", "Werkstatt, Katalog und Profile …"),
     ("Writing the disk image", "Disk-Image wird geschrieben"),
     ("You probably have this VM already. Under another name it becomes a second VM with its own identity (SSH port, macOS machine identity); its user, keys and data are the same.", "Diese VM hast du vermutlich schon. Unter einem anderen Namen wird sie eine zweite VM mit eigener Identität (SSH-Port, macOS-Maschinenidentität); Nutzer, Schlüssel und Daten bleiben gleich."),

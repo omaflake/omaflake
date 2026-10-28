@@ -21,12 +21,12 @@ struct RecipeStudioView: View {
             GeometryReader { geo in
                 if geo.size.width >= Self.twoColumns {
                     HStack(alignment: .top, spacing: 0) {
-                        Form { intro; finder }.formStyle(.grouped)
+                        Form { intro; finder }.omaflakeForm()
                         Divider()
-                        Form { recipe }.formStyle(.grouped)
+                        Form { recipe }.omaflakeForm()
                     }
                 } else {
-                    Form { intro; recipe; finder }.formStyle(.grouped)
+                    Form { intro; recipe; finder }.omaflakeForm()
                 }
             }
             Divider()

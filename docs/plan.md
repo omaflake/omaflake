@@ -1249,6 +1249,16 @@ Decided (the maintainer): omaflake removes its own leftovers and the Doctor offe
   (`/private/var/lib/linux-builder/nixos.qcow2`, 99 GB here) does not shrink when its store is cleaned up – the qcow2
   keeps its size; whether to compact it.
 
+**B148, after trying it (2026-10-28):** "Change …" in the key binding studio did nothing – and no choice in a studio
+shown as a tab reached the core: the tab was subscribed without its form values (SwiftUI `listRef`, iced `tab_page`,
+`omaf ui` `tab_page` – the values went nowhere there: "No form here"). Checks with `omaf call` had passed, as they ask
+the core directly. Now a form as a tab is asked with its values (SwiftUI `fullRef`, iced `effective`, `omaf ui` its
+`tab_values`); iced shows the newest model of a page while the one for new values comes (`latest`); `omaf ui` sends one
+subscription for a `ui.field` with `also` (`holding` – each was a request from a thread of its own, an earlier one could
+arrive last). Forms have no grey background any more (`omaflakeForm`: grouped, `scrollContentBackground(.hidden)`),
+and the menu bar window's way to the app window is a large cyan button "Open omaflake". **Checked:** `cargo test`
+(`ui_field_on_a_studio_tab_keeps_its_values`), `swift test`. **OPEN:** clicked in the apps.
+
 **B129 (2026-10-24): clipboard on a GNOME host.** Mutter has no data-control protocol: `wl-paste --watch` ends at once.
 `Wayland::start` now treats an end within 500 ms as refused, and `detect` falls back to xclip through Xwayland, which
 Mutter keeps in sync (`X11::through_xwayland`, Mutter's `.mutter-Xwaylandauth.*` cookie when XAUTHORITY is unset; its

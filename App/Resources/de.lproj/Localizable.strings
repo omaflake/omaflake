@@ -1445,3 +1445,5 @@
 "Nix Store cleaned up" = "Nix Store aufgeräumt";
 "Nix Store: %@" = "Nix Store: %@";
 "Clean up the Nix Store" = "Nix Store aufräumen";
+"Open omaflake" = "omaflake öffnen";
+"Workshop, Catalog and Profiles – everything in one window" = "Werkstatt, Katalog und Profile – alles in einem Fenster";

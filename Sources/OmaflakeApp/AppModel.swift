@@ -115,7 +115,9 @@ final class AppModel {
 
     func listRef(_ tab: HomeTab) -> PageRef {
         let f = (filters[tab] ?? [:]).filter { !$0.value.isNull && $0.value != .bool(false) }
-        return PageRef(tab.rawValue, f.isEmpty ? .object([:]) : .object(["filter": .object(f)]))
+        let ref = PageRef(tab.rawValue, f.isEmpty ? .object([:]) : .object(["filter": .object(f)]))
+        // A form as a tab (the studios, plan B147) is asked with what the user chose in it, as a page is
+        return tab.isForm ? fullRef(ref) : ref
     }
 
     /// The pages open one level deeper inside the window (menu or app window share it); empty = the main page

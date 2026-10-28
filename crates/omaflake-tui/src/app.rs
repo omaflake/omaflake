@@ -147,6 +147,11 @@ pub struct App {
     pub tab: String,
     pub stack: Vec<PageRef>,
     filters: HashMap<String, Value>,
+    /// The form values of a form shown as a tab (the studios), by tab
+    tab_values: HashMap<String, Value>,
+    /// Several values are being set at once (`ui.field` with `also`): one subscription afterwards, not one each – sent
+    /// from threads, an earlier one could arrive last
+    holding: bool,
     models: Vec<(PageRef, Value)>,
     last_by_name: HashMap<String, Value>,
     pub home: Option<Value>,
@@ -184,6 +189,8 @@ impl App {
             tab: "vms".into(),
             stack: vec![],
             filters: HashMap::new(),
+            tab_values: HashMap::new(),
+            holding: false,
             models: vec![],
             last_by_name: HashMap::new(),
             home: None,
@@ -250,11 +257,16 @@ impl App {
         }
     }
 
+    /// A tab's page: its filter, and – a form as a tab (the studios) – what the user chose in it
     fn tab_page(&self, tab: &str) -> PageRef {
-        match self.filters.get(tab) {
-            Some(f) => PageRef::new(tab, json!({"filter": f})),
-            None => PageRef::new(tab, json!({})),
+        let mut params = json!({});
+        if let Some(f) = self.filters.get(tab) {
+            params["filter"] = f.clone();
         }
+        if let Some(v) = self.tab_values.get(tab).filter(|v| v.as_object().is_some_and(|o| !o.is_empty())) {
+            params["values"] = v.clone();
+        }
+        PageRef::new(tab, params)
     }
 
     pub fn tab_ids(&self) -> Vec<String> {
@@ -276,6 +288,9 @@ impl App {
     }
 
     pub fn resubscribe(&mut self) {
+        if self.holding {
+            return;
+        }
         let wanted = self.wanted();
         if wanted == self.subscribed {
             return;
@@ -567,10 +582,13 @@ impl App {
                 let value = p.get("value").cloned().unwrap_or(Value::Null);
                 let target = PageRef::new(s(p, "page"), p["params"].clone());
                 // `also`: more values of the same page at once (plan B147: a key and the mode after it)
+                self.holding = true;
                 for m in arr(p, "also") {
                     self.set_value(Some(&target), s(m, "valueParam"), m.get("value").cloned().unwrap_or(Value::Null));
                 }
                 self.set_value(Some(&target), s(p, "valueParam"), value);
+                self.holding = false;
+                self.resubscribe();
             }
             "reveal" => match p.get("path").and_then(Value::as_str) {
                 Some(path) => self.effects.push_back(Effect::Reveal(path.into())),
@@ -641,6 +659,24 @@ impl App {
 
     /// `values.<key>` of a form page: `target` (its params without `values`), else the page on top – then asked again
     fn set_value(&mut self, target: Option<&PageRef>, key: &str, value: Value) {
+        // On a tab (the studios): its values are the tab's own – also for an action of the page (`ui.field`) while no
+        // page of that name is open on top
+        let on_tab = match target {
+            Some(t) => t.page == self.tab && !self.stack.iter().any(|p| p.page == t.page),
+            None => self.stack.is_empty(),
+        };
+        if on_tab && !key.is_empty() {
+            let values = self.tab_values.entry(self.tab.clone()).or_insert_with(|| json!({}));
+            if let Some(obj) = values.as_object_mut() {
+                if value.is_null() {
+                    obj.remove(key);
+                } else {
+                    obj.insert(key.into(), value);
+                }
+            }
+            self.resubscribe();
+            return;
+        }
         let without_values = |p: &PageRef| {
             let mut params = p.params.clone();
             if let Some(o) = params.as_object_mut() {

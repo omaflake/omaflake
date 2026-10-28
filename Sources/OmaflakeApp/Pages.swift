@@ -198,8 +198,7 @@ struct NewVMView: View {
                 }
             }
         }
-        .formStyle(.grouped)
-        .scrollContentBackground(.hidden)
+        .omaflakeForm()
     }
 
     /// What it is created from: exactly this image (plan B100)
@@ -265,7 +264,7 @@ struct CredentialsView: View {
                 HelpNote(page.footer, model: model)
             }
         }
-        .formStyle(.grouped)
+        .omaflakeForm()
     }
 }
 
@@ -293,7 +292,7 @@ struct CredentialView: View {
                 ForEach(page.actions) { ActionPlainButton(action: $0, model: model, form: ref, isDefault: $0.primary) }
             }
         }
-        .formStyle(.grouped)
+        .omaflakeForm()
     }
 }
 
@@ -322,7 +321,7 @@ struct BuildView: View {
             // The credential and look of the image (plan B137): their values go into the build action
             if let fields = page.fields, !fields.isEmpty {
                 Form { ForEach(fields) { FormField(field: $0, page: ref.page, model: model) } }
-                    .formStyle(.grouped).scrollDisabled(true).frame(height: CGFloat(fields.count) * 44 + 24)
+                    .omaflakeForm().scrollDisabled(true).frame(height: CGFloat(fields.count) * 44 + 24)
             }
             if let hint = page.macBase {
                 HStack {
@@ -483,8 +482,7 @@ struct DoctorView: View {
                 }
             }
         }
-        .formStyle(.grouped)
-        .scrollContentBackground(.hidden)
+        .omaflakeForm()
         .onAppear {
             model.markRequirementsShown()
             model.checkDoctor()
@@ -583,7 +581,7 @@ struct MacBaseView: View {
             } label: { Text(verbatim: model.t(page.ipsw.label)) }
             // The credential the guest user is created from (plan B139) – no password to type
             Form { ForEach(page.fields) { FormField(field: $0, page: ref.page, model: model) } }
-                .formStyle(.grouped).scrollDisabled(true).frame(height: CGFloat(page.fields.count) * 64 + 24)
+                .omaflakeForm().scrollDisabled(true).frame(height: CGFloat(page.fields.count) * 64 + 24)
             HStack {
                 if page.installing {
                     ProgressView().controlSize(.small)
@@ -660,8 +658,7 @@ struct SettingsView: View {
                     .font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
             }
         }
-        .formStyle(.grouped)
-        .scrollContentBackground(.hidden)
+        .omaflakeForm()
     }
 
 }
@@ -677,8 +674,7 @@ struct SourcesView: View {
     /// Recipe Sources (spec §11.3, plan B107): in their order (an earlier source wins), and a new one
     var body: some View {
         Form { section }
-            .formStyle(.grouped)
-            .scrollContentBackground(.hidden)
+            .omaflakeForm()
     }
 
     private var section: some View {

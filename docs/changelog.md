@@ -57,6 +57,9 @@ are collected under *Unreleased*. Releases: [GitHub](https://github.com/omaflake
 
 ### Fixed
 
+- In the studios shown as tabs, choices did nothing – "Change …" at a key, the search, adding a module: the tab was
+  asked without them.
+
 - Building images no longer fills the Nix Store: each build left its disk there (several GB) after copying it into
   the data folder. omaflake now removes it after the build, and the Doctor shows what the Nix Store holds with
   "Clean Up …" for what earlier builds left.

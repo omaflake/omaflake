@@ -542,3 +542,11 @@ struct RoundedWindow: NSViewRepresentable {
         }
     }
 }
+
+extension View {
+    /// A form as every page draws it: grouped, on the window's own background – no grey behind it, only its sections
+    /// are boxes (plan B148)
+    func omaflakeForm() -> some View {
+        formStyle(.grouped).scrollContentBackground(.hidden)
+    }
+}

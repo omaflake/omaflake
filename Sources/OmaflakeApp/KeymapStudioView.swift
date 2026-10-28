@@ -34,7 +34,7 @@ struct KeymapStudioView: View {
                 }
                 ForEach(page.cards) { ModuleCard(card: $0, model: model) }
             }
-            .formStyle(.grouped)
+            .omaflakeForm()
             Divider()
             HStack {
                 Spacer()

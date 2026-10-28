@@ -350,6 +350,22 @@ fn mac_base_log_is_a_log_ref_and_the_ipsw_is_shown_once() {
     assert_eq!(s.matches("macOS from Apple (IPSW)").count(), 1, "{s}");
 }
 
+/// A form as a tab (the key binding studio): Change … sets the tab's own values, and it is asked with them
+#[test]
+fn ui_field_on_a_studio_tab_keeps_its_values() {
+    let mut h = Harness::new(none);
+    h.app.tab = "keymapStudio".into();
+    let edit = json!({"id": "edit", "label": {"text": "Change …"}, "method": "ui.field", "enabled": true,
+        "params": {"page": "keymapStudio", "params": {}, "field": "edit", "valueParam": "edit", "value": "alice/mux:new",
+            "also": [{"valueParam": "draft", "value": null}]}});
+    h.app.run_action(&edit);
+    h.settle();
+    // Each value is a subscription of its own; they are sent from threads, so in any order
+    let calls = h.calls("views.subscribe");
+    let wanted = json!({"page": "keymapStudio", "params": {"values": {"edit": "alice/mux:new"}}});
+    assert!(calls.iter().any(|c| c["pages"].as_array().unwrap().contains(&wanted)), "{calls:?}");
+}
+
 #[test]
 fn ui_field_sets_the_value_of_its_page_by_value_param() {
     let mut h = Harness::new(none);

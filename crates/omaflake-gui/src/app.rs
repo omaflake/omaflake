@@ -293,6 +293,8 @@ pub struct App {
     pub status: Option<String>,
     pub init: Value,
     pub models: HashMap<String, Model>,
+    /// The key of the newest model per page name – shown while the model for changed params (a form value) comes
+    pub latest: HashMap<String, String>,
     pub tab: String,
     pub tab_chosen: bool,
     pub stack: Vec<PageRef>,
@@ -363,6 +365,7 @@ impl App {
             expanded: HashSet::new(),
             toggled: HashSet::new(),
             forms: HashMap::new(),
+            latest: HashMap::new(),
             edits: HashMap::new(),
             logs: HashMap::new(),
             jobs: BTreeMap::new(),
@@ -401,6 +404,7 @@ impl App {
         } else {
             self.animated.remove(&key);
         }
+        self.latest.insert(page.to_string(), key.clone());
         self.models.insert(key, decode(page, v));
     }
 
@@ -444,13 +448,13 @@ impl App {
         p
     }
 
-    /// The open tab's list page with its filter
+    /// The open tab's list page with its filter; a form as a tab (the studios) with what the user chose in it
     pub fn tab_page(&self) -> PageRef {
         let mut params = json!({});
         if let Some(f) = self.filters.get(&self.tab) {
             params["filter"] = f.clone();
         }
-        page_ref(&self.tab, params)
+        self.effective(&page_ref(&self.tab, params))
     }
 
     pub fn current(&self) -> Option<PageRef> {
@@ -458,7 +462,7 @@ impl App {
     }
 
     pub fn model(&self, p: &PageRef) -> Option<&Model> {
-        self.models.get(&p.key())
+        self.models.get(&p.key()).or_else(|| self.models.get(self.latest.get(&p.page)?))
     }
 
     /// A model of a page with any params (the newest one the core sent for that page name)
