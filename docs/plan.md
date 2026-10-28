@@ -1361,6 +1361,16 @@ Plymouth's screen was not seen there either (OPEN: whether Plymouth draws throug
      check with frames as above. A new QEMU reaches users through the Doctor's QEMU item (`nix profile` of
      `#qemu`).
 
+  *Step 1 done (2026-10-28, QEMU run by hand with the VM's arguments and `COCOA_GL_TRACE=1`):* the 2D frames do reach
+  the window – `scanout texture id=1 640x480` (the firmware), then `id=2 3840x2160` with flushes of a centred
+  193×58 region and the bottom (Plymouth), about 110 renders in 20 s; Hyprland then flips between its own buffers
+  (`id=7/8/9`, 2880×1620). Yet those first frames show black. Tried and dropped: an opaque `CAOpenGLLayer` and alpha
+  forced to 1 (patch `qemu-cocoa-opaque-gl`, built and run – still black for 18 s; moved to `_to_delete/`), so it is
+  not the layer's alpha: the borrowed texture of a resource the guest fills with 2D transfers is black itself, while
+  those of 3D-rendered buffers are not. **OPEN**, next: why the 2D-filled virgl resources' textures stay empty on the
+  Mac (virglrenderer's native-OpenGL patch – contexts, `copy_transfer3d` into texture 3553); else step 3 with a
+  heuristic end (the loading image until the guest flips between buffers of its own).
+
 **B129 (2026-10-24): clipboard on a GNOME host.** Mutter has no data-control protocol: `wl-paste --watch` ends at once.
 `Wayland::start` now treats an end within 500 ms as refused, and `detect` falls back to xclip through Xwayland, which
 Mutter keeps in sync (`X11::through_xwayland`, Mutter's `.mutter-Xwaylandauth.*` cookie when XAUTHORITY is unset; its
