@@ -34,10 +34,13 @@ in
     # for the last console): aarch64's firmware names its PL011 to the kernel (ACPI SPCR), x86_64's COM1 must be named
     boot.kernelParams = lib.mkMerge [
       (lib.mkIf pkgs.stdenv.hostPlatform.isx86_64 [ "console=tty0" "console=ttyS0,115200" ])
-      # The loading screen (below): quiet, so no kernel or systemd lines are drawn over it
+      # The loading screen (below): quiet, so no kernel or systemd lines are drawn over it. Plymouth draws only text
+      # ("details") as soon as a serial console is active – ours is – unless told to ignore them (plymouth's
+      # ply-device-manager.c, create_devices_from_terminals)
       (lib.mkIf config.vm.bootSplash.enable [
         "quiet"
         "splash"
+        "plymouth.ignore-serial-consoles"
         "rd.udev.log_level=3"
         "udev.log_priority=3"
         "rd.systemd.show_status=auto"

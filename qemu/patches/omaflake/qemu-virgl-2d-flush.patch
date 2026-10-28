@@ -1,0 +1,38 @@
+From: omaflake contributors
+Subject: virtio-gpu-virgl: flush context 0 after 2D transfers
+
+With the cocoa display on desktop GL (-display cocoa,gl=on), virgl's
+context 0 and the display's CALayer context are separate CGL contexts in
+one share group. TRANSFER_TO_HOST_2D uploads the guest's pixels with
+glTexSubImage2D in context 0, and nothing flushes that context afterwards:
+3D guests flush through their fences, but 2D-only scanouts (UEFI GOP,
+systemd-boot, the kernel's fbdev console) never do. CGL makes a shared
+object's new contents visible to another context only after the writing
+context has flushed, so the display samples the texture as created
+(black) until the first 3D client's submissions flush context 0.
+
+Flush context 0 after each 2D transfer. The EGL path (gl=es, ANGLE) does
+not show the problem.
+
+diff --git a/hw/display/virtio-gpu-virgl.c b/hw/display/virtio-gpu-virgl.c
+index d37bbd8a4..33434af95 100644
+--- a/hw/display/virtio-gpu-virgl.c
++++ b/hw/display/virtio-gpu-virgl.c
+@@ -698,6 +698,17 @@ static void virgl_cmd_transfer_to_host_2d(VirtIOGPU *g,
+                                       0,
+                                       (struct virgl_box *)&box,
+                                       t2d.offset, NULL, 0);
++
++    /*
++     * The upload runs as glTexSubImage2D in virgl's context 0, but the
++     * display samples the texture from its own (shared) context. Shared
++     * contexts only see the new contents once the writing context has
++     * flushed (Apple's CGL rule for shared contexts). Nothing else flushes
++     * context 0 for 2D-only guests (firmware, simpledrm/fbcon, Plymouth),
++     * so their scanouts stay black until a 3D client submits commands.
++     */
++    virgl_renderer_force_ctx_0();
++    glFlush();
+ }
+ 
+ static void virgl_cmd_transfer_to_host_3d(VirtIOGPU *g,

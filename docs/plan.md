@@ -1371,6 +1371,22 @@ Plymouth's screen was not seen there either (OPEN: whether Plymouth draws throug
   Mac (virglrenderer's native-OpenGL patch – contexts, `copy_transfer3d` into texture 3553); else step 3 with a
   heuristic end (the loading image until the guest flips between buffers of its own).
 
+  *Cause found (2026-10-28, QEMU with virtio-gpu trace and a texture read-back):* the early frames are 2D resources
+  (`RESOURCE_CREATE_2D`, B8G8R8X8). `virgl_cmd_transfer_to_host_2d` uploads them with `glTexSubImage2D` in virgl's
+  context 0, and nothing flushes that context; the window samples the texture from its own context of the same CGL
+  share group, and CGL shows a shared object's new contents to another context only after the writer flushed – so it
+  sees the texture as created, black. 3D clients (Hyprland) flush context 0 with their submissions. With `gl=es`
+  (ANGLE's EGL) the firmware showed even before. Fix: patch `qemu-virgl-2d-flush` (p5,
+  `virgl_renderer_force_ctx_0(); glFlush();` after each 2D transfer) – with it, in the same run as above, the
+  TianoCore logo with "Start boot option" (4.7 s), systemd-boot's menu and the console show; Hyprland as before.
+  Plymouth still drew nothing: no buffer of its own in the trace. Its cause: plymouthd forces text ("details") as
+  soon as `/sys/class/tty/console/active` lists a serial console (`ply-device-manager.c`,
+  `create_devices_from_terminals`) – ours (PL011 from ACPI SPCR, the serial log) is. The guest module now passes
+  `plymouth.ignore-serial-consoles` with the splash. *Tried (2026-10-28, QEMU `#qemu` with p5, a new image of
+  research-walx from the checkout, frames every 0.8 s):* black until 1.5 s (QEMU's start), the TianoCore logo with its
+  progress bar until 6 s, about 1.5 s black (kernel), Plymouth's spinner with omaflake's mark from 8 s, Hyprland at
+  13 s (before: about 20 s of black). So step 3 (a loading image in QEMU) is set aside.
+
 **B129 (2026-10-24): clipboard on a GNOME host.** Mutter has no data-control protocol: `wl-paste --watch` ends at once.
 `Wayland::start` now treats an end within 500 ms as refused, and `detect` falls back to xclip through Xwayland, which
 Mutter keeps in sync (`X11::through_xwayland`, Mutter's `.mutter-Xwaylandauth.*` cookie when XAUTHORITY is unset; its
