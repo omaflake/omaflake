@@ -18,6 +18,9 @@ use crate::style::{self, icon_size, spacing, text_size};
 use crate::text::{s, show, tr};
 use crate::widgets::{self, action_icon, count_badge, El};
 
+/// The sidebar's width (`MainView.sidebarWidth`)
+pub const SIDEBAR_WIDTH: f32 = 180.0;
+
 /// The glow from the corners, like the hero mark's RGB split (`BrandStyle.background`): iced draws no radial
 /// gradients, so it is an image of the window's size
 pub fn glow_image(size: Size) -> image::Handle {
@@ -49,6 +52,7 @@ pub fn glow_image(size: Size) -> image::Handle {
 
 impl App {
     pub fn view(&self, _: window::Id) -> El<'_> {
+        widgets::set_help(self.home_model().and_then(|h| h.help.on).unwrap_or(false));
         let content: El<'_> = match self.current() {
             Some(page) => self.page_frame(&page),
             None => self.home(),
@@ -84,43 +88,39 @@ impl App {
 
     fn home(&self) -> El<'_> {
         let header = self.header();
-        let tabs = self.tab_bar();
         let list: El<'_> = match self.model(&self.tab_page()) {
             Some(m) => pages::list(self, &self.tab, m),
             None => pages::waiting(self.status.as_deref()),
         };
-        let mut body = column![
-            container(header).padding(Padding {
-                top: style::spacing::MARGIN,
-                right: style::spacing::MARGIN,
-                bottom: spacing::XL,
-                left: style::spacing::MARGIN
-            }),
-            container(tabs).padding(Padding {
-                top: 0.0,
-                right: style::spacing::MARGIN,
-                bottom: spacing::XXL,
-                left: style::spacing::MARGIN
-            }),
-        ];
+        let mut main = column![];
         if let (Some(status), true) = (&self.status, self.core.is_some()) {
-            body = body.push(container(widgets::secondary(status.clone()).color(style::WARNING)).padding(Padding {
+            main = main.push(container(widgets::secondary(status.clone()).color(style::WARNING)).padding(Padding {
                 top: 0.0,
                 right: style::spacing::MARGIN,
                 bottom: spacing::L,
                 left: style::spacing::MARGIN,
             }));
         }
-        body.push(
+        let main = main.push(
             scrollable(container(list).padding(Padding {
-                top: 0.0,
+                top: spacing::S,
                 right: style::spacing::MARGIN,
                 bottom: 60.0,
                 left: style::spacing::MARGIN,
             }))
             .height(Length::Fill)
             .style(style::scroller),
-        )
+        );
+        // The groups with their tabs in a sidebar, the open tab next to it (plan B147, B148), as in the Mac's window
+        column![
+            container(header).padding(Padding {
+                top: style::spacing::MARGIN,
+                right: style::spacing::MARGIN,
+                bottom: spacing::XL,
+                left: style::spacing::MARGIN
+            }),
+            row![self.sidebar(), widgets::vertical_divider(), main].height(Length::Fill),
+        ]
         .into()
     }
 
@@ -133,6 +133,7 @@ impl App {
         .height(18);
         let mut r = row![glyph, wordmark(), space::horizontal()].spacing(spacing::L).align_y(Alignment::Center);
         if let Some(h) = self.home_model() {
+            r = r.push(self.help_switch(&h.help));
             for a in &h.actions {
                 r = r.push(action_icon(a, self.pulse));
             }
@@ -140,65 +141,72 @@ impl App {
         r.into()
     }
 
-    /// The tabs with what needs attention (running VMs, a build, a changed recipe, new activity)
-    fn tab_bar(&self) -> El<'_> {
+    /// The help switch (plan B148): off by default; on, every page shows its explanations, each in a box of its own
+    fn help_switch<'a>(&self, a: &'a omaflake_core::api::views::common::Action) -> El<'a> {
+        let on = a.on.unwrap_or(false);
+        let fg = if on { style::CYAN } else { style::SECONDARY };
+        let label = row![
+            icon("help", text_size::CALLOUT, fg),
+            text(s(&a.label)).size(text_size::CALLOUT).font(if on { style::semibold() } else { style::UI }).color(fg),
+        ]
+        .spacing(spacing::S)
+        .align_y(Alignment::Center);
+        widgets::tip(
+            button(container(label).height(26).align_y(Alignment::Center))
+                .padding([0.0, spacing::L])
+                .style(style::tab(on))
+                .on_press(Message::Run(Box::new(a.clone()), None)),
+            a.help.as_ref().map(s).unwrap_or_default(),
+        )
+    }
+
+    /// The groups and their tabs with what needs attention (running VMs, a build, a changed recipe, new activity)
+    fn sidebar(&self) -> El<'_> {
         let Some(h) = self.home_model() else {
-            return container(space()).height(32).width(Length::Fill).style(style::tab_bar).into();
+            return container(space()).width(SIDEBAR_WIDTH).into();
         };
-        // The groups first (plan B147): a click opens the group's first tab; then the open group's tabs
-        let group = h.tabs.iter().find(|t| t.id == self.tab).map(|t| t.group.clone()).unwrap_or_else(|| "run".into());
-        let mut r = row![].spacing(spacing::S);
+        let mut c = column![].spacing(spacing::XXL);
         for g in &h.groups {
-            let selected = g.id == group;
-            let first = h.tabs.iter().find(|t| t.group == g.id).map(|t| t.id.clone()).unwrap_or_default();
-            let mut label = row![text(s(&g.title))
-                .size(text_size::CAPTION)
-                .font(if selected { style::semibold() } else { style::UI })
-                .color(if selected { style::CYAN } else { style::SECONDARY })]
-            .spacing(spacing::XS)
-            .align_y(Alignment::Center);
-            if g.attention && !selected {
-                label = label.push(dot(style::WARNING));
+            let mut items = column![text(s(&g.title).to_uppercase())
+                .size(text_size::CAPTION2)
+                .font(style::semibold())
+                .color(style::tertiary())]
+            .spacing(spacing::XS);
+            for t in h.tabs.iter().filter(|t| t.group == g.id) {
+                let selected = t.id == self.tab;
+                let fg = if selected { style::CYAN } else { style::TEXT };
+                let mut label = row![
+                    container(icon(&t.icon, icon_size::TAB + 1.0, fg)).width(18).align_x(Alignment::Center),
+                    text(s(&t.label))
+                        .size(text_size::CALLOUT)
+                        .font(if selected { style::semibold() } else { style::UI })
+                        .color(fg)
+                        .width(Length::Fill),
+                ]
+                .spacing(spacing::L)
+                .align_y(Alignment::Center);
+                if let Some(b) = &t.badge {
+                    let badge: El<'_> = match b.kind.as_str() {
+                        "count" => count_badge(b.count.unwrap_or(0), style::tone(b.tone)),
+                        "working" => widgets::lamp_dot(LampState::Working, self.pulse),
+                        "failed" => icon("failed", text_size::CAPTION2 + 1.0, style::RED).into(),
+                        _ => dot(style::tone(b.tone)),
+                    };
+                    label = label.push(widgets::tip(badge, s(&b.help)));
+                } else if t.id == "activity" && self.tab != "activity" && self.unseen_activity() {
+                    label = label.push(widgets::tip(dot(style::CYAN), tr("New messages")));
+                }
+                items = items.push(
+                    button(container(label).height(30).align_y(Alignment::Center))
+                        .width(Length::Fill)
+                        .padding([0.0, spacing::L])
+                        .style(style::tab(selected))
+                        .on_press(Message::Tab(t.id.clone())),
+                );
             }
-            r = r.push(
-                button(container(label).height(26).align_y(Alignment::Center))
-                    .padding([0.0, spacing::M])
-                    .style(style::tab(false))
-                    .on_press(Message::Tab(first)),
-            );
+            c = c.push(items);
         }
-        for t in h.tabs.iter().filter(|t| t.group == group) {
-            let selected = t.id == self.tab;
-            let fg = if selected { style::TEXT } else { style::SECONDARY };
-            let mut label = row![
-                icon(&t.icon, icon_size::TAB + 1.0, fg),
-                text(s(&t.label))
-                    .size(text_size::CALLOUT)
-                    .font(if selected { style::semibold() } else { style::UI })
-                    .color(fg),
-            ]
-            .spacing(5)
-            .align_y(Alignment::Center);
-            if let Some(b) = &t.badge {
-                let badge: El<'_> = match b.kind.as_str() {
-                    "count" => count_badge(b.count.unwrap_or(0), style::tone(b.tone)),
-                    "working" => widgets::lamp_dot(LampState::Working, self.pulse),
-                    "failed" => icon("failed", text_size::CAPTION2 + 1.0, style::RED).into(),
-                    _ => dot(style::tone(b.tone)),
-                };
-                label = label.push(widgets::tip(badge, s(&b.help)));
-            } else if t.id == "activity" && self.tab != "activity" && self.unseen_activity() {
-                label = label.push(widgets::tip(dot(style::CYAN), tr("New messages")));
-            }
-            r = r.push(
-                button(container(label).center_x(Length::Fill).height(26).align_y(Alignment::Center))
-                    .width(Length::Fill)
-                    .padding(0)
-                    .style(style::tab(selected))
-                    .on_press(Message::Tab(t.id.clone())),
-            );
-        }
-        container(r).padding(spacing::XS).width(Length::Fill).style(style::tab_bar).into()
+        scrollable(container(c).padding(spacing::L).width(SIDEBAR_WIDTH)).height(Length::Fill).into()
     }
 
     pub fn unseen_activity(&self) -> bool {

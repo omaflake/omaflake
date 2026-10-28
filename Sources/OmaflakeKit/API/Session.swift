@@ -88,6 +88,8 @@ public struct CoreSettings: Decodable, Sendable, Equatable {
     public var checkForUpdates = true
     public var notifications = true
     public var keepRecipeVersions = false
+    /// The help switch (plan B148): explanations shown
+    public var help = false
     /// This computer's keyboard (plan B141): preset for new locales; nil = as the system says
     public var hostKeyboard: String?
     /// The defaults new images get (plan B137, B141)
@@ -106,7 +108,7 @@ public struct CoreSettings: Decodable, Sendable, Equatable {
     public init() {}
 
     enum CodingKeys: String, CodingKey {
-        case developerMode, checkForUpdates, notifications, keepRecipeVersions, hostKeyboard, defaultCredential, defaultLook
+        case developerMode, checkForUpdates, notifications, keepRecipeVersions, help, hostKeyboard, defaultCredential, defaultLook
         case defaultLocale, flake, qemu, nix, runner, flakeInUse
         case dataFolder
     }
@@ -117,6 +119,7 @@ public struct CoreSettings: Decodable, Sendable, Equatable {
         checkForUpdates = try c.decode(Bool.self, forKey: .checkForUpdates)
         notifications = try c.decode(Bool.self, forKey: .notifications)
         keepRecipeVersions = try c.decode(Bool.self, forKey: .keepRecipeVersions)
+        help = try c.decodeIfPresent(Bool.self, forKey: .help) ?? false
         hostKeyboard = try c.decodeIfPresent(String.self, forKey: .hostKeyboard)
         defaultCredential = try c.decodeIfPresent(String.self, forKey: .defaultCredential)
         defaultLook = try c.decodeIfPresent(String.self, forKey: .defaultLook)

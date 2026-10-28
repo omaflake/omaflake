@@ -27,6 +27,8 @@ pub struct Ctx<'a> {
     pub now: DateTime<Utc>,
     /// Counts up a few times a second: spinners
     pub tick: u64,
+    /// The help switch (plan B148): explanations are shown only while it is on
+    pub help: bool,
 }
 
 /// One entry of the page: what it shows and what can be done with it
@@ -202,15 +204,28 @@ fn info_line(ctx: &Ctx, info: &Value, indent: usize) -> Line<'static> {
     Line::from(spans)
 }
 
-/// A hint: an empty list, a filter that leaves nothing, a file that cannot be read; with its action selectable
+/// A hint: an empty list, a filter that leaves nothing, a file that cannot be read; with its action selectable. One
+/// marked help (plan B148) only while the help switch is on, after a "?"; the keys it names as caps after its text.
 fn hint(ctx: &Ctx, key: String, h: &Value) -> Item {
+    let help = b(h, "help");
+    if help && !ctx.help {
+        return Item { key, ..Item::default() };
+    }
     let style = ctx.theme.tone(match tone_of(h) {
         Tone::Normal => Tone::Normal,
         tone => tone,
     });
     let mut spans = vec![Span::raw("  ")];
-    spans.extend(icon(ctx, s(h, "icon"), style));
-    spans.push(Span::styled(t(&h["text"]), style));
+    if help {
+        spans.push(Span::styled("? ", ctx.theme.accent()));
+    } else {
+        spans.extend(icon(ctx, s(h, "icon"), style));
+    }
+    spans.push(Span::styled(t(&h["text"]), if help { ctx.theme.secondary() } else { style }));
+    let keys: Vec<String> = arr(h, "keys").iter().map(caps).collect();
+    if !keys.is_empty() {
+        spans.push(Span::styled(format!("  {}", keys.join(&format!(" {} ", tr("or")))), ctx.theme.key()));
+    }
     match h.get("action") {
         Some(a) if a.is_object() => {
             spans.push(Span::raw("  "));
@@ -219,6 +234,21 @@ fn hint(ctx: &Ctx, key: String, h: &Value) -> Item {
         }
         _ => Item::line(key, Line::from(spans)),
     }
+}
+
+/// An explanation (plan B148): a page's intro or footer, a field's help – a line of its own after a "?", only while the
+/// help switch is on
+fn help_item(ctx: &Ctx, text: String, indent: usize) -> Option<Item> {
+    (ctx.help && !text.is_empty()).then(|| {
+        Item::line(
+            "",
+            Line::from(vec![
+                Span::raw(" ".repeat(indent)),
+                Span::styled("? ", ctx.theme.accent()),
+                Span::styled(text, ctx.theme.secondary()),
+            ]),
+        )
+    })
 }
 
 fn heading(ctx: &Ctx, text: String) -> Item {
@@ -598,7 +628,7 @@ fn images(ctx: &Ctx, model: &Value, p: &mut Page) {
                 }
             }
         }
-        p.items.push(Item::line("", secondary_line(ctx, t(&bases["footer"]), 2)));
+        p.items.extend(help_item(ctx, t(&bases["footer"]), 2));
     }
 }
 
@@ -683,14 +713,16 @@ fn activity(ctx: &Ctx, model: &Value, p: &mut Page) {
     empty_and_unreadable(ctx, model, p);
 }
 
-/// One key as caps: "⌃+g", a sequence with spaces ("␣ f f")
+/// One key as caps (plan B148): each cap in brackets – "[Ctrl] [g]" – chords a little apart, never "+"
 fn caps(key: &Value) -> String {
     let list = |v: &Value| v.as_array().cloned().unwrap_or_default();
     list(key)
         .iter()
-        .map(|chord| list(chord).iter().filter_map(Value::as_str).collect::<Vec<_>>().join("+"))
+        .map(|chord| {
+            list(chord).iter().filter_map(Value::as_str).map(|c| format!("[{c}]")).collect::<Vec<_>>().join(" ")
+        })
         .collect::<Vec<_>>()
-        .join(" ")
+        .join("  ")
 }
 
 /// A recipe's keys (plan B147): a heading per module, per mode its way there, a row per key with where it leads;
@@ -699,7 +731,7 @@ fn keys(ctx: &Ctx, model: &Value, p: &mut Page) {
     let th = ctx.theme;
     p.title = t(&model["title"]);
     p.items.push(Item::line("", secondary_line(ctx, t(&model["subtitle"]), 1)));
-    p.items.push(Item::line("", secondary_line(ctx, t(&model["intro"]), 1)));
+    p.items.extend(help_item(ctx, t(&model["intro"]), 1));
     for (i, n) in arr(model, "notes").iter().enumerate() {
         p.items.push(hint(ctx, format!("note:{i}"), n));
     }
@@ -721,7 +753,7 @@ fn keys(ctx: &Ctx, model: &Value, p: &mut Page) {
                 let keys: Vec<String> = arr(r, "caps").iter().map(caps).collect();
                 let mut line = vec![
                     Span::raw("    "),
-                    Span::styled(format!("{:<16}", keys.join(" / ")), th.key()),
+                    Span::styled(format!("{:<20}", keys.join(&format!(" {} ", tr("or")))), th.key()),
                     Span::raw(" "),
                     Span::styled(
                         t(&r["title"]),
@@ -869,7 +901,7 @@ fn doctor(ctx: &Ctx, model: &Value, p: &mut Page) {
         p.items.push(Item::row("doctor:update".into(), vec![Line::from(spans)], actions));
     }
     p.items.push(Item::blank());
-    p.items.push(Item::line("", secondary_line(ctx, t(&model["intro"]), 2)));
+    p.items.extend(help_item(ctx, t(&model["intro"]), 2));
     let mut checked = vec![Span::raw("  ")];
     if b(model, "checking") {
         checked.push(Span::styled(format!("{} ", spinner(ctx.tick)), th.accent()));
@@ -942,7 +974,7 @@ fn doctor(ctx: &Ctx, model: &Value, p: &mut Page) {
 fn mac_base(ctx: &Ctx, model: &Value, p: &mut Page) {
     let th = ctx.theme;
     p.tools = arr(model, "actions").to_vec();
-    p.items.push(Item::line("", secondary_line(ctx, t(&model["intro"]), 2)));
+    p.items.extend(help_item(ctx, t(&model["intro"]), 2));
     if let Some(h) = model.get("base") {
         p.items.push(hint(ctx, "macBase:base".into(), h));
     }
@@ -1048,14 +1080,14 @@ fn looks(ctx: &Ctx, model: &Value, p: &mut Page) {
     for (i, h) in arr(model, "unreadable").iter().enumerate() {
         p.items.push(hint(ctx, format!("unreadable-look:{i}"), h));
     }
-    if let Some(f) = model.get("footer") {
+    if let (Some(f), true) = (model.get("footer"), ctx.help) {
         p.items.push(Item::blank());
-        p.items.push(Item::line("", secondary_line(ctx, t(f), 2)));
+        p.items.extend(help_item(ctx, t(f), 2));
     }
 }
 
 fn credentials(ctx: &Ctx, model: &Value, p: &mut Page) {
-    p.items.push(Item::line("", secondary_line(ctx, t(&model["intro"]), 2)));
+    p.items.extend(help_item(ctx, t(&model["intro"]), 2));
     p.items.push(Item::blank());
     for row in arr(model, "rows") {
         list_row(ctx, "credential", row, &mut p.items);
@@ -1064,13 +1096,13 @@ fn credentials(ctx: &Ctx, model: &Value, p: &mut Page) {
         p.items.push(bar);
     }
     if let Some(f) = model.get("footer") {
-        p.items.push(Item::line("", secondary_line(ctx, t(f), 2)));
+        p.items.extend(help_item(ctx, t(f), 2));
     }
 }
 
 /// One credential's form (plan B137): what it is for, why only the name can change, the fields, Cancel and Save
 fn credential(ctx: &Ctx, page: &str, model: &Value, p: &mut Page) {
-    p.items.push(Item::line("", secondary_line(ctx, t(&model["intro"]), 2)));
+    p.items.extend(help_item(ctx, t(&model["intro"]), 2));
     if let Some(l) = model.get("locked") {
         p.items.push(Item::line("", toned_line(ctx, t(l), Tone::Warning, 2)));
     }
@@ -1097,7 +1129,7 @@ fn studio(ctx: &Ctx, model: &Value, p: &mut Page) {
         let lines = vec![Line::from(head), secondary_line(ctx, t(&m["subtitle"]), 4)];
         Item::row(format!("{at}:{}", s(m, "reference")), lines, vec![m["action"].clone()])
     };
-    p.items.push(Item::line("", secondary_line(ctx, t(&model["intro"]), 2)));
+    p.items.extend(help_item(ctx, t(&model["intro"]), 2));
     p.items.push(heading(ctx, format!(" {}", t(&model["titles"]["about"]))));
     for f in arr(model, "about") {
         p.items.push(field(ctx, page, f));
@@ -1153,7 +1185,7 @@ fn studio(ctx: &Ctx, model: &Value, p: &mut Page) {
 fn keymap_studio(ctx: &Ctx, model: &Value, p: &mut Page) {
     let th = ctx.theme;
     let page = "keymapStudio";
-    p.items.push(Item::line("", secondary_line(ctx, t(&model["intro"]), 2)));
+    p.items.extend(help_item(ctx, t(&model["intro"]), 2));
     for f in arr(model, "about") {
         p.items.push(field(ctx, page, f));
     }
@@ -1215,7 +1247,7 @@ fn sources(ctx: &Ctx, model: &Value, p: &mut Page) {
         }
     }
     if let Some(f) = src.get("footer") {
-        p.items.push(Item::line("", secondary_line(ctx, t(f), 2)));
+        p.items.extend(help_item(ctx, t(f), 2));
     }
 }
 
@@ -1232,7 +1264,7 @@ fn settings(ctx: &Ctx, model: &Value, p: &mut Page) {
             p.items.push(field(ctx, id, f));
         }
         if let Some(f) = sec.get("footer") {
-            p.items.push(Item::line("", secondary_line(ctx, t(f), 2)));
+            p.items.extend(help_item(ctx, t(f), 2));
         }
     }
     let df = &model["dataFolder"];

@@ -110,6 +110,22 @@ public struct Hint: Decodable, Sendable, Equatable {
     public var text: ViewText
     public var tone: Tone
     public var action: ViewAction?
+    /// Only explains (plan B148): drawn while the help switch is on, in a box of its own
+    public var help: Bool
+    /// The keys it speaks of, as caps after its text: each key's chords, each a list of caps
+    public var keys: [[[String]]]
+
+    enum CodingKeys: String, CodingKey { case icon, text, tone, action, help, keys }
+
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        icon = try c.decode(String.self, forKey: .icon)
+        text = try c.decode(ViewText.self, forKey: .text)
+        tone = try c.decode(Tone.self, forKey: .tone)
+        action = try c.decodeIfPresent(ViewAction.self, forKey: .action)
+        help = try c.decodeIfPresent(Bool.self, forKey: .help) ?? false
+        keys = try c.decodeIfPresent([[[String]]].self, forKey: .keys) ?? []
+    }
 }
 
 public struct Confirm: Decodable, Sendable, Equatable {
@@ -370,6 +386,8 @@ public struct HomePage: Decodable, Sendable, Equatable {
     public var tabs: [Tab]
     public var groups: [TabGroup]
     public var firstTab: String
+    /// The help switch (plan B148; `on`: explanations shown)
+    public var help: ViewAction
 }
 
 public struct VmsPage: Decodable, Sendable, Equatable {

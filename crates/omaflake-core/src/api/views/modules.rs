@@ -51,8 +51,8 @@ fn info(p: &PartDto) -> Vec<InfoLine> {
         info.push(InfoLine::new("Works with", Text::verbatim(p.enhances.join(", "))));
     }
     if !p.keys.is_empty() {
-        let keys: Vec<String> = p.keys.iter().map(|(a, k)| format!("{a}: {k}")).collect();
-        info.push(InfoLine::new("Keys", Text::verbatim(keys.join(" · "))).full(keys.join("\n")));
+        // The keys themselves as caps in the keys window (`keys_action`), not as text here (plan B148)
+        info.push(InfoLine::new("Keys", tf!("%lld keys", p.keys.len())));
     }
     info.push(InfoLine::new("Source", Text::verbatim(&p.source_name)));
     info
@@ -97,6 +97,20 @@ fn row(p: &PartDto) -> LookRow {
     if used > 0 {
         remove = remove.help(tf!("Used by %@", p.recipes.join(", ")));
     }
+    // A module's keys in the keys window, as caps by mode (plan B148)
+    if p.kind == "module" && !p.keys.is_empty() {
+        let platform = if p.platform == Some(GuestKind::Macos) { "macos" } else { "nixos" };
+        actions.insert(
+            0,
+            Action::show(
+                "keys",
+                Text::new("Keys …"),
+                Some("keyboard"),
+                "keys",
+                json!({"module": p.reference, "platform": platform}),
+            ),
+        );
+    }
     // A key binding set opens in the key binding studio: one of yours is edited, any other copied (plan B147)
     if p.kind == "keymap" {
         let mine = p.id.starts_with(&format!("{}.keymap.", crate::my_recipes::MyRecipes::AUTHOR));
@@ -128,8 +142,8 @@ fn row(p: &PartDto) -> LookRow {
         subtitle: Text::joined(vec![Text::verbatim(&p.reference), Text::verbatim(&p.version), what(p), usage]),
         badges: badges(p),
         swatches: None,
-        // The quick buttons: open in the key binding studio, update
-        actions: actions.iter().filter(|a| a.id == "studio" || a.id == "update").cloned().collect(),
+        // The quick buttons: its keys, open in the key binding studio, update
+        actions: actions.iter().filter(|a| ["keys", "studio", "update"].contains(&a.id.as_str())).cloned().collect(),
         detail: LookDetail { info: lines, actions },
     }
 }

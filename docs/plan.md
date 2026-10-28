@@ -1161,6 +1161,33 @@ UIs: SwiftUI `SourcesView` (out of `SettingsView`), iced `sources`, `omaf ui` `s
 the recipes' and looks' views. **Checked:** `cargo test`, `swift test` (goldens `recipeCatalog`, `keymaps`, `sources`,
 `recipes.loading` now from the catalog). **OPEN:** clicked in the apps.
 
+**B148 (2026-10-28): rethinking the UI, by the maintainer after trying the four groups.** The recipe studio still
+scrolls through the whole catalog; keys are typed ("Ctrl+g") and changed inline; `⌃g` reads as "^g"; every page's
+explanations are always there, some inside the list's box; the menu bar window's groups were small grey text above a
+second bar. Decided (all as recommended): the menu bar window shows only Run; caps named as the host's keyboard; search
+with suggestions, tag chips and five results a page in the studios **and** the catalog tabs; order: basics → recipe
+studio → key binding studio with an editing sheet, then recording. The design: the maintainer's notes outside the
+repository.
+
+**B148, step 1 (2026-10-28): caps, the help switch, the menu bar window.**
+- **Caps:** `keys::caps` names a modifier as the host's keyboard does – Ctrl, Opt, Shift, Cmd on a Mac (a guest's Super
+  is ⌘), Ctrl, Alt, Shift, Super elsewhere; Enter, Esc, PgUp, PgDn; no symbols for modifiers, no "+" between caps. The
+  UIs draw each cap as a box of its own (SwiftUI `KeyCaps`/`KeyAlternatives`, iced `widgets::key_caps`, `omaf ui`
+  `[Ctrl] [g]`), alternatives joined by "or". Hints name keys as caps (`Hint.keys`) instead of text in the sentence
+  (overlaps, the key rule). The modules tab says how many keys a module has and opens them in the keys window
+  (`keys` params `module` + `platform`).
+- **Help switch:** config.json v6 `help` (off when left out), `settings.set {help}`, `SettingsDto.help`; the home page's
+  `help` is the switch (an action with `on`). Help is a page's `intro` and `footer`, a field's `help`, a hint with
+  `help: true` (`Hint::help`: the build note of the keys window, the lab hint, the studio's catalog note); warnings,
+  errors and what is missing never are. The UIs draw help only while it is on, each in a box of its own outside the
+  list's box (SwiftUI `HelpNote`, iced `widgets::help_note`, `omaf ui` a "?" line).
+- **Menu bar window:** only the Run group's tabs (`AppModel.menuTab`, apart from the window's tab), large, as one
+  segmented switch with a hover fill; below the list "Workshop, Catalog and Profiles …" opens the app window. The
+  help switch is in the header of both. The Linux app has the sidebar of the Mac's window now (window 780 × 680, at
+  least 680 wide); `omaf ui` lists the switch with the header's actions (letter H).
+- **Checked:** `cargo test`, `swift test` (goldens: caps, `help`), clippy. **OPEN:** clicked in the apps; the TUI's
+  switch shows no on/off of its own.
+
 **B129 (2026-10-24): clipboard on a GNOME host.** Mutter has no data-control protocol: `wl-paste --watch` ends at once.
 `Wayland::start` now treats an end within 500 ms as refused, and `detect` falls back to xclip through Xwayland, which
 Mutter keeps in sync (`X11::through_xwayland`, Mutter's `.mutter-Xwaylandauth.*` cookie when XAUTHORITY is unset; its

@@ -199,20 +199,21 @@ pub(crate) fn page(ctx: &Ctx, p: &KeymapStudioParams) -> KeymapStudioPage {
         match i {
             Issue::KeysOverlap { first, second } => {
                 for (a, b) in [(first, second), (second, first)] {
-                    conflicts
-                        .insert((a.module.clone(), a.action.clone()), tf!("Overlaps %@ (%@)", &b.title, b.key_text()));
+                    conflicts.insert((a.module.clone(), a.action.clone()), tf!("Overlaps %@", &b.title));
                 }
-                hints.push(Hint::new(
-                    "warning",
-                    tf!("Keys overlap: %@ and %@ (%@)", &first.title, &second.title, first.key_text()),
-                    Tone::Warning,
-                ));
+                hints.push(
+                    Hint::new("warning", tf!("Keys overlap: %@ and %@", &first.title, &second.title), Tone::Warning)
+                        .keys(super::keys::key_caps(&first.keys, ctx.host)),
+                );
             }
-            Issue::KeyRule { binding } => hints.push(Hint::new(
-                "warning",
-                tf!("%@ (%@): without a mode a key starts with Super or Ctrl", &binding.title, binding.key_text()),
-                Tone::Warning,
-            )),
+            Issue::KeyRule { binding } => hints.push(
+                Hint::new(
+                    "warning",
+                    tf!("%@: without a mode a key starts with Super or Ctrl", &binding.title),
+                    Tone::Warning,
+                )
+                .keys(super::keys::key_caps(&binding.keys, ctx.host)),
+            ),
             _ => {}
         }
     }

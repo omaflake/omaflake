@@ -175,6 +175,7 @@ pub(crate) fn settings_answer() -> SettingsAnswer {
             check_for_updates: true,
             notifications: false,
             keep_recipe_versions: false,
+            help: false,
             default_credential: Some("c-1".into()),
             default_look: Some("omaflake.look.rose-pine-dawn".into()),
             host_keyboard: Some("ch".into()),

@@ -191,11 +191,6 @@ pub fn notice(color: Color) -> impl Fn(&Theme) -> container::Style {
     }
 }
 
-/// The tab bar's box
-pub fn tab_bar(t: &Theme) -> container::Style {
-    card(t)
-}
-
 /// A small capsule with a count (`CountBadge`)
 pub fn count_badge(color: Color) -> impl Fn(&Theme) -> container::Style {
     move |_| container::Style {

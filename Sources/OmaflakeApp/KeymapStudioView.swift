@@ -13,9 +13,9 @@ struct KeymapStudioView: View {
 
     var body: some View {
         Form {
+            // The explanation in a box of its own above the form, with the help switch on (plan B148)
+            if model.helpOn { Section { HelpNote(page.intro, model: model) }.listRowBackground(Color.clear) }
             Section {
-                Text(verbatim: model.t(page.intro)).font(.caption).foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
                 ForEach(page.about) { FormField(field: $0, page: ref.page, model: model) }
             }
             Section {

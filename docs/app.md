@@ -93,8 +93,9 @@ while omaflake is not in front (menu window closed, app window hidden or in the 
   Activity –, the **Workshop** – Build Images (the recipes here, built into images), Recipe Studio, Key Binding
   Studio –, the **Catalog** – Recipes (what the sources offer), Modules, Looks, Key Bindings, Sources (before in the
   Settings) – and **Profiles** – Credentials, Locales, Performance (CPU cores and RAM of new VMs). The app window has a
-  sidebar with the groups; the menu bar window, narrower, switches the group above the tab bar (a dot at a group when
-  a tab of it needs attention). Each tab is one list that scrolls on its own (plan B91);
+  sidebar with the groups; the menu bar window shows only Run, as three large tabs, with "Workshop, Catalog and
+  Profiles …" below opening the app window (plan B148). A **Help** switch in the header (off by default) shows the
+  pages' explanations, each in a box of its own. Each tab is one list that scrolls on its own (plan B91);
   the app remembers the last tab, the very first time (no VM yet) it opens on Recipes:
   - **VMs** (badge: running VMs); a VM is created from an image row (plan B100)
   - **Images** (Vorlagen; badge: spinner while a build runs, red ✕ after a failed one): every built image on its own

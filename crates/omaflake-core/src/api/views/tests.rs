@@ -482,7 +482,8 @@ fn recipe_rows_by_line_with_offers_and_updates() {
     let info: Vec<&str> = d["info"].as_array().unwrap().iter().filter_map(|l| l["label"]["key"].as_str()).collect();
     assert!(info.contains(&"Modules") && info.contains(&"Look") && info.contains(&"Key bindings"), "{info:?}");
     assert_eq!(d["notes"][0]["action"]["method"], "recipes.installParts");
-    assert_eq!(d["notes"][1]["text"]["key"], "%@ (%@, %@): without a mode a key starts with Super or Ctrl");
+    assert_eq!(d["notes"][1]["text"]["key"], "%@ (%@): without a mode a key starts with Super or Ctrl");
+    assert_eq!(d["notes"][1]["keys"], json!([[["t"]]]), "the key as caps after the text (plan B148)");
     assert!(d.get("keys").is_none(), "the keys page has them (plan B147)");
     assert_eq!(dev["lamp"]["state"], "working");
     assert_eq!(action(&d["actions"], "removeAll")["enabled"], true, "the older version has no image");
@@ -722,14 +723,14 @@ fn keys_page_by_module_and_mode() {
     let hyprland = &page["modules"][0]["groups"][0];
     assert_eq!(hyprland["title"]["key"], "Anywhere on the desktop");
     let terminal = hyprland["rows"].as_array().unwrap().iter().find(|r| r["action"] == "terminal").unwrap();
-    assert_eq!(terminal["caps"][0], json!([["⌘", "↩"]]), "Super is ⌘ on a Mac");
+    assert_eq!(terminal["caps"][0], json!([["Cmd", "Enter"]]), "Super is Cmd on a Mac");
     let groups = page["modules"][1]["groups"].as_array().unwrap();
     let titles: Vec<&str> = groups.iter().map(|g| g["title"]["text"].as_str().unwrap()).collect();
     assert_eq!(titles, ["Gesperrt", "Unlocked", "Pane"], "the start mode first, then as they are reached");
     assert_eq!(groups[0]["start"], true);
     // Pane: Ctrl+g › p
     let way: Vec<&Value> = groups[2]["way"].as_array().unwrap().iter().map(|s| &s["caps"]).collect();
-    assert_eq!(way, [&json!([["⌃", "g"]]), &json!([["p"]])]);
+    assert_eq!(way, [&json!([["Ctrl", "g"]]), &json!([["p"]])]);
     assert_eq!(groups[2]["way"][1]["mode"]["text"], "Pane");
     let rows = groups[2]["rows"].as_array().unwrap();
     let new_pane = rows.iter().find(|r| r["action"] == "new-pane").unwrap();
@@ -824,7 +825,7 @@ own = true
     let groups = page["groups"].as_array().unwrap();
     let titles: Vec<&str> = groups.iter().map(|g| g["title"]["text"].as_str().unwrap()).collect();
     assert_eq!(titles, ["In every mode", "Gesperrt", "Pane"]);
-    assert_eq!(groups[2]["way"], json!([[["⌃", "a"]]]), "the way to Pane with the set's key");
+    assert_eq!(groups[2]["way"], json!([[["Ctrl", "a"]]]), "the way to Pane with the set's key");
     let row = |groups: &Value, action: &str| -> Value {
         groups
             .as_array()
@@ -846,8 +847,8 @@ own = true
     let values = json!({"name": "mine", "after:alice/mux:new": "pane", "key:alice/mux:left": "n / Left"});
     let page = get(&c, "keymapStudio", json!({"id": "alice.keymap.base", "values": values}));
     let left = row(&page["groups"], "left");
-    assert_eq!(left["conflict"]["key"], "Overlaps %@ (%@)");
-    assert_eq!(page["hints"][0]["text"]["key"], "Keys overlap: %@ and %@ (%@)");
+    assert_eq!(left["conflict"]["key"], "Overlaps %@");
+    assert_eq!(page["hints"][0]["text"]["key"], "Keys overlap: %@ and %@");
     assert_eq!(left["reset"]["params"]["also"][0]["valueParam"], "after:alice/mux:left");
     let save = action(&page["actions"], "save");
     assert_eq!(
@@ -1168,6 +1169,22 @@ fn home_tabs_and_header() {
     assert_eq!(tab("recipes")["badge"]["kind"], "dot");
     assert!(tab("activity").get("badge").is_none(), "unseen activity is the UI's");
     assert_eq!(page["firstTab"], "vms");
+}
+
+/// The help switch (plan B148): off by default, the home page's action turns it on; a hint that only explains says so
+#[test]
+fn help_switch_on_the_home_page() {
+    let mut c = ctx();
+    let help = &get(&c, "home", json!({}))["help"];
+    assert_eq!((help["on"].as_bool(), help["method"].as_str()), (Some(false), Some("settings.set")));
+    assert_eq!(help["params"], json!({"help": true}));
+    c.settings.help = true;
+    let help = &get(&c, "home", json!({}))["help"];
+    assert_eq!((help["on"].as_bool(), &help["params"]), (Some(true), &json!({"help": false})));
+    let keys = get(&c, "keys", json!({"vm": "research"}));
+    assert_eq!(keys["notes"][0]["help"], true, "explains: drawn only with help on");
+    let warning = super::common::Hint::new("warning", Text::new("x"), super::common::Tone::Warning);
+    assert!(serde_json::to_value(warning).unwrap().get("help").is_none(), "a warning is never help");
 }
 
 #[test]
@@ -1758,7 +1775,11 @@ fn modules_tab_profiles_and_the_recipe_studio() {
         json!({"page": "keymapStudio", "params": {"id": "omaflake.keymap.default"}})
     );
     assert_eq!(rows[0]["subtitle"]["text"], "omaflake/hyprland · 1.0.0 · NixOS module · 1 recipe");
-    assert_eq!(ids(&rows[0]["actions"]), ["update"]);
+    assert_eq!(ids(&rows[0]["actions"]), ["keys", "update"], "its keys as caps in the keys window (plan B148)");
+    assert_eq!(
+        action(&rows[0]["actions"], "keys")["params"]["params"],
+        json!({"module": "omaflake/hyprland", "platform": "nixos"})
+    );
     let remove = action(&rows[0]["detail"]["actions"], "remove");
     assert_eq!(remove["confirm"]["text"]["key"], "Recipes made of it cannot be built until it is back: %@");
     let vscode = page["offered"].as_array().unwrap().iter().find(|o| o["name"] == "VS Code").unwrap();

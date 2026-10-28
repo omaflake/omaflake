@@ -380,8 +380,13 @@ fn settings_v4_to_v5(o: &mut Map<String, Value>) -> Result<()> {
     Ok(())
 }
 
-static SETTINGS_STEPS: [Step; 5] =
-    [settings_v0_to_v1, settings_v1_to_v2, settings_v2_to_v3, settings_v3_to_v4, settings_v4_to_v5];
+static SETTINGS_STEPS: [Step; 6] =
+    [settings_v0_to_v1, settings_v1_to_v2, settings_v2_to_v3, settings_v3_to_v4, settings_v4_to_v5, settings_v5_to_v6];
+
+/// Settings 5 → 6 (plan B148): the help switch `help` is new and off while left out – nothing to change
+fn settings_v5_to_v6(_o: &mut Map<String, Value>) -> Result<()> {
+    Ok(())
+}
 
 /// Settings in ~/.omaflake/config.json (optional). Keys as Swift writes them (`externalVMs`, `developerMode`, …);
 /// fields that are None are left out.
@@ -443,6 +448,10 @@ pub struct Settings {
     /// local folder); None = no. A version an image was built from is kept either way.
     #[serde(rename = "keepRecipeVersions", default, skip_serializing_if = "Option::is_none")]
     pub keep_recipe_versions: Option<bool>,
+    /// The apps' help switch (plan B148): explanations – intros, footers, a field's help, hints marked help – shown;
+    /// None = off
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub help: Option<bool>,
 }
 
 impl Settings {
@@ -628,11 +637,14 @@ pub(crate) mod tests {
         assert_eq!(Settings::load(&p), Settings::default());
     }
 
-    /// config.json as the Swift version wrote it, now v5 with a default look, a credential and a locale
-    /// (testdata/config-v5.json)
+    /// config.json as the Swift version wrote it, now v6 with a default look, a credential and a locale
+    /// (testdata/config-v6.json); the same as v5 is read as it is (5 → 6 adds only the help switch)
     #[test]
     fn swift_settings_fixture_round_trips() {
-        let data = include_bytes!("../testdata/config-v5.json");
+        let (v5, migrated) =
+            Settings::FILE_FORMAT.decode::<Settings>(include_bytes!("../testdata/config-v5.json")).unwrap();
+        assert!(migrated && v5.help.is_none());
+        let data = include_bytes!("../testdata/config-v6.json");
         let (s, migrated) = Settings::FILE_FORMAT.decode::<Settings>(data).unwrap();
         assert!(!migrated);
         assert_eq!(s.default_credential.as_deref(), Some("c-1"));
@@ -667,7 +679,7 @@ pub(crate) mod tests {
             assert_eq!((l.name.as_str(), l.time_zone.as_str()), ("Standard", "Europe/Berlin"));
             assert_eq!(s.default_locale.as_deref(), Some(l.id.as_str()));
             let written = String::from_utf8(Settings::FILE_FORMAT.encode(&s).unwrap()).unwrap();
-            assert!(written.starts_with("{\n  \"$schema\" : \"https://omaflake.dev/schema/settings/v5.json\""));
+            assert!(written.starts_with("{\n  \"$schema\" : \"https://omaflake.dev/schema/settings/v6.json\""));
             assert!(!written.contains("\"user\" : \"jane\",\n    \"look\""));
         }
         // 3 → 4 (plan B141): the guest look becomes the default look's id, omaflake/recipes becomes omaflake/catalog
@@ -699,7 +711,7 @@ pub(crate) mod tests {
         let s = Settings::load(&p);
         assert_eq!(s.flake.as_deref(), Some("/f"));
         let text = fs::read_to_string(&p.config_file).unwrap();
-        assert!(text.starts_with("{\n  \"$schema\" : \"https://omaflake.dev/schema/settings/v5.json\""));
+        assert!(text.starts_with("{\n  \"$schema\" : \"https://omaflake.dev/schema/settings/v6.json\""));
     }
 
     #[test]

@@ -114,11 +114,28 @@ pub struct Hint {
     pub tone: Tone,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub action: Option<Action>,
+    /// Only explains (plan B148): shown while the help switch is on, each in a box of its own. A warning, an error or
+    /// what is missing is never help.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub help: bool,
+    /// The keys it speaks of, as caps after its text (`keys::caps`: each key's chords, each a list of caps)
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub keys: Vec<Vec<Vec<String>>>,
 }
 
 impl Hint {
     pub fn new(icon: &str, text: Text, tone: Tone) -> Hint {
-        Hint { icon: icon.into(), text, tone, action: None }
+        Hint { icon: icon.into(), text, tone, action: None, help: false, keys: Vec::new() }
+    }
+
+    /// A hint that only explains, in the help's tone
+    pub fn help(icon: &str, text: Text) -> Hint {
+        Hint { help: true, ..Hint::new(icon, text, Tone::Normal) }
+    }
+
+    pub fn keys(mut self, keys: Vec<Vec<Vec<String>>>) -> Hint {
+        self.keys = keys;
+        self
     }
 
     pub fn action(mut self, a: Action) -> Hint {

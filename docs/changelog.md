@@ -22,7 +22,8 @@ are collected under *Unreleased*. Releases: [GitHub](https://github.com/omaflake
 - The tabs come in four groups: **Run** (VMs, images, activity), the **Workshop** (Build Images, Recipe Studio,
   Key Binding Studio), the **Catalog** (recipes the sources offer, modules, looks, key bindings, sources) and
   **Profiles** (credentials, locales, performance – before "Profiles"). The app window shows them in a sidebar; the menu
-  bar window, the Linux app and `omaf ui` switch the group next to the tabs. Credentials, locales and profiles moved
+  bar window shows only Run, as three large tabs, with a button to the window for the rest; the Linux app has the
+  sidebar too, `omaf ui` switches the group next to the tabs. Credentials, locales and profiles moved
   from the header, the sources from the Settings; the recipes here and those offered are tabs of their own, as are
   modules and key bindings.
 - The Recipe Studio replaces the recipe editor: modules are found in the catalog – search, and filters by
@@ -35,7 +36,14 @@ are collected under *Unreleased*. Releases: [GitHub](https://github.com/omaflake
   `n` in pane mode locks again or stays in pane mode). Overlaps are said while you choose. Only what differs from the
   modules' own keys is saved, in My Recipes' folder as `my/<name>`, which recipes name like any set.
 
+- A help switch in the header, off by default: the pages' explanations show only while it is on, each in a box of
+  its own. Warnings and what is missing always show. It is kept in config.json (now version 6).
+- The modules tab opens a module's keys in the keys window.
+
 ### Changed
+
+- Keys are drawn as key caps everywhere – |Ctrl| |g| – named as on your keyboard (Ctrl, Opt, Shift, Cmd on a Mac;
+  Ctrl, Alt, Shift, Super on Linux), never as "⌃g" or "Ctrl+g". Overlapping keys are shown the same way.
 
 - Modules list all their key bindings, with the modes they work in and the mode they lead to (module.toml v2:
   `[modes]`, several keys and modes per action, `after`, `does`, `own`). Zellij's are complete – about 100 in 12

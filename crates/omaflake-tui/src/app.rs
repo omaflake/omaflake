@@ -298,6 +298,7 @@ impl App {
             collapsed: &self.collapsed,
             now: Utc::now(),
             tick: self.tick,
+            help: self.home.as_ref().and_then(|h| h["help"]["on"].as_bool()).unwrap_or(false),
         }
     }
 
@@ -790,8 +791,12 @@ impl App {
             .collect()
     }
 
+    /// The header's actions, the help switch first (plan B148: a letter of its own like the others)
     pub fn home_actions(&self) -> Vec<Value> {
-        self.home.as_ref().map(|h| arr(h, "actions").to_vec()).unwrap_or_default()
+        let Some(h) = self.home.as_ref() else { return vec![] };
+        let mut out: Vec<Value> = h.get("help").filter(|a| a.is_object()).cloned().into_iter().collect();
+        out.extend(arr(h, "actions").iter().cloned());
+        out
     }
 
     pub fn key(&mut self, key: KeyEvent) {

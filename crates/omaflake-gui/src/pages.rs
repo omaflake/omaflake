@@ -301,7 +301,7 @@ fn images<'a>(app: &'a App, p: &'a ImagesPage) -> El<'a> {
             Some(h) => rows.push(hint(h, app.pulse)),
             None => rows.push(row![space::horizontal(), button_of(&b.create, None, app.pulse)].into()),
         }
-        rows.push(secondary(s(&b.footer)).into());
+        rows.push(widgets::help_note(s(&b.footer)));
     }
     section(app, "images", &p.head, rows)
 }
@@ -480,8 +480,8 @@ fn looks<'a>(app: &'a App, p: &'a omaflake_core::api::views::looks::LooksPage) -
     }
     rows.extend(p.offered.iter().map(|r| look_row(app, r)));
     rows.extend(p.unreadable.iter().map(|h| hint(h, app.pulse)));
-    rows.push(container(secondary(s(&p.footer))).padding(spacing::CARD_PADDING).into());
-    section(app, "looks", &p.head, rows)
+    // The explanation above the list, in a box of its own (plan B148)
+    column![widgets::help_note(s(&p.footer)), section(app, "looks", &p.head, rows)].spacing(spacing::XL).into()
 }
 
 /// A look's colours as a small strip; a plain look shows an empty frame
@@ -655,25 +655,12 @@ pub fn page<'a>(app: &'a App, p: &PageRef, m: &'a Model) -> El<'a> {
     }
 }
 
-/// One key as caps: chords side by side, the caps of a chord in one box ("⌃ g")
-fn key_caps<'a>(chords: &[Vec<String>]) -> El<'a> {
-    let mut r = row![].spacing(spacing::XS);
-    for chord in chords {
-        r = r.push(
-            container(text(chord.join(" ")).size(text_size::CAPTION).font(iced::Font::MONOSPACE))
-                .padding([1.0, spacing::S])
-                .style(style::card),
-        );
-    }
-    r.into()
-}
-
 /// A recipe's keys (plan B147): by module, by mode with the way there, where each key leads and what it does
 fn keys<'a>(app: &'a App, p: &'a KeysPage) -> El<'a> {
     let mut c = column![
         text(s(&p.title)).size(text_size::HEADLINE).font(style::bold()),
         secondary(s(&p.subtitle)),
-        caption(s(&p.intro)).color(style::SECONDARY),
+        widgets::help_note(s(&p.intro)),
     ]
     .spacing(spacing::L);
     if !p.notes.is_empty() {
@@ -694,17 +681,11 @@ fn keys<'a>(app: &'a App, p: &'a KeysPage) -> El<'a> {
                 if i > 0 {
                     head = head.push(caption("›").color(style::tertiary()));
                 }
-                head = head.push(key_caps(&step.caps));
+                head = head.push(widgets::key_caps(&step.caps));
             }
             let mut rows = column![head].spacing(spacing::S);
             for r in &g.rows {
-                let mut keys = row![].spacing(spacing::XS).align_y(Alignment::Center);
-                for (i, k) in r.caps.iter().enumerate() {
-                    if i > 0 {
-                        keys = keys.push(caption("/").color(style::tertiary()));
-                    }
-                    keys = keys.push(key_caps(k));
-                }
+                let keys = widgets::key_alternatives(&r.caps);
                 let title = text(s(&r.title)).size(text_size::CAPTION);
                 let title = if r.switches { title.color(style::SECONDARY) } else { title };
                 let mut line = row![container(keys).width(Length::Fixed(150.0)), title.width(Length::Fill)]
@@ -815,11 +796,11 @@ fn credentials<'a>(app: &'a App, page: &str, c: &'a CredentialsPage) -> El<'a> {
     }
     let add = row![space::horizontal(), button_of(&c.add, Some(page), app.pulse)];
     column![
-        secondary(s(&c.intro)),
+        widgets::help_note(s(&c.intro)),
         container(column![rows, divider(), container(add).padding(spacing::CARD_PADDING)])
             .width(Length::Fill)
             .style(style::card),
-        secondary(s(&c.footer)),
+        widgets::help_note(s(&c.footer)),
     ]
     .spacing(spacing::XL)
     .into()
@@ -846,7 +827,7 @@ fn credential_row<'a>(app: &'a App, r: &'a CredentialRow) -> El<'a> {
 
 /// One credential's form (plan B137): what it is for, why only the name can change, the fields, Cancel and Save
 fn credential<'a>(app: &'a App, page: &str, c: &'a CredentialPage) -> El<'a> {
-    let mut col = column![secondary(s(&c.intro))].spacing(spacing::XL);
+    let mut col = column![widgets::help_note(s(&c.intro))].spacing(spacing::XL);
     if let Some(l) = &c.locked {
         col = col.push(text(s(l)).size(text_size::CALLOUT).color(style::WARNING));
     }
@@ -885,8 +866,8 @@ fn studio<'a>(app: &'a App, page: &str, st: &'a RecipeStudioPage) -> El<'a> {
         .align_y(Alignment::Center)
         .into()
     };
-    let mut c =
-        column![secondary(s(&st.intro)), section_title(&st.titles.about), fields(&st.about)].spacing(spacing::L);
+    let mut c = column![widgets::help_note(s(&st.intro)), section_title(&st.titles.about), fields(&st.about)]
+        .spacing(spacing::L);
     // The recipe
     let mut head = row![text(s(&st.recipe.title)).size(text_size::CALLOUT).font(style::semibold()).width(Length::Fill)]
         .align_y(Alignment::Center);
@@ -939,7 +920,7 @@ fn keymap_studio<'a>(app: &'a App, page: &str, k: &'a KeymapStudioPage) -> El<'a
     for f in &k.about {
         about = about.push(field_view(app, page, f, false));
     }
-    let mut c = column![secondary(s(&k.intro)), card(about)].spacing(spacing::L);
+    let mut c = column![widgets::help_note(s(&k.intro)), card(about)].spacing(spacing::L);
     let mut pick = column![field_view(app, page, &k.module, false), field_view(app, page, &k.search, false)]
         .spacing(spacing::L)
         .push(caption(s(&k.changed)).color(style::SECONDARY));
@@ -959,7 +940,7 @@ fn keymap_studio<'a>(app: &'a App, page: &str, k: &'a KeymapStudioPage) -> El<'a
             if i > 0 {
                 head = head.push(caption("›").color(style::tertiary()));
             }
-            head = head.push(key_caps(step));
+            head = head.push(widgets::key_caps(step));
         }
         let mut rows = column![head].spacing(spacing::L);
         for r in &g.rows {
@@ -1130,7 +1111,7 @@ fn doctor<'a>(app: &'a App, d: &'a DoctorPage) -> El<'a> {
     for a in &u.actions {
         update = update.push(action_button(a, None, app.pulse));
     }
-    let mut head = row![text(s(&d.intro)).size(text_size::CALLOUT).color(style::SECONDARY).width(Length::Fill)]
+    let mut head = row![container(widgets::help_note(s(&d.intro))).width(Length::Fill)]
         .spacing(spacing::L)
         .align_y(Alignment::Center);
     if d.checking {
@@ -1214,7 +1195,7 @@ fn download<'a>(d: &'a Download) -> El<'a> {
 }
 
 fn mac_base<'a>(app: &'a App, page: &str, m: &'a MacBasePage) -> El<'a> {
-    let mut c = column![text(s(&m.intro)).size(text_size::CALLOUT).color(style::SECONDARY)].spacing(spacing::XXL);
+    let mut c = column![widgets::help_note(s(&m.intro))].spacing(spacing::XXL);
     if let Some(h) = &m.base {
         c = c.push(container(hint(h, app.pulse)).width(Length::Fill).style(style::card));
     }
@@ -1279,7 +1260,7 @@ fn sources<'a>(app: &'a App, page: &str, sp: &'a SourcesPage) -> El<'a> {
         container(column![rows, divider(), container(add).padding(spacing::CARD_PADDING)])
             .width(Length::Fill)
             .style(style::card),
-        secondary(s(&src.footer)),
+        widgets::help_note(s(&src.footer)),
     ]
     .spacing(spacing::M)
     .into()
@@ -1345,7 +1326,7 @@ fn settings_section<'a>(app: &'a App, page: &str, sec: &'a SettingsSection) -> E
     ]
     .spacing(spacing::M);
     if let Some(foot) = &sec.footer {
-        c = c.push(secondary(s(foot)));
+        c = c.push(widgets::help_note(s(foot)));
     }
     c.into()
 }
@@ -1505,7 +1486,7 @@ pub fn field_view<'a>(app: &'a App, page: &str, field: &'a Field, store: bool) -
             c = c.push(secondary(s(r)));
         }
     } else if let (Some(h), false) = (&field.help, field.kind == FieldKind::Path) {
-        c = c.push(secondary(s(h)));
+        c = c.push(widgets::help_note(s(h)));
     }
     c.into()
 }

@@ -167,7 +167,8 @@ fn draws_the_vms_tab() {
         " omaflake ",
         // home's short labels; the letters come from what is written
         "D Doctor 3",
-        "S Settings  A Data Folder  q Quit",
+        // the help switch first, with a letter like the others (plan B148)
+        "H Help  D Doctor 3  S Settings",
         // the other groups by their names (plan B147); the workshop's dot: a recipe changed since its image
         "│ Workshop • ›",
         "│ Catalog ›",
@@ -218,9 +219,10 @@ fn draws_every_page() {
         (
             "recipeCatalog",
             "recipes.loading",
+            // The lab hint only explains: it shows with the help switch on (plan B148)
             vec![
                 "Looking into the recipe sources …",
-                "Lab recipes are hidden – Developer Mode in Settings shows them.",
+                "? Lab recipes are hidden – Developer Mode in Settings shows them.",
             ],
         ),
         ("activity", "activity", vec!["research is ready", "work: running – stop it first", "c ✕ Clear History"]),
@@ -228,7 +230,17 @@ fn draws_every_page() {
         (
             "keys",
             "keys",
-            vec!["Hyprland", "Zellij", "Locked", "⌃+g › p", "h / ←", "New pane", "→ then Pane", "↩ then Locked"],
+            vec![
+                "Hyprland",
+                "Zellij",
+                "Locked",
+                "[Ctrl] [g] › [p]",
+                "[h] or [←]",
+                "[Cmd] [Enter]",
+                "New pane",
+                "→ then Pane",
+                "↩ then Locked",
+            ],
         ),
         (
             "build",
@@ -286,6 +298,10 @@ fn draws_every_page() {
     ];
     for (page, file, wants) in pages {
         let mut h = Harness::new(none);
+        // With the help switch on (plan B148): the pages' explanations are drawn too
+        let mut home = fixture("home");
+        home["help"]["on"] = json!(true);
+        h.model("home", json!({}), home);
         let params = json!({"name": "x"});
         h.show(page, params, fixture(file));
         let s = h.screen();

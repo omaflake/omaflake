@@ -648,6 +648,8 @@ pub struct SettingsDto {
     pub check_for_updates: bool,
     pub notifications: bool,
     pub keep_recipe_versions: bool,
+    /// The help switch (plan B148): explanations shown
+    pub help: bool,
     /// This computer's keyboard (plan B141): the physical one, preset for new locales; left out: as the system says
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub host_keyboard: Option<String>,

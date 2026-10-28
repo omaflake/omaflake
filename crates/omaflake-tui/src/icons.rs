@@ -65,6 +65,7 @@ impl IconSet {
             "source" => ("\u{f01c}", "⊟"),
             "minus" => ("\u{f056}", "−"),
             "keyboard" => ("\u{f11c}", "⌨"),
+            "help" => ("\u{f059}", "?"),
             "globe" => ("\u{f0ac}", "◍"),
             "quit" => ("\u{f011}", "⏻"),
             "up" => ("\u{f062}", "↑"),

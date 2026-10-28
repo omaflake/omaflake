@@ -58,6 +58,7 @@ pub fn lucide(name: &str) -> Option<Icon> {
         "source" => Icon::Inbox,
         "minus" => Icon::CircleMinus,
         "keyboard" => Icon::Keyboard,
+        "help" => Icon::CircleQuestionMark,
         "globe" => Icon::Globe,
         "quit" => Icon::Power,
         "up" => Icon::ChevronUp,

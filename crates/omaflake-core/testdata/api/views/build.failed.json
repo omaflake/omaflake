@@ -247,14 +247,20 @@
     },
     {
       "icon": "warning",
+      "keys": [
+        [
+          [
+            "t"
+          ]
+        ]
+      ],
       "text": {
         "args": [
           "Float the window",
-          "omaflake/hyprland",
-          "t"
+          "omaflake/hyprland"
         ],
-        "key": "%@ (%@, %@): without a mode a key starts with Super or Ctrl",
-        "text": "Float the window (omaflake/hyprland, t): without a mode a key starts with Super or Ctrl"
+        "key": "%@ (%@): without a mode a key starts with Super or Ctrl",
+        "text": "Float the window (omaflake/hyprland): without a mode a key starts with Super or Ctrl"
       },
       "tone": "warning"
     }

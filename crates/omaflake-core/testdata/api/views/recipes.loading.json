@@ -177,6 +177,7 @@
         "params": {}
       }
     },
+    "help": true,
     "icon": "lab",
     "text": {
       "key": "Lab recipes are hidden – Developer Mode in Settings shows them.",

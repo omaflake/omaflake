@@ -118,9 +118,7 @@ struct StoredField: View {
             case .toggle:
                 VStack(alignment: .leading, spacing: BrandTokens.Spacing.xxs) {
                     Toggle(label, isOn: Binding(get: { field.value.bool ?? false }, set: { model.store(field, .bool($0)) }))
-                    if let help = field.help {
-                        Text(verbatim: model.t(help)).font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
-                    }
+                    if field.help != nil { HelpNote(field.help, model: model) }
                 }
             case .text:
                 TextField(label, text: Binding(get: { text ?? field.value.string ?? "" }, set: {
@@ -232,9 +230,9 @@ struct CredentialsView: View {
 
     var body: some View {
         Form {
+            // The explanation in a box of its own above the form, with the help switch on (plan B148)
+            if model.helpOn { Section { HelpNote(page.intro, model: model) }.listRowBackground(Color.clear) }
             Section {
-                Text(verbatim: model.t(page.intro)).font(.caption).foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
                 // As the other lists: lamp (in use), name and usage, the quick action; opened: its values and actions
                 ForEach(page.rows) { r in
                     ExpandableRow {
@@ -264,7 +262,7 @@ struct CredentialsView: View {
                     ActionPlainButton(action: page.add, model: model, isDefault: true)
                 }
             } footer: {
-                Text(verbatim: model.t(page.footer)).font(.caption).foregroundStyle(.secondary)
+                HelpNote(page.footer, model: model)
             }
         }
         .formStyle(.grouped)
@@ -281,9 +279,9 @@ struct CredentialView: View {
 
     var body: some View {
         Form {
+            // The explanation in a box of its own above the form, with the help switch on (plan B148)
+            if model.helpOn { Section { HelpNote(page.intro, model: model) }.listRowBackground(Color.clear) }
             Section {
-                Text(verbatim: model.t(page.intro)).font(.caption).foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
                 if let locked = page.locked {
                     Label(model.t(locked), systemImage: "lock").font(.caption).foregroundStyle(BrandTokens.Colors.warning)
                         .fixedSize(horizontal: false, vertical: true)
@@ -473,8 +471,7 @@ struct DoctorView: View {
             }
             Section {
                 HStack(alignment: .top) {
-                    Text(verbatim: model.t(page.intro))
-                        .font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+                    HelpNote(page.intro, model: model)
                     Spacer()
                     if page.checking { ProgressView().controlSize(.small) }
                     ForEach(page.actions) { a in Button(model.t(a.label)) { model.run(a) }.disabled(!a.enabled) }
@@ -570,8 +567,7 @@ struct MacBaseView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: BrandTokens.Spacing.xxl) {
-            Text(verbatim: model.t(page.intro))
-                .font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+            HelpNote(page.intro, model: model)
             if let base = page.base {
                 Label(model.t(base.text), systemImage: base.tone == .success ? "checkmark.circle.fill" : "exclamationmark.circle.fill")
                     .foregroundStyle(base.tone.color).fixedSize(horizontal: false, vertical: true)
@@ -645,9 +641,7 @@ struct SettingsView: View {
             } header: {
                 Text(verbatim: model.t(page.guest.title))
             } footer: {
-                if let footer = page.guest.footer {
-                    Text(verbatim: model.t(footer)).font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
-                }
+                HelpNote(page.guest.footer, model: model)
             }
             Section(model.t(page.dataFolder.title)) {
                 LabeledContent("Location") {
@@ -736,8 +730,7 @@ struct SourcesView: View {
         } header: {
             Text(verbatim: model.t(page.sources.title))
         } footer: {
-            Text(verbatim: model.t(page.sources.footer))
-                .font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+            HelpNote(page.sources.footer, model: model)
         }
     }
 }

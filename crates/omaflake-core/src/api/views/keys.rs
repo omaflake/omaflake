@@ -16,14 +16,16 @@ use crate::api::types::{RecipeDto, RecipePartsDto};
 use crate::composition::Binding;
 use crate::modules::ModuleMode;
 
-/// Whose keys: a recipe by id, an image or a VM by name (through the recipe it was built from), or a recipe being put
-/// together in the recipe studio (`draft`)
+/// Whose keys: a recipe by id, an image or a VM by name (through the recipe it was built from), a recipe being put
+/// together in the recipe studio (`draft`), or one module here by its reference ("omaflake/zellij", with `platform`)
 #[derive(Debug, Default, Deserialize)]
 pub struct KeysParams {
     pub recipe: Option<String>,
     pub image: Option<String>,
     pub vm: Option<String>,
     pub draft: Option<Draft>,
+    pub module: Option<String>,
+    pub platform: Option<String>,
 }
 
 /// A recipe not saved yet: its platform, modules and key binding sets ("<author>/<name>")
@@ -109,7 +111,7 @@ pub struct KeyRow {
     pub action: String,
     /// The keys as written ("Ctrl+g", "Space f f") – for the search
     pub keys: Vec<String>,
-    /// Each key as key caps: its chords, each a list of caps ("⌘", "⇧", "↩")
+    /// Each key as key caps: its chords, each a list of caps ("Cmd", "Shift", "Enter")
     pub caps: Vec<Vec<Vec<String>>>,
     pub title: Text,
     /// "then Locked"; None: it stays in the mode
@@ -129,7 +131,9 @@ pub struct KeyRow {
     pub own: bool,
 }
 
-/// One key as caps: chords separated by spaces, keys of a chord by "+"; the Mac's names on a Mac (Super is ⌘ there)
+/// One key as caps: chords separated by spaces, keys of a chord by "+". A modifier is named as on the keyboard of the
+/// host, as that is the key pressed (plan B148): Ctrl, Opt, Shift, Cmd on a Mac (a guest's Super is ⌘ there); Ctrl,
+/// Alt, Shift, Super elsewhere. Never "+" or "^" between caps – the UIs draw each cap as a box.
 pub fn caps(key: &str, host: HostOs) -> Vec<Vec<String>> {
     let mac = host == HostOs::Macos;
     key.split_whitespace()
@@ -138,22 +142,17 @@ pub fn caps(key: &str, host: HostOs) -> Vec<Vec<String>> {
                 .split('+')
                 .map(|k| {
                     match k {
-                        "Super" if mac => "⌘",
-                        "Super" => "Super",
-                        "Ctrl" if mac => "⌃",
-                        "Alt" if mac => "⌥",
-                        "Shift" => "⇧",
-                        "Return" => "↩",
+                        "Super" if mac => "Cmd",
+                        "Alt" if mac => "Opt",
+                        "Return" => "Enter",
                         "Escape" => "Esc",
-                        "Tab" => "⇥",
                         "Backspace" => "⌫",
-                        "Space" => "␣",
                         "Left" => "←",
                         "Right" => "→",
                         "Up" => "↑",
                         "Down" => "↓",
-                        "PageUp" => "⇞",
-                        "PageDown" => "⇟",
+                        "PageUp" => "PgUp",
+                        "PageDown" => "PgDn",
                         "Plus" => "+",
                         "Digit" => "1–9",
                         "Arrow" => "←↑→↓",
@@ -166,6 +165,11 @@ pub fn caps(key: &str, host: HostOs) -> Vec<Vec<String>> {
         .collect()
 }
 
+/// Several keys as caps (a hint's `keys`)
+pub fn key_caps(keys: &[String], host: HostOs) -> Vec<Vec<Vec<String>>> {
+    keys.iter().map(|k| caps(k, host)).collect()
+}
+
 /// The keyboard button of a recipe's, an image's or a VM's row (`params`: `{recipe}`, `{image}` or `{vm}`), when its
 /// recipe has keys
 pub(crate) fn action(ctx: &Ctx, recipe: &str, params: serde_json::Value) -> Option<Action> {
@@ -176,10 +180,9 @@ pub(crate) fn action(ctx: &Ctx, recipe: &str, params: serde_json::Value) -> Opti
 
 fn recipe_of<'a>(ctx: &'a Ctx, p: &KeysParams) -> (Option<&'a RecipeDto>, Text, Vec<Hint>) {
     let by_id = |id: &str| ctx.recipes.recipes.iter().find(|r| r.id == id);
-    let built = Hint::new(
+    let built = Hint::help(
         "info",
         Text::new("As its recipe has them now – a module or key binding set updated since the build may differ."),
-        Tone::Normal,
     );
     if let Some(name) = &p.vm {
         let recipe = ctx.vms.iter().find(|v| &v.name == name).map(|v| v.recipe.clone());
@@ -196,6 +199,27 @@ fn recipe_of<'a>(ctx: &'a Ctx, p: &KeysParams) -> (Option<&'a RecipeDto>, Text, 
 }
 
 pub(crate) fn page(ctx: &Ctx, p: &KeysParams) -> KeysPage {
+    if let Some(reference) = &p.module {
+        let d = Draft {
+            name: String::new(),
+            platform: p.platform.clone().unwrap_or_else(|| "nixos".into()),
+            modules: vec![reference.clone()],
+            keymaps: vec![],
+        };
+        let modules = draft_parts(ctx, &d).map(|x| modules(ctx, &x)).unwrap_or_default();
+        let title = modules.first().map(|m| m.title.clone()).unwrap_or_else(|| reference.clone());
+        return KeysPage {
+            title: tf!("Keys of %@", title),
+            subtitle: Text::new("Its own keys, without key binding sets"),
+            intro: Text::new(
+                "By the mode its program is in. A mode shows the keys that lead there; “then …” is the mode a key leads to.",
+            ),
+            notes: vec![],
+            modules,
+            keymaps: vec![],
+            search: Text::new("Search keys"),
+        };
+    }
     if let Some(d) = &p.draft {
         let parts = draft_parts(ctx, d);
         let name = if d.name.is_empty() { "…".to_string() } else { d.name.clone() };

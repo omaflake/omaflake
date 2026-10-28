@@ -123,6 +123,24 @@
       }
     }
   ],
+  "help": {
+    "enabled": true,
+    "help": {
+      "key": "Show explanations on every page",
+      "text": "Show explanations on every page"
+    },
+    "icon": "help",
+    "id": "help",
+    "label": {
+      "key": "Help",
+      "text": "Help"
+    },
+    "method": "settings.set",
+    "on": false,
+    "params": {
+      "help": true
+    }
+  },
   "tabs": [
     {
       "badge": {

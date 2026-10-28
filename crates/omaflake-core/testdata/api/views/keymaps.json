@@ -137,13 +137,16 @@
             }
           },
           {
-            "full": "omaflake/hyprland terminal: Super+Return",
             "label": {
               "key": "Keys",
               "text": "Keys"
             },
             "value": {
-              "text": "omaflake/hyprland terminal: Super+Return"
+              "args": [
+                1
+              ],
+              "key": "%lld keys",
+              "text": "1 keys"
             }
           },
           {

@@ -52,6 +52,7 @@ enum Icons {
         case "studio": ("square.stack.3d.up", nil)
         case "minus": ("minus.circle", nil)
         case "keyboard": ("keyboard", nil)
+        case "help": ("questionmark.circle", nil)
         case "globe": ("globe", nil)
         case "quit": ("power", nil)
         case "up": ("arrow.up", nil)
@@ -284,13 +285,25 @@ struct HintRow: View {
     let model: AppModel
 
     var body: some View {
+        // An explanation (plan B148): only while the help switch is on, in a box of its own
+        if hint.help {
+            if model.helpOn { HelpNote(hint: hint, model: model) }
+        } else {
+            row.padding(BrandTokens.Spacing.cardPadding)
+        }
+    }
+
+    private var row: some View {
         HStack(alignment: hint.tone == .warning ? .firstTextBaseline : .center, spacing: BrandTokens.Spacing.l) {
             Image(systemName: Icons.symbol(hint.icon)?.main ?? "info.circle")
                 .foregroundStyle(hint.tone == .normal ? AnyShapeStyle(.tertiary) : AnyShapeStyle(hint.tone.color))
-            Text(verbatim: model.t(hint.text))
-                .font(hint.tone == .warning ? .caption : .callout).foregroundStyle(.secondary)
-                .fixedSize(horizontal: false, vertical: true)
-                .textSelection(.enabled)
+            VStack(alignment: .leading, spacing: BrandTokens.Spacing.xs) {
+                Text(verbatim: model.t(hint.text))
+                    .font(hint.tone == .warning ? .caption : .callout).foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .textSelection(.enabled)
+                if !hint.keys.isEmpty { KeyAlternatives(keys: hint.keys) }
+            }
             Spacer()
             if let action = hint.action {
                 if action.id == "resetFilter" {
@@ -300,7 +313,41 @@ struct HintRow: View {
                 }
             }
         }
-        .padding(BrandTokens.Spacing.cardPadding)
+    }
+}
+
+/// An explanation in a box of its own (plan B148): a page's intro or footer, a field's help, a hint marked help.
+/// Drawn only while the help switch is on.
+struct HelpNote: View {
+    let text: String
+    var action: ViewAction?
+    let model: AppModel
+
+    init(_ text: ViewText?, model: AppModel) {
+        self.text = model.t(text)
+        self.model = model
+    }
+
+    init(hint: Hint, model: AppModel) {
+        text = model.t(hint.text)
+        action = hint.action
+        self.model = model
+    }
+
+    var body: some View {
+        if model.helpOn && !text.isEmpty {
+            HStack(alignment: .firstTextBaseline, spacing: BrandTokens.Spacing.l) {
+                Image(systemName: "questionmark.circle").foregroundStyle(BrandStyle.cyan)
+                Text(verbatim: text).font(.caption).foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true).textSelection(.enabled)
+                Spacer(minLength: 0)
+                if let action { ActionChip(action: action, model: model) }
+            }
+            .padding(.horizontal, BrandTokens.Spacing.xl).padding(.vertical, BrandTokens.Spacing.l)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(BrandTokens.Colors.inset, in: RoundedRectangle(cornerRadius: BrandTokens.Radius.card))
+            .overlay(RoundedRectangle(cornerRadius: BrandTokens.Radius.card).strokeBorder(BrandTokens.Colors.cardBorder))
+        }
     }
 }
 

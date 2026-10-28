@@ -383,22 +383,21 @@ pub(crate) fn page(ctx: &Ctx, p: &StudioParams) -> Option<RecipeStudioPage> {
         &capabilities,
     );
     for i in &composition.issues {
-        let text = match i {
+        let (text, keys) = match i {
             Issue::KeysOverlap { first, second } => {
-                tf!("Keys overlap: %@ and %@ (%@)", &first.title, &second.title, first.key_text())
+                (tf!("Keys overlap: %@ and %@", &first.title, &second.title), &first.keys)
             }
             Issue::KeyRule { binding } => {
-                tf!("%@ (%@): without a mode a key starts with Super or Ctrl", &binding.title, binding.key_text())
+                (tf!("%@: without a mode a key starts with Super or Ctrl", &binding.title), &binding.keys)
             }
             _ => continue,
         };
-        hints.push(Hint::new("warning", text, Tone::Warning));
+        hints.push(Hint::new("warning", text, Tone::Warning).keys(super::keys::key_caps(keys, ctx.host)));
     }
     if inside.iter().any(|m| !here(m)) {
-        hints.push(Hint::new(
+        hints.push(Hint::help(
             "info",
             Text::new("Modules from the catalog are installed with the recipe when it is saved; their keys show then."),
-            Tone::Normal,
         ));
     }
     let keymaps: Vec<String> = spec.keymaps.iter().map(|k| k.id.clone()).collect();

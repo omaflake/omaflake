@@ -145,16 +145,30 @@ struct MainView: View {
                     HStack(alignment: .top, spacing: 0) {
                         HomeSidebar(model: model).frame(width: Self.sidebarWidth)
                         Divider()
-                        content.padding(.top, BrandTokens.Spacing.s)
+                        content(model.tab).padding(.top, BrandTokens.Spacing.s)
                     }
                 }
             } else {
-                // The menu bar window is narrow: the group above the tabs of the group
+                // The menu bar window is for running things (plan B148): the Run group's tabs, large; the workshop,
+                // the catalog and the profiles are in the app window
                 VStack(spacing: 0) {
                     header.padding([.horizontal, .top], BrandStyle.margin).padding(.bottom, BrandTokens.Spacing.xl)
-                    HomeGroupSwitch(model: model).padding(.horizontal, BrandStyle.margin).padding(.bottom, BrandTokens.Spacing.m)
-                    HomeTabBar(model: model).padding(.horizontal, BrandStyle.margin).padding(.bottom, BrandTokens.Spacing.xxl)
-                    content
+                    MenuTabBar(model: model).padding(.horizontal, BrandStyle.margin).padding(.bottom, BrandTokens.Spacing.xxl)
+                    content(model.menuTab)
+                    Divider()
+                    Button { model.selectGroup("workshop"); openWindow(id: AppFrame.windowID); NSApp.activate() } label: {
+                        HStack(spacing: BrandTokens.Spacing.m) {
+                            Image(systemName: "wrench.and.screwdriver")
+                            Text("Workshop, Catalog and Profiles …")
+                            Spacer()
+                            Image(systemName: "macwindow").foregroundStyle(.tertiary)
+                        }
+                        .font(.callout).foregroundStyle(.secondary)
+                        .padding(.horizontal, BrandStyle.margin).padding(.vertical, BrandTokens.Spacing.xl)
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .help("Opens the app window with every group")
                 }
             }
         }
@@ -172,14 +186,17 @@ struct MainView: View {
     static let sidebarWidth: CGFloat = 170
 
     /// The open tab: a list in a scroll view, or a form that scrolls itself (credentials, locales, profiles)
-    @ViewBuilder private var content: some View {
-        if model.tab.isForm {
-            HomeList(tab: model.tab, model: model).id(model.tab)
-                .overlay(alignment: .bottom) { FooterMessage(model: model) }
+    @ViewBuilder private func content(_ tab: AppModel.HomeTab) -> some View {
+        if tab.isForm {
+            HomeList(tab: tab, model: model).id(tab)
+                .overlay(alignment: .bottom) { FooterMessage(model: model, inWindow: inWindow) }
         } else {
-            ScrollView { HomeList(tab: model.tab, model: model).padding([.horizontal, .bottom], BrandStyle.margin).background(OverlayScrollers()) }
-                .id(model.tab)   // each tab opens at its top
-                .overlay(alignment: .bottom) { FooterMessage(model: model) }
+            ScrollView {
+                VStack(alignment: .leading, spacing: BrandTokens.Spacing.xl) { HomeList(tab: tab, model: model) }
+                    .padding([.horizontal, .bottom], BrandStyle.margin).background(OverlayScrollers())
+            }
+            .id(tab)   // each tab opens at its top
+            .overlay(alignment: .bottom) { FooterMessage(model: model, inWindow: inWindow) }
         }
     }
 
@@ -215,8 +232,34 @@ struct MainView: View {
                     IconButton(icon: "macwindow", help: String(localized: "Open in Window")) { openWindow(id: AppFrame.windowID); NSApp.activate() }
                 }
             }
+            if let help = model.home?.help { HelpSwitch(action: help, model: model) }
             ForEach(model.home?.actions ?? []) { ActionIcon(action: $0, model: model) }
         }
+    }
+}
+
+/// The help switch (plan B148): off by default; on, every page shows its explanations, each in a box of its own
+struct HelpSwitch: View {
+    let action: ViewAction
+    let model: AppModel
+
+    var body: some View {
+        let on = action.on ?? false
+        Button { model.run(action) } label: {
+            HStack(spacing: BrandTokens.Spacing.s) {
+                Image(systemName: on ? "questionmark.circle.fill" : "questionmark.circle")
+                Text(verbatim: model.t(action.label))
+            }
+            .font(.callout.weight(on ? .semibold : .regular))
+            .foregroundStyle(on ? BrandStyle.cyan : .secondary)
+            .padding(.horizontal, BrandTokens.Spacing.l).frame(height: BrandTokens.Size.iconButtonHeight)
+            .background(on ? BrandStyle.cyan.opacity(BrandTokens.Opacity.tintFill) : .clear, in: Capsule())
+            .overlay(Capsule().strokeBorder(on ? BrandStyle.cyan.opacity(0.5) : BrandStyle.cardBorder))
+            .contentShape(Capsule())
+        }
+        .buttonStyle(.plain)
+        .help(Text(verbatim: model.t(action.help)))
+        .accessibilityAddTraits(on ? .isSelected : [])
     }
 }
 
@@ -242,78 +285,56 @@ struct PageHeader: View {
     }
 }
 
-/// Tabs of the main page with what needs attention there (the core's badges: running VMs, a build running or failed,
-/// recipes changed since their image) and the app's own dot for unseen activity
-struct HomeTabBar: View {
+/// The menu bar window's tabs (plan B148): the Run group's – VMs, images, activity – large and as one segmented
+/// switch, with what needs attention there (the core's badges) and the app's own dot for unseen activity
+struct MenuTabBar: View {
     let model: AppModel
 
     var body: some View {
-        HStack(spacing: BrandTokens.Spacing.s) {
-            ForEach((model.home?.tabs ?? []).filter { $0.group == model.group }) { tab in
+        HStack(spacing: BrandTokens.Spacing.xs) {
+            ForEach(model.menuTabs) { tab in
                 if let id = AppModel.HomeTab(rawValue: tab.id) { button(id, tab) }
             }
         }
         .padding(BrandTokens.Spacing.xs)
-        .background(BrandStyle.card, in: RoundedRectangle(cornerRadius: BrandStyle.radius, style: .continuous))
-        .overlay(RoundedRectangle(cornerRadius: BrandStyle.radius, style: .continuous).strokeBorder(BrandStyle.cardBorder))
-        .frame(minHeight: 34)
+        .background(BrandStyle.card, in: RoundedRectangle(cornerRadius: BrandStyle.radius + 2, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: BrandStyle.radius + 2, style: .continuous).strokeBorder(BrandStyle.cardBorder))
     }
 
     private func button(_ id: AppModel.HomeTab, _ tab: HomePage.Tab) -> some View {
-        let selected = model.tab == id
-        return Button { model.tab = id } label: {
-            HStack(spacing: 5) {
-                Image(systemName: Icons.symbol(tab.icon)?.main ?? "circle").font(.system(size: BrandTokens.Icon.tab, weight: .medium))
-                Text(verbatim: model.t(tab.label)).font(.callout.weight(selected ? .semibold : .regular)).lineLimit(1)
-                badge(tab.badge)
+        let selected = model.menuTab == id
+        return Button { model.menuTab = id } label: {
+            HStack(spacing: BrandTokens.Spacing.m) {
+                Image(systemName: Icons.symbol(tab.icon)?.main ?? "circle").font(.system(size: 15, weight: .medium))
+                Text(verbatim: model.t(tab.label)).font(.body.weight(selected ? .semibold : .medium)).lineLimit(1)
+                HomeTabBadge(badge: tab.badge, model: model)
                 if id == .activity && model.unseenActivity {
                     Circle().fill(BrandStyle.cyan).frame(width: BrandTokens.Size.dot, height: BrandTokens.Size.dot).help("New messages")
                 }
             }
-            .foregroundStyle(selected ? .primary : .secondary)
-            .frame(maxWidth: .infinity).frame(height: 26)
-            .background(selected ? Color.primary.opacity(BrandTokens.Opacity.selected) : .clear,
-                        in: RoundedRectangle(cornerRadius: BrandTokens.Radius.tab, style: .continuous))
+            .foregroundStyle(selected ? BrandStyle.cyan : .secondary)
+            .frame(maxWidth: .infinity).frame(height: 34)
+            .background(selected ? BrandStyle.cyan.opacity(BrandTokens.Opacity.tintFill) : .clear,
+                        in: RoundedRectangle(cornerRadius: BrandStyle.radius, style: .continuous))
+            .overlay(RoundedRectangle(cornerRadius: BrandStyle.radius, style: .continuous)
+                .strokeBorder(selected ? BrandStyle.cyan.opacity(0.5) : .clear))
             .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
-    }
-
-    @ViewBuilder private func badge(_ b: HomePage.TabBadge?) -> some View {
-        if let b {
-            let help = Text(verbatim: model.t(b.help))
-            switch b.kind {
-            case "count": CountBadge(count: b.count ?? 0, color: b.tone.color).help(help)
-            case "working": ProgressView().controlSize(.mini).help(help)
-            case "failed": Image(systemName: "xmark.circle.fill").font(.caption2).foregroundStyle(b.tone.color).help(help)
-            default: Circle().fill(b.tone.color).frame(width: BrandTokens.Size.dot, height: BrandTokens.Size.dot).help(help)
-            }
-        }
+        .buttonStyle(HoverTabStyle(selected: selected))
+        .accessibilityAddTraits(selected ? .isSelected : [])
     }
 }
 
-/// The menu bar window's choice between the groups (plan B147): what runs, and the workshop
-struct HomeGroupSwitch: View {
-    let model: AppModel
+/// A tab under the pointer gets a faint fill, so it reads as a switch
+struct HoverTabStyle: ButtonStyle {
+    let selected: Bool
+    @State private var hover = false
 
-    var body: some View {
-        HStack(spacing: BrandTokens.Spacing.l) {
-            ForEach(model.home?.groups ?? []) { g in
-                let selected = model.group == g.id
-                Button { model.selectGroup(g.id) } label: {
-                    HStack(spacing: BrandTokens.Spacing.s) {
-                        Text(verbatim: model.t(g.title)).font(.caption.weight(selected ? .semibold : .regular))
-                        if g.attention && !selected {
-                            Circle().fill(BrandTokens.Colors.warning).frame(width: BrandTokens.Size.dot, height: BrandTokens.Size.dot)
-                        }
-                    }
-                    .foregroundStyle(selected ? BrandStyle.cyan : .secondary)
-                    .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
-            }
-            Spacer()
-        }
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .background(!selected && (hover || configuration.isPressed) ? Color.primary.opacity(BrandTokens.Opacity.selected) : .clear,
+                        in: RoundedRectangle(cornerRadius: BrandStyle.radius, style: .continuous))
+            .onHover { hover = $0 }
     }
 }
 
@@ -382,10 +403,11 @@ struct HomeTabBadge: View {
 /// The newest message for a few seconds at the bottom of the main page; a click opens the activity tab.
 struct FooterMessage: View {
     let model: AppModel
+    var inWindow = true
 
     var body: some View {
-        if let footer = model.footer, model.tab != .activity {
-            Button { model.tab = .activity } label: {
+        if let footer = model.footer, (inWindow ? model.tab : model.menuTab) != .activity {
+            Button { if inWindow { model.tab = .activity } else { model.menuTab = .activity } } label: {
                 HStack(spacing: BrandTokens.Spacing.l) {
                     Image(systemName: "info.circle").foregroundStyle(BrandStyle.cyan)
                     Text(verbatim: footer.text).font(.caption).lineLimit(2).multilineTextAlignment(.leading)

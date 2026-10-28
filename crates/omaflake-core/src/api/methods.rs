@@ -494,6 +494,9 @@ impl Server {
         if let Some(v) = flag("notifications")? {
             s.notifications = (!v.unwrap_or(true)).then_some(false);
         }
+        if let Some(v) = flag("help")? {
+            s.help = v.unwrap_or(false).then_some(true);
+        }
         for key in ["flake", "qemu", "nix", "runner"] {
             if let Some(v) = text(key)? {
                 match key {
@@ -2426,6 +2429,7 @@ pub(crate) fn settings_dto(paths: &Paths) -> SettingsDto {
         check_for_updates: s.check_for_updates.unwrap_or(true),
         notifications: s.notifications.unwrap_or(true),
         keep_recipe_versions: s.keep_recipe_versions.unwrap_or(false),
+        help: s.help.unwrap_or(false),
         default_credential: Credentials::new(paths.clone()).default_credential().map(|c| c.id),
         host_keyboard: s.host_keyboard.clone(),
         default_locale: crate::locales::Locales::new(paths.clone()).default_locale().map(|l| l.id),

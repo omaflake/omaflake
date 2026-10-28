@@ -79,6 +79,21 @@ final class AppModel {
         }
     }
 
+    /// The menu bar window's own tab (plan B148): it shows only the Run group – VMs, images, activity – while the app
+    /// window shows every group, each with its own open tab
+    var menuTab: HomeTab = .vms {
+        didSet {
+            UserDefaults.standard.set(menuTab.rawValue, forKey: "menuTab")
+            markActivitySeen()
+        }
+    }
+
+    /// The tabs of the menu bar window: the Run group's
+    var menuTabs: [HomePage.Tab] { (home?.tabs ?? []).filter { $0.group == "run" } }
+
+    /// The help switch is on (plan B148): explanations – intros, footers, a field's help, hints marked help – are drawn
+    var helpOn: Bool { home?.help.on ?? false }
+
     /// The filter values chosen per list (plan B101) – the core applies them (`params.filter`)
     var filters: [HomeTab: [String: JSONValue]] = [:]
 
@@ -207,7 +222,7 @@ final class AppModel {
     }
 
     private func markActivitySeen() {
-        if tab == .activity && path.isEmpty { seen = activity?.entries.first?.id ?? seen }
+        if (tab == .activity || menuTab == .activity) && path.isEmpty { seen = activity?.entries.first?.id ?? seen }
     }
 
     /// New activity entries: in the footer, and as a system notification where the core words one
@@ -284,6 +299,7 @@ final class AppModel {
         }
         client = CoreClient(launcher: launcher, initialize: params, topics: ServerEvent.viewTopics)
         if let saved = UserDefaults.standard.string(forKey: "homeTab").flatMap(HomeTab.init(rawValue:)) { tab = saved }
+        if let saved = UserDefaults.standard.string(forKey: "menuTab").flatMap(HomeTab.init(rawValue:)) { menuTab = saved }
         // The first time, the window (menu or app window, plan B119) opens on the Doctor
         if Self.firstLaunch { path = [PageRef("doctor")] }
         // Development aid (screenshots, checks without clicks): open on a page, `OMAFLAKE_PAGE=settings` with

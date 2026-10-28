@@ -330,8 +330,8 @@ Params and results in short; the types are those of §4.
 | `events.subscribe` | `topics` | `null` |
 | `shutdown` | – | `null` – ends this session (§2) |
 | `service.restart` | – | `{jobs}` – the service ends once no job waits or runs (§1, §2) |
-| `settings.get` | – | `{settings, guestDefaults, choices: {timeZones, locales, keyboards: [{code, locale}], looks: [{name, title}]}, isDefaultDataFolder}` – `settings`: config.json's values with their defaults applied (`developerMode, checkForUpdates, notifications, keepRecipeVersions, hostKeyboard?, defaultCredential?, defaultLook?, defaultLocale?, flake?, qemu?, nix?, runner?, flakeInUse?, dataFolder`); `choices.looks`: the installed looks (`name` is the look's id, plan B141); `hostKeyboard`: this computer's own keyboard (plan B141; unset: as the system says) – preset for new locales and the guest's keyboard without a locale; `guestDefaults`: this computer's values (what an image without a locale gets) |
-| `settings.set` | any of `developerMode, checkForUpdates, notifications, keepRecipeVersions, hostKeyboard, defaultCredential, flake, qemu, nix, runner` (`null` or `""` = back to the default; keys not given stay; `hostKeyboard` takes a keyboard of `choices.keyboards` – the guest's language, time zone and keyboards are a locale's (`locales.*`), the default look is set with `looks.setDefault` (plan B141); `defaultCredential` takes a credential's id – there is always a default while there are credentials, plan B139) | `settings` – turning `keepRecipeVersions` off prunes older recipe versions |
+| `settings.get` | – | `{settings, guestDefaults, choices: {timeZones, locales, keyboards: [{code, locale}], looks: [{name, title}]}, isDefaultDataFolder}` – `settings`: config.json's values with their defaults applied (`developerMode, checkForUpdates, notifications, keepRecipeVersions, help, hostKeyboard?, defaultCredential?, defaultLook?, defaultLocale?, flake?, qemu?, nix?, runner?, flakeInUse?, dataFolder`); `choices.looks`: the installed looks (`name` is the look's id, plan B141); `hostKeyboard`: this computer's own keyboard (plan B141; unset: as the system says) – preset for new locales and the guest's keyboard without a locale; `guestDefaults`: this computer's values (what an image without a locale gets) |
+| `settings.set` | any of `developerMode, checkForUpdates, notifications, keepRecipeVersions, help, hostKeyboard, defaultCredential, flake, qemu, nix, runner` (`null` or `""` = back to the default; keys not given stay; `hostKeyboard` takes a keyboard of `choices.keyboards` – the guest's language, time zone and keyboards are a locale's (`locales.*`), the default look is set with `looks.setDefault` (plan B141); `defaultCredential` takes a credential's id – there is always a default while there are credentials, plan B139) | `settings` – turning `keepRecipeVersions` off prunes older recipe versions |
 | `looks.list` | `fetch?` | `{looks, offered, unreadable, fetched}` (plan B141) – `looks`: the looks here `[{id, reference, author, name, title, description, tags, appearance?, plain, swatches?, source, sourceName, official, installed, update, isDefault, images}]` (installed from a source, or a local folder source's, used as it is there); `offered`: what the sources' catalogs offer besides (`fetch: true` – or the first call – looks into them) |
 | `looks.install` | `id, source` | Job `look-install` – downloads a look (its files checked against the catalog's SHA-256) into `<data>/looks/<author>.<name>/`; the first one becomes the default |
 | `looks.installAll` | `items: [{id, source}]` | `[Job]` – job `look-install` per source: the looks the Looks tab offers ("Install All") |
@@ -539,7 +539,7 @@ Pages and their params:
 | `keymaps` | – | the key binding sets here and offered (plan B147), in the shape of `modules` (which has the modules only); each row opens it in the key binding studio, "New Key Bindings …" in the head |
 | `sources` | `values?` | the recipe sources (plan B147; before it a section of `settings`): `{title, sources: {title, rows, add, addAction, footer}}` |
 | `keymapStudio` | `id?, values?` | a key binding set of your own (plan B147): `{title, id?, intro, about (name, title, description, platform, base), module, search, hints, groups: [{title, start, way, rows: [{action, title, key (a text field, "h / Left"), after? (a choice of the module's modes), changed, reset? (ui.field with `also`), does?, conflict?, own}]}], changed, actions}`; values `key:<module>:<action>`, `after:<module>:<action>`; Save (`keymaps.save`) gets only what differs from the modules' own keys |
-| `keys` | `recipe` \| `image` \| `vm` | a recipe's keys – of an image or a VM through its recipe – by module and by the mode of its program (plan B147): `{title, subtitle, intro, notes, modules: [{reference, title, groups: [{mode?, title, start, way: [{caps, mode}], rows: [{action, keys, caps, title, after?, backToStart, switches, does?, from?, own}]}]}], keymaps, search}`; `caps` are a key's chords as key caps (⌘ ⌃ ⇧ on a Mac host). Rows of recipes, images and VMs whose recipe has keys open it with `ui.show` (action `keys`, icon `keyboard`); the macOS app shows it in a window of its own |
+| `keys` | `recipe` \| `image` \| `vm` \| `draft` \| `module` (+ `platform`) | a recipe's keys (`module`: one module's own keys, plan B148) – of an image or a VM through its recipe – by module and by the mode of its program (plan B147): `{title, subtitle, intro, notes, modules: [{reference, title, groups: [{mode?, title, start, way: [{caps, mode}], rows: [{action, keys, caps, title, after?, backToStart, switches, does?, from?, own}]}]}], keymaps, search}`; `caps` are a key's chords as key caps, named as the host's keyboard: Ctrl, Opt, Shift, Cmd on a Mac (a guest's Super is ⌘), Ctrl, Alt, Shift, Super elsewhere – a UI draws each cap as a box, never with "+" (plan B148). Rows of recipes, images and VMs whose recipe has keys open it with `ui.show` (action `keys`, icon `keyboard`); the macOS app shows it in a window of its own |
 | `macBase` | `values?` | Create macOS Base |
 | `settings` | `values?` | recipe sources (with the new source's form), general switches, guest values, data folder |
 | `activity` | – | what happened in this server, newest first |
@@ -623,8 +623,13 @@ password asked twice, sent only when both agree. `check: {method, params, param}
 pulsing something happens (plan B99). **Badge** – `{id, icon, help, tone, label?}` (`label`: a short text drawn instead
 of or with the icon: "x86_64", "outdated"). **Tone** – `normal`, `accent` (cyan), `success`, `warning`, `danger`
 (design tokens). **InfoLine** – `{label, value, note?, tone?, full?}`: "Label  value", `note` after the value in
-`tone`, `full` the whole value where the UI shortens it. **Hint** – `{icon, text, tone, action?}`: an empty list, a
-filter that leaves nothing (with "Reset Filter"), an unreadable file, a source that failed.
+`tone`, `full` the whole value where the UI shortens it. **Hint** – `{icon, text, tone, action?, help?, keys?}`: an empty list, a
+filter that leaves nothing (with "Reset Filter"), an unreadable file, a source that failed; `keys` the keys it speaks of
+as caps after its text; `help: true` – it only explains.
+
+**Help** (plan B148) – a page's `intro` and `footer`, a field's `help` and a hint with `help: true` only explain: a UI
+draws them only while the help switch (`home.help`) is on, each in a box of its own outside a list's box. Warnings,
+errors and what is missing are never help.
 
 **List head** (flattened into `vms`, `images`, `recipes`, `activity`) – `title`, `count`, `of` (all rows, when the
 filter leaves some out: "1/2"), `filter`, `actions` (the list's tools: import, refresh, clear), `empty` (a hint instead
@@ -685,7 +690,8 @@ help, the data folder's note, the sources' footer. Both are keys; translations h
 
 **home** – `title`, `actions` (doctor with `badge`, credentials (icon `key`, plan B137), locales (icon `globe`, plan B141), profiles (icon `gauge`, plan B142), settings, dataFolder, quit – with `shortLabel`s for a narrow header), `tabs: [{id, label, icon, badge?}]` (vms, images, recipes, modules – icon `module`, plan B142 –, looks – icon `look`, a warning dot without any look, plan B141 – and activity) with
 `badge: {kind: count|working|failed|dot, count?, tone, help}` (running VMs; a build runs or failed; a recipe changed
-since its image), `firstTab` (`recipes` while there is no VM – a UI opening for the first time starts there).
+since its image), `firstTab` (`recipes` while there is no VM – a UI opening for the first time starts there), `help`
+(the help switch: `settings.set {help}` with `on` its state now, plan B148).
 
 **vms** – list head (filter `status`: Running/Stopped, `kind`; tools: import, run from there), `rows`, `unreadable`.
 A row (sorted by name):

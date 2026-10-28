@@ -15,6 +15,73 @@ use crate::text::s;
 
 pub type El<'a> = Element<'a, Message>;
 
+/// The help switch (plan B148), as the home page says: explanations are drawn only while it is on. Set before each
+/// view is drawn (`App::view`), read by every page.
+static HELP: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
+pub fn set_help(on: bool) {
+    HELP.store(on, std::sync::atomic::Ordering::Relaxed);
+}
+
+pub fn help_on() -> bool {
+    HELP.load(std::sync::atomic::Ordering::Relaxed)
+}
+
+/// An explanation in a box of its own (`HelpNote`, plan B148): a page's intro or footer, a field's help, a hint
+/// marked help; nothing while the help switch is off
+pub fn help_note<'a>(t: String) -> El<'a> {
+    help_box(t, None)
+}
+
+fn help_box<'a>(t: String, action: Option<&Action>) -> El<'a> {
+    if !help_on() || t.is_empty() {
+        return column![].into();
+    }
+    let mut r = row![
+        icon("help", text_size::CALLOUT, style::CYAN),
+        text(t)
+            .size(text_size::CAPTION)
+            .color(style::SECONDARY)
+            .width(Length::Fill)
+            .wrapping(text::Wrapping::WordOrGlyph),
+    ]
+    .spacing(spacing::L)
+    .align_y(Alignment::Center);
+    if let Some(a) = action {
+        r = r.push(action_button(a, None, false));
+    }
+    container(r).padding([spacing::L, spacing::XL]).width(Length::Fill).style(style::detail_box).into()
+}
+
+/// One key as caps (plan B148): each cap a box of its own – |Ctrl| |g| – chords a little apart, never "+"
+pub fn key_caps<'a>(chords: &[Vec<String>]) -> El<'a> {
+    let mut r = row![].spacing(spacing::M).align_y(Alignment::Center);
+    for chord in chords {
+        let mut c = row![].spacing(spacing::XS);
+        for cap in chord {
+            c = c.push(
+                container(text(cap.clone()).size(text_size::CAPTION).font(style::semibold()))
+                    .padding([1.0, spacing::S])
+                    .style(style::card),
+            );
+        }
+        r = r.push(c);
+    }
+    r.into()
+}
+
+/// Several keys for the same: |h| or |←|
+pub fn key_alternatives<'a>(keys: &[Vec<Vec<String>>]) -> El<'a> {
+    let mut r = row![].spacing(spacing::S).align_y(Alignment::Center);
+    for (i, k) in keys.iter().enumerate() {
+        if i > 0 {
+            r = r.push(text(crate::text::tr("or")).size(text_size::CAPTION).color(style::tertiary()));
+        }
+        r = r.push(key_caps(k));
+    }
+    r.into()
+}
+
 /// A tooltip in the brand's look
 pub fn tip<'a>(content: impl Into<El<'a>>, help: String) -> El<'a> {
     if help.is_empty() {
@@ -43,6 +110,11 @@ pub fn secondary<'a>(t: impl text::IntoFragment<'a>) -> iced::widget::Text<'a> {
 /// A thin line between rows
 pub fn divider<'a>() -> El<'a> {
     container(space()).width(Length::Fill).height(1).style(style::divider).into()
+}
+
+/// A thin line between the sidebar and the tab
+pub fn vertical_divider<'a>() -> El<'a> {
+    container(space()).width(1).height(Length::Fill).style(style::divider).into()
 }
 
 /// What a button's tooltip says: why it is greyed out, its help, else its label
@@ -252,6 +324,9 @@ pub fn info_line<'a>(l: &InfoLine) -> El<'a> {
 
 /// A hint line: an empty list, a filter that leaves nothing, an unreadable file (`EmptyHint`)
 pub fn hint<'a>(h: &Hint, pulse: bool) -> El<'a> {
+    if h.help {
+        return help_box(s(&h.text), h.action.as_ref());
+    }
     let tone = if h.tone == Tone::Normal { style::tertiary() } else { style::tone(h.tone) };
     let mut r = row![
         icon(&h.icon, text_size::CALLOUT, tone),
@@ -263,6 +338,9 @@ pub fn hint<'a>(h: &Hint, pulse: bool) -> El<'a> {
     ]
     .spacing(spacing::L)
     .align_y(Alignment::Center);
+    if !h.keys.is_empty() {
+        r = r.push(key_alternatives(&h.keys));
+    }
     if let Some(a) = &h.action {
         // A hint's primary action (the suggestion's Install) is the prominent one
         r = r.push(if a.primary { primary_button(a, None, pulse) } else { action_button(a, None, pulse) });

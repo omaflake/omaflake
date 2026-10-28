@@ -350,6 +350,7 @@
   "recipe": {
     "hints": [
       {
+        "help": true,
         "icon": "info",
         "text": {
           "key": "Modules from the catalog are installed with the recipe when it is saved; their keys show then.",

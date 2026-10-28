@@ -43,7 +43,6 @@ struct HomeList: View {
                 }
                 ForEach(p.offered) { OfferedRowView(row: $0, model: model) }
                 ForEach(Array((p.unreadable + p.errors).enumerated()), id: \.offset) { HintRow(hint: $1, model: model) }
-                if p.labHidden, let hint = p.labHint { HintRow(hint: hint, model: model) }
             }
             .onAppear {
                 // The remote catalogs are looked into when the tab opens, never in the background
@@ -51,6 +50,8 @@ struct HomeList: View {
                     model.run(refresh)
                 }
             }
+            // Explanations below the list, each in a box of its own (plan B148)
+            if p.labHidden, let hint = p.labHint { HintRow(hint: hint, model: model) }
         case .credentials(let p)?:
             // Credentials, locales, profiles: tabs of the workshop (plan B147)
             CredentialsView(page: p, model: model)
@@ -61,6 +62,7 @@ struct HomeList: View {
         case .sources(let p)?:
             SourcesView(page: p, ref: model.listRef(tab), model: model)
         case .looks(let p)?:
+            HelpNote(p.footer, model: model)
             section(p.head) {
                 if p.loading, let text = p.loadingText {
                     HStack(spacing: BrandTokens.Spacing.l) {
@@ -78,10 +80,6 @@ struct HomeList: View {
                 }
                 ForEach(p.offered) { LookRowView(row: $0, model: model) }
                 ForEach(Array(p.unreadable.enumerated()), id: \.offset) { HintRow(hint: $1, model: model) }
-                Text(verbatim: model.t(p.footer)).font(.caption).foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(.horizontal, BrandTokens.Spacing.xl).padding(.top, BrandTokens.Spacing.l)
             }
             .onAppear {
                 // The catalogs are looked into when the tab opens, never in the background
@@ -368,9 +366,8 @@ struct BasesSectionView: View {
                 .padding(BrandTokens.Spacing.cardPadding)
             }
             if let empty = section.empty { HintRow(hint: empty, model: model) }
-            HStack {
-                Text(verbatim: model.t(section.footer)).font(.caption).foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
+            HStack(alignment: .top) {
+                HelpNote(section.footer, model: model)
                 Spacer()
                 // Without a base the hint above has it – not a second button
                 if section.empty == nil { ActionPlainButton(action: section.create, model: model) }

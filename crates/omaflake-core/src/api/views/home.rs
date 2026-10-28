@@ -26,6 +26,9 @@ pub struct HomePage {
     pub groups: Vec<TabGroup>,
     /// No VM yet: a UI opening for the first time starts on the recipes tab
     pub first_tab: String,
+    /// The help switch (plan B148, `on`: shown): explanations – a page's `intro` and `footer`, a field's `help`, hints
+    /// marked `help` – are drawn only while it is on, each in a box of its own. Off by default.
+    pub help: Action,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -184,5 +187,18 @@ pub(crate) fn page(ctx: &Ctx) -> HomePage {
         tabs,
         groups,
         first_tab: if ctx.vms.is_empty() { "recipes".into() } else { "vms".into() },
+        help: Action::call(
+            "help",
+            Text::new("Help"),
+            Some("help"),
+            "settings.set",
+            json!({"help": !ctx.settings.help}),
+        )
+        .switch(ctx.settings.help)
+        .help(Text::new(if ctx.settings.help {
+            "Hide the explanations"
+        } else {
+            "Show explanations on every page"
+        })),
     }
 }

@@ -34,8 +34,7 @@ struct KeysView: View {
             TextField(model.t(page.search), text: $search).textFieldStyle(.roundedBorder)
             ScrollView {
                 VStack(alignment: .leading, spacing: BrandTokens.Spacing.xxl) {
-                    Text(model.t(page.intro)).font(.caption).foregroundStyle(.secondary)
-                        .fixedSize(horizontal: false, vertical: true)
+                    HelpNote(page.intro, model: model)
                     ForEach(Array(page.notes.enumerated()), id: \.offset) { HintRow(hint: $1, model: model) }
                     ForEach(filtered(page.modules)) { ModuleCard(module: $0, model: model) }
                 }
@@ -129,13 +128,7 @@ private struct KeyRowView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: BrandTokens.Spacing.s) {
             HStack(alignment: .firstTextBaseline, spacing: BrandTokens.Spacing.l) {
-                HStack(spacing: BrandTokens.Spacing.s) {
-                    ForEach(Array(row.caps.enumerated()), id: \.offset) { i, key in
-                        if i > 0 { Text("/").font(.caption).foregroundStyle(.tertiary) }
-                        KeyCaps(chords: key)
-                    }
-                }
-                .frame(minWidth: 120, alignment: .leading)
+                KeyAlternatives(keys: row.caps).frame(minWidth: 120, alignment: .leading)
                 Text(model.t(row.title)).font(.callout).foregroundStyle(row.switches ? .secondary : .primary)
                 if row.own {
                     Text("own").font(.system(size: BrandTokens.Icon.badge + 1)).foregroundStyle(.secondary)
@@ -167,25 +160,45 @@ private struct KeyRowView: View {
     }
 }
 
-/// One key as caps: chords side by side, the caps of a chord joined
+/// One key as caps (plan B148): each cap a box of its own – |Ctrl| |g| – chords a little apart, never "+"
 struct KeyCaps: View {
     let chords: [[String]]
+    var size: CGFloat = 11
 
     var body: some View {
-        HStack(spacing: BrandTokens.Spacing.xs) {
+        HStack(spacing: BrandTokens.Spacing.m) {
             ForEach(Array(chords.enumerated()), id: \.offset) { _, chord in
-                HStack(spacing: 1) {
+                HStack(spacing: BrandTokens.Spacing.xs) {
                     ForEach(Array(chord.enumerated()), id: \.offset) { _, cap in
                         Text(cap)
-                            .font(.system(size: 11, weight: .medium, design: .rounded))
-                            .padding(.horizontal, 5).padding(.vertical, 1)
-                            .frame(minWidth: 18)
+                            .font(.system(size: size, weight: .medium, design: .rounded))
+                            .padding(.horizontal, size * 0.5).padding(.vertical, size * 0.12)
+                            .frame(minWidth: size * 1.7)
                             .background(BrandTokens.Colors.inset, in: RoundedRectangle(cornerRadius: 4))
                             .overlay(RoundedRectangle(cornerRadius: 4).strokeBorder(BrandTokens.Colors.windowBorder))
+                            .overlay(alignment: .bottom) {
+                                // The key's lower edge, so it reads as a key
+                                RoundedRectangle(cornerRadius: 4).fill(BrandTokens.Colors.windowBorder).frame(height: 1.5)
+                                    .padding(.horizontal, 2)
+                            }
                     }
                 }
             }
         }
         .fixedSize()
+    }
+}
+
+/// Several keys for the same: |h| or |←|
+struct KeyAlternatives: View {
+    let keys: [[[String]]]
+
+    var body: some View {
+        HStack(spacing: BrandTokens.Spacing.s) {
+            ForEach(Array(keys.enumerated()), id: \.offset) { i, key in
+                if i > 0 { Text("or").font(.caption).foregroundStyle(.tertiary) }
+                KeyCaps(chords: key)
+            }
+        }
     }
 }

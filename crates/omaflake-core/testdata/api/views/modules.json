@@ -281,6 +281,23 @@
       "actions": [
         {
           "enabled": true,
+          "icon": "keyboard",
+          "id": "keys",
+          "label": {
+            "key": "Keys …",
+            "text": "Keys …"
+          },
+          "method": "ui.show",
+          "params": {
+            "page": "keys",
+            "params": {
+              "module": "omaflake/hyprland",
+              "platform": "nixos"
+            }
+          }
+        },
+        {
+          "enabled": true,
           "help": {
             "key": "Installs the newer version; images made with it are outdated then",
             "text": "Installs the newer version; images made with it are outdated then"
@@ -324,6 +341,23 @@
       ],
       "detail": {
         "actions": [
+          {
+            "enabled": true,
+            "icon": "keyboard",
+            "id": "keys",
+            "label": {
+              "key": "Keys …",
+              "text": "Keys …"
+            },
+            "method": "ui.show",
+            "params": {
+              "page": "keys",
+              "params": {
+                "module": "omaflake/hyprland",
+                "platform": "nixos"
+              }
+            }
+          },
           {
             "enabled": true,
             "help": {
@@ -414,13 +448,16 @@
             }
           },
           {
-            "full": "terminal: Super+Return",
             "label": {
               "key": "Keys",
               "text": "Keys"
             },
             "value": {
-              "text": "terminal: Super+Return"
+              "args": [
+                1
+              ],
+              "key": "%lld keys",
+              "text": "1 keys"
             }
           },
           {

@@ -340,7 +340,7 @@ fn tab(ctx: &Ctx, p: &RecipesParams, catalog: bool) -> RecipesPage {
         errors,
         lab_hidden: lab_hidden && catalog,
         lab_hint: (lab_hidden && catalog).then(|| {
-            Hint::new("lab", Text::new("Lab recipes are hidden – Developer Mode in Settings shows them."), Tone::Normal)
+            Hint::help("lab", Text::new("Lab recipes are hidden – Developer Mode in Settings shows them."))
                 .action(Action::show("settings", Text::new("Settings"), Some("settings"), "settings", json!({})))
         }),
     }
@@ -469,31 +469,24 @@ pub(crate) fn notes(ctx: &Ctx, recipe: &str, p: &RecipePartsDto) -> Vec<Hint> {
         out.push(if missing.is_empty() { hint.action(install()) } else { hint });
     }
     for i in &p.issues {
-        let text = match i {
+        let (text, keys) = match i {
             Issue::Needs { module, capability } => {
-                tf!("%@ needs a %@ – no module of the recipe provides one", module, capability)
+                (tf!("%@ needs a %@ – no module of the recipe provides one", module, capability), vec![])
             }
             Issue::Incompatible { capability, modules } => {
-                tf!("%@ do not go together: each is the %@", modules.join(" + "), capability)
+                (tf!("%@ do not go together: each is the %@", modules.join(", "), capability), vec![])
             }
-            Issue::KeysOverlap { first, second } => tf!(
-                "Keys overlap: %@ (%@, %@) and %@ (%@, %@)",
-                &first.title,
-                &first.module,
-                first.key_text(),
-                &second.title,
-                &second.module,
-                second.key_text()
+            Issue::KeysOverlap { first, second } => (
+                tf!("Keys overlap: %@ (%@) and %@ (%@)", &first.title, &first.module, &second.title, &second.module),
+                super::keys::key_caps(&first.keys, ctx.host),
             ),
-            Issue::KeyRule { binding } => tf!(
-                "%@ (%@, %@): without a mode a key starts with Super or Ctrl",
-                &binding.title,
-                &binding.module,
-                binding.key_text()
+            Issue::KeyRule { binding } => (
+                tf!("%@ (%@): without a mode a key starts with Super or Ctrl", &binding.title, &binding.module),
+                super::keys::key_caps(&binding.keys, ctx.host),
             ),
             _ => continue,
         };
-        out.push(Hint::new("warning", text, Tone::Warning));
+        out.push(Hint::new("warning", text, Tone::Warning).keys(keys));
     }
     if !p.unfree.is_empty() {
         out.push(Hint::new("license", tf!("Not free software: %@", p.unfree.join(", ")), Tone::Normal));
