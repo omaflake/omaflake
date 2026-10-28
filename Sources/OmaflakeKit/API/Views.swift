@@ -322,7 +322,7 @@ public struct Pager: Decodable, Sendable, Equatable {
     public var next: ViewAction?
 }
 
-public enum FieldKind: String, OpenEnum { case toggle, text, number, choice, path, info, unknown }
+public enum FieldKind: String, OpenEnum { case toggle, text, number, choice, path, info, color, unknown }
 
 /// A form field: on a form page the UI keeps the user's value under `params.values.<valueParam>` of the page (and it
 /// lands in the page action's params at `param`); in Settings `set` stores it
@@ -714,6 +714,45 @@ public struct RecipeStudioPage: Decodable, Sendable, Equatable {
 
     /// Every field whose value the page keeps
     public var fields: [Field] { about + [catalog.search] + dress + vm }
+}
+
+/// `lookStudio` (plan B150): a look of your own – its fields, a section each for colours and the rest, a preview
+public struct LookStudioPage: Decodable, Sendable, Equatable {
+    public struct Section: Decodable, Sendable, Equatable, Identifiable {
+        public var id: String
+        public var title: ViewText
+        public var help: ViewText
+        public var fields: [Field]
+    }
+
+    /// The look's colours now, "#rrggbb" each
+    public struct Preview: Decodable, Sendable, Equatable {
+        public var background: String
+        public var surface: String
+        public var selection: String
+        public var text: String
+        public var subtext: String
+        public var muted: String
+        public var accent: String
+        public var urgent: String
+        public var normal: [String]
+        public var bright: [String]
+        public var border: [String]
+        public var inactiveBorder: String
+        public var clock: String
+    }
+
+    public var title: ViewText
+    public var id: String?
+    public var intro: ViewText
+    public var about: [Field]
+    public var sections: [Section]
+    public var preview: Preview?
+    public var hints: [Hint]
+    public var actions: [ViewAction]
+
+    /// Every field whose value the page keeps
+    public var fields: [Field] { about + sections.flatMap(\.fields) }
 }
 
 /// `keymapStudio` (plan B147): a key binding set of your own, one module at a time by mode
@@ -1233,7 +1272,7 @@ public enum PageModel: Sendable, Equatable {
     case home(HomePage), vms(VmsPage), vm(VmPage), images(ImagesPage), image(ImagePage), recipes(RecipesPage)
     case newVm(NewVmPage), build(BuildPage), doctor(DoctorPage), macBase(MacBasePage), settings(SettingsPage)
     case activity(ActivityPage), importStep(ImportPage), credentials(CredentialsPage), credential(CredentialPage)
-    case looks(LooksPage), keys(KeysPage), studio(RecipeStudioPage), keymapStudio(KeymapStudioPage), sources(SourcesPage)
+    case looks(LooksPage), keys(KeysPage), studio(RecipeStudioPage), keymapStudio(KeymapStudioPage), lookStudio(LookStudioPage), sources(SourcesPage)
     /// The page could not be built
     case error(ViewError)
     /// A page this client does not know
@@ -1272,6 +1311,7 @@ public enum PageModel: Sendable, Equatable {
         case "profile": self = .credential(try CredentialPage(from: decoder))
         case "recipeStudio": self = .studio(try RecipeStudioPage(from: decoder))
         case "keymapStudio": self = .keymapStudio(try KeymapStudioPage(from: decoder))
+        case "lookStudio": self = .lookStudio(try LookStudioPage(from: decoder))
         case "modules": self = .looks(try LooksPage(from: decoder))
         // The credential of a macOS base from before bases kept theirs: the same form (plan B139)
         case "baseCredential": self = .credential(try CredentialPage(from: decoder))

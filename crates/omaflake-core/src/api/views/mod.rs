@@ -27,6 +27,7 @@ pub mod import;
 pub mod keymap_studio;
 pub mod keys;
 pub mod locales;
+pub mod look_studio;
 pub mod looks;
 pub mod modules;
 pub mod new_vm;
@@ -58,7 +59,7 @@ pub use activity::ActivityEntry;
 pub use text::{Arg, Text};
 
 /// Every page `views.get` knows
-pub const PAGES: [&str; 28] = [
+pub const PAGES: [&str; 29] = [
     "home",
     "vms",
     "vm",
@@ -84,6 +85,7 @@ pub const PAGES: [&str; 28] = [
     "baseCredential",
     "keys",
     "keymapStudio",
+    "lookStudio",
     "sources",
     "recipeCatalog",
     "keymaps",
@@ -375,6 +377,7 @@ pub(crate) fn build(ctx: &Ctx, page: &PageRef) -> Result<Value, RpcError> {
         "sources" => to_value(settings::sources_page(ctx, &page_params(p)?)),
         "recipeCatalog" => to_value(recipes::catalog_page(ctx, &page_params(p)?)),
         "keymaps" => to_value(modules::keymaps_page(ctx, &page_params(p)?)),
+        "lookStudio" => to_value(look_studio::page(ctx, &page_params(p)?)),
         "keymapStudio" => to_value(keymap_studio::page(ctx, &page_params(p)?)),
         other => Err(RpcError::invalid_params(format!("page \"{other}\": {}", PAGES.join(", ")))),
     }

@@ -871,6 +871,8 @@ pub enum FieldKind {
     Path,
     /// Shown, not edited
     Info,
+    /// A colour, "#rrggbb" – chosen with the system's colour picker where there is one (plan B150)
+    Color,
 }
 
 /// How a field's change is stored at once (Settings): send `method` with `params`, the new value put at `param`

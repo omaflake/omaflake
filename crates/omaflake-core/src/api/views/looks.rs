@@ -119,7 +119,16 @@ fn row(l: &LookDto) -> LookRow {
     let id = json!({"id": l.id});
     let make_default = Action::call("default", Text::new("Make Default"), Some("ok"), "looks.setDefault", id.clone())
         .enabled_if(!l.is_default, Some(Text::new("Already the default")));
-    let mut actions = vec![make_default.clone()];
+    // A look opens in the look studio: one of yours is edited, any other copied (plan B150)
+    let mine = l.author == crate::my_recipes::MyRecipes::AUTHOR;
+    let studio = Action::show(
+        "studio",
+        Text::new(if mine { "Edit …" } else { "Copy to My Looks …" }),
+        Some("look"),
+        "lookStudio",
+        json!({"id": l.id}),
+    );
+    let mut actions = vec![make_default.clone(), studio.clone()];
     if l.update {
         actions.push(
             Action::call(
@@ -158,7 +167,7 @@ fn row(l: &LookDto) -> LookRow {
         subtitle: Text::joined(vec![Text::verbatim(&l.reference), appearance(&l.appearance, l.plain), usage]),
         badges,
         swatches: Some(strip(&l.swatches)),
-        actions: if l.is_default { vec![] } else { vec![make_default] },
+        actions: if l.is_default { vec![studio] } else { vec![studio, make_default] },
         detail: LookDetail {
             info: vec![
                 InfoLine::new("About", Text::verbatim(&l.description)),
@@ -245,6 +254,10 @@ pub(crate) fn page(ctx: &Ctx, p: &super::recipes::RecipesParams) -> LooksPage {
     let installing = ctx.active_job(crate::api::types::JobKind::LookInstall).is_some();
     let shown = offered.iter().map(|r| (r.actions.as_slice(), r.badges.iter().any(|b| b.id == "official")));
     head.actions.extend(install_all("looks.installAll", shown, installing));
+    head.actions.push(
+        Action::show("new", Text::new("New Look …"), Some("add"), "lookStudio", json!({}))
+            .help(Text::new("A look of your own, in the look studio")),
+    );
     head.empty = if all > 0 && rows.is_empty() && offered.is_empty() {
         Some(filtered_out("looks"))
     } else {

@@ -1309,6 +1309,40 @@ fn doctor_cleans_up_the_nix_store() {
     assert!(clean["confirm"].is_object(), "asks first");
 }
 
+/// The look studio (plan B150): starts from omaflake's colours without a look here; colours are fields with the colour
+/// kind; what was chosen goes into the look Save writes; hard-to-read colours are said
+#[test]
+fn look_studio_colours_preview_and_contrast() {
+    let c = ctx();
+    let page = get(&c, "lookStudio", json!({"values": {"name": "dusk"}}));
+    assert_eq!(page["title"]["key"], "Look Studio");
+    let ids: Vec<&str> = page["sections"].as_array().unwrap().iter().map(|s| s["id"].as_str().unwrap()).collect();
+    assert_eq!(ids, ["colors", "terminal", "desktop", "editors", "macos"]);
+    let bg = &page["sections"][0]["fields"][0];
+    assert_eq!((bg["id"].as_str(), bg["kind"].as_str()), (Some("color.background"), Some("color")));
+    assert_eq!(page["sections"][1]["fields"].as_array().unwrap().len(), 16);
+    assert!(page["hints"].as_array().unwrap().is_empty(), "omaflake's colours read well");
+    // A chosen colour: in the preview and in what Save writes; grey text on grey is said
+    let values = json!({"name": "dusk", "color.text": "#555555", "color.background": "#444444", "neovim": "rose-pine:moon",
+        "border.1": "#ff00ff", "macos.wallpaper": "black"});
+    let page = get(&c, "lookStudio", json!({"values": values}));
+    assert_eq!(page["preview"]["text"], "#555555");
+    assert_eq!(page["hints"][0]["text"]["key"], "Text is hard to read on the background (contrast %@ – at least 4.5)");
+    let look = &action(&page["actions"], "save")["params"]["look"];
+    assert_eq!(look["colors"]["background"], "#444444");
+    assert_eq!(look["neovim"], json!({"theme": "rose-pine", "variant": "moon"}));
+    assert_eq!(look["desktop"]["border"], json!(["#3fd0e0", "#ff00ff"]));
+    assert_eq!(look["macos"], json!({"wallpaper": "black"}));
+    // A colour that is not one: said at the field, Save waits; plain: no colours at all
+    let page = get(&c, "lookStudio", json!({"values": {"name": "dusk", "color.accent": "teal"}}));
+    assert!(page["sections"][0]["fields"][6]["error"].is_object());
+    assert_eq!(action(&page["actions"], "save")["enabled"], false);
+    let plain = get(&c, "lookStudio", json!({"values": {"name": "dusk", "plain": true}}));
+    assert!(plain["sections"].as_array().unwrap().is_empty() && plain.get("preview").is_none());
+    let look = &action(&plain["actions"], "save")["params"]["look"];
+    assert!(look.get("colors").is_none() && look["plain"] == true);
+}
+
 /// The help switch (plan B148): off by default, the home page's action turns it on; a hint that only explains says so
 #[test]
 fn help_switch_on_the_home_page() {
@@ -1797,6 +1831,7 @@ fn looks_are_a_tab_with_their_colours_usage_and_offers() {
             "recipes",
             "recipeStudio",
             "keymapStudio",
+            "lookStudio",
             "recipeCatalog",
             "modules",
             "looks",
@@ -1819,7 +1854,7 @@ fn looks_are_a_tab_with_their_colours_usage_and_offers() {
             .map(|t| t["id"].as_str().unwrap().to_string())
             .collect()
     };
-    assert_eq!(of("workshop"), ["recipes", "recipeStudio", "keymapStudio"]);
+    assert_eq!(of("workshop"), ["recipes", "recipeStudio", "keymapStudio", "lookStudio"]);
     assert_eq!(of("catalog"), ["recipeCatalog", "modules", "looks", "keymaps", "sources"]);
     assert_eq!(of("profiles"), ["credentials", "locales", "profiles"]);
     let page = get(&c, "looks", json!({}));
@@ -1829,7 +1864,9 @@ fn looks_are_a_tab_with_their_colours_usage_and_offers() {
     assert_eq!(rose["subtitle"]["text"], "omaflake/rose-pine-dawn · light · 1 image");
     assert_eq!(ids(&rose["badges"]), ["default", "official"]);
     assert_eq!(rose["swatches"].as_array().unwrap().len(), 11);
-    assert!(rose["actions"].as_array().unwrap().is_empty(), "the default needs no quick action");
+    // The default needs no Make Default; a look of the catalog is copied in the look studio (plan B150)
+    assert_eq!(ids(&rose["actions"]), ["studio"]);
+    assert_eq!(action(&rose["actions"], "studio")["label"]["key"], "Copy to My Looks …");
     let remove = action(&rose["detail"]["actions"], "remove");
     assert_eq!(
         (remove["enabled"].clone(), remove["reason"]["key"].clone()),
@@ -1837,7 +1874,7 @@ fn looks_are_a_tab_with_their_colours_usage_and_offers() {
     );
     // A local folder's look: Make Default as its quick action, removed there
     let local = &page["rows"][1];
-    assert_eq!(ids(&local["actions"]), ["default"]);
+    assert_eq!(ids(&local["actions"]), ["studio", "default"]);
     assert!(ids(&local["badges"]).iter().any(|b| b == "folder"));
     assert_eq!(action(&local["detail"]["actions"], "remove")["enabled"], false);
     // Offered: Install from its source

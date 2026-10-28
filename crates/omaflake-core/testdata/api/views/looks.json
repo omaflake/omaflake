@@ -41,6 +41,24 @@
           }
         ]
       }
+    },
+    {
+      "enabled": true,
+      "help": {
+        "key": "A look of your own, in the look studio",
+        "text": "A look of your own, in the look studio"
+      },
+      "icon": "add",
+      "id": "new",
+      "label": {
+        "key": "New Look …",
+        "text": "New Look …"
+      },
+      "method": "ui.show",
+      "params": {
+        "page": "lookStudio",
+        "params": {}
+      }
     }
   ],
   "browse": {
@@ -275,7 +293,24 @@
   },
   "rows": [
     {
-      "actions": [],
+      "actions": [
+        {
+          "enabled": true,
+          "icon": "look",
+          "id": "studio",
+          "label": {
+            "key": "Copy to My Looks …",
+            "text": "Copy to My Looks …"
+          },
+          "method": "ui.show",
+          "params": {
+            "page": "lookStudio",
+            "params": {
+              "id": "omaflake.look.rose-pine-dawn"
+            }
+          }
+        }
+      ],
       "badges": [
         {
           "help": {
@@ -317,6 +352,22 @@
             "reason": {
               "key": "Already the default",
               "text": "Already the default"
+            }
+          },
+          {
+            "enabled": true,
+            "icon": "look",
+            "id": "studio",
+            "label": {
+              "key": "Copy to My Looks …",
+              "text": "Copy to My Looks …"
+            },
+            "method": "ui.show",
+            "params": {
+              "page": "lookStudio",
+              "params": {
+                "id": "omaflake.look.rose-pine-dawn"
+              }
             }
           },
           {
@@ -431,6 +482,22 @@
       "actions": [
         {
           "enabled": true,
+          "icon": "look",
+          "id": "studio",
+          "label": {
+            "key": "Copy to My Looks …",
+            "text": "Copy to My Looks …"
+          },
+          "method": "ui.show",
+          "params": {
+            "page": "lookStudio",
+            "params": {
+              "id": "omaflake.look.omaflake"
+            }
+          }
+        },
+        {
+          "enabled": true,
           "icon": "ok",
           "id": "default",
           "label": {
@@ -470,6 +537,22 @@
             "method": "looks.setDefault",
             "params": {
               "id": "omaflake.look.omaflake"
+            }
+          },
+          {
+            "enabled": true,
+            "icon": "look",
+            "id": "studio",
+            "label": {
+              "key": "Copy to My Looks …",
+              "text": "Copy to My Looks …"
+            },
+            "method": "ui.show",
+            "params": {
+              "page": "lookStudio",
+              "params": {
+                "id": "omaflake.look.omaflake"
+              }
             }
           },
           {

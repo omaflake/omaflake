@@ -57,6 +57,8 @@ struct HomeList: View {
             CredentialsView(page: p, model: model)
         case .studio(let p)?:
             RecipeStudioView(page: p, ref: model.listRef(tab), model: model)
+        case .lookStudio(let p)?:
+            LookStudioView(page: p, ref: model.listRef(tab), model: model)
         case .keymapStudio(let p)?:
             KeymapStudioView(page: p, ref: model.listRef(tab), model: model)
         case .sources(let p)?:
@@ -330,6 +332,13 @@ struct LookSwatches: View {
 }
 
 extension Color {
+    /// "#rrggbb" in sRGB (a colour field's value)
+    var hexString: String {
+        let c = NSColor(self).usingColorSpace(.sRGB) ?? .gray
+        let v = { (x: CGFloat) in Int((min(max(x, 0), 1) * 255).rounded()) }
+        return String(format: "#%02x%02x%02x", v(c.redComponent), v(c.greenComponent), v(c.blueComponent))
+    }
+
     /// "#RRGGBB" (a look's colours); anything else is grey
     init(hex: String) {
         let s = hex.hasPrefix("#") ? String(hex.dropFirst()) : hex

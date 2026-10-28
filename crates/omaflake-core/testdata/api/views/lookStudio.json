@@ -1,0 +1,966 @@
+{
+  "about": [
+    {
+      "enabled": true,
+      "help": {
+        "key": "lowercase letters, digits and - – recipes name the look my/<name>",
+        "text": "lowercase letters, digits and - – recipes name the look my/<name>"
+      },
+      "id": "name",
+      "kind": "text",
+      "label": {
+        "key": "Name",
+        "text": "Name"
+      },
+      "value": "dusk",
+      "valueParam": "name"
+    },
+    {
+      "enabled": true,
+      "id": "title",
+      "kind": "text",
+      "label": {
+        "key": "Title",
+        "text": "Title"
+      },
+      "value": "",
+      "valueParam": "title"
+    },
+    {
+      "enabled": true,
+      "id": "description",
+      "kind": "text",
+      "label": {
+        "key": "Description",
+        "text": "Description"
+      },
+      "value": "",
+      "valueParam": "description"
+    },
+    {
+      "choices": [
+        {
+          "label": {
+            "key": "Dark",
+            "text": "Dark"
+          },
+          "value": "dark"
+        },
+        {
+          "label": {
+            "key": "Light",
+            "text": "Light"
+          },
+          "value": "light"
+        }
+      ],
+      "enabled": true,
+      "help": {
+        "key": "What programs with a light and a dark mode use – and macOS guests",
+        "text": "What programs with a light and a dark mode use – and macOS guests"
+      },
+      "id": "appearance",
+      "kind": "choice",
+      "label": {
+        "key": "Light or dark",
+        "text": "Light or dark"
+      },
+      "value": "dark",
+      "valueParam": "appearance"
+    },
+    {
+      "enabled": true,
+      "id": "tags",
+      "kind": "text",
+      "label": {
+        "key": "Tags",
+        "text": "Tags"
+      },
+      "placeholder": {
+        "key": "dark, pastel",
+        "text": "dark, pastel"
+      },
+      "value": "",
+      "valueParam": "tags"
+    },
+    {
+      "enabled": true,
+      "help": {
+        "key": "The look whose values it starts with; what you change here wins",
+        "text": "The look whose values it starts with; what you change here wins"
+      },
+      "id": "base",
+      "kind": "choice",
+      "label": {
+        "key": "Starts from",
+        "text": "Starts from"
+      },
+      "value": "",
+      "valueParam": "base"
+    },
+    {
+      "enabled": true,
+      "help": {
+        "key": "Sets no colours – fonts, layout and keys stay omaflake's (like Vanilla)",
+        "text": "Sets no colours – fonts, layout and keys stay omaflake's (like Vanilla)"
+      },
+      "id": "plain",
+      "kind": "toggle",
+      "label": {
+        "key": "Every program in its own colours",
+        "text": "Every program in its own colours"
+      },
+      "value": false,
+      "valueParam": "plain"
+    }
+  ],
+  "actions": [
+    {
+      "enabled": true,
+      "id": "cancel",
+      "label": {
+        "key": "Cancel",
+        "text": "Cancel"
+      },
+      "method": "ui.back",
+      "params": {}
+    },
+    {
+      "enabled": true,
+      "icon": "apply",
+      "id": "save",
+      "label": {
+        "key": "Save",
+        "text": "Save"
+      },
+      "method": "looks.save",
+      "params": {
+        "look": {
+          "appearance": "dark",
+          "colors": {
+            "accent": "#3fd0e0",
+            "background": "#14161b",
+            "muted": "#6b7385",
+            "selection": "#2c313c",
+            "subtext": "#a9b0bf",
+            "surface": "#1c1f26",
+            "text": "#555555",
+            "urgent": "#ff5c6c"
+          },
+          "description": "",
+          "desktop": {
+            "border": [
+              "#3fd0e0"
+            ],
+            "clock": "#3fd0e0",
+            "inactive_border": "#2c313c"
+          },
+          "terminal": {
+            "bright": [
+              "#4b5263",
+              "#ff7a87",
+              "#9be3a9",
+              "#fff08a",
+              "#82bdff",
+              "#d8acf0",
+              "#7fe0ea",
+              "#ffffff"
+            ],
+            "normal": [
+              "#1c1f26",
+              "#ff5c6c",
+              "#7bd88f",
+              "#fce566",
+              "#5aa9ff",
+              "#c792ea",
+              "#3fd0e0",
+              "#d7dae0"
+            ]
+          },
+          "title": "dusk"
+        },
+        "name": "dusk"
+      },
+      "primary": true,
+      "then": "back"
+    }
+  ],
+  "hints": [
+    {
+      "icon": "warning",
+      "text": {
+        "args": [
+          "2.4"
+        ],
+        "key": "Text is hard to read on the background (contrast %@ – at least 4.5)",
+        "text": "Text is hard to read on the background (contrast 2.4 – at least 4.5)"
+      },
+      "tone": "warning"
+    },
+    {
+      "icon": "warning",
+      "text": {
+        "args": [
+          "2.2"
+        ],
+        "key": "Text is hard to read on the surface (contrast %@ – at least 4.5)",
+        "text": "Text is hard to read on the surface (contrast 2.2 – at least 4.5)"
+      },
+      "tone": "warning"
+    }
+  ],
+  "intro": {
+    "key": "A look of your own: its colours, the terminal's, the desktop's borders and clock, the editors' themes and macOS guests' system look – chosen here, no Nix needed. The preview shows them; what is hard to read is said while you choose. Saved in My Recipes' folder; recipes and images name the look my/<name>.",
+    "text": "A look of your own: its colours, the terminal's, the desktop's borders and clock, the editors' themes and macOS guests' system look – chosen here, no Nix needed. The preview shows them; what is hard to read is said while you choose. Saved in My Recipes' folder; recipes and images name the look my/<name>."
+  },
+  "preview": {
+    "accent": "#3fd0e0",
+    "background": "#14161b",
+    "border": [
+      "#3fd0e0"
+    ],
+    "bright": [
+      "#4b5263",
+      "#ff7a87",
+      "#9be3a9",
+      "#fff08a",
+      "#82bdff",
+      "#d8acf0",
+      "#7fe0ea",
+      "#ffffff"
+    ],
+    "clock": "#3fd0e0",
+    "inactiveBorder": "#2c313c",
+    "muted": "#6b7385",
+    "normal": [
+      "#1c1f26",
+      "#ff5c6c",
+      "#7bd88f",
+      "#fce566",
+      "#5aa9ff",
+      "#c792ea",
+      "#3fd0e0",
+      "#d7dae0"
+    ],
+    "selection": "#2c313c",
+    "subtext": "#a9b0bf",
+    "surface": "#1c1f26",
+    "text": "#555555",
+    "urgent": "#ff5c6c"
+  },
+  "sections": [
+    {
+      "fields": [
+        {
+          "enabled": true,
+          "id": "color.background",
+          "kind": "color",
+          "label": {
+            "key": "Background",
+            "text": "Background"
+          },
+          "value": "#14161b",
+          "valueParam": "color.background"
+        },
+        {
+          "enabled": true,
+          "id": "color.surface",
+          "kind": "color",
+          "label": {
+            "key": "Surface – panels and bars",
+            "text": "Surface – panels and bars"
+          },
+          "value": "#1c1f26",
+          "valueParam": "color.surface"
+        },
+        {
+          "enabled": true,
+          "id": "color.selection",
+          "kind": "color",
+          "label": {
+            "key": "Selection",
+            "text": "Selection"
+          },
+          "value": "#2c313c",
+          "valueParam": "color.selection"
+        },
+        {
+          "enabled": true,
+          "id": "color.text",
+          "kind": "color",
+          "label": {
+            "key": "Text",
+            "text": "Text"
+          },
+          "value": "#555555",
+          "valueParam": "color.text"
+        },
+        {
+          "enabled": true,
+          "id": "color.subtext",
+          "kind": "color",
+          "label": {
+            "key": "Secondary text",
+            "text": "Secondary text"
+          },
+          "value": "#a9b0bf",
+          "valueParam": "color.subtext"
+        },
+        {
+          "enabled": true,
+          "id": "color.muted",
+          "kind": "color",
+          "label": {
+            "key": "Muted – comments, what is inactive",
+            "text": "Muted – comments, what is inactive"
+          },
+          "value": "#6b7385",
+          "valueParam": "color.muted"
+        },
+        {
+          "enabled": true,
+          "id": "color.accent",
+          "kind": "color",
+          "label": {
+            "key": "Accent",
+            "text": "Accent"
+          },
+          "value": "#3fd0e0",
+          "valueParam": "color.accent"
+        },
+        {
+          "enabled": true,
+          "id": "color.urgent",
+          "kind": "color",
+          "label": {
+            "key": "Urgent – errors and warnings",
+            "text": "Urgent – errors and warnings"
+          },
+          "value": "#ff5c6c",
+          "valueParam": "color.urgent"
+        }
+      ],
+      "help": {
+        "key": "The eight colours every program of the look is coloured from – bars, menus, the editors, the prompt.",
+        "text": "The eight colours every program of the look is coloured from – bars, menus, the editors, the prompt."
+      },
+      "id": "colors",
+      "title": {
+        "key": "Colours",
+        "text": "Colours"
+      }
+    },
+    {
+      "fields": [
+        {
+          "enabled": true,
+          "id": "normal.0",
+          "kind": "color",
+          "label": {
+            "key": "Black",
+            "text": "Black"
+          },
+          "value": "#1c1f26",
+          "valueParam": "normal.0"
+        },
+        {
+          "enabled": true,
+          "id": "bright.0",
+          "kind": "color",
+          "label": {
+            "args": [
+              {
+                "key": "Black",
+                "text": "Black"
+              }
+            ],
+            "key": "Bright %@",
+            "text": "Bright Black"
+          },
+          "value": "#4b5263",
+          "valueParam": "bright.0"
+        },
+        {
+          "enabled": true,
+          "id": "normal.1",
+          "kind": "color",
+          "label": {
+            "key": "Red",
+            "text": "Red"
+          },
+          "value": "#ff5c6c",
+          "valueParam": "normal.1"
+        },
+        {
+          "enabled": true,
+          "id": "bright.1",
+          "kind": "color",
+          "label": {
+            "args": [
+              {
+                "key": "Red",
+                "text": "Red"
+              }
+            ],
+            "key": "Bright %@",
+            "text": "Bright Red"
+          },
+          "value": "#ff7a87",
+          "valueParam": "bright.1"
+        },
+        {
+          "enabled": true,
+          "id": "normal.2",
+          "kind": "color",
+          "label": {
+            "key": "Green",
+            "text": "Green"
+          },
+          "value": "#7bd88f",
+          "valueParam": "normal.2"
+        },
+        {
+          "enabled": true,
+          "id": "bright.2",
+          "kind": "color",
+          "label": {
+            "args": [
+              {
+                "key": "Green",
+                "text": "Green"
+              }
+            ],
+            "key": "Bright %@",
+            "text": "Bright Green"
+          },
+          "value": "#9be3a9",
+          "valueParam": "bright.2"
+        },
+        {
+          "enabled": true,
+          "id": "normal.3",
+          "kind": "color",
+          "label": {
+            "key": "Yellow",
+            "text": "Yellow"
+          },
+          "value": "#fce566",
+          "valueParam": "normal.3"
+        },
+        {
+          "enabled": true,
+          "id": "bright.3",
+          "kind": "color",
+          "label": {
+            "args": [
+              {
+                "key": "Yellow",
+                "text": "Yellow"
+              }
+            ],
+            "key": "Bright %@",
+            "text": "Bright Yellow"
+          },
+          "value": "#fff08a",
+          "valueParam": "bright.3"
+        },
+        {
+          "enabled": true,
+          "id": "normal.4",
+          "kind": "color",
+          "label": {
+            "key": "Blue",
+            "text": "Blue"
+          },
+          "value": "#5aa9ff",
+          "valueParam": "normal.4"
+        },
+        {
+          "enabled": true,
+          "id": "bright.4",
+          "kind": "color",
+          "label": {
+            "args": [
+              {
+                "key": "Blue",
+                "text": "Blue"
+              }
+            ],
+            "key": "Bright %@",
+            "text": "Bright Blue"
+          },
+          "value": "#82bdff",
+          "valueParam": "bright.4"
+        },
+        {
+          "enabled": true,
+          "id": "normal.5",
+          "kind": "color",
+          "label": {
+            "key": "Magenta",
+            "text": "Magenta"
+          },
+          "value": "#c792ea",
+          "valueParam": "normal.5"
+        },
+        {
+          "enabled": true,
+          "id": "bright.5",
+          "kind": "color",
+          "label": {
+            "args": [
+              {
+                "key": "Magenta",
+                "text": "Magenta"
+              }
+            ],
+            "key": "Bright %@",
+            "text": "Bright Magenta"
+          },
+          "value": "#d8acf0",
+          "valueParam": "bright.5"
+        },
+        {
+          "enabled": true,
+          "id": "normal.6",
+          "kind": "color",
+          "label": {
+            "key": "Cyan",
+            "text": "Cyan"
+          },
+          "value": "#3fd0e0",
+          "valueParam": "normal.6"
+        },
+        {
+          "enabled": true,
+          "id": "bright.6",
+          "kind": "color",
+          "label": {
+            "args": [
+              {
+                "key": "Cyan",
+                "text": "Cyan"
+              }
+            ],
+            "key": "Bright %@",
+            "text": "Bright Cyan"
+          },
+          "value": "#7fe0ea",
+          "valueParam": "bright.6"
+        },
+        {
+          "enabled": true,
+          "id": "normal.7",
+          "kind": "color",
+          "label": {
+            "key": "White",
+            "text": "White"
+          },
+          "value": "#d7dae0",
+          "valueParam": "normal.7"
+        },
+        {
+          "enabled": true,
+          "id": "bright.7",
+          "kind": "color",
+          "label": {
+            "args": [
+              {
+                "key": "White",
+                "text": "White"
+              }
+            ],
+            "key": "Bright %@",
+            "text": "Bright White"
+          },
+          "value": "#ffffff",
+          "valueParam": "bright.7"
+        }
+      ],
+      "help": {
+        "key": "The terminal's sixteen colours: eight, and their bright ones – programs in the terminal colour their output with them.",
+        "text": "The terminal's sixteen colours: eight, and their bright ones – programs in the terminal colour their output with them."
+      },
+      "id": "terminal",
+      "title": {
+        "key": "Terminal",
+        "text": "Terminal"
+      }
+    },
+    {
+      "fields": [
+        {
+          "enabled": true,
+          "id": "border.0",
+          "kind": "color",
+          "label": {
+            "key": "Active window",
+            "text": "Active window"
+          },
+          "value": "#3fd0e0",
+          "valueParam": "border.0"
+        },
+        {
+          "enabled": true,
+          "id": "border.1",
+          "kind": "color",
+          "label": {
+            "key": "Active window, gradient to",
+            "text": "Active window, gradient to"
+          },
+          "value": "#3fd0e0",
+          "valueParam": "border.1"
+        },
+        {
+          "enabled": true,
+          "id": "inactive_border",
+          "kind": "color",
+          "label": {
+            "key": "Other windows",
+            "text": "Other windows"
+          },
+          "value": "#2c313c",
+          "valueParam": "inactive_border"
+        },
+        {
+          "enabled": true,
+          "id": "clock",
+          "kind": "color",
+          "label": {
+            "key": "Clock",
+            "text": "Clock"
+          },
+          "value": "#3fd0e0",
+          "valueParam": "clock"
+        },
+        {
+          "enabled": true,
+          "id": "prompt.ok",
+          "kind": "color",
+          "label": {
+            "key": "Prompt – it worked",
+            "text": "Prompt – it worked"
+          },
+          "value": "#3fd0e0",
+          "valueParam": "prompt.ok"
+        },
+        {
+          "enabled": true,
+          "id": "prompt.error",
+          "kind": "color",
+          "label": {
+            "key": "Prompt – it failed",
+            "text": "Prompt – it failed"
+          },
+          "value": "#ff5c6c",
+          "valueParam": "prompt.error"
+        },
+        {
+          "enabled": true,
+          "id": "prompt.directory",
+          "kind": "color",
+          "label": {
+            "key": "Prompt – the folder",
+            "text": "Prompt – the folder"
+          },
+          "value": "#a9b0bf",
+          "valueParam": "prompt.directory"
+        }
+      ],
+      "help": {
+        "key": "NixOS's desktop: the active window's border (one colour or a gradient of two), the others' border, the clock, the prompt.",
+        "text": "NixOS's desktop: the active window's border (one colour or a gradient of two), the others' border, the clock, the prompt."
+      },
+      "id": "desktop",
+      "title": {
+        "key": "Desktop",
+        "text": "Desktop"
+      }
+    },
+    {
+      "fields": [
+        {
+          "choices": [
+            {
+              "label": {
+                "key": "made from the colours",
+                "text": "made from the colours"
+              },
+              "value": ""
+            },
+            {
+              "label": {
+                "text": "catppuccin – latte"
+              },
+              "value": "catppuccin:latte"
+            },
+            {
+              "label": {
+                "text": "catppuccin – frappe"
+              },
+              "value": "catppuccin:frappe"
+            },
+            {
+              "label": {
+                "text": "catppuccin – macchiato"
+              },
+              "value": "catppuccin:macchiato"
+            },
+            {
+              "label": {
+                "text": "catppuccin – mocha"
+              },
+              "value": "catppuccin:mocha"
+            },
+            {
+              "label": {
+                "text": "rose-pine – main"
+              },
+              "value": "rose-pine:main"
+            },
+            {
+              "label": {
+                "text": "rose-pine – moon"
+              },
+              "value": "rose-pine:moon"
+            },
+            {
+              "label": {
+                "text": "rose-pine – dawn"
+              },
+              "value": "rose-pine:dawn"
+            },
+            {
+              "label": {
+                "text": "modus – modus_vivendi"
+              },
+              "value": "modus:modus_vivendi"
+            },
+            {
+              "label": {
+                "text": "modus – modus_operandi"
+              },
+              "value": "modus:modus_operandi"
+            }
+          ],
+          "enabled": true,
+          "id": "neovim",
+          "kind": "choice",
+          "label": {
+            "text": "Neovim"
+          },
+          "value": "",
+          "valueParam": "neovim"
+        },
+        {
+          "choices": [
+            {
+              "label": {
+                "key": "made from the colours",
+                "text": "made from the colours"
+              },
+              "value": ""
+            },
+            {
+              "label": {
+                "text": "catppuccin – latte"
+              },
+              "value": "catppuccin:latte"
+            },
+            {
+              "label": {
+                "text": "catppuccin – frappe"
+              },
+              "value": "catppuccin:frappe"
+            },
+            {
+              "label": {
+                "text": "catppuccin – macchiato"
+              },
+              "value": "catppuccin:macchiato"
+            },
+            {
+              "label": {
+                "text": "catppuccin – mocha"
+              },
+              "value": "catppuccin:mocha"
+            },
+            {
+              "label": {
+                "text": "modus – modus-vivendi"
+              },
+              "value": "modus:modus-vivendi"
+            },
+            {
+              "label": {
+                "text": "modus – modus-operandi"
+              },
+              "value": "modus:modus-operandi"
+            }
+          ],
+          "enabled": true,
+          "id": "emacs",
+          "kind": "choice",
+          "label": {
+            "text": "Emacs"
+          },
+          "value": "",
+          "valueParam": "emacs"
+        }
+      ],
+      "help": {
+        "key": "A theme from nixpkgs for Neovim and Emacs, or one made from the colours.",
+        "text": "A theme from nixpkgs for Neovim and Emacs, or one made from the colours."
+      },
+      "id": "editors",
+      "title": {
+        "key": "Editors",
+        "text": "Editors"
+      }
+    },
+    {
+      "fields": [
+        {
+          "choices": [
+            {
+              "label": {
+                "key": "as the look says (light or dark)",
+                "text": "as the look says (light or dark)"
+              },
+              "value": ""
+            },
+            {
+              "label": {
+                "text": "multicolor"
+              },
+              "value": "multicolor"
+            },
+            {
+              "label": {
+                "text": "graphite"
+              },
+              "value": "graphite"
+            }
+          ],
+          "enabled": true,
+          "id": "macos.accent",
+          "kind": "choice",
+          "label": {
+            "key": "Accent colour",
+            "text": "Accent colour"
+          },
+          "value": "",
+          "valueParam": "macos.accent"
+        },
+        {
+          "choices": [
+            {
+              "label": {
+                "key": "as the look says (light or dark)",
+                "text": "as the look says (light or dark)"
+              },
+              "value": ""
+            },
+            {
+              "label": {
+                "text": "default"
+              },
+              "value": "default"
+            },
+            {
+              "label": {
+                "text": "clear"
+              },
+              "value": "clear"
+            }
+          ],
+          "enabled": true,
+          "id": "macos.icons",
+          "kind": "choice",
+          "label": {
+            "key": "Icons",
+            "text": "Icons"
+          },
+          "value": "",
+          "valueParam": "macos.icons"
+        },
+        {
+          "choices": [
+            {
+              "label": {
+                "key": "as the look says (light or dark)",
+                "text": "as the look says (light or dark)"
+              },
+              "value": ""
+            },
+            {
+              "label": {
+                "text": "default"
+              },
+              "value": "default"
+            },
+            {
+              "label": {
+                "text": "graphite"
+              },
+              "value": "graphite"
+            }
+          ],
+          "enabled": true,
+          "id": "macos.folders",
+          "kind": "choice",
+          "label": {
+            "key": "Folders",
+            "text": "Folders"
+          },
+          "value": "",
+          "valueParam": "macos.folders"
+        },
+        {
+          "choices": [
+            {
+              "label": {
+                "key": "as the look says (light or dark)",
+                "text": "as the look says (light or dark)"
+              },
+              "value": ""
+            },
+            {
+              "label": {
+                "text": "default"
+              },
+              "value": "default"
+            },
+            {
+              "label": {
+                "text": "black"
+              },
+              "value": "black"
+            }
+          ],
+          "enabled": true,
+          "id": "macos.wallpaper",
+          "kind": "choice",
+          "label": {
+            "key": "Wallpaper",
+            "text": "Wallpaper"
+          },
+          "value": "",
+          "valueParam": "macos.wallpaper"
+        }
+      ],
+      "help": {
+        "key": "macOS guests' system look; light or dark comes from above.",
+        "text": "macOS guests' system look; light or dark comes from above."
+      },
+      "id": "macos",
+      "title": {
+        "text": "macOS"
+      }
+    }
+  ],
+  "title": {
+    "key": "Look Studio",
+    "text": "Look Studio"
+  }
+}

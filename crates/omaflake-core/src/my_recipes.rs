@@ -233,6 +233,62 @@ impl MyRecipes {
         Ok(format!("{}/{}", Self::AUTHOR, d.name))
     }
 
+    /// `<data>/my-recipes/looks/my/<name>`
+    pub fn look_folder(&self, name: &str) -> PathBuf {
+        self.root().join("looks").join(Self::AUTHOR).join(name)
+    }
+
+    /// look.toml v1 of a look made in the look studio (plan B150): `look` is its data as the studio put it together
+    /// (title, description, tags, appearance, plain, colors, terminal, desktop, neovim, emacs, macos)
+    pub fn look_toml(name: &str, look: &Value) -> Result<String> {
+        let mut table = toml::Table::new();
+        table.insert("$schema".into(), toml::Value::String("https://omaflake.dev/schema/look/v1.json".into()));
+        table.insert("version".into(), toml::Value::String("1.0.0".into()));
+        table.insert("author".into(), toml::Value::String(Self::AUTHOR.into()));
+        let Value::Object(map) = look else { return Err(vm_err!("A look is a table of values")) };
+        for (k, v) in map {
+            if ["$schema", "version", "author"].contains(&k.as_str()) || v.is_null() {
+                continue;
+            }
+            let value: toml::Value =
+                serde_json::from_value(v.clone()).map_err(|e| vm_err!("{k} of the look cannot be written: {e}"))?;
+            table.insert(k.clone(), value);
+        }
+        let body = toml::to_string(&table).map_err(|e| vm_err!("The look cannot be written: {e}"))?;
+        Ok(format!("# Look {}/{name} – made in omaflake's look studio; edit it there or here.\n\n{body}", Self::AUTHOR))
+    }
+
+    /// Writes a look of yours; `previous` is its name before (a rename moves it). Returns "my/<name>".
+    pub fn save_look(&self, name: &str, look: &Value, previous: Option<String>) -> Result<String> {
+        if !RecipeRef::valid_name(name) {
+            return Err(vm_err!("A name is lowercase letters, digits and -"));
+        }
+        let text = Self::look_toml(name, look)?;
+        let folder = self.look_folder(name);
+        let renamed = previous.as_ref().is_some_and(|p| p != name);
+        if renamed && folder.exists() {
+            return Err(vm_err!(codes::EXISTS, "There is a look \"{}\" already", name));
+        }
+        fs::create_dir_all(&folder).with_path(&folder)?;
+        write_atomic(&folder.join("look.toml"), text.as_bytes())?;
+        // What is written must be a look this omaflake reads
+        let id = format!("{}.look.{}", Self::AUTHOR, name);
+        crate::looks::LookStore::read(&id, &folder, String::new(), None)?;
+        if let (true, Some(p)) = (renamed, previous) {
+            let _ = Disposal::delete(&[self.look_folder(&p)]);
+        }
+        self.add_source()?;
+        Ok(format!("{}/{}", Self::AUTHOR, name))
+    }
+
+    pub fn delete_look(&self, name: &str) -> Result<()> {
+        let folder = self.look_folder(name);
+        if !folder.join("look.toml").exists() {
+            return Err(vm_err!(codes::NOT_FOUND, "No look \"{}\" of yours", name));
+        }
+        Disposal::delete(&[folder])
+    }
+
     pub fn delete_keymap(&self, name: &str) -> Result<()> {
         let folder = self.keymap_folder(name);
         if !folder.join("keymap.toml").exists() {
@@ -295,6 +351,37 @@ mod tests {
         assert!(my.save(&RecipeDraft { modules: vec![], ..d.clone() }, None).is_err());
         my.delete(GuestKind::Nixos, "play").unwrap();
         assert!(my.delete(GuestKind::Nixos, "play").is_err());
+    }
+
+    /// Looks of the look studio (plan B150): written as look.toml v1, read back as a look, renamed, deleted
+    #[test]
+    fn looks_save_rename_delete() {
+        let (_t, p) = temp_paths();
+        let my = MyRecipes::new(p.clone());
+        let look = serde_json::json!({
+            "title": "Dusk", "description": "Mine", "appearance": "dark", "tags": ["dark"],
+            "colors": {"background": "#101010", "surface": "#181818", "selection": "#303030", "text": "#eeeeee",
+                "subtext": "#bbbbbb", "muted": "#777777", "accent": "#33ccdd", "urgent": "#ee5566"},
+            "terminal": {"normal": vec!["#000000"; 8], "bright": vec!["#ffffff"; 8]},
+            "desktop": {"border": ["#33ccdd", "#5566ee"], "inactive_border": "#303030", "clock": "#33ccdd"},
+            "neovim": {"theme": "catppuccin", "flavour": "mocha"},
+            "version": "ignored", "author": "ignored"
+        });
+        assert_eq!(my.save_look("dusk", &look, None).unwrap(), "my/dusk");
+        let read = crate::looks::LookStore::read("my.look.dusk", &my.look_folder("dusk"), String::new(), None).unwrap();
+        assert_eq!(
+            (read.author.as_str(), read.title.as_str(), read.appearance.as_deref()),
+            ("my", "Dusk", Some("dark"))
+        );
+        assert_eq!(read.data["desktop"]["border"][1], "#5566ee");
+        assert_eq!(read.data["neovim"]["flavour"], "mocha");
+        assert_eq!(read.data["version"], "1.0.0", "the studio's own version, not the draft's");
+        assert_eq!(Settings::load(&p).recipe_sources()[0], my.source());
+        my.save_look("night", &look, Some("dusk".into())).unwrap();
+        assert!(!my.look_folder("dusk").exists() && my.look_folder("night").exists());
+        assert!(my.save_look("Bad Name", &look, None).is_err());
+        my.delete_look("night").unwrap();
+        assert!(my.delete_look("night").is_err());
     }
 
     /// Key binding sets of the studio (plan B147): a key, keys, `{ after }`, `{ key, after }`; read back as written

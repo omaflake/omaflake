@@ -44,6 +44,11 @@ are collected under *Unreleased*. Releases: [GitHub](https://github.com/omaflake
 - The catalog tabs – recipes, modules, looks, key bindings – are searched and narrowed by tags as chips, ten a page,
   instead of one long list.
 
+- The Look Studio: looks of your own – the colours with the colour picker, the terminal's sixteen, the desktop's
+  borders and clock, the editors' themes and macOS guests' system look, with a preview and a word when text is hard to
+  read. A look of the catalog opens there as a copy. Everything omaflake reads as data – recipes, key bindings, looks –
+  can now be made in the app; only modules are Nix.
+
 ### Changed
 
 - Keys are drawn as key caps everywhere – |Ctrl| |g| – named as on your keyboard (Ctrl, Opt, Shift, Cmd on a Mac;

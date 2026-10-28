@@ -15,6 +15,7 @@ use omaflake_core::api::views::doctor::{DoctorItem, DoctorPage, Download, MacBas
 use omaflake_core::api::views::images::{BuildJobRow, ImageRowView, ImagesPage};
 use omaflake_core::api::views::keymap_studio::KeymapStudioPage;
 use omaflake_core::api::views::keys::KeysPage;
+use omaflake_core::api::views::look_studio::LookStudioPage;
 use omaflake_core::api::views::new_vm::NewVmPage;
 use omaflake_core::api::views::recipe_studio::{RecipeStudioPage, StudioModule};
 use omaflake_core::api::views::recipes::{OfferedRow, RecipeRowView, RecipesPage};
@@ -77,6 +78,7 @@ pub fn list<'a>(app: &'a App, tab: &str, m: &'a Model) -> El<'a> {
         Model::Credentials(c) => credentials(app, tab, c),
         Model::Studio(st) => studio(app, tab, st),
         Model::KeymapStudio(k) => keymap_studio(app, tab, k),
+        Model::LookStudio(l) => look_studio(app, tab, l),
         Model::Sources(sp) => sources(app, tab, sp),
         Model::Error(e) => error(e),
         _ => error(&format!("{tab}: not a list")),
@@ -713,6 +715,7 @@ pub fn page<'a>(app: &'a App, p: &PageRef, m: &'a Model) -> El<'a> {
         Model::Keys(k) => keys(app, k),
         Model::Studio(st) => studio(app, &p.page, st),
         Model::KeymapStudio(k) => keymap_studio(app, &p.page, k),
+        Model::LookStudio(l) => look_studio(app, &p.page, l),
         Model::Error(e) => error(e),
         other => list(app, &p.page, other),
     }
@@ -1071,6 +1074,97 @@ fn studio<'a>(app: &'a App, page: &str, st: &'a RecipeStudioPage) -> El<'a> {
 
 /// The key binding studio (plan B147): name and the set it starts from, the module and search, what overlaps, then the
 /// module's keys by mode – each with its keys and the mode afterwards
+/// "#rrggbb" → a colour (grey for anything else)
+fn hex_color(hex: &str) -> Color {
+    let v = hex
+        .strip_prefix('#')
+        .filter(|h| h.len() == 6)
+        .and_then(|h| u32::from_str_radix(h, 16).ok())
+        .unwrap_or(0x808080);
+    Color::from_rgb8((v >> 16) as u8, (v >> 8) as u8, v as u8)
+}
+
+/// The look studio (plan B150): its fields, a preview of its colours, what is hard to read, a section each
+fn look_studio<'a>(app: &'a App, page: &str, l: &'a LookStudioPage) -> El<'a> {
+    let card =
+        |c: Column<'a, Message>| container(c).padding(spacing::CARD_PADDING).width(Length::Fill).style(style::card);
+    let mut about = Column::new().spacing(spacing::L);
+    for f in &l.about {
+        about = about.push(field_view(app, page, f, false));
+    }
+    let mut c = column![widgets::help_note(s(&l.intro)), card(about)].spacing(spacing::L);
+    if let Some(p) = &l.preview {
+        let fill = |hex: &str| {
+            let color = hex_color(hex);
+            move |_: &iced::Theme| container::Style { background: Some(color.into()), ..Default::default() }
+        };
+        let line =
+            |t: &'a str, hex: &str| text(t).size(text_size::CAPTION).font(iced::Font::MONOSPACE).color(hex_color(hex));
+        let mut swatches = Column::new().spacing(2);
+        for row_colors in [&p.normal, &p.bright] {
+            let mut r = row![].spacing(2);
+            for hex in row_colors.iter() {
+                r = r.push(container(space()).width(14).height(14).style(fill(hex)));
+            }
+            swatches = swatches.push(r);
+        }
+        let window = container(
+            column![
+                line("notes.md", &p.text),
+                line("# A look of my own", &p.accent),
+                container(line("Selected text", &p.text)).style(fill(&p.selection)),
+                line("Secondary text", &p.subtext),
+                line("-- a comment", &p.muted),
+                line("error: it failed", &p.urgent),
+            ]
+            .spacing(2),
+        )
+        .padding(spacing::M)
+        .width(Length::Fill)
+        .style({
+            let (bg, border) = (hex_color(&p.background), hex_color(&p.border[0]));
+            move |_| container::Style {
+                background: Some(bg.into()),
+                border: iced::border::rounded(6).color(border).width(2),
+                ..Default::default()
+            }
+        });
+        let terminal = container(column![line("~/work ❯ ls", &p.normal[4]), swatches].spacing(spacing::S))
+            .padding(spacing::M)
+            .style({
+                let (bg, border) = (hex_color(&p.background), hex_color(&p.inactive_border));
+                move |_| container::Style {
+                    background: Some(bg.into()),
+                    border: iced::border::rounded(6).color(border).width(2),
+                    ..Default::default()
+                }
+            });
+        let bar = container(row![line("1 2 3 4", &p.muted), space::horizontal(), line("12:34", &p.clock)])
+            .padding([2.0, spacing::M])
+            .width(Length::Fill)
+            .style(fill(&p.surface));
+        let mut preview =
+            column![section_title(&Text::new("Preview")), bar, row![window, terminal].spacing(spacing::M)]
+                .spacing(spacing::M);
+        if !l.hints.is_empty() {
+            preview = preview.push(notes(app, &l.hints));
+        }
+        c = c.push(card(preview));
+    }
+    for sec in &l.sections {
+        let mut f = column![
+            text(s(&sec.title)).size(text_size::CALLOUT).font(style::semibold()),
+            widgets::help_note(s(&sec.help))
+        ]
+        .spacing(spacing::L);
+        for field in &sec.fields {
+            f = f.push(field_view(app, page, field, false));
+        }
+        c = c.push(card(f));
+    }
+    c.push(page_actions(app, page, &l.actions)).into()
+}
+
 fn keymap_studio<'a>(app: &'a App, page: &str, k: &'a KeymapStudioPage) -> El<'a> {
     let card =
         |c: Column<'a, Message>| container(c).padding(spacing::CARD_PADDING).width(Length::Fill).style(style::card);
@@ -1800,6 +1894,27 @@ pub fn field_view<'a>(app: &'a App, page: &str, field: &'a Field, store: bool) -
                 r = r.push(choose_button(page, field));
             }
             r.into()
+        }
+        FieldKind::Color => {
+            // "#rrggbb" typed, with a swatch of it (plan B150; iced has no colour picker)
+            let hex = value.as_str().unwrap_or_default().to_string();
+            let swatch = container(space()).width(22).height(22).style(move |_| container::Style {
+                background: Some(hex_color(&hex).into()),
+                border: iced::border::rounded(4).color(style::SECONDARY).width(1),
+                ..Default::default()
+            });
+            let mut input = text_input("#rrggbb", value.as_str().unwrap_or_default())
+                .padding(spacing::M)
+                .size(text_size::CALLOUT)
+                .width(110)
+                .style(if field.error.is_some() { style::input_error } else { style::input });
+            if enabled {
+                input = input.on_input(move |t| set(json!(t)));
+            }
+            row![container(label).width(Length::Fill), swatch, input]
+                .spacing(spacing::L)
+                .align_y(Alignment::Center)
+                .into()
         }
         FieldKind::Info => {
             let t: Option<Text> = serde_json::from_value(value.clone()).ok();

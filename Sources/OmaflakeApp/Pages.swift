@@ -20,6 +20,7 @@ struct PageView: View {
             case .credential(let p)?: CredentialView(page: p, ref: ref, model: model)
             case .studio(let p)?: RecipeStudioView(page: p, ref: ref, model: model)
             case .keymapStudio(let p)?: KeymapStudioView(page: p, ref: ref, model: model)
+            case .lookStudio(let p)?: LookStudioView(page: p, ref: ref, model: model)
             case .doctor(let p)?: DoctorView(page: p, model: model)
             case .macBase(let p)?: MacBaseView(page: p, ref: ref, model: model)
             case .settings(let p)?: SettingsView(page: p, ref: ref, model: model)
@@ -99,6 +100,10 @@ struct FormField: View {
             }
         case .info:
             LabeledContent(label, value: model.t(value.viewText ?? ViewText(verbatim: value.string ?? "")))
+        case .color:
+            // The system's colour picker; the value stays "#rrggbb" (plan B150)
+            ColorPicker(label, selection: Binding(get: { Color(hex: value.string ?? "#808080") },
+                                                  set: { set(.string($0.hexString)) }), supportsOpacity: false)
         case .unknown:
             EmptyView()
         }

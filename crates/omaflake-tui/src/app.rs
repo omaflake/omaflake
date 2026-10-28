@@ -22,13 +22,14 @@ use crate::text::{arr, b, fill, s, set_path, t, tr, trf};
 use crate::theme::{Theme, Tone};
 
 /// The tabs before `home` arrives
-const TABS: [&str; 14] = [
+const TABS: [&str; 15] = [
     "vms",
     "images",
     "activity",
     "recipes",
     "recipeStudio",
     "keymapStudio",
+    "lookStudio",
     "recipeCatalog",
     "modules",
     "looks",

@@ -140,7 +140,7 @@ fn tab_goes_on_into_the_workshop() {
         h.key(KeyCode::Tab);
     }
     assert_eq!(h.app.tab, "recipes", "the workshop's first tab: Build Images");
-    for want in ["recipeStudio", "keymapStudio", "recipeCatalog"] {
+    for want in ["recipeStudio", "keymapStudio", "lookStudio", "recipeCatalog"] {
         h.key(KeyCode::Tab);
         assert_eq!(h.app.tab, want);
     }
@@ -282,6 +282,8 @@ fn draws_every_page() {
         ("profiles", "profiles", vec!["Profiles", "Small", "2 CPU · 4 GB RAM", "New Profile …"]),
         ("profile", "profile", vec!["New Profile", "CPU cores: 8", "Create"]),
         ("keymapStudio", "keymapStudio", vec!["Key Binding Studio", "Starts from", "Search keys", "Save"]),
+        // The look studio (plan B150): its colours with swatches, what is hard to read
+        ("lookStudio", "lookStudio", vec!["Look Studio", "Colours", "Background: ██ #", "Terminal", "contrast", "Save"]),
         (
             "recipeStudio",
             "recipeStudio",
@@ -414,7 +416,7 @@ fn enter_does_the_primary_action_only() {
     assert_eq!(row.default.map(|d| row.actions[d]["id"].clone()), Some(images["rows"][0]["actions"][2]["id"].clone()));
     // A hint without a primary (the lab hint) has no default: Enter opens its actions
     let mut h = Harness::new(none);
-    for _ in 0..6 {
+    for _ in 0..7 {
         h.key(KeyCode::Tab);
     }
     assert_eq!(h.app.tab, "recipeCatalog");

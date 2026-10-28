@@ -222,6 +222,15 @@
       }
     },
     {
+      "group": "workshop",
+      "icon": "look",
+      "id": "lookStudio",
+      "label": {
+        "key": "Look Studio",
+        "text": "Look Studio"
+      }
+    },
+    {
       "group": "catalog",
       "icon": "recipe",
       "id": "recipeCatalog",

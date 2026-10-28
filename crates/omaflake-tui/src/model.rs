@@ -449,6 +449,14 @@ fn field(ctx: &Ctx, prefix: &str, f: &Value) -> Item {
             spans.push(Span::styled(format!("{}: ", t(&f["label"])), th.secondary()));
             spans.push(Span::styled(t(value), th.text()));
         }
+        "color" => {
+            // A swatch of it where the terminal shows colours, then the value (Enter types another, plan B150)
+            spans.push(Span::styled(format!("{}: ", t(&f["label"])), label_style));
+            if let Some(c) = value.as_str().and_then(hex_color) {
+                spans.push(Span::styled("██ ", Style::default().fg(c)));
+            }
+            spans.push(shown(value));
+        }
         _ => {
             spans.push(Span::styled(format!("{}: ", t(&f["label"])), label_style));
             spans.push(shown(value));
@@ -563,6 +571,7 @@ pub fn page(ctx: &Ctx, name: &str, model: &Value) -> Page {
         // The recipe studio (plan B147)
         "recipeStudio" => studio(ctx, model, &mut p),
         "keymapStudio" => keymap_studio(ctx, model, &mut p),
+        "lookStudio" => look_studio(ctx, model, &mut p),
         // The catalog (plan B147): the sources, the recipes they offer (the recipes' shape), key bindings (the looks')
         "sources" => sources(ctx, model, &mut p),
         "recipeCatalog" => recipes(ctx, model, &mut p),
@@ -1390,6 +1399,57 @@ fn keymap_studio(ctx: &Ctx, model: &Value, p: &mut Page) {
 /// Open as the user left it, else as the model says
 fn opened(ctx: &Ctx, key: &str, default: bool) -> bool {
     ctx.expanded.contains(key) || (default && !ctx.collapsed.contains(key))
+}
+
+/// "#rrggbb" → a terminal colour
+fn hex_color(hex: &str) -> Option<Color> {
+    let v = u32::from_str_radix(hex.strip_prefix('#').filter(|h| h.len() == 6)?, 16).ok()?;
+    Some(Color::Rgb((v >> 16) as u8, (v >> 8) as u8, v as u8))
+}
+
+/// The look studio (plan B150): its fields, the colours as swatches, what is hard to read, a section each
+fn look_studio(ctx: &Ctx, model: &Value, p: &mut Page) {
+    let th = ctx.theme;
+    let page = "lookStudio";
+    p.items.extend(help_item(ctx, t(&model["intro"]), 2));
+    for f in arr(model, "about") {
+        p.items.push(field(ctx, page, f));
+    }
+    if let Some(pv) = model.get("preview").filter(|v| v.is_object()) {
+        p.items.push(Item::blank());
+        p.items.push(heading(ctx, format!(" {}", tr("Preview"))));
+        let swatch = |hex: &Value| {
+            Span::styled("██", Style::default().fg(hex.as_str().and_then(hex_color).unwrap_or(Color::Gray)))
+        };
+        for row in ["normal", "bright"] {
+            let mut spans = vec![Span::raw("  ")];
+            for c in arr(pv, row) {
+                spans.push(swatch(c));
+                spans.push(Span::raw(" "));
+            }
+            p.items.push(Item::line("", Line::from(spans)));
+        }
+        let mut spans = vec![Span::raw("  ")];
+        for k in ["background", "surface", "selection", "text", "subtext", "muted", "accent", "urgent"] {
+            spans.push(swatch(&pv[k]));
+            spans.push(Span::raw(" "));
+        }
+        p.items.push(Item::line("", Line::from(spans)));
+    }
+    for (i, h) in arr(model, "hints").iter().enumerate() {
+        p.items.push(hint(ctx, format!("lookStudio:hint:{i}"), h));
+    }
+    for sec in arr(model, "sections") {
+        p.items.push(Item::blank());
+        p.items.push(Item::line("", Line::from(Span::styled(format!(" {}", t(&sec["title"])), th.title()))));
+        p.items.extend(help_item(ctx, t(&sec["help"]), 2));
+        for f in arr(sec, "fields") {
+            p.items.push(field(ctx, page, f));
+        }
+    }
+    if let Some(bar) = button_bar(ctx, &format!("{page}:actions"), arr(model, "actions")) {
+        p.items.push(bar);
+    }
 }
 
 /// The recipe sources (plan B147: a tab of the catalog): in their order, and a new one

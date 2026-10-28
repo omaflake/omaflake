@@ -251,6 +251,27 @@ impl Server {
                 self.reload_recipes().map_err(err)?;
                 Answer::of(json!({"reference": reference}))
             }
+            "looks.save" => {
+                #[derive(Deserialize)]
+                struct P {
+                    name: String,
+                    look: Value,
+                    #[serde(default)]
+                    previous: Option<String>,
+                }
+                let p: P = params(p)?;
+                let reference = crate::my_recipes::MyRecipes::new(self.paths())
+                    .save_look(&p.name, &p.look, p.previous)
+                    .map_err(err)?;
+                self.reload_recipes().map_err(err)?;
+                Answer::of(json!({"reference": reference}))
+            }
+            "looks.delete" => {
+                let name = p.get("name").and_then(Value::as_str).unwrap_or_default().to_string();
+                crate::my_recipes::MyRecipes::new(self.paths()).delete_look(&name).map_err(err)?;
+                self.reload_recipes().map_err(err)?;
+                Answer::of(Value::Null)
+            }
             "keymaps.delete" => {
                 let name = p.get("name").and_then(Value::as_str).unwrap_or_default().to_string();
                 crate::my_recipes::MyRecipes::new(self.paths()).delete_keymap(&name).map_err(err)?;

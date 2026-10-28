@@ -25,7 +25,7 @@ extension APIContractTests {
                 guard case .home(let h) = try page("home", as: "home") else { throw Unexpected() }
                 #expect(h.actions.map(\.id) == ["doctor", "settings", "dataFolder", "quit"] && h.actions[0].badge == 3)
                 #expect(h.actions[3].confirm?.text.args == [.string("research")] && h.firstTab == "vms")
-                #expect(h.tabs.map(\.id) == ["vms", "images", "activity", "recipes", "recipeStudio", "keymapStudio", "recipeCatalog", "modules", "looks", "keymaps", "sources", "credentials", "locales", "profiles"] && h.tabs[0].badge?.count == 1)
+                #expect(h.tabs.map(\.id) == ["vms", "images", "activity", "recipes", "recipeStudio", "keymapStudio", "lookStudio", "recipeCatalog", "modules", "looks", "keymaps", "sources", "credentials", "locales", "profiles"] && h.tabs[0].badge?.count == 1)
                 #expect(h.tabs[1].badge?.kind == "working" && h.tabs[3].badge?.tone == .warning && h.tabs[2].badge == nil)
                 // Two groups (plan B147): every tab names one of them, and each tab is one of the app's
                 #expect(h.groups.map(\.id) == ["run", "workshop", "catalog", "profiles"] && h.tabs.allSatisfy { t in h.groups.contains { $0.id == t.group } })
@@ -246,7 +246,7 @@ extension APIContractTests {
                 // offered looks with Install
                 guard case .looks(let p) = try page("looks", as: "looks") else { throw Unexpected() }
                 #expect(p.rows.map(\.name) == ["Rosé Pine Dawn", "omaflake"] && p.rows[0].swatches?.count == 11)
-                #expect(p.rows[0].badges.map(\.id) == ["default", "official"] && p.rows[0].actions.isEmpty)
+                #expect(p.rows[0].badges.map(\.id) == ["default", "official"] && p.rows[0].actions.map(\.id) == ["studio"])
                 #expect(p.offered.first?.actions.first?.method == "looks.install" && p.catalogsLoaded)
             },
             "modules": {
@@ -270,6 +270,12 @@ extension APIContractTests {
                 #expect(p.catalog.rows.allSatisfy(\.inside) && p.catalog.pages.count == 1 && !p.catalog.tags.isEmpty)
                 #expect(p.recipe.rows[1].action.method == "ui.field" && p.recipe.rows[1].action.params["valueParam"] == .string("modules"))
                 #expect(p.fields.contains { $0.id == "search" } && p.actions.last?.method == "recipes.save")
+            },
+            "lookStudio": {
+                // The look studio (plan B150): colour fields, a preview, what is hard to read
+                guard case .lookStudio(let p) = try page("lookStudio", as: "lookStudio") else { throw Unexpected() }
+                #expect(p.sections.first?.fields.first?.kind == .color && p.preview?.text == "#555555" && !p.hints.isEmpty)
+                #expect(p.actions.last?.method == "looks.save")
             },
             "keymapStudio": {
                 // The key binding studio (plan B147): a new set, its fields, Save waits for nothing but a name

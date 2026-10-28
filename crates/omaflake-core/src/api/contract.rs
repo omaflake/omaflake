@@ -921,6 +921,7 @@ fn view_goldens() -> Vec<(&'static str, Value)> {
         ("profile", page("profile", json!({"values": {"name": "Big", "cpus": 8, "memoryGB": 32}}))),
         ("recipeStudio", page("recipeStudio", json!({"id": "omaflake.nixos.dev@velvet-tiger-orbit"}))),
         ("keymapStudio", page("keymapStudio", json!({"values": {"name": "mine"}}))),
+        ("lookStudio", page("lookStudio", json!({"values": {"name": "dusk", "color.text": "#555555"}}))),
         (
             "keys.draft",
             page("keys", json!({"draft": {"platform": "nixos", "modules": ["omaflake/hyprland"], "name": "mine"}})),

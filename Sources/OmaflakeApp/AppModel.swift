@@ -51,11 +51,11 @@ final class AppModel {
 
     /// Tabs of the main page (plan B91); the core's `home` page names them
     enum HomeTab: String, CaseIterable {
-        case vms, images, activity, recipes, recipeStudio, keymapStudio, recipeCatalog, modules, looks, keymaps, sources
+        case vms, images, activity, recipes, recipeStudio, keymapStudio, lookStudio, recipeCatalog, modules, looks, keymaps, sources
         case credentials, locales, profiles
 
         /// The studios, the sources, credentials, locales and profiles are forms that scroll themselves
-        var isForm: Bool { [.recipeStudio, .keymapStudio, .sources, .credentials, .locales, .profiles].contains(self) }
+        var isForm: Bool { [.recipeStudio, .keymapStudio, .lookStudio, .sources, .credentials, .locales, .profiles].contains(self) }
     }
 
     /// The group of the open tab (plan B147): `run` or `workshop`, as the core's tabs say
@@ -128,7 +128,7 @@ final class AppModel {
     /// Opens a page one level deeper; the same page already open further up becomes the current one again
     func show(_ ref: PageRef) {
         // The studio is a tab too: a recipe opened in it starts from that recipe, not from the tab's choices
-        if ref.page == "recipeStudio" || ref.page == "keymapStudio" { formValues[ref.page] = nil }
+        if ref.page == "recipeStudio" || ref.page == "keymapStudio" || ref.page == "lookStudio" { formValues[ref.page] = nil }
         if let i = path.firstIndex(where: { $0.page == ref.page }) {
             path = Array(path[..<i]) + [ref]
         } else {
@@ -471,12 +471,13 @@ final class AppModel {
         case .sources(let p)?: p.sources.add.fields
         case .studio(let p)?: p.fields
         case .keymapStudio(let p)?: p.fields
+        case .lookStudio(let p)?: p.fields
         default: []
         }
     }
 
     /// The params that make a page another page (not form values)
-    static let identity: [String: [String]] = ["newVm": ["image"], "build": ["recipe"], "credential": ["id"], "baseCredential": ["name"], "locale": ["id"], "recipeStudio": ["id"], "keymapStudio": ["id"]]
+    static let identity: [String: [String]] = ["newVm": ["image"], "build": ["recipe"], "credential": ["id"], "baseCredential": ["name"], "locale": ["id"], "recipeStudio": ["id"], "keymapStudio": ["id"], "lookStudio": ["id"]]
 
     private func send(_ a: ViewAction, params: JSONValue, shown: [String: String], form: PageRef?) async {
         var params = params

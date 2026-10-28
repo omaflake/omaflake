@@ -1259,6 +1259,20 @@ arrive last). Forms have no grey background any more (`omaflakeForm`: grouped, `
 and the menu bar window's way to the app window is a large cyan button "Open omaflake". **Checked:** `cargo test`
 (`ui_field_on_a_studio_tab_keeps_its_values`), `swift test`. **OPEN:** clicked in the apps.
 
+**B150 (2026-10-28): the look studio, by the maintainer – what omaflake reads as data, no Nix, can be made in the
+UI.** Recipes, key bindings and now looks have a studio; modules stay Nix. Page `lookStudio` (`views/look_studio.rs`):
+name, title, description, light or dark, tags, the look it starts from (yours is edited, any other copied; without
+one omaflake's own or the first with colours, else built-in colours), plain; sections colours (8), terminal (16),
+desktop (border or gradient, other windows, clock, the prompt's three), editors (the themes look v1 allows, or from the
+colours), macOS (accent, icons, folders, wallpaper); what it does not show of the base is kept (split, GTK, pointer).
+`FieldKind::Color` ("#rrggbb"). A preview the UIs draw from `preview`; WCAG contrast hints. `looks.save`/`looks.delete`
+(`MyRecipes::save_look`: look.toml v1, read back before it counts, renames move). Workshop tab "Look Studio"; the
+looks tab's rows open a look in it ("Edit …" / "Copy to My Looks …"), its head "New Look …". UIs: SwiftUI
+`LookStudioView` (ColorPicker per colour, the terminal as two rows of swatches, `LookPreviewView`: bar with clock, a
+window with the border gradient, a terminal), iced (a swatch and the hex typed, a preview drawn the same way),
+`omaf ui` (swatches as coloured blocks, the hex typed). **Checked:** `cargo test` (`look_studio_colours_preview_and_contrast`,
+`looks_save_rename_delete`), `swift test`. **OPEN:** clicked in the apps; a look of the studio in a built image.
+
 **B129 (2026-10-24): clipboard on a GNOME host.** Mutter has no data-control protocol: `wl-paste --watch` ends at once.
 `Wayland::start` now treats an end within 500 ms as refused, and `detect` falls back to xclip through Xwayland, which
 Mutter keeps in sync (`X11::through_xwayland`, Mutter's `.mutter-Xwaylandauth.*` cookie when XAUTHORITY is unset; its
