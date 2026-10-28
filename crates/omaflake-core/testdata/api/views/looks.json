@@ -43,8 +43,118 @@
       }
     }
   ],
+  "browse": {
+    "field": {
+      "enabled": true,
+      "id": "search",
+      "kind": "text",
+      "label": {
+        "key": "Search",
+        "text": "Search"
+      },
+      "placeholder": {
+        "key": "Search looks: name, colours, tags",
+        "text": "Search looks: name, colours, tags"
+      },
+      "set": {
+        "method": "ui.filter",
+        "param": "filter.search",
+        "params": {
+          "filter": {
+            "kind": null,
+            "otherSystems": false,
+            "recipe": null,
+            "status": null,
+            "tag": null
+          },
+          "page": "looks"
+        }
+      },
+      "value": ""
+    },
+    "pages": {
+      "count": 1,
+      "index": 0,
+      "text": {
+        "args": [
+          1,
+          3,
+          3
+        ],
+        "key": "%lld–%lld of %lld",
+        "text": "1–3 of 3"
+      }
+    },
+    "placeholder": {
+      "key": "Search looks: name, colours, tags",
+      "text": "Search looks: name, colours, tags"
+    },
+    "search": "",
+    "tags": [
+      {
+        "action": {
+          "enabled": true,
+          "id": "tag",
+          "label": {
+            "text": "dark"
+          },
+          "method": "ui.filter",
+          "on": false,
+          "params": {
+            "filter": {
+              "kind": null,
+              "otherSystems": false,
+              "recipe": null,
+              "status": null,
+              "tag": null,
+              "tags": [
+                "dark"
+              ]
+            },
+            "page": "looks"
+          }
+        },
+        "count": 4,
+        "id": "dark",
+        "label": {
+          "text": "dark"
+        },
+        "on": false
+      },
+      {
+        "action": {
+          "enabled": true,
+          "id": "tag",
+          "label": {
+            "text": "light"
+          },
+          "method": "ui.filter",
+          "on": false,
+          "params": {
+            "filter": {
+              "kind": null,
+              "otherSystems": false,
+              "recipe": null,
+              "status": null,
+              "tag": null,
+              "tags": [
+                "light"
+              ]
+            },
+            "page": "looks"
+          }
+        },
+        "count": 2,
+        "id": "light",
+        "label": {
+          "text": "light"
+        },
+        "on": false
+      }
+    ]
+  },
   "catalogsLoaded": true,
-  "count": 2,
+  "count": 3,
   "footer": {
     "key": "A look is how a guest looks – colours, the terminal's palette, the editors' theme, the desktop's borders. It is data, not code: omaflake's image flake turns it into each program's configuration. New images get the default look unless the build page chooses another; a changed look makes its images outdated.",
     "text": "A look is how a guest looks – colours, the terminal's palette, the editors' theme, the desktop's borders. It is data, not code: omaflake's image flake turns it into each program's configuration. New images get the default look unless the build page chooses another; a changed look makes its images outdated."

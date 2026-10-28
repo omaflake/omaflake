@@ -7,6 +7,7 @@ use serde_json::json;
 
 use super::common::*;
 use super::looks::{LookDetail, LookRow, LooksPage};
+use super::recipes::RecipesParams;
 use super::text::{tf, Text};
 use super::Ctx;
 use crate::api::types::PartDto;
@@ -185,25 +186,59 @@ fn order(p: &PartDto) -> (u8, String) {
 }
 
 /// The catalog's modules (plan B147: key binding sets have a tab of their own, `keymaps_page`)
-pub(crate) fn page(ctx: &Ctx) -> LooksPage {
-    tab(ctx, "module")
+pub(crate) fn page(ctx: &Ctx, p: &RecipesParams) -> LooksPage {
+    tab(ctx, "module", &p.filter)
 }
 
 /// The catalog's key binding sets: here and offered, each opening in the key binding studio
-pub(crate) fn keymaps_page(ctx: &Ctx) -> LooksPage {
-    tab(ctx, "keymap")
+pub(crate) fn keymaps_page(ctx: &Ctx, p: &RecipesParams) -> LooksPage {
+    tab(ctx, "keymap", &p.filter)
 }
 
-fn tab(ctx: &Ctx, kind: &str) -> LooksPage {
+fn tab(ctx: &Ctx, kind: &str, f: &FilterParams) -> LooksPage {
     let a = &ctx.modules;
     let mut here: Vec<&PartDto> = a.parts.iter().filter(|p| p.kind == kind).collect();
     here.sort_by_key(|p| order(p));
     let mut offered: Vec<&PartDto> = a.offered.iter().filter(|p| p.kind == kind).collect();
     offered.sort_by_key(|p| order(p));
-    let rows: Vec<LookRow> = here.into_iter().map(row).collect();
-    let offered: Vec<LookRow> = offered.into_iter().map(offered_row).collect();
+    // Those here, then those offered – searched, narrowed by chips, a page at a time (plan B148)
+    let all = here.len() + offered.len();
+    let items: Vec<Browsable<(bool, &PartDto)>> = here
+        .into_iter()
+        .map(|p| (true, p))
+        .chain(offered.into_iter().map(|p| (false, p)))
+        .map(|(is_here, p)| Browsable {
+            row: (is_here, p),
+            haystack: format!(
+                "{} {} {} {} {}",
+                p.title,
+                p.description,
+                p.reference,
+                p.tags.join(" "),
+                p.provides.join(" ")
+            ),
+            tags: p
+                .tags
+                .iter()
+                .chain(p.provides.iter())
+                .cloned()
+                .collect::<std::collections::BTreeSet<_>>()
+                .into_iter()
+                .collect(),
+        })
+        .collect();
     let keymaps = kind == "keymap";
-    let mut head = ListHead::new(if keymaps { "Key Bindings" } else { "Modules" }, rows.len(), rows.len());
+    let page_name = if keymaps { "keymaps" } else { "modules" };
+    let (shown, matched, browse) = browse(
+        page_name,
+        f,
+        items,
+        if keymaps { "Search key bindings" } else { "Search modules: name, what it is, tags" },
+    );
+    let rows: Vec<LookRow> = shown.iter().filter(|(h, _)| *h).map(|(_, p)| row(p)).collect();
+    let offered: Vec<LookRow> = shown.iter().filter(|(h, _)| !*h).map(|(_, p)| offered_row(p)).collect();
+    let mut head = ListHead::new(if keymaps { "Key Bindings" } else { "Modules" }, matched, all);
+    head.browse = (all > 0).then_some(browse);
     head.actions =
         vec![Action::call("refresh", Text::new("Refresh"), Some("refresh"), "modules.list", json!({"fetch": true}))
             .help(Text::new("Look into the sources for modules and key bindings"))
@@ -217,7 +252,10 @@ fn tab(ctx: &Ctx, kind: &str) -> LooksPage {
                 .help(Text::new("Key bindings of your own, in the key binding studio")),
         );
     }
-    head.empty = (rows.is_empty() && offered.is_empty()).then(|| {
+    head.empty = if all > 0 && rows.is_empty() && offered.is_empty() {
+        Some(filtered_out(page_name))
+    } else {
+        (rows.is_empty() && offered.is_empty()).then(|| {
         Hint::new(
             if keymaps { "keyboard" } else { "module" },
             Text::new(if keymaps {
@@ -227,7 +265,8 @@ fn tab(ctx: &Ctx, kind: &str) -> LooksPage {
             }),
             Tone::Normal,
         )
-    });
+        })
+    };
     LooksPage {
         head,
         catalogs_loaded: a.fetched,

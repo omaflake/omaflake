@@ -82,6 +82,7 @@ pub fn lucide(name: &str) -> Option<Icon> {
         "warning" => Icon::TriangleAlert,
         "ok" | "finished" => Icon::CircleCheck,
         "filter" => Icon::Funnel,
+        "search" => Icon::Search,
         "failed" => Icon::CircleX,
         "cancelled" => Icon::Ban,
         // The UI's own

@@ -114,12 +114,75 @@ fn section<'a>(app: &'a App, page: &str, head: &'a ListHead, rows: Vec<El<'a>>) 
     if let (Some(f), true) = (&head.filter, app.filter_menu.as_deref() == Some(page)) {
         c = c.push(filter_menu(page, f));
     }
+    // A catalog tab's search and chips (plan B148)
+    if let Some(b) = &head.browse {
+        let mut search = row![
+            icon("search", text_size::CALLOUT, style::SECONDARY),
+            text_input(&s(&b.placeholder), &b.search)
+                .on_input({
+                    let page = page.to_string();
+                    move |v| Message::SetFilter { page: page.clone(), group: "search".into(), value: json!(v) }
+                })
+                .size(text_size::CALLOUT),
+        ]
+        .spacing(spacing::M)
+        .align_y(Alignment::Center);
+        if let Some(r) = &b.reset {
+            search = search.push(action_button(r, None, app.pulse));
+        }
+        c = c.push(search);
+        if !b.tags.is_empty() {
+            let chips: Vec<El<'a>> = b
+                .tags
+                .iter()
+                .map(|t| {
+                    let fg = if t.on { style::CYAN } else { style::SECONDARY };
+                    button(
+                        row![
+                            text(s(&t.label)).size(text_size::CAPTION).color(fg),
+                            text(t.count.to_string()).size(text_size::CAPTION).color(style::tertiary()),
+                        ]
+                        .spacing(spacing::XS),
+                    )
+                    .padding([2.0, spacing::L])
+                    .style(style::tab(t.on))
+                    .on_press_maybe(widgets::message_of(&t.action, None))
+                    .into()
+                })
+                .collect();
+            c = c.push(iced::widget::Row::with_children(chips).spacing(spacing::S).wrap().vertical_spacing(spacing::S));
+        }
+    }
     let mut body = Column::new();
     if let Some(e) = &head.empty {
         body = body.push(hint(e, app.pulse));
     }
     for r in rows {
         body = body.push(r);
+    }
+    if let Some(p) = head.browse.as_ref().map(|b| &b.pages).filter(|p| p.count > 1) {
+        let pager = |name: &str, a: &'a Option<Action>| -> El<'a> {
+            widgets::icon_button(
+                name,
+                a.as_ref().map(|a| s(&a.label)).unwrap_or_default(),
+                a.as_ref().and_then(|a| widgets::message_of(a, None)),
+                style::TEXT,
+                false,
+            )
+        };
+        body = body.push(
+            container(
+                row![
+                    caption(s(&p.text)).color(style::SECONDARY).width(Length::Fill),
+                    pager("chevron-left", &p.previous),
+                    caption(format!("{} / {}", p.index + 1, p.count)),
+                    pager("chevron-right", &p.next),
+                ]
+                .spacing(spacing::M)
+                .align_y(Alignment::Center),
+            )
+            .padding([spacing::S, spacing::XL]),
+        );
     }
     c.push(container(body.padding([spacing::XS, 0.0])).width(Length::Fill).style(style::card)).into()
 }

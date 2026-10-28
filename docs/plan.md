@@ -1219,6 +1219,18 @@ values, a module taken out, a typed key that is not one), `swift test`, clippy. 
 keys macOS keeps for itself while recording (Cmd+Tab, Cmd+Space, Mission Control's Ctrl+arrows by the docs – not
 tried); recording in the Linux app; swapping a key with the one it overlaps.
 
+**B148, step 4 (2026-10-28): the catalog tabs browse the same way.** `common::browse` (with `Browsable`, `Browse`,
+`BrowseTag`, `Pager`, `BROWSE_PAGE` = 10): `FilterParams` has `search`, `tags`, `page` now; `ListHead.browse` on
+`recipeCatalog` (the offered recipes after the filter menu's kind and architecture; its tag group became the chips),
+`modules`, `keymaps` (tags and capabilities) and `looks` (tags, light or dark) – those here and those offered are one
+sequence cut into pages, so a page may hold some of each; nothing matching says so with Reset Filter. `modules`,
+`keymaps`, `looks` take `params.filter` now. UIs: SwiftUI `BrowseBar` between a list's title and its box (search,
+chips in `ChipFlow`, clear) and `PagerRow` at its bottom (`ListSection.below`; `AppModel.setFilter` sends the search
+after 300 ms); iced the search and chips in `section`, the pager at the box's bottom (`SetFilter` for `search` drops the
+page); `omaf ui` the search as a field (`Browse.field`, `set` = `ui.filter`, run as the UI's own verb) and the chips and
+pages as button bars. **Checked:** `cargo test` (`catalog_tabs_search_chips_and_pages`), `swift test`, clippy.
+**OPEN:** clicked in the apps; Install All installs what the page shows, not every match.
+
 **B129 (2026-10-24): clipboard on a GNOME host.** Mutter has no data-control protocol: `wl-paste --watch` ends at once.
 `Wayland::start` now treats an end within 500 ms as refused, and `detect` falls back to xclip through Xwayland, which
 Mutter keeps in sync (`X11::through_xwayland`, Mutter's `.mutter-Xwaylandauth.*` cookie when XAUTHORITY is unset; its

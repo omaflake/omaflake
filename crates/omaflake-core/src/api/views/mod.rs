@@ -315,8 +315,8 @@ pub(crate) fn build(ctx: &Ctx, page: &PageRef) -> Result<Value, RpcError> {
         "doctor" => to_value(doctor::page(ctx)),
         "macBase" => to_value(doctor::mac_base_page(ctx, &page_params(p)?)),
         "credentials" => to_value(credentials::page(ctx)),
-        "looks" => to_value(looks::page(ctx)),
-        "modules" => to_value(modules::page(ctx)),
+        "looks" => to_value(looks::page(ctx, &page_params(p)?)),
+        "modules" => to_value(modules::page(ctx, &page_params(p)?)),
         "locales" => to_value(locales::page(ctx)),
         "profiles" => to_value(profiles::page(ctx)),
         "recipeStudio" => {
@@ -374,7 +374,7 @@ pub(crate) fn build(ctx: &Ctx, page: &PageRef) -> Result<Value, RpcError> {
         "keys" => to_value(keys::page(ctx, &page_params(p)?)),
         "sources" => to_value(settings::sources_page(ctx, &page_params(p)?)),
         "recipeCatalog" => to_value(recipes::catalog_page(ctx, &page_params(p)?)),
-        "keymaps" => to_value(modules::keymaps_page(ctx)),
+        "keymaps" => to_value(modules::keymaps_page(ctx, &page_params(p)?)),
         "keymapStudio" => to_value(keymap_studio::page(ctx, &page_params(p)?)),
         other => Err(RpcError::invalid_params(format!("page \"{other}\": {}", PAGES.join(", ")))),
     }

@@ -41,6 +41,8 @@ are collected under *Unreleased*. Releases: [GitHub](https://github.com/omaflake
 - A help switch in the header, off by default: the pages' explanations show only while it is on, each in a box of
   its own. Warnings and what is missing always show. It is kept in config.json (now version 6).
 - The modules tab opens a module's keys in the keys window.
+- The catalog tabs – recipes, modules, looks, key bindings – are searched and narrowed by tags as chips, ten a page,
+  instead of one long list.
 
 ### Changed
 

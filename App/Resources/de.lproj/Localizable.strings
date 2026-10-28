@@ -1428,3 +1428,8 @@
 "Waiting for a key" = "Warte auf eine Taste";
 "Keys the Mac keeps for itself (Cmd+Tab, Cmd+Space, Ctrl with arrows) do not reach the app – put those together instead." = "Tasten, die der Mac für sich behält (Cmd+Tab, Cmd+Leertaste, Ctrl mit Pfeilen), kommen nicht an – die bitte zusammenstellen.";
 "Another Mode …" = "Anderer Modus …";
+
+/* Catalog tabs: search, chips, pages (plan B148) */
+"Search key bindings" = "Tasten-Sets durchsuchen";
+"Search looks: name, colours, tags" = "Looks durchsuchen: Name, Farben, Tags";
+"Search recipes: name, what it is, modules" = "Rezepte durchsuchen: Name, was es ist, Module";

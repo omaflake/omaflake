@@ -631,6 +631,14 @@ as caps after its text; `help: true` – it only explains.
 draws them only while the help switch (`home.help`) is on, each in a box of its own outside a list's box. Warnings,
 errors and what is missing are never help.
 
+**Browse** (plan B148, a list head's `browse` on the catalog tabs `recipeCatalog`, `modules`, `keymaps`, `looks`) –
+`{search, placeholder, field, tags: [{id, label, count, on, action}], pages: {index, count, text, previous?, next?},
+reset?}`: the search is `params.filter.search` (a UI sets it while typing and goes back to the first page; `field` is
+the same as a field whose `set` is `ui.filter`), the chips `params.filter.tags` (rows with all of them; tags and, for
+modules, capabilities; for looks light or dark), ten rows a page across those here and those offered
+(`params.filter.page`, from 0; a page that is gone is the last one); every action is `ui.filter` with the whole new
+filter. The recipe catalog's tag left the filter menu for the chips.
+
 **List head** (flattened into `vms`, `images`, `recipes`, `activity`) – `title`, `count`, `of` (all rows, when the
 filter leaves some out: "1/2"), `filter`, `actions` (the list's tools: import, refresh, clear), `empty` (a hint instead
 of rows).

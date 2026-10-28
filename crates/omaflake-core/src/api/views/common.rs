@@ -583,6 +583,19 @@ pub struct FilterParams {
     pub recipe: Option<String>,
     #[serde(default)]
     pub other_systems: bool,
+    /// The catalog tabs' search (plan B148)
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub search: Option<String>,
+    /// The catalog tabs' chips that are on: rows with all of them
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub tags: Vec<String>,
+    /// The catalog tabs' page, from 0
+    #[serde(default, skip_serializing_if = "is_zero")]
+    pub page: usize,
+}
+
+fn is_zero(n: &usize) -> bool {
+    *n == 0
 }
 
 impl FilterParams {
@@ -639,6 +652,9 @@ pub struct ListHead {
     /// Shown instead of rows: the list is empty, or the filter leaves nothing (then with "Reset Filter")
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub empty: Option<Hint>,
+    /// The catalog tabs (plan B148): a search, chips, a page at a time
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub browse: Option<Browse>,
 }
 
 impl ListHead {
@@ -650,8 +666,149 @@ impl ListHead {
             filter: None,
             actions: vec![],
             empty: None,
+            browse: None,
         }
     }
+}
+
+/// The rows of a catalog tab shown at once (plan B148)
+pub const BROWSE_PAGE: usize = 10;
+
+/// A catalog tab's search, chips and pages (plan B148). The search is `params.filter.search` (a UI sets it while
+/// typing), the chips' and pages' actions are `ui.filter` with the whole new filter.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Browse {
+    /// What is searched for now
+    pub search: String,
+    /// The search field's placeholder
+    pub placeholder: Text,
+    /// The same as a field whose `set` is `ui.filter` with the search – for a UI that edits fields one at a time
+    pub field: Field,
+    /// Every tag of the rows, the most common first
+    pub tags: Vec<BrowseTag>,
+    pub pages: Pager,
+    /// Clears the search, the chips and the page
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub reset: Option<Action>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct BrowseTag {
+    pub id: String,
+    pub label: Text,
+    /// Rows with it
+    pub count: usize,
+    pub on: bool,
+    pub action: Action,
+}
+
+/// Where a list is, a page at a time
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Pager {
+    /// From 0
+    pub index: usize,
+    pub count: usize,
+    /// "11–20 of 34"; empty while nothing is shown
+    pub text: Text,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub previous: Option<Action>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub next: Option<Action>,
+}
+
+/// One row to browse: the row, what the search looks into, its tags
+pub struct Browsable<T> {
+    pub row: T,
+    pub haystack: String,
+    pub tags: Vec<String>,
+}
+
+/// Searches `items`, keeps those with every chip that is on, and cuts out the page asked for (a page that is gone is
+/// the last one). Returns the page's rows, how many matched, and the head's `browse`.
+pub fn browse<T>(page: &str, f: &FilterParams, items: Vec<Browsable<T>>, placeholder: &str) -> (Vec<T>, usize, Browse) {
+    let search = f.search.clone().unwrap_or_default();
+    let words: Vec<String> = search.to_lowercase().split_whitespace().map(str::to_string).collect();
+    let mut counts: std::collections::BTreeMap<String, usize> = std::collections::BTreeMap::new();
+    for i in &items {
+        for t in &i.tags {
+            *counts.entry(t.clone()).or_default() += 1;
+        }
+    }
+    let matched: Vec<Browsable<T>> = items
+        .into_iter()
+        .filter(|i| {
+            let hay = i.haystack.to_lowercase();
+            words.iter().all(|w| hay.contains(w)) && f.tags.iter().all(|t| i.tags.contains(t))
+        })
+        .collect();
+    let total = matched.len();
+    let pages = total.div_ceil(BROWSE_PAGE).max(1);
+    let index = f.page.min(pages - 1);
+    let with = |g: FilterParams| {
+        Action::call("filter", Text::new("Filter"), None, "ui.filter", json!({"page": page, "filter": g}))
+    };
+    let go = |id: &str, label: &str, icon: &str, to: usize| {
+        let mut a = with(FilterParams { page: to, ..f.clone() });
+        a.id = id.into();
+        a.label = Text::new(label);
+        a.icon = Some(icon.into());
+        a
+    };
+    let rows: Vec<T> = matched.into_iter().skip(index * BROWSE_PAGE).take(BROWSE_PAGE).map(|i| i.row).collect();
+    let first = index * BROWSE_PAGE + 1;
+    let mut chips: Vec<(String, usize)> = counts.into_iter().collect();
+    chips.sort_by(|a, b| b.1.cmp(&a.1).then(a.0.cmp(&b.0)));
+    let tags = chips
+        .into_iter()
+        .map(|(id, count)| {
+            let on = f.tags.contains(&id);
+            let next: Vec<String> = if on {
+                f.tags.iter().filter(|t| **t != id).cloned().collect()
+            } else {
+                [f.tags.clone(), vec![id.clone()]].concat()
+            };
+            let mut a = with(FilterParams { tags: next, page: 0, ..f.clone() });
+            a.id = "tag".into();
+            a.label = Text::verbatim(&id);
+            BrowseTag { label: Text::verbatim(&id), id, count, on, action: a.switch(on) }
+        })
+        .collect();
+    let browsing = !search.trim().is_empty() || !f.tags.is_empty();
+    let mut field = Field::new("search", FieldKind::Text, Text::new("Search"), json!(search));
+    field.placeholder = Some(Text::new(placeholder));
+    field.set = Some(Setter {
+        method: "ui.filter".into(),
+        params: json!({"page": page, "filter": FilterParams { search: None, page: 0, ..f.clone() }}),
+        param: "filter.search".into(),
+    });
+    let browse = Browse {
+        search,
+        placeholder: Text::new(placeholder),
+        field,
+        tags,
+        pages: Pager {
+            index,
+            count: pages,
+            text: if rows.is_empty() {
+                Text::verbatim("")
+            } else {
+                tf!("%lld–%lld of %lld", first, first + rows.len() - 1, total)
+            },
+            previous: (index > 0).then(|| go("previous", "Previous", "chevron-left", index - 1)),
+            next: (index + 1 < pages).then(|| go("next", "Next", "chevron-right", index + 1)),
+        },
+        reset: browsing.then(|| {
+            let mut a = with(FilterParams { search: None, tags: vec![], page: 0, ..f.clone() });
+            a.id = "reset".into();
+            a.label = Text::new("Show all");
+            a.icon = Some("refresh".into());
+            a
+        }),
+    };
+    (rows, total, browse)
 }
 
 /// "Install All" in a list's head (Recipes, Modules, Looks): the offered rows it shows – each as its own Install

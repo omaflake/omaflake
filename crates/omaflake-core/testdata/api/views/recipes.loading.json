@@ -112,6 +112,86 @@
       }
     }
   ],
+  "browse": {
+    "field": {
+      "enabled": true,
+      "id": "search",
+      "kind": "text",
+      "label": {
+        "key": "Search",
+        "text": "Search"
+      },
+      "placeholder": {
+        "key": "Search recipes: name, what it is, modules",
+        "text": "Search recipes: name, what it is, modules"
+      },
+      "set": {
+        "method": "ui.filter",
+        "param": "filter.search",
+        "params": {
+          "filter": {
+            "kind": null,
+            "otherSystems": false,
+            "recipe": null,
+            "status": null,
+            "tag": null
+          },
+          "page": "recipeCatalog"
+        }
+      },
+      "value": ""
+    },
+    "pages": {
+      "count": 1,
+      "index": 0,
+      "text": {
+        "args": [
+          1,
+          2,
+          2
+        ],
+        "key": "%lld–%lld of %lld",
+        "text": "1–2 of 2"
+      }
+    },
+    "placeholder": {
+      "key": "Search recipes: name, what it is, modules",
+      "text": "Search recipes: name, what it is, modules"
+    },
+    "search": "",
+    "tags": [
+      {
+        "action": {
+          "enabled": true,
+          "id": "tag",
+          "label": {
+            "text": "minimal"
+          },
+          "method": "ui.filter",
+          "on": false,
+          "params": {
+            "filter": {
+              "kind": null,
+              "otherSystems": false,
+              "recipe": null,
+              "status": null,
+              "tag": null,
+              "tags": [
+                "minimal"
+              ]
+            },
+            "page": "recipeCatalog"
+          }
+        },
+        "count": 2,
+        "id": "minimal",
+        "label": {
+          "text": "minimal"
+        },
+        "on": false
+      }
+    ]
+  },
   "catalogsLoaded": true,
   "count": 2,
   "errors": [
@@ -126,30 +206,6 @@
   "filter": {
     "active": false,
     "groups": [
-      {
-        "id": "tag",
-        "kind": "choice",
-        "label": {
-          "key": "Tag",
-          "text": "Tag"
-        },
-        "options": [
-          {
-            "label": {
-              "key": "All",
-              "text": "All"
-            },
-            "value": null
-          },
-          {
-            "label": {
-              "text": "minimal"
-            },
-            "value": "minimal"
-          }
-        ],
-        "value": null
-      },
       {
         "id": "otherSystems",
         "kind": "toggle",

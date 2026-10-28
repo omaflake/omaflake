@@ -97,6 +97,22 @@ final class AppModel {
     /// The filter values chosen per list (plan B101) – the core applies them (`params.filter`)
     var filters: [HomeTab: [String: JSONValue]] = [:]
 
+    private var filtering: Task<Void, Never>?
+
+    /// A catalog tab's search (plan B148): into its filter, back to the first page, sent after a moment
+    func setFilter(_ tab: HomeTab, search: String) {
+        var f = filters[tab] ?? [:]
+        f["search"] = search.isEmpty ? nil : .string(search)
+        f["page"] = nil
+        filters[tab] = f
+        filtering?.cancel()
+        filtering = Task {
+            try? await Task.sleep(for: .milliseconds(300))
+            guard !Task.isCancelled else { return }
+            subscribe()
+        }
+    }
+
     func listRef(_ tab: HomeTab) -> PageRef {
         let f = (filters[tab] ?? [:]).filter { !$0.value.isNull && $0.value != .bool(false) }
         return PageRef(tab.rawValue, f.isEmpty ? .object([:]) : .object(["filter": .object(f)]))

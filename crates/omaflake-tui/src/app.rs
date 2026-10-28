@@ -625,7 +625,12 @@ impl App {
         if let Some(set) = f.get("set").filter(|s| s.is_object()) {
             let mut params = set.get("params").filter(|p| p.is_object()).cloned().unwrap_or_else(|| json!({}));
             set_path(&mut params, s(set, "param"), value);
-            self.request(s(set, "method"), params, Pending::Quiet);
+            if s(set, "method").starts_with("ui.") {
+                // The UI's own verb (a catalog tab's search goes into its filter, plan B148)
+                self.run_action(&json!({"method": s(set, "method"), "params": params, "enabled": true}));
+            } else {
+                self.request(s(set, "method"), params, Pending::Quiet);
+            }
         } else if let Some(key) = f.get("valueParam").and_then(Value::as_str) {
             // A form field of the page shown now
             self.set_value(None, key, value);

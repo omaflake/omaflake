@@ -209,11 +209,35 @@ fn offered_row(l: &OfferedLookDto) -> LookRow {
     }
 }
 
-pub(crate) fn page(ctx: &Ctx) -> LooksPage {
+pub(crate) fn page(ctx: &Ctx, p: &super::recipes::RecipesParams) -> LooksPage {
     let a = &ctx.looks;
-    let rows: Vec<LookRow> = a.looks.iter().map(row).collect();
-    let offered: Vec<LookRow> = a.offered.iter().map(offered_row).collect();
-    let mut head = ListHead::new("Looks", rows.len(), rows.len());
+    // Those here, then those offered – searched, narrowed by chips (tags, light or dark), a page at a time (plan B148)
+    enum Look<'a> {
+        Here(&'a LookDto),
+        Offered(&'a OfferedLookDto),
+    }
+    let all = a.looks.len() + a.offered.len();
+    let mut items: Vec<Browsable<Look>> = a
+        .looks
+        .iter()
+        .map(|l| Browsable {
+            row: Look::Here(l),
+            haystack: format!("{} {} {} {}", l.title, l.description, l.reference, l.tags.join(" ")),
+            tags: l.tags.iter().cloned().chain(l.appearance.clone()).collect(),
+        })
+        .collect();
+    items.extend(a.offered.iter().map(|l| Browsable {
+        row: Look::Offered(l),
+        haystack: format!("{} {} {} {}", l.title, l.description, l.reference, l.tags.join(" ")),
+        tags: l.tags.iter().cloned().chain(l.appearance.clone()).collect(),
+    }));
+    let (shown, matched, browse) = browse("looks", &p.filter, items, "Search looks: name, colours, tags");
+    let rows: Vec<LookRow> =
+        shown.iter().filter_map(|l| if let Look::Here(l) = l { Some(row(l)) } else { None }).collect();
+    let offered: Vec<LookRow> =
+        shown.iter().filter_map(|l| if let Look::Offered(l) = l { Some(offered_row(l)) } else { None }).collect();
+    let mut head = ListHead::new("Looks", matched, all);
+    head.browse = (all > 0).then_some(browse);
     head.actions =
         vec![Action::call("refresh", Text::new("Refresh"), Some("refresh"), "looks.list", json!({"fetch": true}))
             .help(Text::new("Look into the sources for looks"))
@@ -221,23 +245,27 @@ pub(crate) fn page(ctx: &Ctx) -> LooksPage {
     let installing = ctx.active_job(crate::api::types::JobKind::LookInstall).is_some();
     let shown = offered.iter().map(|r| (r.actions.as_slice(), r.badges.iter().any(|b| b.id == "official")));
     head.actions.extend(install_all("looks.installAll", shown, installing));
-    head.empty = (rows.is_empty() && offered.is_empty()).then(|| {
-        Hint::new(
-            "look",
-            Text::new("No look yet – images are built with one. Install omaflake's own and Catppuccin to start."),
-            Tone::Warning,
-        )
-        .action(
-            Action::call(
-                "installLooks",
-                Text::new("Install Recommended"),
-                Some("download"),
-                "looks.installRecommended",
-                json!({}),
+    head.empty = if all > 0 && rows.is_empty() && offered.is_empty() {
+        Some(filtered_out("looks"))
+    } else {
+        (rows.is_empty() && offered.is_empty()).then(|| {
+            Hint::new(
+                "look",
+                Text::new("No look yet – images are built with one. Install omaflake's own and Catppuccin to start."),
+                Tone::Warning,
             )
-            .primary(),
-        )
-    });
+            .action(
+                Action::call(
+                    "installLooks",
+                    Text::new("Install Recommended"),
+                    Some("download"),
+                    "looks.installRecommended",
+                    json!({}),
+                )
+                .primary(),
+            )
+        })
+    };
     LooksPage {
         head,
         catalogs_loaded: a.fetched,

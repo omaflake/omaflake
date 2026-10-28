@@ -596,7 +596,13 @@ impl App {
             }
             Message::SetFilter { page, group, value } => {
                 let mut f = self.filters.get(&page).cloned().unwrap_or_else(|| json!({}));
-                if value.is_null() || value == json!(false) {
+                // A new search starts on the first page (plan B148)
+                if group == "search" {
+                    if let Some(m) = f.as_object_mut() {
+                        m.remove("page");
+                    }
+                }
+                if value.is_null() || value == json!(false) || value == json!("") {
                     if let Some(m) = f.as_object_mut() {
                         m.remove(&group);
                     }

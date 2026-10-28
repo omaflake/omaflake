@@ -194,23 +194,31 @@ fn tab(ctx: &Ctx, p: &RecipesParams, catalog: bool) -> RecipesPage {
         .collect();
     let offered_all: Vec<&CatalogRecipeDto> =
         ctx.available.as_ref().map(|a| a.offered.iter().collect()).unwrap_or_default();
-    let offered: Vec<OfferedRow> = offered_all
+    // The catalog is searched and narrowed by chips, a page at a time (plan B148); the filter menu keeps the rest
+    let candidates: Vec<Browsable<&&CatalogRecipeDto>> = offered_all
         .iter()
-        .filter(|r| {
-            (f.other_systems || r.runs_here)
-                && f.status != Some(true)
-                && f.kind.is_none_or(|k| k == r.kind)
-                && tag_ok(&r.tags)
-        })
+        .filter(|r| (f.other_systems || r.runs_here) && f.status != Some(true) && f.kind.is_none_or(|k| k == r.kind))
         .filter(|_| catalog)
-        .map(|r| offered_row(ctx, r))
+        .map(|r| Browsable {
+            row: r,
+            haystack: format!("{} {} {} {} {}", r.name, r.description, r.tags.join(" "), r.modules.join(" "), r.author),
+            tags: r.tags.clone(),
+        })
         .collect();
+    let (page_rows, matched, browse) = browse(
+        if catalog { "recipeCatalog" } else { "recipes" },
+        f,
+        candidates,
+        "Search recipes: name, what it is, modules",
+    );
+    let offered: Vec<OfferedRow> = page_rows.into_iter().map(|r| offered_row(ctx, r)).collect();
     let mut tags: BTreeSet<&String> = all.iter().flat_map(|r| r.tags.iter()).collect();
     if catalog {
         tags = offered_all.iter().flat_map(|r| r.tags.iter()).collect();
     }
     let mut groups = if catalog { Vec::new() } else { f.base_groups("With image", "Without image") };
-    if !tags.is_empty() {
+    // The catalog's tags are chips (`browse`)
+    if !tags.is_empty() && !catalog {
         let mut options = vec![Choice::new(serde_json::Value::Null, Text::new("All"))];
         options.extend(tags.iter().map(|t| Choice::new(json!(t), Text::verbatim(*t))));
         groups.push(FilterGroup {
@@ -229,11 +237,12 @@ fn tab(ctx: &Ctx, p: &RecipesParams, catalog: bool) -> RecipesPage {
         options: vec![],
     });
     let mut head = if catalog {
-        ListHead::new("Recipes in your sources", offered.len(), offered_all.len())
+        ListHead::new("Recipes in your sources", matched, offered_all.len())
     } else {
         ListHead::new("Build Images", rows.len(), all.len())
     };
     head.filter = Some(Filter { active: f.is_active(), groups });
+    head.browse = (catalog && !offered_all.is_empty()).then_some(browse);
     head.actions = vec![
         Action::call("refresh", Text::new("Refresh"), Some("refresh"), "recipes.available", json!({}))
             .help(Text::new("Look for new recipes in the sources"))

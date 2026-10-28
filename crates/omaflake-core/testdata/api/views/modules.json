@@ -47,8 +47,118 @@
       }
     }
   ],
+  "browse": {
+    "field": {
+      "enabled": true,
+      "id": "search",
+      "kind": "text",
+      "label": {
+        "key": "Search",
+        "text": "Search"
+      },
+      "placeholder": {
+        "key": "Search modules: name, what it is, tags",
+        "text": "Search modules: name, what it is, tags"
+      },
+      "set": {
+        "method": "ui.filter",
+        "param": "filter.search",
+        "params": {
+          "filter": {
+            "kind": null,
+            "otherSystems": false,
+            "recipe": null,
+            "status": null,
+            "tag": null
+          },
+          "page": "modules"
+        }
+      },
+      "value": ""
+    },
+    "pages": {
+      "count": 1,
+      "index": 0,
+      "text": {
+        "args": [
+          1,
+          3,
+          3
+        ],
+        "key": "%lld–%lld of %lld",
+        "text": "1–3 of 3"
+      }
+    },
+    "placeholder": {
+      "key": "Search modules: name, what it is, tags",
+      "text": "Search modules: name, what it is, tags"
+    },
+    "search": "",
+    "tags": [
+      {
+        "action": {
+          "enabled": true,
+          "id": "tag",
+          "label": {
+            "text": "desktop"
+          },
+          "method": "ui.filter",
+          "on": false,
+          "params": {
+            "filter": {
+              "kind": null,
+              "otherSystems": false,
+              "recipe": null,
+              "status": null,
+              "tag": null,
+              "tags": [
+                "desktop"
+              ]
+            },
+            "page": "modules"
+          }
+        },
+        "count": 1,
+        "id": "desktop",
+        "label": {
+          "text": "desktop"
+        },
+        "on": false
+      },
+      {
+        "action": {
+          "enabled": true,
+          "id": "tag",
+          "label": {
+            "text": "terminal"
+          },
+          "method": "ui.filter",
+          "on": false,
+          "params": {
+            "filter": {
+              "kind": null,
+              "otherSystems": false,
+              "recipe": null,
+              "status": null,
+              "tag": null,
+              "tags": [
+                "terminal"
+              ]
+            },
+            "page": "modules"
+          }
+        },
+        "count": 1,
+        "id": "terminal",
+        "label": {
+          "text": "terminal"
+        },
+        "on": false
+      }
+    ]
+  },
   "catalogsLoaded": true,
-  "count": 1,
+  "count": 3,
   "footer": {
     "key": "A module is a piece of a recipe – a desktop, a terminal, an editor, LaTeX – written in Nix; key bindings give its actions their keys. Recipes name them, and installing a recipe brings them along. Modules are code: install them only from sources you trust.",
     "text": "A module is a piece of a recipe – a desktop, a terminal, an editor, LaTeX – written in Nix; key bindings give its actions their keys. Recipes name them, and installing a recipe brings them along. Modules are code: install them only from sources you trust."

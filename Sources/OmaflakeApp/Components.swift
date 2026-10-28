@@ -149,6 +149,8 @@ struct ListSection<Accessory: View, Content: View>: View {
     /// The list's filter: right next to the title and count, apart from the actions
     var filter: AnyView? = nil
     /// Actions (import, refresh, …) on the right
+    /// Between the title and the list: a catalog tab's search and chips (plan B148)
+    var below: AnyView? = nil
     @ViewBuilder let accessory: Accessory
     @ViewBuilder let content: Content
 
@@ -165,6 +167,7 @@ struct ListSection<Accessory: View, Content: View>: View {
                 Spacer()
                 accessory.frame(height: 24)
             }
+            if let below { below }
             VStack(spacing: 0) { content }
                 .background(BrandStyle.card, in: RoundedRectangle(cornerRadius: BrandStyle.radius, style: .continuous))
                 .overlay(RoundedRectangle(cornerRadius: BrandStyle.radius, style: .continuous).strokeBorder(BrandStyle.cardBorder))

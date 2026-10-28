@@ -36,6 +36,55 @@
       }
     }
   ],
+  "browse": {
+    "field": {
+      "enabled": true,
+      "id": "search",
+      "kind": "text",
+      "label": {
+        "key": "Search",
+        "text": "Search"
+      },
+      "placeholder": {
+        "key": "Search key bindings",
+        "text": "Search key bindings"
+      },
+      "set": {
+        "method": "ui.filter",
+        "param": "filter.search",
+        "params": {
+          "filter": {
+            "kind": null,
+            "otherSystems": false,
+            "recipe": null,
+            "status": null,
+            "tag": null
+          },
+          "page": "keymaps"
+        }
+      },
+      "value": ""
+    },
+    "pages": {
+      "count": 1,
+      "index": 0,
+      "text": {
+        "args": [
+          1,
+          1,
+          1
+        ],
+        "key": "%lld–%lld of %lld",
+        "text": "1–1 of 1"
+      }
+    },
+    "placeholder": {
+      "key": "Search key bindings",
+      "text": "Search key bindings"
+    },
+    "search": "",
+    "tags": []
+  },
   "catalogsLoaded": true,
   "count": 1,
   "footer": {

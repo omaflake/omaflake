@@ -499,6 +499,31 @@ fn list_head(page: &mut Page, model: &Value) {
     page.tools = arr(model, "actions").to_vec();
 }
 
+/// A catalog tab's search and chips (plan B148): the search a field (Enter edits it), the chips a button bar
+fn browse_top(ctx: &Ctx, model: &Value, p: &mut Page) {
+    let Some(b) = model.get("browse").filter(|b| b.is_object()) else { return };
+    p.items.push(field(ctx, "browse", &b["field"]));
+    let mut chips: Vec<Value> = arr(b, "tags").iter().map(|t| t["action"].clone()).collect();
+    if let Some(r) = b.get("reset").filter(|r| r.is_object()) {
+        chips.insert(0, r.clone());
+    }
+    if let Some(bar) = button_bar(ctx, "browse:tags", &chips) {
+        p.items.push(bar);
+    }
+}
+
+/// A catalog tab's pages: "11–20 of 34" and Previous, Next
+fn browse_pager(ctx: &Ctx, model: &Value, p: &mut Page) {
+    let Some(pages) = model.get("browse").map(|b| &b["pages"]).filter(|x| x["count"].as_u64().unwrap_or(1) > 1) else {
+        return;
+    };
+    p.items.push(Item::line("", secondary_line(ctx, t(&pages["text"]), 2)));
+    let nav: Vec<Value> = ["previous", "next"].iter().filter_map(|k| pages.get(*k).cloned()).collect();
+    if let Some(bar) = button_bar(ctx, "browse:pages", &nav) {
+        p.items.push(bar);
+    }
+}
+
 // MARK: - Pages
 
 /// The page `page` from its model
@@ -634,6 +659,7 @@ fn images(ctx: &Ctx, model: &Value, p: &mut Page) {
 
 fn recipes(ctx: &Ctx, model: &Value, p: &mut Page) {
     list_head(p, model);
+    browse_top(ctx, model, p);
     if b(model, "loading") {
         let mut spans = vec![Span::raw("  "), Span::styled(spinner(ctx.tick), ctx.theme.accent())];
         if let Some(text) = model.get("loadingText") {
@@ -683,6 +709,7 @@ fn recipes(ctx: &Ctx, model: &Value, p: &mut Page) {
             list_row(ctx, "offered", row, &mut p.items);
         }
     }
+    browse_pager(ctx, model, p);
     empty_and_unreadable(ctx, model, p);
     if let (true, Some(h)) = (b(model, "labHidden"), model.get("labHint")) {
         p.items.push(hint(ctx, "labHint".into(), h));
@@ -1061,6 +1088,10 @@ fn new_vm(ctx: &Ctx, model: &Value, p: &mut Page) {
 /// The Looks tab (plan B141): the looks here with a strip of their colours, what the sources offer besides
 fn looks(ctx: &Ctx, model: &Value, p: &mut Page) {
     list_head(p, model);
+    browse_top(ctx, model, p);
+    if let Some(e) = model.get("empty") {
+        p.items.push(hint(ctx, "empty".into(), e));
+    }
     if b(model, "loading") {
         let mut spans = vec![Span::raw("  "), Span::styled(spinner(ctx.tick), ctx.theme.accent())];
         if let Some(text) = model.get("loadingText") {
@@ -1077,6 +1108,7 @@ fn looks(ctx: &Ctx, model: &Value, p: &mut Page) {
             list_row(ctx, "offered-look", row, &mut p.items);
         }
     }
+    browse_pager(ctx, model, p);
     for (i, h) in arr(model, "unreadable").iter().enumerate() {
         p.items.push(hint(ctx, format!("unreadable-look:{i}"), h));
     }

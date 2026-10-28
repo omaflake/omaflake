@@ -1245,6 +1245,46 @@ fn recipe_studio_pages_through_the_catalog() {
     assert_eq!(typed["catalog"]["suggest"].as_array().unwrap().len(), 6);
 }
 
+/// The catalog tabs a page at a time (plan B148): search, chips (tags and capabilities), ten a page across those here
+/// and those offered
+#[test]
+fn catalog_tabs_search_chips_and_pages() {
+    let mut c = ctx();
+    let wezterm = c.modules.offered.iter().chain(c.modules.parts.iter()).find(|p| p.reference == "omaflake/wezterm");
+    let wezterm = wezterm.cloned().unwrap();
+    for i in 0..12 {
+        let mut m = wezterm.clone();
+        m.reference = format!("zoe/term{i:02}");
+        m.id = format!("zoe.module.term{i:02}");
+        m.title = format!("Term {i:02}");
+        m.tags = if i % 2 == 0 { vec!["even".into()] } else { vec![] };
+        c.modules.offered.push(m);
+    }
+    let modules = |filter: Value| get(&c, "modules", json!({"filter": filter}));
+    let first = modules(json!({}));
+    let b = &first["browse"];
+    assert_eq!(first["rows"].as_array().unwrap().len() + first["offered"].as_array().unwrap().len(), 10);
+    assert_eq!((b["pages"]["index"].as_u64(), b["pages"]["count"].as_u64()), (Some(0), Some(2)));
+    let next = &b["pages"]["next"];
+    assert_eq!((next["method"].as_str(), &next["params"]["filter"]["page"]), (Some("ui.filter"), &json!(1)));
+    assert_eq!(next["params"]["page"], "modules");
+    let even = b["tags"].as_array().unwrap().iter().find(|t| t["id"] == "even").unwrap();
+    assert_eq!((even["count"].as_u64(), even["on"].as_bool()), (Some(6), Some(false)));
+    assert_eq!(even["action"]["params"]["filter"]["tags"], json!(["even"]));
+    // A chip on: six; the search on top of it
+    let tagged = modules(json!({"tags": ["even"]}));
+    assert_eq!(tagged["offered"].as_array().unwrap().len(), 6);
+    assert_eq!(tagged["count"], 6);
+    assert!(tagged["browse"]["reset"].is_object());
+    let searched = modules(json!({"tags": ["even"], "search": "term 04"}));
+    assert_eq!(searched["offered"][0]["name"], "Term 04");
+    // Nothing matches: said, with the way back
+    let none = modules(json!({"search": "zzz"}));
+    assert_eq!(none["empty"]["action"]["id"], "resetFilter");
+    // The looks and the recipes of the catalog browse the same way
+    assert!(get(&c, "looks", json!({}))["browse"]["pages"].is_object());
+}
+
 /// The help switch (plan B148): off by default, the home page's action turns it on; a hint that only explains says so
 #[test]
 fn help_switch_on_the_home_page() {

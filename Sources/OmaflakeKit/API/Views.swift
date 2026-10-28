@@ -292,6 +292,34 @@ public struct ListHead: Decodable, Sendable, Equatable {
     public var filter: ViewFilter?
     public var actions: [ViewAction]
     public var empty: Hint?
+    /// The catalog tabs (plan B148): a search, chips, a page at a time
+    public var browse: Browse?
+}
+
+/// A catalog tab's search (`params.filter.search`), its chips and pages – their actions are `ui.filter` (plan B148)
+public struct Browse: Decodable, Sendable, Equatable {
+    public struct Tag: Decodable, Sendable, Equatable, Identifiable {
+        public var id: String
+        public var label: ViewText
+        public var count: Int
+        public var on: Bool
+        public var action: ViewAction
+    }
+
+    public var search: String
+    public var placeholder: ViewText
+    public var tags: [Tag]
+    public var pages: Pager
+    public var reset: ViewAction?
+}
+
+/// Where a list is, a page at a time
+public struct Pager: Decodable, Sendable, Equatable {
+    public var index: Int
+    public var count: Int
+    public var text: ViewText
+    public var previous: ViewAction?
+    public var next: ViewAction?
 }
 
 public enum FieldKind: String, OpenEnum { case toggle, text, number, choice, path, info, unknown }

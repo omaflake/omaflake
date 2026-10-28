@@ -100,13 +100,15 @@ struct HomeList: View {
 
     private func section(_ head: ListHead, @ViewBuilder rows: () -> some View) -> some View {
         ListSection(title: model.t(head.title), count: head.count, of: head.of,
-                    filter: head.filter.map { AnyView(FilterMenu(filter: $0, tab: tab, model: model)) }) {
+                    filter: head.filter.map { AnyView(FilterMenu(filter: $0, tab: tab, model: model)) },
+                    below: head.browse.map { AnyView(BrowseBar(browse: $0, tab: tab, model: model)) }) {
             HStack(spacing: BrandTokens.Spacing.xxs) {
                 ForEach(head.actions) { ActionIcon(action: $0, model: model) }
             }
         } content: {
             if let empty = head.empty { HintRow(hint: empty, model: model) }
             rows()
+            if let pages = head.browse?.pages, pages.count > 1 { PagerRow(pager: pages, model: model) }
         }
     }
 }
@@ -506,6 +508,83 @@ struct ActivityRow: View {
             Text(entry.time, format: .dateTime.hour().minute()).font(.caption.monospacedDigit()).foregroundStyle(.tertiary)
             Text(verbatim: model.t(entry.text)).font(.caption).textSelection(.enabled).fixedSize(horizontal: false, vertical: true)
             Spacer(minLength: 0)
+        }
+        .padding(.horizontal, BrandTokens.Spacing.xl).padding(.vertical, BrandTokens.Spacing.m)
+    }
+}
+
+// MARK: - Catalog tabs: search, chips, pages (plan B148)
+
+/// A catalog tab's search and chips: the search goes into the list's filter while typing, a chip turns on or off
+struct BrowseBar: View {
+    let browse: Browse
+    let tab: AppModel.HomeTab
+    let model: AppModel
+    @State private var text: String?
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: BrandTokens.Spacing.m) {
+            HStack(spacing: BrandTokens.Spacing.m) {
+                Image(systemName: "magnifyingglass").foregroundStyle(.secondary)
+                TextField("", text: Binding(get: { text ?? browse.search }, set: {
+                    text = $0
+                    model.setFilter(tab, search: $0)
+                }), prompt: Text(verbatim: model.t(browse.placeholder)))
+                .textFieldStyle(.plain)
+                if !(text ?? browse.search).isEmpty || browse.tags.contains(where: \.on), let reset = browse.reset {
+                    Button { text = nil; model.run(reset) } label: {
+                        Image(systemName: "xmark.circle.fill").foregroundStyle(.tertiary)
+                    }
+                    .buttonStyle(.plain)
+                    .help(Text(verbatim: model.t(reset.label)))
+                }
+            }
+            .padding(.horizontal, BrandTokens.Spacing.l).padding(.vertical, BrandTokens.Spacing.m)
+            .background(BrandStyle.card, in: RoundedRectangle(cornerRadius: BrandStyle.radius, style: .continuous))
+            .overlay(RoundedRectangle(cornerRadius: BrandStyle.radius, style: .continuous).strokeBorder(BrandStyle.cardBorder))
+            if !browse.tags.isEmpty {
+                ChipFlow(spacing: BrandTokens.Spacing.s) {
+                    ForEach(browse.tags) { t in
+                        Button { model.run(t.action) } label: {
+                            HStack(spacing: BrandTokens.Spacing.xs) {
+                                Text(verbatim: model.t(t.label))
+                                Text(verbatim: "\(t.count)").foregroundStyle(t.on ? BrandStyle.cyan.opacity(0.7) : Color.secondary.opacity(0.7))
+                            }
+                            .font(.caption.weight(t.on ? .semibold : .regular))
+                            .foregroundStyle(t.on ? BrandStyle.cyan : .secondary)
+                            .padding(.horizontal, BrandTokens.Spacing.l).padding(.vertical, 3)
+                            .background(t.on ? BrandStyle.cyan.opacity(BrandTokens.Opacity.tintFill) : .clear, in: Capsule())
+                            .overlay(Capsule().strokeBorder(t.on ? BrandStyle.cyan.opacity(0.6) : BrandStyle.cardBorder))
+                            .contentShape(Capsule())
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+            }
+        }
+        .onChange(of: browse.search) { if text == browse.search { text = nil } }
+    }
+}
+
+/// "11–20 of 34" with Previous and Next
+struct PagerRow: View {
+    let pager: Pager
+    let model: AppModel
+
+    var body: some View {
+        HStack(spacing: BrandTokens.Spacing.m) {
+            Text(verbatim: model.t(pager.text)).font(.caption).foregroundStyle(.secondary)
+            Spacer()
+            ForEach([pager.previous, pager.next].enumerated().map { $0 }, id: \.offset) { i, action in
+                Button { if let action { model.run(action) } } label: {
+                    Image(systemName: i == 0 ? "chevron.left" : "chevron.right").frame(width: 22, height: 18).contentShape(Rectangle())
+                }
+                .buttonStyle(.borderless)
+                .disabled(action == nil)
+                if i == 0 {
+                    Text(verbatim: "\(pager.index + 1) / \(pager.count)").font(.caption.monospacedDigit()).foregroundStyle(.secondary)
+                }
+            }
         }
         .padding(.horizontal, BrandTokens.Spacing.xl).padding(.vertical, BrandTokens.Spacing.m)
     }
