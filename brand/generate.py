@@ -243,6 +243,8 @@ def main():
             render(s(f"omaflake-glyph-{v}.svg"), f"{PNG}/glyph/omaflake-glyph-{v}-{n}.png", n)
         for n in (16, 18, 24, 32, 48):
             render(s(f"omaflake-glyph-small-{v}.svg"), f"{PNG}/glyph-small/omaflake-glyph-small-{v}-{n}.png", n)
+    # The NixOS guests' loading screen (Plymouth, nix/modules/vm-guest.nix): the white mark, 128 px
+    shutil.copy(f"{PNG}/glyph/omaflake-glyph-white-128.png", os.path.join(HERE, "..", "nix", "modules", "omaflake-splash.png"))
     for scale, suffix in ((1, ""), (2, "@2x"), (3, "@3x")):
         render(s("omaflake-menubarTemplate.svg"), f"{PNG}/menubar/omaflakeTemplate{suffix}.png", 18 * scale)
 

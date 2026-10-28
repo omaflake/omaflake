@@ -13,6 +13,11 @@ are collected under *Unreleased*. Releases: [GitHub](https://github.com/omaflake
 
 ## [Unreleased]
 
+### Added
+
+- NixOS VMs show omaflake's loading screen while they boot instead of a black window until the desktop (images built
+  from now on).
+
 ## [0.7.0] – 2026-10-28
 
 Everything omaflake reads as data can now be made in the app: a **Recipe Studio**, a **Key Binding Studio** and a

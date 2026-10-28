@@ -14,6 +14,12 @@ in
     description = "Mount the shared Mac folder (virtio-9p, tag \"share\") at /mnt/share.";
   };
 
+  options.vm.bootSplash.enable = lib.mkOption {
+    type = lib.types.bool;
+    default = true;
+    description = "omaflake's loading screen while the guest boots (Plymouth) instead of a black window until the desktop.";
+  };
+
   config = {
     nixpkgs.hostPlatform = lib.mkDefault "aarch64-linux";
 
@@ -23,7 +29,17 @@ in
     boot.growPartition = true;
     # Kernel and boot messages on the serial port too (omaflake writes it to serial.log; systemd starts a login there
     # for the last console): aarch64's firmware names its PL011 to the kernel (ACPI SPCR), x86_64's COM1 must be named
-    boot.kernelParams = lib.mkIf pkgs.stdenv.hostPlatform.isx86_64 [ "console=tty0" "console=ttyS0,115200" ];
+    boot.kernelParams = lib.mkMerge [
+      (lib.mkIf pkgs.stdenv.hostPlatform.isx86_64 [ "console=tty0" "console=ttyS0,115200" ])
+      # The loading screen (below): quiet, so no kernel or systemd lines are drawn over it
+      (lib.mkIf config.vm.bootSplash.enable [
+        "quiet"
+        "splash"
+        "rd.udev.log_level=3"
+        "udev.log_priority=3"
+        "rd.systemd.show_status=auto"
+      ])
+    ];
 
     # File systems by label – labels must match the image build (see spec, M1)
     fileSystems."/" = lib.mkDefault {
@@ -104,6 +120,18 @@ in
     environment.etc."mpv/mpv.conf".text = ''
       gpu-api=opengl
     '';
+    # The loading screen (plan B155): Plymouth's spinner with omaflake's mark (brand/generate.py writes it here) from the
+    # kernel's start until the desktop – the graphics driver in the initrd, so it shows that early; quiet, so no kernel
+    # or systemd lines are drawn over it (they stay in the journal; the serial log has fewer kernel lines then)
+    boot.plymouth = lib.mkIf config.vm.bootSplash.enable {
+      enable = true;
+      theme = "spinner";
+      logo = ./omaflake-splash.png;
+    };
+    boot.initrd.kernelModules = lib.mkIf config.vm.bootSplash.enable [ "virtio_gpu" ];
+    boot.consoleLogLevel = lib.mkIf config.vm.bootSplash.enable 3;
+    boot.initrd.verbose = lib.mkIf config.vm.bootSplash.enable false;
+
     # Shared folder from the Mac; the VM still boots if it is missing
     fileSystems."/mnt/share" = lib.mkIf config.vm.shareFolder.enable {
       device = "share";

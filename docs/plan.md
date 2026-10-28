@@ -1326,6 +1326,16 @@ other), then fixed:
 - **OPEN:** the look studio cannot go back from a border gradient to one colour in the macOS app; the Nix clean-up's
   activity line is English in German too (as the builder's).
 
+**B155 (2026-10-28): a loading screen while a NixOS guest boots.** The window was black until Hyprland drew. The guest
+module (`nix/modules/vm-guest.nix`, option `vm.bootSplash.enable`, default on, every NixOS image) now shows Plymouth's
+`spinner` theme with omaflake's white mark (`nix/modules/omaflake-splash.png`, written by brand/generate.py), loads
+`virtio_gpu` in the initrd so it shows from the kernel's start, and boots quiet (`quiet splash`, console log level 3,
+udev and systemd status quiet in the initrd) – the kernel lines stay in the journal, the serial log has fewer of them.
+macOS guests need none: Virtualization.framework shows Apple's boot screen. Checked: `nix flake check` (both flakes,
+with the catalog), `nix eval` of a recipe's `boot` (plymouth, theme, initrd module, params). **OPEN:** tried in a VM
+(Plymouth with virgl through ANGLE on a Mac); how long the window stays black before it (firmware, before the kernel) –
+a loading screen from QEMU itself (a patch to its window) if that is long.
+
 **B129 (2026-10-24): clipboard on a GNOME host.** Mutter has no data-control protocol: `wl-paste --watch` ends at once.
 `Wayland::start` now treats an end within 500 ms as refused, and `detect` falls back to xclip through Xwayland, which
 Mutter keeps in sync (`X11::through_xwayland`, Mutter's `.mutter-Xwaylandauth.*` cookie when XAUTHORITY is unset; its
