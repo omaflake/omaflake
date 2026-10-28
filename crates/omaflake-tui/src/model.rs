@@ -505,8 +505,8 @@ pub fn page(ctx: &Ctx, name: &str, model: &Value) -> Page {
         "credentials" | "locales" | "profiles" => credentials(ctx, model, &mut p),
         "locale" => credential(ctx, "locale", model, &mut p),
         "profile" => credential(ctx, "profile", model, &mut p),
-        // The recipe editor in the credential form's shape (plan B142)
-        "recipeEditor" => credential(ctx, "recipeEditor", model, &mut p),
+        // The recipe studio (plan B147)
+        "recipeStudio" => studio(ctx, model, &mut p),
         "credential" => credential(ctx, "credential", model, &mut p),
         // The credential of a macOS base from before bases kept theirs: the same form (plan B139)
         "baseCredential" => credential(ctx, "baseCredential", model, &mut p),
@@ -1072,6 +1072,71 @@ fn credential(ctx: &Ctx, page: &str, model: &Value, p: &mut Page) {
     p.items.push(Item::blank());
     for f in arr(model, "fields") {
         p.items.push(field(ctx, page, f));
+    }
+    if let Some(bar) = button_bar(ctx, &format!("{page}:actions"), arr(model, "actions")) {
+        p.items.push(bar);
+    }
+}
+
+/// The recipe studio (plan B147): the recipe's fields, its modules with what is wrong, the catalog (search, filters,
+/// modules with Add), look and keys, the VM; a module row's Enter adds or removes it
+fn studio(ctx: &Ctx, model: &Value, p: &mut Page) {
+    let th = ctx.theme;
+    let page = "recipeStudio";
+    let module = |m: &Value, at: &str| -> Item {
+        let badges: Vec<String> = arr(m, "badges").iter().filter_map(|b| b.get("label").map(t)).collect();
+        let mut head = vec![Span::raw("  "), Span::styled(s(m, "title").to_string(), th.title())];
+        if !badges.is_empty() {
+            head.push(Span::styled(format!("  {}", badges.join(" · ")), th.secondary()));
+        }
+        let lines = vec![Line::from(head), secondary_line(ctx, t(&m["subtitle"]), 4)];
+        Item::row(format!("{at}:{}", s(m, "reference")), lines, vec![m["action"].clone()])
+    };
+    p.items.push(Item::line("", secondary_line(ctx, t(&model["intro"]), 2)));
+    p.items.push(heading(ctx, format!(" {}", t(&model["titles"]["about"]))));
+    for f in arr(model, "about") {
+        p.items.push(field(ctx, page, f));
+    }
+    let recipe = &model["recipe"];
+    p.items.push(Item::blank());
+    p.items.push(heading(ctx, format!(" {}", t(&recipe["title"]))));
+    if let Some(bar) = recipe.get("keys").and_then(|k| button_bar(ctx, "studio:keys", std::slice::from_ref(k))) {
+        p.items.push(bar);
+    }
+    for (i, h) in arr(recipe, "hints").iter().enumerate() {
+        p.items.push(hint(ctx, format!("studio:hint:{i}"), h));
+    }
+    if let Some(e) = recipe.get("empty") {
+        p.items.push(Item::line("", secondary_line(ctx, t(e), 2)));
+    }
+    for m in arr(recipe, "rows") {
+        p.items.push(module(m, "in"));
+    }
+    let catalog = &model["catalog"];
+    p.items.push(Item::blank());
+    p.items.push(Item::line(
+        "",
+        Line::from(vec![
+            Span::styled(format!(" {}", t(&catalog["title"])), th.title()),
+            Span::styled(format!("  {}", t(&catalog["count"])), th.secondary()),
+        ]),
+    ));
+    p.items.push(field(ctx, page, &catalog["search"]));
+    for f in arr(catalog, "filters") {
+        p.items.push(field(ctx, page, f));
+    }
+    if let Some(e) = catalog.get("empty") {
+        p.items.push(Item::line("", secondary_line(ctx, t(e), 2)));
+    }
+    for m in arr(catalog, "rows") {
+        p.items.push(module(m, "catalog"));
+    }
+    for (title, list) in [("dress", "dress"), ("vm", "vm")] {
+        p.items.push(Item::blank());
+        p.items.push(heading(ctx, format!(" {}", t(&model["titles"][title]))));
+        for f in arr(model, list) {
+            p.items.push(field(ctx, page, f));
+        }
     }
     if let Some(bar) = button_bar(ctx, &format!("{page}:actions"), arr(model, "actions")) {
         p.items.push(bar);

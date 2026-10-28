@@ -48,6 +48,8 @@ enum Icons {
         case "settings": ("gearshape", nil)
         case "key": ("key", nil)
         case "workshop": ("wrench.and.screwdriver", nil)
+        case "studio": ("square.stack.3d.up", nil)
+        case "minus": ("minus.circle", nil)
         case "keyboard": ("keyboard", nil)
         case "globe": ("globe", nil)
         case "quit": ("power", nil)

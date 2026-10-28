@@ -78,7 +78,7 @@
       },
       "method": "ui.show",
       "params": {
-        "page": "recipeEditor",
+        "page": "recipeStudio",
         "params": {}
       }
     },
@@ -675,7 +675,7 @@
             },
             "method": "ui.show",
             "params": {
-              "page": "recipeEditor",
+              "page": "recipeStudio",
               "params": {
                 "id": "omaflake.nixos.dev@velvet-tiger-orbit"
               }

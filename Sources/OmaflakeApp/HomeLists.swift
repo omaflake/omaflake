@@ -54,6 +54,8 @@ struct HomeList: View {
         case .credentials(let p)?:
             // Credentials, locales, profiles: tabs of the workshop (plan B147)
             CredentialsView(page: p, model: model)
+        case .studio(let p)?:
+            RecipeStudioView(page: p, ref: model.listRef(tab), model: model)
         case .looks(let p)?:
             section(p.head) {
                 if p.loading, let text = p.loadingText {

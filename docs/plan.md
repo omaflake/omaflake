@@ -1110,6 +1110,25 @@ goes on across the groups. **Checked:** `cargo test` (home: groups, the workshop
 switch for now); the recipe studio and the key binding studio join the workshop in steps 4 and 5; the recipes
 offered by the sources are still in the Recipes tab (the catalog in the workshop: with the recipe studio).
 
+**B147, step 4 (2026-10-28): the recipe studio.** Page `recipeStudio` (`views/recipe_studio.rs`, was
+`recipe_editor.rs`; page `recipeEditor` is gone): `about` (name, platform, description), `recipe` (its modules, hints,
+`keys` – the keys page on `{draft: {platform, modules, keymaps, name}}`, computed from the modules and sets here),
+`catalog` (search over title, description, reference, tags and capabilities; filters capability, tag, author; the
+platform's modules here and offered that are not in the recipe), `dress` (look, two key binding sets), `vm`. The
+modules are `values.modules`, set as a whole by each row's `ui.field` (Add / Remove), so every UI keeps them as form
+values. Hints: a needed capability none provides – with "Add <module>" (here before offered, official first) –,
+exclusive capabilities twice, overlapping keys and the key rule (from the composition of the modules here), modules
+still to install. A workshop tab (a new recipe) and the target of "New Recipe …", "Edit …", "Copy to My Recipes …";
+the macOS app clears the studio's values when it opens on a recipe. UIs: SwiftUI `RecipeStudioView` (a grouped form
+top to bottom), iced `studio`, `omaf ui` `studio` (Enter on a module row adds or removes it). **Checked:** `cargo test`
+(`modules_tab_profiles_and_the_recipe_studio`: copy, remove, the needs hint with its action, search, filter; goldens
+`recipeStudio`, `keys.draft`; iced draws every golden page; TUI draws it), `swift test`; with a development build on the
+real catalog: Hyprland + Emacs + Neovim says "Hyprland needs a terminal → Add WezTerm" and "Emacs + Neovim do not go
+together", search "term" finds WezTerm, Shell, Zellij; a draft's keys page shows Hyprland 14 and Zellij 162 rows.
+**OPEN:** clicked in the apps; the keys of modules still in the catalog (their actions are in catalog.json, not read
+for the preview); two columns (catalog next to the recipe) in a wide window; the recipes the sources offer still in
+the Recipes tab.
+
 **B129 (2026-10-24): clipboard on a GNOME host.** Mutter has no data-control protocol: `wl-paste --watch` ends at once.
 `Wayland::start` now treats an end within 500 ms as refused, and `detect` falls back to xclip through Xwayland, which
 Mutter keeps in sync (`X11::through_xwayland`, Mutter's `.mutter-Xwaylandauth.*` cookie when XAUTHORITY is unset; its

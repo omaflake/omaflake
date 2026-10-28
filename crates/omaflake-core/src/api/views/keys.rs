@@ -16,12 +16,44 @@ use crate::api::types::{RecipeDto, RecipePartsDto};
 use crate::composition::Binding;
 use crate::modules::ModuleMode;
 
-/// Whose keys: a recipe by id, an image or a VM by name (through the recipe it was built from)
+/// Whose keys: a recipe by id, an image or a VM by name (through the recipe it was built from), or a recipe being put
+/// together in the recipe studio (`draft`)
 #[derive(Debug, Default, Deserialize)]
 pub struct KeysParams {
     pub recipe: Option<String>,
     pub image: Option<String>,
     pub vm: Option<String>,
+    pub draft: Option<Draft>,
+}
+
+/// A recipe not saved yet: its platform, modules and key binding sets ("<author>/<name>")
+#[derive(Debug, Default, Deserialize)]
+pub struct Draft {
+    #[serde(default)]
+    pub name: String,
+    pub platform: String,
+    #[serde(default)]
+    pub modules: Vec<String>,
+    #[serde(default)]
+    pub keymaps: Vec<String>,
+}
+
+/// A draft's parts: the modules and key binding sets here (those still in the catalog have no keys yet)
+fn draft_parts(ctx: &Ctx, d: &Draft) -> Option<RecipePartsDto> {
+    use crate::composition::{PartRef, RecipeSpec};
+    let spec = RecipeSpec {
+        platform: crate::models::GuestKind::parse(&d.platform)?,
+        modules: d.modules.iter().map(|r| PartRef::new(r)).collect(),
+        look: None,
+        keymaps: d.keymaps.iter().map(|k| PartRef::new(k)).collect(),
+        requirements: Default::default(),
+        locales: Default::default(),
+        data: serde_json::Value::Null,
+    };
+    let settings = crate::paths::Settings::load(&ctx.paths);
+    let store = crate::modules::ModuleStore::new(ctx.paths.clone());
+    let keymaps = crate::keymaps::KeymapStore::new(ctx.paths.clone()).list(&settings);
+    Some(crate::api::model::parts_dto(&spec, &store.list(&settings), &keymaps, &[], &store.capabilities(&settings)))
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -164,6 +196,21 @@ fn recipe_of<'a>(ctx: &'a Ctx, p: &KeysParams) -> (Option<&'a RecipeDto>, Text, 
 }
 
 pub(crate) fn page(ctx: &Ctx, p: &KeysParams) -> KeysPage {
+    if let Some(d) = &p.draft {
+        let parts = draft_parts(ctx, d);
+        let name = if d.name.is_empty() { "…".to_string() } else { d.name.clone() };
+        return KeysPage {
+            title: tf!("Keys of %@", &name),
+            subtitle: Text::new("The recipe being put together"),
+            intro: Text::new(
+                "By module and by the mode its program is in. A mode shows the keys that lead there; “then …” is the mode a key leads to.",
+            ),
+            notes: vec![],
+            modules: parts.as_ref().map(|x| modules(ctx, x)).unwrap_or_default(),
+            keymaps: d.keymaps.clone(),
+            search: Text::new("Search keys"),
+        };
+    }
     let (recipe, whose, mut notes) = recipe_of(ctx, p);
     let name = recipe.map(|r| r.display_name.clone()).unwrap_or_default();
     let parts = recipe.and_then(|r| r.parts.as_ref());

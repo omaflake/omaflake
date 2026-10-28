@@ -587,7 +587,6 @@
 /* The app as a client of omaflake's core (omaf serve, docs/api.md) */
 "omaflake's core runs again" = "Der omaflake-Kern läuft wieder";
 "macOS downloaded" = "macOS geladen";
-"macOS %@ downloaded" = "macOS %@ geladen";
 "Download paused – it continues from there" = "Download pausiert – er geht von dort weiter";
 "Failed" = "Fehlgeschlagen";
 "Not an omaflake package" = "Kein omaflake-Paket";
@@ -1299,3 +1298,29 @@
 "Run" = "Betrieb";
 "Workshop" = "Werkstatt";
 "No credential yet – images are built with one" = "Noch kein Zugang – Vorlagen werden mit einem gebaut";
+
+/* Recipe studio (plan B147) */
+"Recipe Studio" = "Rezept-Studio";
+"Catalog" = "Katalog";
+"%lld of %lld modules" = "%1$lld von %2$lld Modulen";
+"Search modules: name, what it is, tags" = "Module suchen: Name, was es ist, Tags";
+"Capability" = "Fähigkeit";
+"Author" = "Autor";
+"any" = "alle";
+"needs %@" = "braucht %@";
+"%lld keys" = "%lld Tasten";
+"Official – from omaflake" = "Offiziell – von omaflake";
+"Not here yet – installed with the recipe" = "Noch nicht da – wird mit dem Rezept installiert";
+"from the catalog" = "aus dem Katalog";
+"Add" = "Hinzufügen";
+"Add %@" = "%@ hinzufügen";
+"Every module is in the recipe" = "Alle Module sind im Rezept";
+"No module matches – change the search" = "Kein Modul passt – ändere die Suche";
+"Your recipe – %lld modules" = "Dein Rezept – %lld Module";
+"Add modules from the catalog – a desktop, a terminal, an editor …" = "Füge Module aus dem Katalog hinzu – einen Desktop, ein Terminal, einen Editor …";
+"Modules from the catalog are installed with the recipe when it is saved; their keys show then." = "Module aus dem Katalog werden beim Speichern mit dem Rezept installiert; ihre Tasten erscheinen dann.";
+"Look and keys" = "Look und Tasten";
+"The VM" = "Die VM";
+"The recipe being put together" = "Das Rezept, das du gerade zusammenstellst";
+"Put a recipe of your own together: find modules in the catalog and add them – what is missing or does not fit is said while you build. Saved in My Recipes, a folder in the data folder that is one of your sources, and built like any other recipe." = "Stell dein eigenes Rezept zusammen: Module im Katalog finden und hinzufügen – was fehlt oder nicht passt, steht schon beim Bauen da. Gespeichert in „Meine Rezepte“, einem Ordner im Datenordner, der eine deiner Quellen ist, und gebaut wie jedes andere Rezept.";
+"Search" = "Suchen";

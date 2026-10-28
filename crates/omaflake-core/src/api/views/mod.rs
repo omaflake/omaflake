@@ -30,7 +30,7 @@ pub mod looks;
 pub mod modules;
 pub mod new_vm;
 pub mod profiles;
-pub mod recipe_editor;
+pub mod recipe_studio;
 pub mod recipes;
 pub mod settings;
 pub mod text;
@@ -79,7 +79,7 @@ pub const PAGES: [&str; 24] = [
     "locale",
     "profiles",
     "profile",
-    "recipeEditor",
+    "recipeStudio",
     "baseCredential",
     "keys",
 ];
@@ -314,9 +314,9 @@ pub(crate) fn build(ctx: &Ctx, page: &PageRef) -> Result<Value, RpcError> {
         "modules" => to_value(modules::page(ctx)),
         "locales" => to_value(locales::page(ctx)),
         "profiles" => to_value(profiles::page(ctx)),
-        "recipeEditor" => {
-            let p: recipe_editor::EditorParams = page_params(p)?;
-            to_value(recipe_editor::page(ctx, &p).ok_or_else(|| {
+        "recipeStudio" => {
+            let p: recipe_studio::StudioParams = page_params(p)?;
+            to_value(recipe_studio::page(ctx, &p).ok_or_else(|| {
                 RpcError::from(crate::vm_err!(
                     crate::error::codes::NOT_FOUND,
                     "No recipe \"{}\"",

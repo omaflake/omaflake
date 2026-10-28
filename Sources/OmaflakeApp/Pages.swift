@@ -18,6 +18,7 @@ struct PageView: View {
             case .build(let p)?: BuildView(page: p, ref: ref, model: model)
             case .credentials(let p)?: CredentialsView(page: p, model: model)
             case .credential(let p)?: CredentialView(page: p, ref: ref, model: model)
+            case .studio(let p)?: RecipeStudioView(page: p, ref: ref, model: model)
             case .doctor(let p)?: DoctorView(page: p, model: model)
             case .macBase(let p)?: MacBaseView(page: p, ref: ref, model: model)
             case .settings(let p)?: SettingsView(page: p, ref: ref, model: model)

@@ -106,10 +106,14 @@ while omaflake is not in front (menu window closed, app window hidden or in the 
     for unreviewed sources, a warning. Installed recipes show their source and, when downloaded, "Update" (a newer
     catalog version) and "Remove …" (red) in their details. With nothing installed, "Install suggested" brings the
     official recipes (plan B107). Since plan B142 a recipe's details say what it is made of – its modules, look, key
-    bindings, what a VM needs at least, every key –, what is missing ("Install Missing Parts"; the lamp is orange) and
-    what is wrong (warnings); "New Recipe …" and "Copy to My Recipes …" (on one of yours: "Edit …") open the recipe
-    editor: a platform, a switch per module, a look, up to two key binding sets, the requirements and how a VM runs,
-    with its warnings as you choose – saved in My Recipes, a source in the data folder
+    bindings, what a VM needs at least –, what is missing ("Install Missing Parts"; the lamp is orange) and what is
+    wrong (warnings); its keys open in a window of their own (the keyboard button, plan B147); "New Recipe …" and
+    "Copy to My Recipes …" (on one of yours: "Edit …") open the recipe studio
+  - **Recipe Studio** (the workshop, plan B147): a recipe put together like a kit – its name and platform, the
+    modules in it with what is missing (and the button that adds the module providing it), what does not go together
+    and overlapping keys, the catalog to find more (search, capability, tag, author; Add), look and up to two key
+    binding sets, what a VM needs at least and how it runs, its keys before it is saved – saved in My Recipes, a
+    source in the data folder
   - **Modules** (plan B142): the modules and key binding sets here, with the recipes made of them, and what the
     sources offer – the same rows as Looks (install, update, remove)
   - **Activity** (badge: dot for unread messages): what happened in the core service, newest first (the same list in

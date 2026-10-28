@@ -15,6 +15,7 @@ use omaflake_core::api::views::doctor::{DoctorItem, DoctorPage, Download, MacBas
 use omaflake_core::api::views::images::{BuildJobRow, ImageRowView, ImagesPage};
 use omaflake_core::api::views::keys::KeysPage;
 use omaflake_core::api::views::new_vm::NewVmPage;
+use omaflake_core::api::views::recipe_studio::{RecipeStudioPage, StudioModule};
 use omaflake_core::api::views::recipes::{OfferedRow, RecipeRowView, RecipesPage};
 use omaflake_core::api::views::settings::{SettingsPage, SettingsSection};
 use omaflake_core::api::views::vms::{VmRowView, VmsPage};
@@ -73,6 +74,7 @@ pub fn list<'a>(app: &'a App, tab: &str, m: &'a Model) -> El<'a> {
         Model::Activity(p) => activity(app, p),
         // Credentials, locales, profiles: tabs of the workshop (plan B147)
         Model::Credentials(c) => credentials(app, tab, c),
+        Model::Studio(st) => studio(app, tab, st),
         Model::Error(e) => error(e),
         _ => error(&format!("{tab}: not a list")),
     }
@@ -643,6 +645,7 @@ pub fn page<'a>(app: &'a App, p: &PageRef, m: &'a Model) -> El<'a> {
         Model::Vm(v) => detail_page(vm_row(app, &v.row)),
         Model::Image(i) => detail_page(image_row(app, &i.row)),
         Model::Keys(k) => keys(app, k),
+        Model::Studio(st) => studio(app, &p.page, st),
         Model::Error(e) => error(e),
         other => list(app, &p.page, other),
     }
@@ -849,6 +852,78 @@ fn credential<'a>(app: &'a App, page: &str, c: &'a CredentialPage) -> El<'a> {
     }
     col = col.push(container(f).padding(spacing::CARD_PADDING).width(Length::Fill).style(style::card));
     col.push(page_actions(app, page, &c.actions)).into()
+}
+
+/// The recipe studio (plan B147): name and platform, the recipe's modules with what is wrong, the catalog with its
+/// search and filters, look and keys, the VM – top to bottom, like a kit
+fn studio<'a>(app: &'a App, page: &str, st: &'a RecipeStudioPage) -> El<'a> {
+    let fields = |list: &'a [Field]| {
+        let mut f = Column::new().spacing(spacing::L);
+        for field in list {
+            f = f.push(field_view(app, page, field, false));
+        }
+        container(f).padding(spacing::CARD_PADDING).width(Length::Fill).style(style::card)
+    };
+    let module = |m: &'a StudioModule| -> El<'a> {
+        let mut head = row![text(m.title.clone()).size(text_size::CALLOUT).font(style::semibold())]
+            .spacing(spacing::M)
+            .align_y(Alignment::Center);
+        for b in &m.badges {
+            head = head.push(badge(b));
+        }
+        row![
+            column![head, caption(s(&m.subtitle)).color(style::SECONDARY), caption(m.description.clone())]
+                .spacing(spacing::XXS)
+                .width(Length::Fill),
+            action_button(&m.action, None, app.pulse),
+        ]
+        .spacing(spacing::L)
+        .align_y(Alignment::Center)
+        .into()
+    };
+    let mut c =
+        column![secondary(s(&st.intro)), section_title(&st.titles.about), fields(&st.about)].spacing(spacing::L);
+    // The recipe
+    let mut head = row![text(s(&st.recipe.title)).size(text_size::CALLOUT).font(style::semibold()).width(Length::Fill)]
+        .align_y(Alignment::Center);
+    if let Some(k) = &st.recipe.keys {
+        head = head.push(action_button(k, None, app.pulse));
+    }
+    let mut recipe = column![head].spacing(spacing::L);
+    if !st.recipe.hints.is_empty() {
+        recipe = recipe.push(notes(app, &st.recipe.hints));
+    }
+    if let Some(e) = &st.recipe.empty {
+        recipe = recipe.push(secondary(s(e)));
+    }
+    for m in &st.recipe.rows {
+        recipe = recipe.push(module(m));
+    }
+    c = c.push(container(recipe).padding(spacing::CARD_PADDING).width(Length::Fill).style(style::card));
+    // The catalog
+    let mut catalog = column![
+        row![
+            text(s(&st.catalog.title)).size(text_size::CALLOUT).font(style::semibold()).width(Length::Fill),
+            caption(s(&st.catalog.count)).color(style::SECONDARY),
+        ],
+        field_view(app, page, &st.catalog.search, false),
+    ]
+    .spacing(spacing::L);
+    let mut filters = row![].spacing(spacing::L);
+    for f in &st.catalog.filters {
+        filters = filters.push(container(field_view(app, page, f, false)).width(Length::Fill));
+    }
+    catalog = catalog.push(filters);
+    if let Some(e) = &st.catalog.empty {
+        catalog = catalog.push(secondary(s(e)));
+    }
+    for m in &st.catalog.rows {
+        catalog = catalog.push(module(m));
+    }
+    c = c.push(container(catalog).padding(spacing::CARD_PADDING).width(Length::Fill).style(style::card));
+    c = c.push(section_title(&st.titles.dress)).push(fields(&st.dress));
+    c = c.push(section_title(&st.titles.vm)).push(fields(&st.vm));
+    c.push(page_actions(app, page, &st.actions)).into()
 }
 
 fn build<'a>(app: &'a App, page: &str, b: &'a BuildPage) -> El<'a> {
@@ -1437,7 +1512,8 @@ pub mod tests {
             "modules" => "modules",
             "profiles" => "profiles",
             "profile" => "profile",
-            "recipeEditor" => "recipeEditor",
+            "recipeStudio" => "recipeStudio",
+            "keys" => "keys",
             "newVm" => "newVm",
             "build" => "build",
             "doctor" => "doctor",

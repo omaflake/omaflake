@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 //! The main page's frame (`home`): the header's buttons and the tabs with what needs attention there (the app's
 //! `MainView.header` and `HomeTabBar`). The tabs come in two groups (plan B147): what runs – VMs, images, recipes,
-//! the activity – and the workshop, where the parts are configured – modules and key bindings, looks, credentials,
-//! locales, profiles. Which tab is open and whether the activity was seen are the UI's own.
+//! the activity – and the workshop, where the parts are configured – the recipe studio, modules and key bindings,
+//! looks, credentials, locales, profiles. Which tab is open and whether the activity was seen are the UI's own.
 
 use serde::{Deserialize, Serialize};
 use serde_json::json;
@@ -142,6 +142,7 @@ pub(crate) fn page(ctx: &Ctx) -> HomePage {
             outdated.then(|| warning("A recipe changed since its image was built")),
         ),
         tab("activity", "Activity", "activity", "run", None),
+        tab("recipeStudio", "Recipe Studio", "studio", "workshop", None),
         tab("modules", "Modules", "module", "workshop", None),
         tab(
             "looks",

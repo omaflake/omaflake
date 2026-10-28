@@ -61,6 +61,8 @@ impl IconSet {
             "settings" => ("\u{f013}", "⚙"),
             "key" => ("\u{f084}", "⚷"),
             "workshop" => ("\u{f0ad}", "⚒"),
+            "studio" => ("\u{f5fd}", "▤"),
+            "minus" => ("\u{f056}", "−"),
             "keyboard" => ("\u{f11c}", "⌨"),
             "globe" => ("\u{f0ac}", "◍"),
             "quit" => ("\u{f011}", "⏻"),

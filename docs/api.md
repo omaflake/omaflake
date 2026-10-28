@@ -530,7 +530,7 @@ Pages and their params:
 | `modules` | – | the Modules tab: modules and key binding sets here with the recipes made of them, what the sources offer (plan B142; the looks' shape) |
 | `locales`, `locale` | `id?, values?` | the locales and one locale's form (plan B141; the credentials' shapes) |
 | `profiles`, `profile` | `id?, values?` | the profiles and one profile's form (plan B142; the credentials' shapes) |
-| `recipeEditor` | `id?, values?` | a recipe of your own put together from modules, a look and key bindings (plan B142; the credential form's shape) |
+| `recipeStudio` | `id?, values?` | a recipe of your own put together from the catalog's modules, a look and key bindings (plan B147; before it `recipeEditor`, plan B142) |
 | `credential` | `id?` | one credential's form: new, or to edit (only the name while images use it) |
 | `baseCredential` | `name` | the same form for a macOS base from before bases kept their credential: which one its user has (plan B139) |
 | `keys` | `recipe` \| `image` \| `vm` | a recipe's keys – of an image or a VM through its recipe – by module and by the mode of its program (plan B147): `{title, subtitle, intro, notes, modules: [{reference, title, groups: [{mode?, title, start, way: [{caps, mode}], rows: [{action, keys, caps, title, after?, backToStart, switches, does?, from?, own}]}]}], keymaps, search}`; `caps` are a key's chords as key caps (⌘ ⌃ ⇧ on a Mac host). Rows of recipes, images and VMs whose recipe has keys open it with `ui.show` (action `keys`, icon `keyboard`); the macOS app shows it in a window of its own |
@@ -731,7 +731,7 @@ with Install), `unreadable`, `footer`. The UI runs `refresh` once when the tab o
 into.
 
 **recipes** – list head (filter `status`: With image/Without image, `kind`, `tag`, `otherSystems`; tools: refresh –
-`recipes.available`, busy while it runs –, import and "New Recipe …" – `ui.show recipeEditor`), `catalogsLoaded` (else the UI runs `refresh` when the tab
+`recipes.available`, busy while it runs –, import and "New Recipe …" – `ui.show recipeStudio`), `catalogsLoaded` (else the UI runs `refresh` when the tab
 opens, as the app did; the views never fetch), `loading` with `loadingText` ("Looking into the recipe sources …", next to
 a spinner), `updates?` (`{title, all?, rows: [{id, name, kind, source,
 action}], note}`; "Add Version"/"Add All" when older versions are kept), `suggestion?` (no recipe yet: "Start with the
@@ -741,7 +741,7 @@ first, then by kind and name: lamp – working while it builds, off not built, a
 for another architecture, and disabled with `badge` (the Doctor's sign, reason "Open the Doctor first: …") while the
 Doctor reports what building its kind needs (plan B145) –, details: description, info, `versions` (`{id, words,
 state, actions: [export, remove], version}`; remove disabled for a folder's version or one images are built from) and
-actions update, edit (one of yours) or copy ("Copy to My Recipes …", `ui.show recipeEditor {id}`), removeAll; since
+actions update, edit (one of yours) or copy ("Copy to My Recipes …", `ui.show recipeStudio {id}`), removeAll; since
 plan B142 also the info lines modules, look, key bindings, needs at least, `notes` (hints: what is missing with
 "Install Missing Parts" – `recipes.installParts` –, its look when not installed, warnings, unfree software) and `keys`
 (info lines: an action's title, its key, its module and mode); the lamp is attention while parts are missing; build is
@@ -858,14 +858,18 @@ folder's). Offered rows install with `modules.install {id, source}`. List head: 
 installAll – `modules.installAll {items}` (the offered rows; confirm when one is not official). **looks** and
 **recipes** have the same `installAll` (`looks.installAll`, `recipes.installAll`; the recipes as filtered).
 
-**recipeEditor** (params `id?` – a recipe to edit when it is one of yours (My Recipes), else to copy –, `values`) – the
-shape of **credential** (plan B142): `fields`: name, platform (nixos | macos), description, one toggle per module of the
-platform – those here and those the sources offer – (`module:<author>/<name>`, label "Title (capabilities)", help its
-description or "– from <source>, installed with the recipe"), look (installed and offered, "none" as `""`), keymap1,
-keymap2 (key binding sets, "none" as `""`; the second wins over the first), cpus, memoryGB, diskGB (what a VM needs at
-least), display, network, share, ephemeral, and `check` (`info`: the warnings of what is chosen – needs, incompatible,
-keys that overlap or break the key rule – or "Nothing to warn about"). Actions: cancel, delete (one of yours:
-`recipes.delete {base}`, confirm), save (`recipes.save`, `then: back`; disabled without a valid name or a module).
+**recipeStudio** (params `id?` – a recipe to edit when it is one of yours (My Recipes), else to copy –, `values`; plan
+B147, before it the recipe editor of B142): `{title, id?, intro, about, catalog, recipe, dress, vm, titles, actions}`.
+`about`: fields name, platform (nixos | macos), description. `catalog`: `{title, count, search (a text field,
+`values.search`), filters (capability, tag, author – choices, "" = any), rows, empty?}` – the platform's modules here
+and offered that are not in the recipe and match. `recipe`: `{title, rows, hints, empty?, keys?}` – its modules, what
+is wrong (a module that needs a capability none provides, with the action that adds the one to add; exclusive
+capabilities twice; keys that overlap or break the key rule; modules still to install), `keys` the keys page on the
+draft (`keys {draft: {platform, modules, keymaps, name}}`). A row: `{reference, title, description, subtitle, badges,
+tags, action}` – the action is `ui.field` on `values.modules` with the whole new list (add or remove). `dress`: look,
+keymap1, keymap2; `vm`: cpus, memoryGB, diskGB, display, network, share, ephemeral. Actions: cancel, delete (one of
+yours: `recipes.delete {base}`, confirm), save (`recipes.save`, `then: back`; disabled without a valid name or a
+module). It is a tab of the workshop too (a new recipe).
 
 **import** – `{title, path, name, kind, valid, reason?, action?, inspection}`: `action` is `packages.import` (a VM whose name
 is taken: the question with `input: {param: "name", default: "<name>-2"}`; the same image: "Replace" with `replace`)

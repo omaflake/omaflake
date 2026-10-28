@@ -1,0 +1,24 @@
+{
+  "intro": {
+    "key": "By module and by the mode its program is in. A mode shows the keys that lead there; “then …” is the mode a key leads to.",
+    "text": "By module and by the mode its program is in. A mode shows the keys that lead there; “then …” is the mode a key leads to."
+  },
+  "keymaps": [],
+  "modules": [],
+  "notes": [],
+  "search": {
+    "key": "Search keys",
+    "text": "Search keys"
+  },
+  "subtitle": {
+    "key": "The recipe being put together",
+    "text": "The recipe being put together"
+  },
+  "title": {
+    "args": [
+      "mine"
+    ],
+    "key": "Keys of %@",
+    "text": "Keys of mine"
+  }
+}

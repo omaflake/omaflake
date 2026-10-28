@@ -21,10 +21,10 @@
       "enabled": true,
       "help": {
         "args": [
-          1
+          2
         ],
         "key": "Install all %lld shown here",
-        "text": "Install all 1 shown here"
+        "text": "Install all 2 shown here"
       },
       "icon": "download",
       "id": "installAll",
@@ -35,6 +35,10 @@
       "method": "modules.installAll",
       "params": {
         "items": [
+          {
+            "id": "omaflake.nixos.wezterm",
+            "source": "github:omaflake/recipes@main"
+          },
           {
             "id": "omaflake.macos.vscode",
             "source": "github:omaflake/recipes@main"
@@ -51,6 +55,112 @@
   },
   "loading": false,
   "offered": [
+    {
+      "actions": [
+        {
+          "enabled": true,
+          "icon": "download",
+          "id": "install",
+          "label": {
+            "key": "Install",
+            "text": "Install"
+          },
+          "method": "modules.install",
+          "params": {
+            "id": "omaflake.nixos.wezterm",
+            "source": "github:omaflake/recipes@main"
+          },
+          "primary": true
+        }
+      ],
+      "badges": [
+        {
+          "help": {
+            "key": "By omaflake, from its catalog",
+            "text": "By omaflake, from its catalog"
+          },
+          "icon": "official",
+          "id": "official",
+          "tone": "accent"
+        }
+      ],
+      "detail": {
+        "actions": [
+          {
+            "enabled": true,
+            "icon": "download",
+            "id": "install",
+            "label": {
+              "key": "Install",
+              "text": "Install"
+            },
+            "method": "modules.install",
+            "params": {
+              "id": "omaflake.nixos.wezterm",
+              "source": "github:omaflake/recipes@main"
+            },
+            "primary": true
+          }
+        ],
+        "info": [
+          {
+            "label": {
+              "key": "About",
+              "text": "About"
+            },
+            "value": {
+              "text": "WezTerm."
+            }
+          },
+          {
+            "label": {
+              "key": "Provides",
+              "text": "Provides"
+            },
+            "value": {
+              "text": "terminal"
+            }
+          },
+          {
+            "label": {
+              "key": "Source",
+              "text": "Source"
+            },
+            "value": {
+              "text": "omaflake/recipes"
+            }
+          }
+        ]
+      },
+      "id": "omaflake.nixos.wezterm",
+      "lamp": {
+        "help": {
+          "key": "Not installed",
+          "text": "Not installed"
+        },
+        "state": "off"
+      },
+      "name": "WezTerm",
+      "subtitle": {
+        "args": [
+          {
+            "text": "omaflake/wezterm"
+          },
+          {
+            "text": "1.0.0"
+          },
+          {
+            "key": "NixOS module",
+            "text": "NixOS module"
+          },
+          {
+            "text": "omaflake/recipes"
+          }
+        ],
+        "key": "%@ · %@ · %@ · %@",
+        "text": "omaflake/wezterm · 1.0.0 · NixOS module · omaflake/recipes"
+      }
+    },
     {
       "actions": [
         {

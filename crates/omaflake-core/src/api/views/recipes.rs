@@ -233,7 +233,7 @@ pub(crate) fn page(ctx: &Ctx, p: &RecipesParams) -> RecipesPage {
             "Recipes (.omaflake-recipe) or a folder of recipes – copied into your recipes",
             "Import",
         )),
-        Action::show("newRecipe", Text::new("New Recipe …"), Some("add"), "recipeEditor", json!({}))
+        Action::show("newRecipe", Text::new("New Recipe …"), Some("add"), "recipeStudio", json!({}))
             .help(Text::new("Put a recipe together from modules, a look and key bindings")),
     ];
     // Recipes being downloaded are left out (their Install is greyed out)
@@ -587,7 +587,7 @@ fn detail(ctx: &Ctx, r: &RecipeDto) -> RecipeDetail {
             if mine { "edit" } else { "copy" },
             Text::new(if mine { "Edit …" } else { "Copy to My Recipes …" }),
             Some(if mine { "edit" } else { "copy" }),
-            "recipeEditor",
+            "recipeStudio",
             json!({"id": r.id}),
         ));
     }

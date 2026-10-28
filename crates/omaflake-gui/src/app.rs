@@ -52,6 +52,8 @@ pub enum Model {
     Image(Box<ImagePage>),
     /// A recipe's keys by module and mode (plan B147)
     Keys(Box<omaflake_core::api::views::keys::KeysPage>),
+    /// The recipe studio (plan B147)
+    Studio(Box<omaflake_core::api::views::recipe_studio::RecipeStudioPage>),
     /// A page that cannot be built (`model: {error}`) or that this app cannot read
     Error(String),
 }
@@ -107,7 +109,7 @@ pub fn decode(page: &str, v: Value) -> Model {
         // looks'
         "profiles" => de(v, Model::Credentials),
         "profile" => de(v, Model::Credential),
-        "recipeEditor" => de(v, Model::Credential),
+        "recipeStudio" => de(v, Model::Studio),
         "modules" => de(v, Model::Looks),
         // The credential of a macOS base from before bases kept theirs: the same form (plan B139)
         "baseCredential" => de(v, Model::Credential),
@@ -140,6 +142,7 @@ impl Model {
             Model::Vm(p) => &p.title,
             Model::Image(p) => &p.title,
             Model::Keys(p) => &p.title,
+            Model::Studio(p) => &p.title,
             Model::Error(_) => return None,
         })
     }

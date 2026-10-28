@@ -1,0 +1,662 @@
+{
+  "about": [
+    {
+      "enabled": true,
+      "help": {
+        "key": "lowercase letters, digits and - – it is the guest's host name too",
+        "text": "lowercase letters, digits and - – it is the guest's host name too"
+      },
+      "id": "name",
+      "kind": "text",
+      "label": {
+        "key": "Name",
+        "text": "Name"
+      },
+      "param": "name",
+      "value": "dev",
+      "valueParam": "name"
+    },
+    {
+      "choices": [
+        {
+          "label": {
+            "text": "NixOS"
+          },
+          "value": "nixos"
+        },
+        {
+          "label": {
+            "text": "macOS"
+          },
+          "value": "macos"
+        }
+      ],
+      "enabled": true,
+      "help": {
+        "key": "What the guest is: NixOS, or macOS on a macOS base",
+        "text": "What the guest is: NixOS, or macOS on a macOS base"
+      },
+      "id": "platform",
+      "kind": "choice",
+      "label": {
+        "key": "Platform",
+        "text": "Platform"
+      },
+      "param": "platform",
+      "value": "nixos",
+      "valueParam": "platform"
+    },
+    {
+      "enabled": true,
+      "id": "description",
+      "kind": "text",
+      "label": {
+        "key": "Description",
+        "text": "Description"
+      },
+      "param": "description",
+      "value": "Entwicklungsumgebung",
+      "valueParam": "description"
+    }
+  ],
+  "actions": [
+    {
+      "enabled": true,
+      "id": "cancel",
+      "label": {
+        "key": "Cancel",
+        "text": "Cancel"
+      },
+      "method": "ui.back",
+      "params": {}
+    },
+    {
+      "enabled": true,
+      "icon": "apply",
+      "id": "save",
+      "label": {
+        "key": "Save",
+        "text": "Save"
+      },
+      "method": "recipes.save",
+      "params": {
+        "description": "Entwicklungsumgebung",
+        "keymaps": [
+          "omaflake/default"
+        ],
+        "look": "omaflake/omaflake",
+        "modules": [
+          "omaflake/hyprland",
+          "omaflake/wezterm"
+        ],
+        "name": "dev",
+        "platform": "nixos",
+        "requirements": {
+          "cpus": 4,
+          "disk_gb": 40,
+          "memory_gb": 8
+        },
+        "vm": {
+          "display": "gpu",
+          "ephemeral": false,
+          "network": "shared",
+          "share": true
+        }
+      },
+      "primary": true,
+      "then": "back"
+    }
+  ],
+  "catalog": {
+    "count": {
+      "args": [
+        0,
+        0
+      ],
+      "key": "%lld of %lld modules",
+      "text": "0 of 0 modules"
+    },
+    "empty": {
+      "key": "Every module is in the recipe",
+      "text": "Every module is in the recipe"
+    },
+    "filters": [
+      {
+        "choices": [
+          {
+            "label": {
+              "key": "any",
+              "text": "any"
+            },
+            "value": ""
+          },
+          {
+            "label": {
+              "text": "desktop"
+            },
+            "value": "desktop"
+          },
+          {
+            "label": {
+              "text": "terminal"
+            },
+            "value": "terminal"
+          }
+        ],
+        "enabled": true,
+        "id": "capability",
+        "kind": "choice",
+        "label": {
+          "key": "Capability",
+          "text": "Capability"
+        },
+        "param": "capability",
+        "value": "",
+        "valueParam": "capability"
+      },
+      {
+        "choices": [
+          {
+            "label": {
+              "key": "any",
+              "text": "any"
+            },
+            "value": ""
+          },
+          {
+            "label": {
+              "text": "terminal"
+            },
+            "value": "terminal"
+          }
+        ],
+        "enabled": true,
+        "id": "tag",
+        "kind": "choice",
+        "label": {
+          "key": "Tag",
+          "text": "Tag"
+        },
+        "param": "tag",
+        "value": "",
+        "valueParam": "tag"
+      },
+      {
+        "choices": [
+          {
+            "label": {
+              "key": "any",
+              "text": "any"
+            },
+            "value": ""
+          },
+          {
+            "label": {
+              "text": "omaflake"
+            },
+            "value": "omaflake"
+          }
+        ],
+        "enabled": true,
+        "id": "author",
+        "kind": "choice",
+        "label": {
+          "key": "Author",
+          "text": "Author"
+        },
+        "param": "author",
+        "value": "",
+        "valueParam": "author"
+      }
+    ],
+    "rows": [],
+    "search": {
+      "enabled": true,
+      "id": "search",
+      "kind": "text",
+      "label": {
+        "key": "Search",
+        "text": "Search"
+      },
+      "placeholder": {
+        "key": "Search modules: name, what it is, tags",
+        "text": "Search modules: name, what it is, tags"
+      },
+      "value": "",
+      "valueParam": "search"
+    },
+    "title": {
+      "key": "Catalog",
+      "text": "Catalog"
+    }
+  },
+  "dress": [
+    {
+      "choices": [
+        {
+          "label": {
+            "key": "none",
+            "text": "none"
+          },
+          "value": ""
+        },
+        {
+          "label": {
+            "text": "Rosé Pine Dawn"
+          },
+          "value": "omaflake/rose-pine-dawn"
+        },
+        {
+          "label": {
+            "text": "omaflake"
+          },
+          "value": "omaflake/omaflake"
+        },
+        {
+          "label": {
+            "text": "Catppuccin Mocha"
+          },
+          "value": "omaflake/catppuccin"
+        }
+      ],
+      "enabled": true,
+      "help": {
+        "key": "Suggested – the build may choose another",
+        "text": "Suggested – the build may choose another"
+      },
+      "id": "look",
+      "kind": "choice",
+      "label": {
+        "key": "Look",
+        "text": "Look"
+      },
+      "param": "look",
+      "value": "omaflake/omaflake",
+      "valueParam": "look"
+    },
+    {
+      "choices": [
+        {
+          "label": {
+            "key": "none",
+            "text": "none"
+          },
+          "value": ""
+        },
+        {
+          "label": {
+            "text": "omaflake – omaflake/default"
+          },
+          "value": "omaflake/default"
+        }
+      ],
+      "enabled": true,
+      "help": {
+        "key": "Without any, every module has its own default keys",
+        "text": "Without any, every module has its own default keys"
+      },
+      "id": "keymap1",
+      "kind": "choice",
+      "label": {
+        "args": [
+          1
+        ],
+        "key": "Key bindings %lld",
+        "text": "Key bindings 1"
+      },
+      "param": "keymap1",
+      "value": "omaflake/default",
+      "valueParam": "keymap1"
+    },
+    {
+      "choices": [
+        {
+          "label": {
+            "key": "none",
+            "text": "none"
+          },
+          "value": ""
+        },
+        {
+          "label": {
+            "text": "omaflake – omaflake/default"
+          },
+          "value": "omaflake/default"
+        }
+      ],
+      "enabled": true,
+      "help": {
+        "key": "Wins over the first for the same action",
+        "text": "Wins over the first for the same action"
+      },
+      "id": "keymap2",
+      "kind": "choice",
+      "label": {
+        "args": [
+          2
+        ],
+        "key": "Key bindings %lld",
+        "text": "Key bindings 2"
+      },
+      "param": "keymap2",
+      "value": "",
+      "valueParam": "keymap2"
+    }
+  ],
+  "intro": {
+    "key": "Put a recipe of your own together: find modules in the catalog and add them – what is missing or does not fit is said while you build. Saved in My Recipes, a folder in the data folder that is one of your sources, and built like any other recipe.",
+    "text": "Put a recipe of your own together: find modules in the catalog and add them – what is missing or does not fit is said while you build. Saved in My Recipes, a folder in the data folder that is one of your sources, and built like any other recipe."
+  },
+  "recipe": {
+    "hints": [
+      {
+        "icon": "info",
+        "text": {
+          "key": "Modules from the catalog are installed with the recipe when it is saved; their keys show then.",
+          "text": "Modules from the catalog are installed with the recipe when it is saved; their keys show then."
+        },
+        "tone": "normal"
+      }
+    ],
+    "rows": [
+      {
+        "action": {
+          "enabled": true,
+          "icon": "minus",
+          "id": "remove",
+          "label": {
+            "key": "Remove",
+            "text": "Remove"
+          },
+          "method": "ui.field",
+          "params": {
+            "field": "modules",
+            "page": "recipeStudio",
+            "params": {
+              "id": "omaflake.nixos.dev@velvet-tiger-orbit"
+            },
+            "value": [
+              "omaflake/wezterm"
+            ],
+            "valueParam": "modules"
+          }
+        },
+        "badges": [
+          {
+            "help": {
+              "key": "Official – from omaflake",
+              "text": "Official – from omaflake"
+            },
+            "icon": "official",
+            "id": "official",
+            "tone": "accent"
+          }
+        ],
+        "description": "Hyprland.",
+        "reference": "omaflake/hyprland",
+        "subtitle": {
+          "args": [
+            {
+              "text": "desktop"
+            },
+            {
+              "args": [
+                "terminal"
+              ],
+              "key": "needs %@",
+              "text": "needs terminal"
+            },
+            {
+              "args": [
+                1
+              ],
+              "key": "%lld keys",
+              "text": "1 keys"
+            },
+            {
+              "text": "omaflake/recipes"
+            }
+          ],
+          "key": "%@ · %@ · %@ · %@",
+          "text": "desktop · needs terminal · 1 keys · omaflake/recipes"
+        },
+        "tags": [],
+        "title": "Hyprland"
+      },
+      {
+        "action": {
+          "enabled": true,
+          "icon": "minus",
+          "id": "remove",
+          "label": {
+            "key": "Remove",
+            "text": "Remove"
+          },
+          "method": "ui.field",
+          "params": {
+            "field": "modules",
+            "page": "recipeStudio",
+            "params": {
+              "id": "omaflake.nixos.dev@velvet-tiger-orbit"
+            },
+            "value": [
+              "omaflake/hyprland"
+            ],
+            "valueParam": "modules"
+          }
+        },
+        "badges": [
+          {
+            "help": {
+              "key": "Official – from omaflake",
+              "text": "Official – from omaflake"
+            },
+            "icon": "official",
+            "id": "official",
+            "tone": "accent"
+          },
+          {
+            "help": {
+              "key": "Not here yet – installed with the recipe",
+              "text": "Not here yet – installed with the recipe"
+            },
+            "icon": "download",
+            "id": "offered",
+            "label": {
+              "key": "from the catalog",
+              "text": "from the catalog"
+            },
+            "tone": "normal"
+          }
+        ],
+        "description": "WezTerm.",
+        "reference": "omaflake/wezterm",
+        "subtitle": {
+          "args": [
+            {
+              "text": "terminal"
+            },
+            {
+              "text": "omaflake/recipes"
+            }
+          ],
+          "key": "%@ · %@",
+          "text": "terminal · omaflake/recipes"
+        },
+        "tags": [
+          "terminal"
+        ],
+        "title": "WezTerm"
+      }
+    ],
+    "title": {
+      "args": [
+        2
+      ],
+      "key": "Your recipe – %lld modules",
+      "text": "Your recipe – 2 modules"
+    }
+  },
+  "title": {
+    "key": "Copy to My Recipes",
+    "text": "Copy to My Recipes"
+  },
+  "titles": {
+    "about": {
+      "key": "Recipe",
+      "text": "Recipe"
+    },
+    "dress": {
+      "key": "Look and keys",
+      "text": "Look and keys"
+    },
+    "vm": {
+      "key": "The VM",
+      "text": "The VM"
+    }
+  },
+  "vm": [
+    {
+      "enabled": true,
+      "id": "cpus",
+      "kind": "number",
+      "label": {
+        "args": [
+          4
+        ],
+        "key": "At least %lld CPU cores",
+        "text": "At least 4 CPU cores"
+      },
+      "max": 16,
+      "min": 1,
+      "param": "cpus",
+      "step": 1,
+      "value": 4,
+      "valueParam": "cpus"
+    },
+    {
+      "enabled": true,
+      "id": "memoryGB",
+      "kind": "number",
+      "label": {
+        "args": [
+          8
+        ],
+        "key": "At least %lld GB RAM",
+        "text": "At least 8 GB RAM"
+      },
+      "max": 64,
+      "min": 1,
+      "param": "memoryGB",
+      "step": 1,
+      "value": 8,
+      "valueParam": "memoryGB"
+    },
+    {
+      "enabled": true,
+      "id": "diskGB",
+      "kind": "number",
+      "label": {
+        "args": [
+          40
+        ],
+        "key": "At least a %lld GB disk",
+        "text": "At least a 40 GB disk"
+      },
+      "max": 500,
+      "min": 10,
+      "param": "diskGB",
+      "step": 10,
+      "value": 40,
+      "valueParam": "diskGB"
+    },
+    {
+      "choices": [
+        {
+          "label": {
+            "text": "gpu"
+          },
+          "value": "gpu"
+        },
+        {
+          "label": {
+            "text": "window"
+          },
+          "value": "window"
+        },
+        {
+          "label": {
+            "text": "none"
+          },
+          "value": "none"
+        }
+      ],
+      "enabled": true,
+      "id": "display",
+      "kind": "choice",
+      "label": {
+        "key": "Display",
+        "text": "Display"
+      },
+      "param": "display",
+      "value": "gpu",
+      "valueParam": "display"
+    },
+    {
+      "choices": [
+        {
+          "label": {
+            "text": "shared"
+          },
+          "value": "shared"
+        },
+        {
+          "label": {
+            "text": "isolated"
+          },
+          "value": "isolated"
+        },
+        {
+          "label": {
+            "text": "none"
+          },
+          "value": "none"
+        }
+      ],
+      "enabled": true,
+      "id": "network",
+      "kind": "choice",
+      "label": {
+        "key": "Network",
+        "text": "Network"
+      },
+      "param": "network",
+      "value": "shared",
+      "valueParam": "network"
+    },
+    {
+      "enabled": true,
+      "id": "share",
+      "kind": "toggle",
+      "label": {
+        "key": "Share a folder",
+        "text": "Share a folder"
+      },
+      "param": "share",
+      "value": true,
+      "valueParam": "share"
+    },
+    {
+      "enabled": true,
+      "id": "ephemeral",
+      "kind": "toggle",
+      "label": {
+        "key": "Ephemeral (changes are discarded on shutdown)",
+        "text": "Ephemeral (changes are discarded on shutdown)"
+      },
+      "param": "ephemeral",
+      "value": false,
+      "valueParam": "ephemeral"
+    }
+  ]
+}

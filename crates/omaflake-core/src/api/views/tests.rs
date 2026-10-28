@@ -121,12 +121,20 @@ pub(crate) fn modules_fixture() -> crate::api::types::ModulesAnswer {
                 ..part("omaflake.keymap.default", "keymap", "omaflake")
             },
         ],
-        offered: vec![PartDto {
-            installed: false,
-            unfree: true,
-            platform: Some(GuestKind::Macos),
-            ..part("omaflake.macos.vscode", "module", "VS Code")
-        }],
+        offered: vec![
+            PartDto {
+                installed: false,
+                unfree: true,
+                platform: Some(GuestKind::Macos),
+                ..part("omaflake.macos.vscode", "module", "VS Code")
+            },
+            PartDto {
+                installed: false,
+                provides: vec!["terminal".into()],
+                tags: vec!["terminal".into()],
+                ..part("omaflake.nixos.wezterm", "module", "WezTerm")
+            },
+        ],
         unreadable: vec![],
         fetched: true,
     }
@@ -1503,7 +1511,18 @@ fn looks_are_a_tab_with_their_colours_usage_and_offers() {
     let tabs: Vec<&str> = home["tabs"].as_array().unwrap().iter().map(|t| t["id"].as_str().unwrap()).collect();
     assert_eq!(
         tabs,
-        ["vms", "images", "recipes", "activity", "modules", "looks", "credentials", "locales", "profiles"]
+        [
+            "vms",
+            "images",
+            "recipes",
+            "activity",
+            "recipeStudio",
+            "modules",
+            "looks",
+            "credentials",
+            "locales",
+            "profiles"
+        ]
     );
     // Two groups (plan B147): what runs, and the workshop where the parts are configured
     let groups: Vec<&str> = home["groups"].as_array().unwrap().iter().map(|g| g["id"].as_str().unwrap()).collect();
@@ -1515,7 +1534,7 @@ fn looks_are_a_tab_with_their_colours_usage_and_offers() {
         .filter(|t| t["group"] == "workshop")
         .map(|t| t["id"].as_str().unwrap())
         .collect();
-    assert_eq!(workshop, ["modules", "looks", "credentials", "locales", "profiles"]);
+    assert_eq!(workshop, ["recipeStudio", "modules", "looks", "credentials", "locales", "profiles"]);
     let page = get(&c, "looks", json!({}));
     assert_eq!(page["title"]["key"], "Looks");
     let rose = &page["rows"][0];
@@ -1590,7 +1609,7 @@ fn locales_are_rows_and_a_form_like_credentials() {
 // MARK: Building blocks (plan B142)
 
 #[test]
-fn modules_tab_profiles_and_the_recipe_editor() {
+fn modules_tab_profiles_and_the_recipe_studio() {
     let c = ctx();
     // The Modules tab: the shape of the Looks tab
     let page = get(&c, "modules", json!({}));
@@ -1601,8 +1620,9 @@ fn modules_tab_profiles_and_the_recipe_editor() {
     assert_eq!(ids(&rows[0]["actions"]), ["update"]);
     let remove = action(&rows[0]["detail"]["actions"], "remove");
     assert_eq!(remove["confirm"]["text"]["key"], "Recipes made of it cannot be built until it is back: %@");
-    assert_eq!(page["offered"][0]["actions"][0]["method"], "modules.install");
-    assert!(page["offered"][0]["badges"].as_array().unwrap().iter().any(|b| b["id"] == "unfree"));
+    let vscode = page["offered"].as_array().unwrap().iter().find(|o| o["name"] == "VS Code").unwrap();
+    assert_eq!(vscode["actions"][0]["method"], "modules.install");
+    assert!(vscode["badges"].as_array().unwrap().iter().any(|b| b["id"] == "unfree"));
     // Profiles: the shape of the credentials; the form checks its name
     let profiles = get(&c, "profiles", json!({}));
     assert_eq!(profiles["rows"][0]["subtitle"]["text"], "2 CPU · 4 GB RAM");
@@ -1610,14 +1630,44 @@ fn modules_tab_profiles_and_the_recipe_editor() {
     assert_eq!(action(&form["actions"], "create")["enabled"], false, "the name is taken (any case)");
     let form = get(&c, "profile", json!({"values": {"name": "Big", "cpus": 8, "memoryGB": 32}}));
     assert_eq!(action(&form["actions"], "create")["params"], json!({"name": "Big", "cpus": 8, "memoryGB": 32}));
-    // The recipe editor: a copy of dev, one switch per module of its platform
-    let editor = get(&c, "recipeEditor", json!({"id": "omaflake.nixos.dev@velvet-tiger-orbit"}));
-    assert_eq!(editor["title"]["key"], "Copy to My Recipes");
-    let fields: Vec<&str> = editor["fields"].as_array().unwrap().iter().map(|f| f["id"].as_str().unwrap()).collect();
-    assert!(fields.contains(&"module:omaflake/hyprland") && !fields.contains(&"module:omaflake/vscode"), "{fields:?}");
-    let save = action(&editor["actions"], "save");
-    assert_eq!(save["params"]["modules"], json!(["omaflake/hyprland"]), "only modules offered here are switches");
+    // The recipe studio (plan B147): a copy of dev – its modules that are here or offered are in the recipe
+    let studio = get(&c, "recipeStudio", json!({"id": "omaflake.nixos.dev@velvet-tiger-orbit"}));
+    assert_eq!(studio["title"]["key"], "Copy to My Recipes");
+    let refs = |rows: &Value| -> Vec<String> {
+        rows.as_array().unwrap().iter().map(|r| r["reference"].as_str().unwrap().to_string()).collect()
+    };
+    assert_eq!(refs(&studio["recipe"]["rows"]), ["omaflake/hyprland", "omaflake/wezterm"]);
+    assert_eq!(studio["catalog"]["empty"]["key"], "Every module is in the recipe", "NixOS only: VS Code is macOS");
+    let save = action(&studio["actions"], "save");
+    assert_eq!(save["params"]["modules"], json!(["omaflake/hyprland", "omaflake/wezterm"]));
     assert_eq!(save["params"]["keymaps"], json!(["omaflake/default"]));
-    let none = get(&c, "recipeEditor", json!({"values": {"name": "x"}}));
+    // Removing sets the whole list (ui.field on the page)
+    let remove = &studio["recipe"]["rows"][1]["action"];
+    assert_eq!(
+        (remove["method"].clone(), remove["params"]["valueParam"].clone()),
+        (json!("ui.field"), json!("modules"))
+    );
+    assert_eq!(remove["params"]["value"], json!(["omaflake/hyprland"]));
+    assert_eq!(remove["params"]["params"], json!({"id": "omaflake.nixos.dev@velvet-tiger-orbit"}));
+    // A new recipe with Hyprland only: it needs a terminal – said, with the one to add; WezTerm is in the catalog
+    let new = get(&c, "recipeStudio", json!({"values": {"modules": ["omaflake/hyprland"]}}));
+    assert_eq!(refs(&new["catalog"]["rows"]), ["omaflake/wezterm"]);
+    let wezterm = &new["catalog"]["rows"][0];
+    assert!(wezterm["badges"].as_array().unwrap().iter().any(|b| b["id"] == "offered"));
+    assert_eq!(wezterm["action"]["params"]["value"], json!(["omaflake/hyprland", "omaflake/wezterm"]));
+    let need = &new["recipe"]["hints"][0];
+    assert_eq!(need["text"]["key"], "%@ needs a %@");
+    assert_eq!(need["action"]["label"]["text"], "Add WezTerm");
+    assert_eq!(need["action"]["params"]["value"], json!(["omaflake/hyprland", "omaflake/wezterm"]));
+    assert_eq!(need["action"]["params"]["params"], json!({}));
+    // A search that matches nothing
+    let searched = get(&c, "recipeStudio", json!({"values": {"modules": ["omaflake/hyprland"], "search": "zzz"}}));
+    assert_eq!(searched["catalog"]["empty"]["key"], "No module matches – change the search");
+    // Filters: by capability
+    let filtered = get(&c, "recipeStudio", json!({"values": {"capability": "desktop"}}));
+    assert_eq!(refs(&filtered["catalog"]["rows"]), ["omaflake/hyprland"]);
+    assert_eq!(filtered["title"]["key"], "Recipe Studio");
+    let none = get(&c, "recipeStudio", json!({"values": {"name": "x"}}));
     assert_eq!(action(&none["actions"], "save")["reason"]["key"], "Choose at least one module");
+    assert_eq!(none["recipe"]["empty"]["key"], "Add modules from the catalog – a desktop, a terminal, an editor …");
 }

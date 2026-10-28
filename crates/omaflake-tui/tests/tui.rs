@@ -139,11 +139,13 @@ fn tab_goes_on_into_the_workshop() {
     for _ in 0..4 {
         h.key(KeyCode::Tab);
     }
+    assert_eq!(h.app.tab, "recipeStudio", "the workshop's first tab");
+    h.key(KeyCode::Tab);
     assert_eq!(h.app.tab, "modules");
     h.model("modules", json!({}), fixture("modules"));
     let s = h.screen();
     // The running group needs attention (a build runs): its name has the dot
-    assert!(s.contains("Modules") && s.contains("Credentials") && s.contains("│ Run • ›"), "{s}");
+    assert!(s.contains("Recipe Studio") && s.contains("Modules") && s.contains("│ Run • ›"), "{s}");
     assert!(!s.contains("Images"), "the running group's tabs are hidden: {s}");
 }
 
@@ -281,9 +283,17 @@ fn draws_every_page() {
         ("profiles", "profiles", vec!["Profiles", "Small", "2 CPU · 4 GB RAM", "New Profile …"]),
         ("profile", "profile", vec!["New Profile", "CPU cores: 8", "Create"]),
         (
-            "recipeEditor",
-            "recipeEditor",
-            vec!["Copy to My Recipes", "Hyprland (desktop)", "Key bindings 1", "Check", "Save"],
+            "recipeStudio",
+            "recipeStudio",
+            vec![
+                "Copy to My Recipes",
+                "Your recipe – 2 modules",
+                "Hyprland",
+                "Catalog",
+                "Every module is in the recipe",
+                "Key bindings 1",
+                "Save",
+            ],
         ),
     ];
     for (page, file, wants) in pages {

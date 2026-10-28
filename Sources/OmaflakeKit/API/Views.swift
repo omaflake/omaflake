@@ -565,6 +565,57 @@ public struct LooksPage: Decodable, Sendable, Equatable {
     }
 }
 
+/// `recipeStudio` (plan B147): a recipe of your own put together from the catalog's modules
+public struct RecipeStudioPage: Decodable, Sendable, Equatable {
+    public struct Module: Decodable, Sendable, Equatable, Identifiable {
+        public var reference: String
+        public var title: String
+        public var description: String
+        public var subtitle: ViewText
+        public var badges: [Badge]
+        public var tags: [String]
+        public var action: ViewAction
+        public var id: String { reference }
+    }
+
+    public struct Catalog: Decodable, Sendable, Equatable {
+        public var title: ViewText
+        public var count: ViewText
+        public var search: Field
+        public var filters: [Field]
+        public var rows: [Module]
+        public var empty: ViewText?
+    }
+
+    public struct Recipe: Decodable, Sendable, Equatable {
+        public var title: ViewText
+        public var rows: [Module]
+        public var hints: [Hint]
+        public var empty: ViewText?
+        public var keys: ViewAction?
+    }
+
+    public struct Titles: Decodable, Sendable, Equatable {
+        public var about: ViewText
+        public var dress: ViewText
+        public var vm: ViewText
+    }
+
+    public var title: ViewText
+    public var id: String?
+    public var intro: ViewText
+    public var about: [Field]
+    public var catalog: Catalog
+    public var recipe: Recipe
+    public var dress: [Field]
+    public var vm: [Field]
+    public var titles: Titles
+    public var actions: [ViewAction]
+
+    /// Every field whose value the page keeps
+    public var fields: [Field] { about + [catalog.search] + catalog.filters + dress + vm }
+}
+
 /// `keys` (plan B147): a recipe's keys – of an image or a VM through its recipe – by module and mode
 public struct KeysPage: Decodable, Sendable, Equatable {
     public struct Module: Decodable, Sendable, Equatable, Identifiable {
@@ -979,7 +1030,7 @@ public enum PageModel: Sendable, Equatable {
     case home(HomePage), vms(VmsPage), vm(VmPage), images(ImagesPage), image(ImagePage), recipes(RecipesPage)
     case newVm(NewVmPage), build(BuildPage), doctor(DoctorPage), macBase(MacBasePage), settings(SettingsPage)
     case activity(ActivityPage), importStep(ImportPage), credentials(CredentialsPage), credential(CredentialPage)
-    case looks(LooksPage), keys(KeysPage)
+    case looks(LooksPage), keys(KeysPage), studio(RecipeStudioPage)
     /// The page could not be built
     case error(ViewError)
     /// A page this client does not know
@@ -1011,7 +1062,8 @@ public enum PageModel: Sendable, Equatable {
         case "locale": self = .credential(try CredentialPage(from: decoder))
         // Plan B142: profiles as credentials, the recipe editor as a credential's form, modules as looks
         case "profiles": self = .credentials(try CredentialsPage(from: decoder))
-        case "profile", "recipeEditor": self = .credential(try CredentialPage(from: decoder))
+        case "profile": self = .credential(try CredentialPage(from: decoder))
+        case "recipeStudio": self = .studio(try RecipeStudioPage(from: decoder))
         case "modules": self = .looks(try LooksPage(from: decoder))
         // The credential of a macOS base from before bases kept theirs: the same form (plan B139)
         case "baseCredential": self = .credential(try CredentialPage(from: decoder))

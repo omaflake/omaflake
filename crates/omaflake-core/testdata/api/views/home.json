@@ -169,6 +169,15 @@
     },
     {
       "group": "workshop",
+      "icon": "studio",
+      "id": "recipeStudio",
+      "label": {
+        "key": "Recipe Studio",
+        "text": "Recipe Studio"
+      }
+    },
+    {
+      "group": "workshop",
       "icon": "module",
       "id": "modules",
       "label": {
