@@ -1336,6 +1336,31 @@ with the catalog), `nix eval` of a recipe's `boot` (plymouth, theme, initrd modu
 (Plymouth with virgl through ANGLE on a Mac); how long the window stays black before it (firmware, before the kernel) –
 a loading screen from QEMU itself (a patch to its window) if that is long.
 
+*Tried in a VM (2026-10-28, image research-walx built from the checkout, window frames every 0.8 s):* Plymouth runs in
+the guest (`plymouth-start` 0.2 s after the kernel, `virtio_gpu` from the initrd, fb0) – but with 3D
+(`virtio-gpu-gl-pci`, `-display cocoa,gl=on`, the default) the window stays black for about 20 s, until Hyprland draws:
+neither the firmware's logo, systemd-boot's menu, Plymouth nor the text console show; that is also why no boot text was
+ever seen. `systemd-analyze`: 6.0 s firmware + 5.1 s loader (the menu's 5 s wait) + 0.2 s kernel + 2.8 s initrd + 3.6 s
+userspace. Without 3D (`--no-gl`) the firmware's TianoCore logo and progress bar, the boot menu and the console show;
+Plymouth's screen was not seen there either (OPEN: whether Plymouth draws through virtio-gpu at all).
+- Done: `boot.loader.timeout = 0` (mkDefault) – the boot menu's 5 s of black are gone; a key held at boot still shows
+  it (systemd-boot's behaviour, from its documentation – not tried).
+- **Plan: a loading screen from QEMU** (`qemu/patches/omaflake/`, on top of try-omarchy's `qemu-texture-borrowing`):
+  1. Find why nothing shows before the first GL scanout. The Cocoa GL code does draw the 2D surface while there is
+     no borrowed scanout (`cocoa_gl_render`: `surface_gl_render_texture`), so the 2D updates (firmware GOP, fbcon,
+     Plymouth's dumb buffers) do not reach it with virgl, or are not flushed – `COCOA_GL_TRACE=1` (the patch's own
+     log) shows renders and scanouts; QEMU must get it in its environment (the core starts it: an `omaf` debug switch
+     or a `VM_QEMU_ENV`).
+  2. If those updates can reach the window: fix that (then the firmware's logo and Plymouth show – the boot looks
+     like a normal PC).
+  3. Either way: `qemu-cocoa-loading-screen` – the window shows omaflake's loading image (`OMAFLAKE_LOADING_IMAGE`, a
+     PNG set by omaf and the app like `OMAFLAKE_DOCK_ICON`; brand/generate.py renders it: the mark on the brand's
+     background) from the moment it opens until the guest's first frame that is not empty (the first borrowed
+     scanout, or a 2D update that is not all black), with a short fade.
+  4. Both QEMU builds (`package.nix` for users, `build.sh` for development), `qemu/README.md`'s patch table, a VM
+     check with frames as above. A new QEMU reaches users through the Doctor's QEMU item (`nix profile` of
+     `#qemu`).
+
 **B129 (2026-10-24): clipboard on a GNOME host.** Mutter has no data-control protocol: `wl-paste --watch` ends at once.
 `Wayland::start` now treats an end within 500 ms as refused, and `detect` falls back to xclip through Xwayland, which
 Mutter keeps in sync (`X11::through_xwayland`, Mutter's `.mutter-Xwaylandauth.*` cookie when XAUTHORITY is unset; its

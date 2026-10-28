@@ -24,6 +24,9 @@ in
     nixpkgs.hostPlatform = lib.mkDefault "aarch64-linux";
 
     boot.loader.systemd-boot.enable = true;
+    # No boot menu wait (plan B155): it cost five seconds of a black window at every start; a key held at boot still
+    # shows it (systemd-boot), for an older generation
+    boot.loader.timeout = lib.mkDefault 0;
     boot.loader.efi.canTouchEfiVariables = lib.mkDefault false;
     boot.initrd.availableKernelModules = [ "virtio_pci" "virtio_blk" "virtio_scsi" "xhci_pci" "usbhid" ];
     boot.growPartition = true;

@@ -15,8 +15,8 @@ are collected under *Unreleased*. Releases: [GitHub](https://github.com/omaflake
 
 ### Added
 
-- NixOS VMs show omaflake's loading screen while they boot instead of a black window until the desktop (images built
-  from now on).
+- NixOS VMs start about five seconds sooner: the boot menu no longer waits (images built from now on; hold a key at
+  boot to see it).
 
 ## [0.7.0] – 2026-10-28
 
