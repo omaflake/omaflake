@@ -51,6 +51,10 @@ are collected under *Unreleased*. Releases: [GitHub](https://github.com/omaflake
 
 ### Changed
 
+- The Recipe Studio takes as many key binding sets as you like – added from a menu, moved and taken out like
+  modules – instead of two fixed choices.
+- The app window is never shorter than its sidebar: no scrolling to reach a tab.
+
 - In the app window the header and the sidebar stay while a page is open – the Doctor, the settings, an image –
   so another tab is always one click away.
 

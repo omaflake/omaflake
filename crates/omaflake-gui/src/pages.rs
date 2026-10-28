@@ -1068,6 +1068,47 @@ fn studio<'a>(app: &'a App, page: &str, st: &'a RecipeStudioPage) -> El<'a> {
     }
     c = c.push(container(catalog).padding(spacing::CARD_PADDING).width(Length::Fill).style(style::card));
     c = c.push(section_title(&st.titles.dress)).push(fields(&st.dress));
+    // The key binding sets, as many as wanted, in order (plan B153)
+    let km = &st.keymaps;
+    let mut keymaps =
+        column![text(s(&km.title)).size(text_size::CALLOUT).font(style::semibold()), widgets::help_note(s(&km.help))]
+            .spacing(spacing::L);
+    if let Some(e) = &km.empty {
+        keymaps = keymaps.push(secondary(s(e)));
+    }
+    for r in &km.rows {
+        let mut line = row![column![
+            text(r.title.clone()).size(text_size::CALLOUT).font(style::semibold()),
+            caption(s(&r.subtitle)).color(style::SECONDARY)
+        ]
+        .spacing(spacing::XXS)
+        .width(Length::Fill),]
+        .spacing(spacing::S)
+        .align_y(Alignment::Center);
+        for (icon_name, a) in [("up", &r.up), ("chevron-down", &r.down)] {
+            line = line.push(widgets::icon_button(
+                icon_name,
+                a.as_ref().map(|a| s(&a.label)).unwrap_or_default(),
+                a.as_ref().and_then(|a| widgets::message_of(a, None)),
+                style::TEXT,
+                false,
+            ));
+        }
+        line = line.push(widgets::icon_button(
+            "minus",
+            s(&r.remove.label),
+            widgets::message_of(&r.remove, None),
+            style::SECONDARY,
+            false,
+        ));
+        keymaps = keymaps.push(line);
+    }
+    if !km.add.is_empty() {
+        let adds: Vec<El<'a>> = km.add.iter().map(|a| action_button(a, None, app.pulse)).collect();
+        keymaps = keymaps
+            .push(iced::widget::Row::with_children(adds).spacing(spacing::S).wrap().vertical_spacing(spacing::S));
+    }
+    c = c.push(container(keymaps).padding(spacing::CARD_PADDING).width(Length::Fill).style(style::card));
     c = c.push(section_title(&st.titles.vm)).push(fields(&st.vm));
     c.push(page_actions(app, page, &st.actions)).into()
 }

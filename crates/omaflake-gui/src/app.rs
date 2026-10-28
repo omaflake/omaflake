@@ -330,11 +330,12 @@ pub struct App {
     pub tray: Option<tray::TrayHandle>,
 }
 
-pub const WINDOW_SIZE: Size = Size { width: 680.0, height: 600.0 };
+/// At least as tall as the sidebar with every group and tab (plan B153), so it never has to scroll
+pub const WINDOW_SIZE: Size = Size { width: 680.0, height: 720.0 };
 
 fn window_settings() -> window::Settings {
     window::Settings {
-        size: Size::new(780.0, 680.0),
+        size: Size::new(780.0, 760.0),
         min_size: Some(WINDOW_SIZE),
         exit_on_close_request: false,
         icon: window::icon::from_file_data(include_bytes!("../../../brand/png/icon/omaflake-icon-128.png"), None).ok(),
@@ -354,7 +355,7 @@ impl App {
             prefs: Prefs::load(),
             window: Some(id),
             focused: true,
-            size: Size::new(780.0, 680.0),
+            size: Size::new(780.0, 760.0),
             glow: None,
             core: None,
             status: Some(tr("Connecting to omaflake's core …")),

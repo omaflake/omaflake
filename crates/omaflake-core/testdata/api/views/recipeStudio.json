@@ -502,79 +502,50 @@
       "param": "look",
       "value": "omaflake/omaflake",
       "valueParam": "look"
-    },
-    {
-      "choices": [
-        {
-          "label": {
-            "key": "none",
-            "text": "none"
-          },
-          "value": ""
-        },
-        {
-          "label": {
-            "text": "omaflake – omaflake/default"
-          },
-          "value": "omaflake/default"
-        }
-      ],
-      "enabled": true,
-      "help": {
-        "key": "Without any, every module has its own default keys",
-        "text": "Without any, every module has its own default keys"
-      },
-      "id": "keymap1",
-      "kind": "choice",
-      "label": {
-        "args": [
-          1
-        ],
-        "key": "Key bindings %lld",
-        "text": "Key bindings 1"
-      },
-      "param": "keymap1",
-      "value": "omaflake/default",
-      "valueParam": "keymap1"
-    },
-    {
-      "choices": [
-        {
-          "label": {
-            "key": "none",
-            "text": "none"
-          },
-          "value": ""
-        },
-        {
-          "label": {
-            "text": "omaflake – omaflake/default"
-          },
-          "value": "omaflake/default"
-        }
-      ],
-      "enabled": true,
-      "help": {
-        "key": "Wins over the first for the same action",
-        "text": "Wins over the first for the same action"
-      },
-      "id": "keymap2",
-      "kind": "choice",
-      "label": {
-        "args": [
-          2
-        ],
-        "key": "Key bindings %lld",
-        "text": "Key bindings 2"
-      },
-      "param": "keymap2",
-      "value": "",
-      "valueParam": "keymap2"
     }
   ],
   "intro": {
     "key": "Put a recipe of your own together: find modules in the catalog and add them – what is missing or does not fit is said while you build. Saved in My Recipes, a folder in the data folder that is one of your sources, and built like any other recipe.",
     "text": "Put a recipe of your own together: find modules in the catalog and add them – what is missing or does not fit is said while you build. Saved in My Recipes, a folder in the data folder that is one of your sources, and built like any other recipe."
+  },
+  "keymaps": {
+    "add": [],
+    "help": {
+      "key": "Key binding sets give the modules' actions their keys; a later one wins for the same action. Without any, every module has its own keys.",
+      "text": "Key binding sets give the modules' actions their keys; a later one wins for the same action. Without any, every module has its own keys."
+    },
+    "rows": [
+      {
+        "reference": "omaflake/default",
+        "remove": {
+          "enabled": true,
+          "icon": "minus",
+          "id": "remove",
+          "label": {
+            "key": "Remove",
+            "text": "Remove"
+          },
+          "method": "ui.field",
+          "params": {
+            "field": "keymaps",
+            "page": "recipeStudio",
+            "params": {
+              "id": "omaflake.nixos.dev@velvet-tiger-orbit"
+            },
+            "value": [],
+            "valueParam": "keymaps"
+          }
+        },
+        "subtitle": {
+          "text": "omaflake/default"
+        },
+        "title": "omaflake"
+      }
+    ],
+    "title": {
+      "key": "Key bindings",
+      "text": "Key bindings"
+    }
   },
   "recipe": {
     "hints": [
@@ -846,8 +817,8 @@
       "text": "Recipe"
     },
     "dress": {
-      "key": "Look and keys",
-      "text": "Look and keys"
+      "key": "Look",
+      "text": "Look"
     },
     "vm": {
       "key": "The VM",

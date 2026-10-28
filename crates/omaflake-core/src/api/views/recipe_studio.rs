@@ -32,7 +32,7 @@ pub struct StudioParams {
     #[serde(default)]
     pub id: Option<String>,
     /// The form's values: name, platform, description, modules (references), search, tags (a list), page (from 0),
-    /// look, keymap1, keymap2, cpus, memoryGB, diskGB, display, network, share, ephemeral
+    /// look, keymaps (references, a later one wins), cpus, memoryGB, diskGB, display, network, share, ephemeral
     #[serde(default)]
     pub values: Map<String, Value>,
 }
@@ -49,8 +49,10 @@ pub struct RecipeStudioPage {
     pub about: Vec<Field>,
     pub catalog: StudioCatalog,
     pub recipe: StudioRecipe,
-    /// Look and key binding sets
+    /// The look
     pub dress: Vec<Field>,
+    /// The key binding sets, as many as wanted, in order (plan B153)
+    pub keymaps: StudioKeymaps,
     /// What a VM needs at least and how it runs
     pub vm: Vec<Field>,
     /// Section titles: about, dress, vm
@@ -65,6 +67,35 @@ pub struct StudioTitles {
     pub about: Text,
     pub dress: Text,
     pub vm: Text,
+}
+
+/// The recipe's key binding sets (plan B153): a list like its modules – one added from a menu, each taken out or moved;
+/// a later one wins for the same action
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct StudioKeymaps {
+    pub title: Text,
+    pub help: Text,
+    pub rows: Vec<StudioKeymap>,
+    /// The sets not in the recipe, each an action that adds it at the end
+    pub add: Vec<Action>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub empty: Option<Text>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct StudioKeymap {
+    /// "omaflake/default"
+    pub reference: String,
+    pub title: String,
+    /// "1 of 2 – wins over the ones above"
+    pub subtitle: Text,
+    pub remove: Action,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub up: Option<Action>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub down: Option<Action>,
 }
 
 /// The modules of the catalog shown at once (plan B148)
@@ -236,11 +267,10 @@ pub(crate) fn page(ctx: &Ctx, p: &StudioParams) -> Option<RecipeStudioPage> {
     let chosen: Vec<String> = chosen.into_iter().filter(|r| by_ref.contains_key(r.as_str())).collect();
 
     let look = text("look").unwrap_or_else(|| parts.and_then(|x| x.look.as_deref()).map(bare).unwrap_or_default());
-    let keymap = |i: usize| {
-        text(&format!("keymap{}", i + 1))
-            .unwrap_or_else(|| parts.and_then(|x| x.keymaps.get(i)).map(|k| bare(k)).unwrap_or_default())
+    let keymap_refs: Vec<String> = match v.get("keymaps").and_then(Value::as_array) {
+        Some(list) => list.iter().filter_map(Value::as_str).map(str::to_string).collect(),
+        None => parts.map(|x| x.keymaps.iter().map(|k| bare(k)).collect()).unwrap_or_default(),
     };
-    let (keymap1, keymap2) = (keymap(0), keymap(1));
     let req = parts.map(|x| x.requirements).filter(|r| r.cpus > 0).unwrap_or(Requirements {
         cpus: 4,
         memory_gb: 8,
@@ -543,7 +573,7 @@ pub(crate) fn page(ctx: &Ctx, p: &StudioParams) -> Option<RecipeStudioPage> {
         platform,
         modules: chosen.iter().map(|r| PartRef::new(r)).collect(),
         look: (!look.is_empty()).then(|| PartRef::new(&look)),
-        keymaps: [&keymap1, &keymap2].into_iter().filter(|k| !k.is_empty()).map(|k| PartRef::new(k)).collect(),
+        keymaps: keymap_refs.iter().map(|k| PartRef::new(k)).collect(),
         requirements: Requirements { cpus, memory_gb: memory, disk_gb: disk },
         locales: Default::default(),
         data: Value::Null,
@@ -593,17 +623,13 @@ pub(crate) fn page(ctx: &Ctx, p: &StudioParams) -> Option<RecipeStudioPage> {
     };
 
     // Look and key bindings: those here and those offered
-    let named = |kind: &str| -> Vec<Choice> {
-        let mut out = vec![Choice::new(json!(""), Text::new("none"))];
-        let mut seen = Vec::new();
-        for p in ctx.modules.parts.iter().chain(ctx.modules.offered.iter()).filter(|p| p.kind == kind) {
-            if !seen.contains(&p.reference) {
-                seen.push(p.reference.clone());
-                out.push(Choice::new(json!(p.reference), Text::verbatim(format!("{} – {}", p.title, p.reference))));
-            }
+    // Every key binding set here or offered, once each: (reference, title)
+    let mut sets: Vec<(String, String)> = Vec::new();
+    for p in ctx.modules.parts.iter().chain(ctx.modules.offered.iter()).filter(|p| p.kind == "keymap") {
+        if !sets.iter().any(|(r, _)| *r == p.reference) {
+            sets.push((p.reference.clone(), p.title.clone()));
         }
-        out
-    };
+    }
     let mut look_choices = vec![Choice::new(json!(""), Text::new("none"))];
     for l in &ctx.looks.looks {
         look_choices.push(Choice::new(json!(l.reference), Text::verbatim(&l.title)));
@@ -613,16 +639,60 @@ pub(crate) fn page(ctx: &Ctx, p: &StudioParams) -> Option<RecipeStudioPage> {
             look_choices.push(Choice::new(json!(l.reference), Text::verbatim(&l.title)));
         }
     }
-    let mut dress = vec![choice_field("look", Text::new("Look"), &look, look_choices)
+    let dress = vec![choice_field("look", Text::new("Look"), &look, look_choices)
         .help(Text::new("Suggested – the build may choose another"))];
-    for (i, value) in [(1usize, &keymap1), (2usize, &keymap2)] {
-        let id = format!("keymap{i}");
-        dress.push(choice_field(&id, tf!("Key bindings %lld", i), value, named("keymap")).help(Text::new(if i == 1 {
-            "Without any, every module has its own default keys"
-        } else {
-            "Wins over the first for the same action"
-        })));
-    }
+    // The key binding sets: each action sets the whole list (`ui.field` on `values.keymaps`)
+    let set_keymaps = |id: &str, label: Text, icon: &str, list: Vec<String>| {
+        let mut a = Action::field(id, label, Some(icon), PAGE, page_params.clone(), "keymaps", "keymaps");
+        a.params["value"] = json!(list);
+        a
+    };
+    let n = keymap_refs.len();
+    let keymaps_section = StudioKeymaps {
+        title: Text::new("Key bindings"),
+        help: Text::new("Key binding sets give the modules' actions their keys; a later one wins for the same action. Without any, every module has its own keys."),
+        rows: keymap_refs
+            .iter()
+            .enumerate()
+            .map(|(i, r)| {
+                let title = sets.iter().find(|(x, _)| x == r).map(|(_, t)| t.clone()).unwrap_or_else(|| r.clone());
+                let moved = |to: usize| {
+                    let mut l = keymap_refs.clone();
+                    l.swap(i, to);
+                    l
+                };
+                StudioKeymap {
+                    reference: r.clone(),
+                    title,
+                    subtitle: if n == 1 {
+                        Text::verbatim(r)
+                    } else if i + 1 == n {
+                        Text::joined(vec![Text::verbatim(r), Text::new("wins over the ones above")])
+                    } else {
+                        Text::verbatim(r)
+                    },
+                    remove: set_keymaps(
+                        "remove",
+                        Text::new("Remove"),
+                        "minus",
+                        keymap_refs.iter().filter(|x| *x != r).cloned().collect(),
+                    ),
+                    up: (i > 0).then(|| set_keymaps("up", Text::new("Earlier"), "up", moved(i - 1))),
+                    down: (i + 1 < n).then(|| set_keymaps("down", Text::new("Later"), "down", moved(i + 1))),
+                }
+            })
+            .collect(),
+        add: sets
+            .iter()
+            .filter(|(r, _)| !keymap_refs.contains(r))
+            .map(|(r, t)| {
+                let mut l = keymap_refs.clone();
+                l.push(r.clone());
+                set_keymaps("add", Text::verbatim(format!("{t} – {r}")), "add", l)
+            })
+            .collect(),
+        empty: keymap_refs.is_empty().then(|| Text::new("None – every module has its own keys")),
+    };
 
     // What a VM needs at least and how it runs
     let number = |id: &str, label: Text, value: u32, (min, max, step): (i64, i64, i64)| {
@@ -706,10 +776,11 @@ pub(crate) fn page(ctx: &Ctx, p: &StudioParams) -> Option<RecipeStudioPage> {
         catalog,
         recipe,
         dress,
+        keymaps: keymaps_section,
         vm: vm_fields,
         titles: StudioTitles {
             about: Text::new("Recipe"),
-            dress: Text::new("Look and keys"),
+            dress: Text::new("Look"),
             vm: Text::new("The VM"),
         },
         actions,

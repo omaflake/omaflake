@@ -362,21 +362,24 @@ struct HoverTabStyle: ButtonStyle {
 struct HomeSidebar: View {
     let model: AppModel
 
+    /// The sidebar never scrolls (plan B153): its full height is the window's least – the window cannot be made
+    /// shorter than every group and tab
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: BrandTokens.Spacing.xxl) {
-                ForEach(model.home?.groups ?? []) { g in
-                    VStack(alignment: .leading, spacing: BrandTokens.Spacing.xs) {
-                        Text(verbatim: model.t(g.title).uppercased()).font(.caption2.weight(.semibold)).foregroundStyle(.tertiary)
-                            .padding(.horizontal, BrandTokens.Spacing.l)
-                        ForEach((model.home?.tabs ?? []).filter { $0.group == g.id }) { tab in
-                            if let id = AppModel.HomeTab(rawValue: tab.id) { item(id, tab) }
-                        }
+        VStack(alignment: .leading, spacing: BrandTokens.Spacing.xxl) {
+            ForEach(model.home?.groups ?? []) { g in
+                VStack(alignment: .leading, spacing: BrandTokens.Spacing.xs) {
+                    Text(verbatim: model.t(g.title).uppercased()).font(.caption2.weight(.semibold)).foregroundStyle(.tertiary)
+                        .padding(.horizontal, BrandTokens.Spacing.l)
+                    ForEach((model.home?.tabs ?? []).filter { $0.group == g.id }) { tab in
+                        if let id = AppModel.HomeTab(rawValue: tab.id) { item(id, tab) }
                     }
                 }
             }
-            .padding(BrandTokens.Spacing.l)
+            Spacer(minLength: 0)
         }
+        .padding(BrandTokens.Spacing.l)
+        .fixedSize(horizontal: false, vertical: true)
+        .frame(maxHeight: .infinity, alignment: .top)
     }
 
     private func item(_ id: AppModel.HomeTab, _ tab: HomePage.Tab) -> some View {

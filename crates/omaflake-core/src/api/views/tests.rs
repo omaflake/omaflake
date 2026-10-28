@@ -1981,6 +1981,20 @@ fn modules_tab_profiles_and_the_recipe_studio() {
     let save = action(&studio["actions"], "save");
     assert_eq!(save["params"]["modules"], json!(["omaflake/hyprland", "omaflake/wezterm"]));
     assert_eq!(save["params"]["keymaps"], json!(["omaflake/default"]));
+    // Key binding sets as a list (plan B153): each taken out or moved; those not in it to add
+    let km = &studio["keymaps"];
+    assert_eq!(km["rows"][0]["reference"], "omaflake/default");
+    assert_eq!(km["rows"][0]["remove"]["params"]["value"], json!([]));
+    assert!(km["rows"][0].get("up").is_none() && km["add"].as_array().unwrap().is_empty());
+    let none =
+        get(&c, "recipeStudio", json!({"id": "omaflake.nixos.dev@velvet-tiger-orbit", "values": {"keymaps": []}}));
+    assert_eq!(none["keymaps"]["empty"]["key"], "None – every module has its own keys");
+    let add = &none["keymaps"]["add"][0];
+    assert_eq!(
+        (add["params"]["valueParam"].as_str(), &add["params"]["value"]),
+        (Some("keymaps"), &json!(["omaflake/default"]))
+    );
+    assert_eq!(action(&none["actions"], "save")["params"]["keymaps"], json!([]));
     // Removing sets the whole list (ui.field on the page)
     let remove = &studio["recipe"]["rows"][1]["action"];
     assert_eq!(

@@ -895,8 +895,9 @@ is wrong (a module that needs a capability none provides, with the action that a
 capabilities twice; keys that overlap or break the key rule; modules still to install), `keys` the keys page on the
 draft (`keys {draft: {platform, modules, keymaps, name}}`). A row: `{reference, title, description, subtitle, badges,
 tags, inside, details (InfoLines: about, provides, needs, works with, keys, tags, version, source), detailActions
-(its keys window), action}` – the action is `ui.field` on `values.modules` with the whole new list (add or remove). `dress`: look,
-keymap1, keymap2; `vm`: cpus, memoryGB, diskGB, display, network, share, ephemeral. Actions: cancel, delete (one of
+(its keys window), action}` – the action is `ui.field` on `values.modules` with the whole new list (add or remove). `dress`: look;
+`keymaps` (plan B153): `{title, help, rows: [{reference, title, subtitle, remove, up?, down?}], add, empty?}` – the
+key binding sets as a list, a later one wins; every action is `ui.field` on `values.keymaps` with the whole new list; `vm`: cpus, memoryGB, diskGB, display, network, share, ephemeral. Actions: cancel, delete (one of
 yours: `recipes.delete {base}`, confirm), save (`recipes.save`, `then: back`; disabled without a valid name or a
 module). It is a tab of the workshop too (a new recipe).
 

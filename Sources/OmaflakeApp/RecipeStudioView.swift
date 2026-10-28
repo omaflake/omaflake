@@ -103,6 +103,23 @@ struct RecipeStudioView: View {
             ForEach(page.dress) { FormField(field: $0, page: ref.page, model: model) }
         } header: { Text(verbatim: model.t(page.titles.dress)) }
 
+        // The key binding sets, as many as wanted, in order (plan B153)
+        Section {
+            if model.helpOn { HelpNote(page.keymaps.help, model: model) }
+            if let empty = page.keymaps.empty {
+                Text(verbatim: model.t(empty)).font(.callout).foregroundStyle(.secondary)
+            }
+            ForEach(page.keymaps.rows) { KeymapRow(row: $0, model: model) }
+            if !page.keymaps.add.isEmpty {
+                Menu {
+                    ForEach(page.keymaps.add) { a in Button(model.t(a.label)) { model.run(a) } }
+                } label: {
+                    Label("Add Key Bindings", systemImage: "plus")
+                }
+                .menuStyle(.borderlessButton).fixedSize()
+            }
+        } header: { Text(verbatim: model.t(page.keymaps.title)) }
+
         Section {
             DisclosureGroup {
                 ForEach(page.vm) { FormField(field: $0, page: ref.page, model: model) }
@@ -300,6 +317,35 @@ private struct RecipeModuleRow: View {
             .help(Text(verbatim: model.t(module.action.label)))
         }
         .help(module.reference)
+    }
+}
+
+/// A key binding set of the recipe: its name, where it stands, Earlier, Later and Remove
+private struct KeymapRow: View {
+    let row: RecipeStudioPage.Keymaps.Row
+    let model: AppModel
+
+    var body: some View {
+        HStack(spacing: BrandTokens.Spacing.l) {
+            Image(systemName: "keyboard").foregroundStyle(.secondary)
+            VStack(alignment: .leading, spacing: BrandTokens.Spacing.xxs) {
+                Text(verbatim: row.title).font(.callout.weight(.medium))
+                Text(verbatim: model.t(row.subtitle)).font(.caption).foregroundStyle(.secondary).lineLimit(1)
+            }
+            Spacer()
+            ForEach([("arrow.up", row.up), ("arrow.down", row.down)], id: \.0) { icon, action in
+                Button { if let action { model.run(action) } } label: { Image(systemName: icon) }
+                    .buttonStyle(.borderless)
+                    .disabled(action == nil)
+                    .help(Text(verbatim: model.t(action?.label)))
+            }
+            Button { model.run(row.remove) } label: {
+                Image(systemName: "xmark.circle").foregroundStyle(.secondary)
+            }
+            .buttonStyle(.plain)
+            .help(Text(verbatim: model.t(row.remove.label)))
+        }
+        .help(row.reference)
     }
 }
 

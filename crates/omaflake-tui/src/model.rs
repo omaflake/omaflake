@@ -1247,6 +1247,29 @@ fn studio(ctx: &Ctx, model: &Value, p: &mut Page) {
             p.items.push(bar);
         }
     }
+    // The key binding sets, as many as wanted, in order (plan B153): a row each with Earlier, Later, Remove; those to add
+    let km = &model["keymaps"];
+    if km.is_object() {
+        p.items.push(Item::blank());
+        p.items.push(heading(ctx, format!(" {}", t(&km["title"]))));
+        p.items.extend(help_item(ctx, t(&km["help"]), 2));
+        if let Some(e) = km.get("empty") {
+            p.items.push(Item::line("", secondary_line(ctx, t(e), 2)));
+        }
+        for r in arr(km, "rows") {
+            let line = Line::from(vec![
+                Span::raw("  "),
+                Span::styled(s(r, "title").to_string(), th.title()),
+                Span::styled(format!("  {}", t(&r["subtitle"])), th.secondary()),
+            ]);
+            let actions: Vec<Value> =
+                ["up", "down", "remove"].iter().filter_map(|k| r.get(*k).filter(|a| a.is_object()).cloned()).collect();
+            p.items.push(Item::row(format!("keymap:{}", s(r, "reference")), vec![line], actions));
+        }
+        if let Some(bar) = button_bar(ctx, "studio:keymaps:add", arr(km, "add")) {
+            p.items.push(bar);
+        }
+    }
     for (title, list) in [("dress", "dress"), ("vm", "vm")] {
         p.items.push(Item::blank());
         p.items.push(heading(ctx, format!(" {}", t(&model["titles"][title]))));

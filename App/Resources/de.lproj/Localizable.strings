@@ -1517,3 +1517,10 @@
 "Delete the look “%@”?" = "Den Look „%@“ löschen?";
 "Images built with it keep it; new builds choose another." = "Vorlagen, die damit gebaut sind, behalten ihn; neue Builds wählen einen anderen.";
 "Preview" = "Vorschau";
+
+/* Recipe studio: key binding sets as a list (plan B153) */
+"Key binding sets give the modules' actions their keys; a later one wins for the same action. Without any, every module has its own keys." = "Tasten-Sets geben den Aktionen der Module ihre Tasten; ein späteres gewinnt bei derselben Aktion. Ohne eines hat jedes Modul seine eigenen Tasten.";
+"Later" = "Später";
+"wins over the ones above" = "gewinnt gegen die darüber";
+"None – every module has its own keys" = "Keines – jedes Modul hat seine eigenen Tasten";
+"Add Key Bindings" = "Tasten-Set hinzufügen";

@@ -1287,6 +1287,13 @@ with omaflake and its icons, with its own way back. A click in the sidebar goes 
 open on top (`AppModel.closePages`; iced `Message::Tab` empties the stack). The menu bar window is unchanged: a page
 takes it whole, as it is narrow. **Checked:** `swift test`, `cargo test`. **OPEN:** tried in the apps.
 
+**B153 (2026-10-28): any number of key binding sets in the recipe studio; a sidebar that never scrolls.** The studio
+had two fixed choices "Key bindings 1/2"; recipe.toml v2 allows any number (a later one wins). `recipeStudio.keymaps`
+is a list like the modules: a row per set with Earlier, Later and Remove, a menu of the sets not in it to add, each a
+`ui.field` on `values.keymaps` with the whole list. The app window's sidebar is no scroll view any more: its full height
+is the content's least and, with `windowResizability(.contentMinSize)`, the window's (German labels included); the
+Linux app's window is at least 720 high. **Checked:** `cargo test`, `swift test`. **OPEN:** tried in the apps.
+
 **B129 (2026-10-24): clipboard on a GNOME host.** Mutter has no data-control protocol: `wl-paste --watch` ends at once.
 `Wayland::start` now treats an end within 500 ms as refused, and `detect` falls back to xclip through Xwayland, which
 Mutter keeps in sync (`X11::through_xwayland`, Mutter's `.mutter-Xwaylandauth.*` cookie when XAUTHORITY is unset; its

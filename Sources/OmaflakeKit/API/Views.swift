@@ -701,6 +701,25 @@ public struct RecipeStudioPage: Decodable, Sendable, Equatable {
         public var vm: ViewText
     }
 
+    /// The key binding sets as a list (plan B153): a later one wins
+    public struct Keymaps: Decodable, Sendable, Equatable {
+        public struct Row: Decodable, Sendable, Equatable, Identifiable {
+            public var reference: String
+            public var title: String
+            public var subtitle: ViewText
+            public var remove: ViewAction
+            public var up: ViewAction?
+            public var down: ViewAction?
+            public var id: String { reference }
+        }
+
+        public var title: ViewText
+        public var help: ViewText
+        public var rows: [Row]
+        public var add: [ViewAction]
+        public var empty: ViewText?
+    }
+
     public var title: ViewText
     public var id: String?
     public var intro: ViewText
@@ -708,6 +727,7 @@ public struct RecipeStudioPage: Decodable, Sendable, Equatable {
     public var catalog: Catalog
     public var recipe: Recipe
     public var dress: [Field]
+    public var keymaps: Keymaps
     public var vm: [Field]
     public var titles: Titles
     public var actions: [ViewAction]
