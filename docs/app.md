@@ -63,7 +63,7 @@ a core setting, and applies at once – no relaunch.
 
 | Choice | What you get |
 |---|---|
-| **Menu Bar** (default) | The `MenuBarExtra` window at the omaflake icon (500 × 600 pt), no Dock icon (activation policy `.accessory`, like `LSUIElement`), no app menu. |
+| **Menu Bar** (default) | The `MenuBarExtra` window at the omaflake icon (500 × 600 pt), no Dock icon (activation policy `.accessory`, like `LSUIElement`), no app menu. "Open omaflake" opens the app window; while it is open, omaflake is in the Dock and the app switcher (`.regular`), and leaves them when it closes (plan B151). |
 | **Window** | A regular window (`Window` scene `main`): resizable from 500 × 600 pt, remembers its frame, Cmd+W closes it, a click on the Dock icon opens it again. Dock icon and app menu (activation policy `.regular`; Settings… opens the Settings page, Quit asks like the power button when VMs run). Closing the window keeps omaflake running; it quits with Cmd+Q. No menu bar icon. |
 | **Both** | The menu bar icon and the window. The menu window has *Open in Window*; the window shows that omaflake is in the menu bar too. Both show the same page. |
 

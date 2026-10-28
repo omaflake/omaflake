@@ -1273,6 +1273,14 @@ window with the border gradient, a terminal), iced (a swatch and the hex typed, 
 `omaf ui` (swatches as coloured blocks, the hex typed). **Checked:** `cargo test` (`look_studio_colours_preview_and_contrast`,
 `looks_save_rename_delete`), `swift test`. **OPEN:** clicked in the apps; a look of the studio in a built image.
 
+**B151 (2026-10-28): the app window had no Dock icon, and "Locales" in German.** In the default frame (menu bar) the
+app runs as `.accessory`; the window opened with "Open omaflake" was a window of an app without a Dock icon or a place
+in the app switcher. `MainWindowHook` now makes omaflake `.regular` while the app window is open (when it is shown and
+each time it becomes key – SwiftUI may keep the window) and `.accessory` again when it closes, unless the frame shows
+the window anyway. German: the maintainer chose "Region"/"Regionen" for locale(s) (the strings only; English stays
+"Locales"); the locale's own field "Language and region" became "Sprache und Format", the build page's choice
+"Region". **Checked:** `swift test`, `cargo test` (translations). **OPEN:** tried in the app.
+
 **B129 (2026-10-24): clipboard on a GNOME host.** Mutter has no data-control protocol: `wl-paste --watch` ends at once.
 `Wayland::start` now treats an end within 500 ms as refused, and `detect` falls back to xclip through Xwayland, which
 Mutter keeps in sync (`X11::through_xwayland`, Mutter's `.mutter-Xwaylandauth.*` cookie when XAUTHORITY is unset; its

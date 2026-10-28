@@ -62,6 +62,9 @@ are collected under *Unreleased*. Releases: [GitHub](https://github.com/omaflake
 
 ### Fixed
 
+- The app window opened from the menu bar ("Open omaflake") is in the Dock and the app switcher while it is open.
+- German: "Locales" are "Regionen" now.
+
 - In the studios shown as tabs, choices did nothing – "Change …" at a key, the search, adding a module: the tab was
   asked without them.
 

@@ -66,6 +66,23 @@ struct MainWindowHook: NSViewRepresentable {
                 window.setFrameUsingName(MainWindowHook.autosaveName)
                 window.setFrameAutosaveName(MainWindowHook.autosaveName)
             }
+            // The app window is the whole app: while it is open, omaflake is in the Dock and the app switcher – also
+            // when it lives in the menu bar (opened with "Open omaflake"); closed, a menu bar omaflake leaves the Dock
+            // again (plan B151). The observer goes with the view (selector-based observers are removed then).
+            NSApp.setActivationPolicy(.regular)
+            let center = NotificationCenter.default
+            center.removeObserver(self)
+            center.addObserver(self, selector: #selector(windowWillClose), name: NSWindow.willCloseNotification, object: window)
+            // SwiftUI may keep the window and show it again: each time it comes to the front, the Dock icon is back
+            center.addObserver(self, selector: #selector(windowDidBecomeKey), name: NSWindow.didBecomeKeyNotification, object: window)
+        }
+
+        @objc private func windowWillClose(_ note: Notification) {
+            if !AppFrame.current.showsWindow { NSApp.setActivationPolicy(.accessory) }
+        }
+
+        @objc private func windowDidBecomeKey(_ note: Notification) {
+            if NSApp.activationPolicy() != .regular { NSApp.setActivationPolicy(.regular) }
         }
     }
 }
