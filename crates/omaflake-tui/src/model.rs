@@ -1134,7 +1134,17 @@ fn settings(ctx: &Ctx, model: &Value, p: &mut Page) {
 pub fn tabs(ctx: &Ctx, home: &Value, current: &str) -> Vec<Span<'static>> {
     let th = ctx.theme;
     let mut spans = Vec::new();
-    for tab in arr(home, "tabs") {
+    // The open tab's group shows its tabs, the other group its name (plan B147); Tab goes on into it
+    let group = arr(home, "tabs").iter().find(|t| s(t, "id") == current).map(|t| s(t, "group")).unwrap_or("run");
+    let others: Vec<String> = arr(home, "groups")
+        .iter()
+        .filter(|g| s(g, "id") != group)
+        .map(|g| {
+            let dot = if g["attention"].as_bool() == Some(true) { " •" } else { "" };
+            format!("{}{dot} ›", t(&g["title"]))
+        })
+        .collect();
+    for tab in arr(home, "tabs").iter().filter(|t| s(t, "group") == group || s(t, "group").is_empty()) {
         let id = s(tab, "id");
         let style =
             if id == current { th.accent().add_modifier(Modifier::BOLD | Modifier::UNDERLINED) } else { th.text() };
@@ -1152,6 +1162,9 @@ pub fn tabs(ctx: &Ctx, home: &Value, current: &str) -> Vec<Span<'static>> {
             spans.push(Span::styled(text, tone));
         }
         spans.push(Span::raw("  "));
+    }
+    for o in others {
+        spans.push(Span::styled(format!("│ {o}  "), th.secondary()));
     }
     spans
 }

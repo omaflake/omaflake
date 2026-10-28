@@ -47,6 +47,7 @@ enum Icons {
         case "doctor": ("stethoscope", nil)
         case "settings": ("gearshape", nil)
         case "key": ("key", nil)
+        case "workshop": ("wrench.and.screwdriver", nil)
         case "keyboard": ("keyboard", nil)
         case "globe": ("globe", nil)
         case "quit": ("power", nil)

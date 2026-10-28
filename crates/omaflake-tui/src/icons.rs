@@ -60,6 +60,7 @@ impl IconSet {
             "doctor" => ("\u{f0f1}", "✚"),
             "settings" => ("\u{f013}", "⚙"),
             "key" => ("\u{f084}", "⚷"),
+            "workshop" => ("\u{f0ad}", "⚒"),
             "keyboard" => ("\u{f11c}", "⌨"),
             "globe" => ("\u{f0ac}", "◍"),
             "quit" => ("\u{f011}", "⏻"),

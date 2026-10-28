@@ -51,7 +51,24 @@ final class AppModel {
 
     /// Tabs of the main page (plan B91); the core's `home` page names them
     enum HomeTab: String, CaseIterable {
-        case vms, images, recipes, modules, looks, activity
+        case vms, images, recipes, activity, modules, looks, credentials, locales, profiles
+
+        /// Credentials, locales and profiles are forms that scroll themselves
+        var isForm: Bool { [.credentials, .locales, .profiles].contains(self) }
+    }
+
+    /// The group of the open tab (plan B147): `run` or `workshop`, as the core's tabs say
+    var group: String { home?.tabs.first { $0.id == tab.rawValue }?.group ?? "run" }
+
+    /// The tab last open in each group – switching the group goes back to it
+    private var lastTab: [String: HomeTab] = [:]
+
+    func selectGroup(_ id: String) {
+        guard id != group else { return }
+        lastTab[group] = tab
+        if let t = lastTab[id] ?? home?.tabs.first(where: { $0.group == id }).flatMap({ HomeTab(rawValue: $0.id) }) {
+            tab = t
+        }
     }
 
     var tab: HomeTab = .vms {

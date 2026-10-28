@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 //! The main page's frame (`home`): the header's buttons and the tabs with what needs attention there (the app's
-//! `MainView.header` and `HomeTabBar`). Which tab is open and whether the activity was seen are the UI's own.
+//! `MainView.header` and `HomeTabBar`). The tabs come in two groups (plan B147): what runs – VMs, images, recipes,
+//! the activity – and the workshop, where the parts are configured – modules and key bindings, looks, credentials,
+//! locales, profiles. Which tab is open and whether the activity was seen are the UI's own.
 
 use serde::{Deserialize, Serialize};
 use serde_json::json;
@@ -18,7 +20,10 @@ pub struct HomePage {
     pub title: Text,
     /// Doctor (with its issue count), Settings, the data folder, Quit
     pub actions: Vec<Action>,
+    /// Every tab, the groups' in order (each names its `group`)
     pub tabs: Vec<Tab>,
+    /// The tab groups: `run`, `workshop`
+    pub groups: Vec<TabGroup>,
     /// No VM yet: a UI opening for the first time starts on the recipes tab
     pub first_tab: String,
 }
@@ -32,6 +37,18 @@ pub struct Tab {
     pub icon: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub badge: Option<TabBadge>,
+    /// The group it is in: `run` or `workshop`
+    pub group: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TabGroup {
+    pub id: String,
+    pub title: Text,
+    pub icon: String,
+    /// A tab of the group needs attention (its badge, other than a count)
+    pub attention: bool,
 }
 
 /// What a tab shows next to its name: a count (running VMs), a spinner (a build runs), a symbol (a build failed) or a
@@ -70,9 +87,6 @@ pub(crate) fn page(ctx: &Ctx) -> HomePage {
     doctor.badge = (issues > 0).then_some(issues);
     let actions = vec![
         doctor,
-        Action::show("credentials", Text::new("Credentials"), Some("key"), "credentials", json!({})),
-        Action::show("locales", Text::new("Locales"), Some("globe"), "locales", json!({})),
-        Action::show("profiles", Text::new("Profiles"), Some("gauge"), "profiles", json!({})),
         Action::show("settings", Text::new("Settings"), Some("settings"), "settings", json!({})),
         Action::call(
             "dataFolder",
@@ -98,48 +112,69 @@ pub(crate) fn page(ctx: &Ctx) -> HomePage {
         None
     };
     let outdated = super::recipes::recipe_rows(&ctx.recipes.recipes).iter().any(|r| r.image.is_some() && r.outdated);
+    let tab = |id: &str, label: &str, icon: &str, group: &str, badge: Option<TabBadge>| Tab {
+        id: id.into(),
+        label: Text::new(label),
+        icon: icon.into(),
+        badge,
+        group: group.into(),
+    };
+    let warning = |help: &str| TabBadge { kind: "dot".into(), count: None, tone: Tone::Warning, help: Text::new(help) };
     let tabs = vec![
-        Tab {
-            id: "vms".into(),
-            label: Text::new("VMs"),
-            icon: "vm".into(),
-            badge: (!running.is_empty()).then(|| TabBadge {
+        tab(
+            "vms",
+            "VMs",
+            "vm",
+            "run",
+            (!running.is_empty()).then(|| TabBadge {
                 kind: "count".into(),
                 count: Some(running.len()),
                 tone: Tone::Success,
                 help: Text::new("Running"),
             }),
+        ),
+        tab("images", "Images", "image", "run", images_badge),
+        tab(
+            "recipes",
+            "Recipes",
+            "recipe",
+            "run",
+            outdated.then(|| warning("A recipe changed since its image was built")),
+        ),
+        tab("activity", "Activity", "activity", "run", None),
+        tab("modules", "Modules", "module", "workshop", None),
+        tab(
+            "looks",
+            "Looks",
+            "look",
+            "workshop",
+            ctx.looks.looks.is_empty().then(|| warning("No look installed – images are built with one")),
+        ),
+        tab(
+            "credentials",
+            "Credentials",
+            "key",
+            "workshop",
+            ctx.credentials.is_empty().then(|| warning("No credential yet – images are built with one")),
+        ),
+        tab("locales", "Locales", "globe", "workshop", None),
+        tab("profiles", "Profiles", "gauge", "workshop", None),
+    ];
+    let attention = |g: &str| tabs.iter().any(|t| t.group == g && t.badge.as_ref().is_some_and(|b| b.kind != "count"));
+    let groups = vec![
+        TabGroup { id: "run".into(), title: Text::new("Run"), icon: "vm".into(), attention: attention("run") },
+        TabGroup {
+            id: "workshop".into(),
+            title: Text::new("Workshop"),
+            icon: "workshop".into(),
+            attention: attention("workshop"),
         },
-        Tab { id: "images".into(), label: Text::new("Images"), icon: "image".into(), badge: images_badge },
-        Tab {
-            id: "recipes".into(),
-            label: Text::new("Recipes"),
-            icon: "recipe".into(),
-            badge: outdated.then(|| TabBadge {
-                kind: "dot".into(),
-                count: None,
-                tone: Tone::Warning,
-                help: Text::new("A recipe changed since its image was built"),
-            }),
-        },
-        Tab { id: "modules".into(), label: Text::new("Modules"), icon: "module".into(), badge: None },
-        Tab {
-            id: "looks".into(),
-            label: Text::new("Looks"),
-            icon: "look".into(),
-            badge: ctx.looks.looks.is_empty().then(|| TabBadge {
-                kind: "dot".into(),
-                count: None,
-                tone: Tone::Warning,
-                help: Text::new("No look installed – images are built with one"),
-            }),
-        },
-        Tab { id: "activity".into(), label: Text::new("Activity"), icon: "activity".into(), badge: None },
     ];
     HomePage {
         title: Text::verbatim("omaflake"),
         actions,
         tabs,
+        groups,
         first_tab: if ctx.vms.is_empty() { "recipes".into() } else { "vms".into() },
     }
 }

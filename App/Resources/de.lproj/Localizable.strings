@@ -1294,3 +1294,8 @@
 "The program starts in this mode" = "Das Programm startet in diesem Modus";
 "The program's own key – key bindings do not change it" = "Die eigene Taste des Programms – Tasten-Sets ändern sie nicht";
 "Key from %@" = "Taste aus %@";
+
+/* Navigation (plan B147) */
+"Run" = "Betrieb";
+"Workshop" = "Werkstatt";
+"No credential yet – images are built with one" = "Noch kein Zugang – Vorlagen werden mit einem gebaut";

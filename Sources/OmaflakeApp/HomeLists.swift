@@ -51,6 +51,9 @@ struct HomeList: View {
                     model.run(refresh)
                 }
             }
+        case .credentials(let p)?:
+            // Credentials, locales, profiles: tabs of the workshop (plan B147)
+            CredentialsView(page: p, model: model)
         case .looks(let p)?:
             section(p.head) {
                 if p.loading, let text = p.loadingText {

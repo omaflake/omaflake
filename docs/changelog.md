@@ -19,6 +19,10 @@ are collected under *Unreleased*. Releases: [GitHub](https://github.com/omaflake
   the way to each mode (Zellij: Ctrl+g › p › Pane), where a key leads afterwards ("then Locked") and, on a click, what
   it does in the program's own words. The macOS app shows them in a window of its own, the Linux app and `omaf ui` on
   a page. The keys no longer fill a recipe's details.
+- The tabs come in two groups: **Run** (VMs, images, recipes, activity) and the **Workshop** (modules and key
+  bindings, looks, credentials, locales, profiles). The app window shows both in a sidebar; the menu bar window, the
+  Linux app and `omaf ui` switch the group next to the tabs. Credentials, locales and profiles moved from the header
+  into the workshop.
 
 ### Changed
 

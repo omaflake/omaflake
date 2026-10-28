@@ -88,9 +88,11 @@ while omaflake is not in front (menu window closed, app window hidden or in the 
   lives in the Recipes tab; after a build only the current, the previous and used images of a recipe are kept (plan B52)
 - "New VM" is opened from an image row and creates from that image (no picker); "Build Image" is opened from a recipe
   row or a build row and builds that recipe (no picker); there is no default image (plan B100)
-- Main window: header with icons (Doctor with an orange dot when something needs attention, Credentials, Locales,
-  Profiles, Settings, data folder in Finder, Quit – asks first while VMs are running), then six tabs (VMs, Images,
-  Recipes, Modules, Looks, Activity), each one list that scrolls on its own (plan B91);
+- Main window: header with icons (Doctor with an orange dot when something needs attention, Settings, data folder in
+  Finder, Quit – asks first while VMs are running), then the tabs in two groups (plan B147): **Run** – VMs, Images,
+  Recipes, Activity – and **Workshop** – Modules (with key binding sets), Looks, Credentials, Locales, Profiles. The
+  app window has a sidebar with both groups; the menu bar window, narrower, switches the group above the tab bar
+  (a dot at the other group when a tab of it needs attention). Each tab is one list that scrolls on its own (plan B91);
   the app remembers the last tab, the very first time (no VM yet) it opens on Recipes:
   - **VMs** (badge: running VMs); a VM is created from an image row (plan B100)
   - **Images** (Vorlagen; badge: spinner while a build runs, red ✕ after a failed one): every built image on its own
@@ -194,17 +196,17 @@ while omaflake is not in front (menu window closed, app window hidden or in the 
   a warning lock). Add: GitHub repository, HTTPS URL or folder ("Folder …" opens a sheet); for a GitHub repository
   "Private repository" shows a token field – "Check and Add" checks the repository and the catalog with the token and
   keeps it in the Keychain, never in a file. Footer: recipes from other sources are not reviewed by the omaflake team
-- Settings: "This Mac" – this computer's own keyboard ("As the Mac says" = the system's; plan B141); Credentials (the
-  key in the header): rows as the other lists (in use, Copy Password with Touch ID), a form to create or edit one
+- Settings: "This Mac" – this computer's own keyboard ("As the Mac says" = the system's; plan B141); Credentials (a tab
+  of the workshop): rows as the other lists (in use, Copy Password with Touch ID), a form to create or edit one
   (only the name while images use it), every credential has a password (plan B138) and its own user (only the first
-  one starts from this Mac's, plan B139); Locales (the globe in the header, plan B141): where a guest lives – one
+  one starts from this Mac's, plan B139); Locales (a tab of the workshop, plan B141): where a guest lives – one
   language and region, one time zone, one to three keyboards (Super+Space switches on NixOS, macOS shows them in the
   menu bar), drawn like the credentials, only the name changes while images use one; building an image asks its
   credential, look and locale; macOS bases are a section of the images tab (Remove), each with its credential – a base
   is created from one, an older base gets one assigned (plan B139); no password is typed anywhere after a credential's
   creation; looks are a tab of their own next to Recipes – installed from the sources, a strip of their colours, the
   default, update and remove (plan B141) – and the default credential, look and locale are set on their own pages,
-  not in the settings; Profiles (the gauge in the header, plan B142): CPU cores and RAM of a new VM, drawn like the
+  not in the settings; Profiles (a tab of the workshop, plan B142): CPU cores and RAM of a new VM, drawn like the
   credentials – the New VM page offers them (the default preset, "Custom values" to set them by hand) and warns when a
   VM gets less than its recipe needs;
   SSH keys from ~/.ssh; macOS VMs use the base's user), language (System, English, Deutsch – stored as `AppleLanguages` in the app's defaults, restart button);

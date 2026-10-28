@@ -71,6 +71,8 @@ pub fn list<'a>(app: &'a App, tab: &str, m: &'a Model) -> El<'a> {
         Model::Recipes(p) => recipes(app, p),
         Model::Looks(p) => looks(app, p),
         Model::Activity(p) => activity(app, p),
+        // Credentials, locales, profiles: tabs of the workshop (plan B147)
+        Model::Credentials(c) => credentials(app, tab, c),
         Model::Error(e) => error(e),
         _ => error(&format!("{tab}: not a list")),
     }

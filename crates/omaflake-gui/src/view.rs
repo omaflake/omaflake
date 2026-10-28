@@ -145,8 +145,29 @@ impl App {
         let Some(h) = self.home_model() else {
             return container(space()).height(32).width(Length::Fill).style(style::tab_bar).into();
         };
+        // The groups first (plan B147): a click opens the group's first tab; then the open group's tabs
+        let group = h.tabs.iter().find(|t| t.id == self.tab).map(|t| t.group.clone()).unwrap_or_else(|| "run".into());
         let mut r = row![].spacing(spacing::S);
-        for t in &h.tabs {
+        for g in &h.groups {
+            let selected = g.id == group;
+            let first = h.tabs.iter().find(|t| t.group == g.id).map(|t| t.id.clone()).unwrap_or_default();
+            let mut label = row![text(s(&g.title))
+                .size(text_size::CAPTION)
+                .font(if selected { style::semibold() } else { style::UI })
+                .color(if selected { style::CYAN } else { style::SECONDARY })]
+            .spacing(spacing::XS)
+            .align_y(Alignment::Center);
+            if g.attention && !selected {
+                label = label.push(dot(style::WARNING));
+            }
+            r = r.push(
+                button(container(label).height(26).align_y(Alignment::Center))
+                    .padding([0.0, spacing::M])
+                    .style(style::tab(false))
+                    .on_press(Message::Tab(first)),
+            );
+        }
+        for t in h.tabs.iter().filter(|t| t.group == group) {
             let selected = t.id == self.tab;
             let fg = if selected { style::TEXT } else { style::SECONDARY };
             let mut label = row![

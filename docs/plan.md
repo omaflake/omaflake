@@ -1098,6 +1098,18 @@ neovim-minimal's page: Hyprland 14 keys, Zellij 162 rows in 12 modes plus the de
 window and the iced page not clicked (no way to drive the apps from here); search in the Linux app and `omaf ui`;
 the Linux app as a window of its own.
 
+**B147, step 3 (2026-10-28): navigation – Run and Workshop.** `home`: every tab names its `group`, `groups` lists `run`
+(VMs, images, recipes, activity) and `workshop` (modules – with key binding sets –, looks, credentials, locales,
+profiles) with `attention` (a tab of it has a badge other than a count); credentials, locales and profiles are tabs now,
+not header buttons (a dot at Credentials while there is none). macOS app: the app window has a sidebar (170 pt, both
+groups; window 670 pt wide at least), the menu bar window (500 pt) a group switch above the tab bar of the open group,
+remembering each group's last tab; the form tabs (credentials, locales, profiles) scroll themselves. Linux app: the
+group buttons before the open group's tabs. `omaf ui`: the open group's tabs, the other group's name after them; Tab
+goes on across the groups. **Checked:** `cargo test` (home: groups, the workshop's tabs, attention; TUI
+`tab_goes_on_into_the_workshop`), `swift test`. **OPEN:** clicked in the apps; the sidebar in the Linux app (a group
+switch for now); the recipe studio and the key binding studio join the workshop in steps 4 and 5; the recipes
+offered by the sources are still in the Recipes tab (the catalog in the workshop: with the recipe studio).
+
 **B129 (2026-10-24): clipboard on a GNOME host.** Mutter has no data-control protocol: `wl-paste --watch` ends at once.
 `Wayland::start` now treats an end within 500 ms as refused, and `detect` falls back to xclip through Xwayland, which
 Mutter keeps in sync (`X11::through_xwayland`, Mutter's `.mutter-Xwaylandauth.*` cookie when XAUTHORITY is unset; its

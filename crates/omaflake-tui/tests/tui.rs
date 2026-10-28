@@ -131,6 +131,22 @@ fn subscribes_home_activity_and_the_first_tab() {
     assert_eq!(h.calls("events.subscribe")[0], json!({"topics": ["jobs"]}));
 }
 
+/// Tab goes on from the last tab of the running group into the workshop, whose tabs the line shows then (plan B147)
+#[test]
+fn tab_goes_on_into_the_workshop() {
+    let mut h = Harness::new(none);
+    h.model("vms", json!({}), fixture("vms"));
+    for _ in 0..4 {
+        h.key(KeyCode::Tab);
+    }
+    assert_eq!(h.app.tab, "modules");
+    h.model("modules", json!({}), fixture("modules"));
+    let s = h.screen();
+    // The running group needs attention (a build runs): its name has the dot
+    assert!(s.contains("Modules") && s.contains("Credentials") && s.contains("│ Run • ›"), "{s}");
+    assert!(!s.contains("Images"), "the running group's tabs are hidden: {s}");
+}
+
 #[test]
 fn draws_the_vms_tab() {
     let mut h = Harness::new(none);
@@ -148,10 +164,9 @@ fn draws_the_vms_tab() {
         " omaflake ",
         // home's short labels; the letters come from what is written
         "D Doctor 3",
-        "C Credentials",
-        // what does not fit next to the tabs: key and symbol
-        "L ◍  P ◔  S ⚙  A ▤  q ⏻",
-        "▦ Modules",
+        "S Settings  A Data Folder  q Quit",
+        // the other group by its name (plan B147)
+        "│ Workshop ›",
         "/ Filter",
         "i ⇩ Import",
         "r ↗ Run from There",
@@ -673,7 +688,7 @@ fn linux_home_and_an_import_refused_with_a_text_reason() {
     h.model("home", json!({}), fixture("home.linux"));
     h.model("vms", json!({}), fixture("vms"));
     let s = h.screen();
-    assert!(s.contains(" omaflake ") && s.contains("C Credentials") && s.contains("D Doctor"), "{s}");
+    assert!(s.contains(" omaflake ") && s.contains("S Settings") && s.contains("D Doctor"), "{s}");
     h.app.run_action(&json!({"id": "x", "label": {"text": "x"}, "method": "ui.step", "enabled": true,
                              "params": {"page": "import", "params": {"path": "/x"}}}));
     h.settle();

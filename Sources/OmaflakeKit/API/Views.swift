@@ -343,6 +343,17 @@ public struct HomePage: Decodable, Sendable, Equatable {
         public var label: ViewText
         public var icon: String
         public var badge: TabBadge?
+        /// `run` or `workshop` (plan B147)
+        public var group: String
+    }
+
+    /// What runs, and the workshop where the parts are configured (plan B147)
+    public struct TabGroup: Decodable, Sendable, Equatable, Identifiable {
+        public var id: String
+        public var title: ViewText
+        public var icon: String
+        /// A tab of it needs attention
+        public var attention: Bool
     }
 
     /// `count`, `working`, `failed`, `dot`
@@ -357,6 +368,7 @@ public struct HomePage: Decodable, Sendable, Equatable {
     public var title: ViewText
     public var actions: [ViewAction]
     public var tabs: [Tab]
+    public var groups: [TabGroup]
     public var firstTab: String
 }
 

@@ -516,7 +516,7 @@ Pages and their params:
 
 | Page | Params | What |
 |---|---|---|
-| `home` | – | the header's buttons (Doctor with its issue count, Settings, data folder, Quit) and the tabs with their badges |
+| `home` | – | the header's buttons (Doctor with its issue count, Settings, data folder, Quit), the tabs with their badges and `group`, and `groups: [{id, title, icon, attention}]` – `run` (VMs, images, recipes, activity) and `workshop` (modules, looks, credentials, locales, profiles; plan B147) |
 | `vms` | `filter?` | the VMs tab (§10.5) |
 | `vm` | `name` | one VM: `{row}` as in `vms` (a TUI's detail screen) |
 | `images` | `filter?` | the Images tab: build jobs on top, then every image |

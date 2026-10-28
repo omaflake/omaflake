@@ -38,7 +38,7 @@ struct OmaflakeApp: App {
                 .containerBackground(for: .window) { BrandStyle.background }
                 .background(MainWindowHook())
         }
-        .defaultSize(width: 640, height: 720)
+        .defaultSize(width: 760, height: 720)
         .windowResizability(.contentMinSize)
         .defaultLaunchBehavior(frame.showsWindow ? .presented : .suppressed)
         .restorationBehavior(.disabled)
@@ -138,22 +138,48 @@ struct MainView: View {
                     PageView(ref: page, model: model)
                         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
                 }
-            } else {
+            } else if inWindow {
+                // The app window: a sidebar with the two groups, the open tab next to it (plan B147)
                 VStack(spacing: 0) {
                     header.padding([.horizontal, .top], BrandStyle.margin).padding(.bottom, BrandTokens.Spacing.xl)
+                    HStack(alignment: .top, spacing: 0) {
+                        HomeSidebar(model: model).frame(width: Self.sidebarWidth)
+                        Divider()
+                        content.padding(.top, BrandTokens.Spacing.s)
+                    }
+                }
+            } else {
+                // The menu bar window is narrow: the group above the tabs of the group
+                VStack(spacing: 0) {
+                    header.padding([.horizontal, .top], BrandStyle.margin).padding(.bottom, BrandTokens.Spacing.xl)
+                    HomeGroupSwitch(model: model).padding(.horizontal, BrandStyle.margin).padding(.bottom, BrandTokens.Spacing.m)
                     HomeTabBar(model: model).padding(.horizontal, BrandStyle.margin).padding(.bottom, BrandTokens.Spacing.xxl)
-                    ScrollView { HomeList(tab: model.tab, model: model).padding([.horizontal, .bottom], BrandStyle.margin).background(OverlayScrollers()) }
-                        .id(model.tab)   // each tab opens at its top
-                        .overlay(alignment: .bottom) { FooterMessage(model: model) }
+                    content
                 }
             }
         }
-        .frame(minWidth: Self.size.width, idealWidth: Self.size.width, maxWidth: inWindow ? .infinity : Self.size.width,
+        .frame(minWidth: inWindow ? Self.size.width + Self.sidebarWidth : Self.size.width,
+               idealWidth: inWindow ? Self.size.width + Self.sidebarWidth : Self.size.width,
+               maxWidth: inWindow ? .infinity : Self.size.width,
                minHeight: Self.size.height, idealHeight: Self.size.height, maxHeight: inWindow ? .infinity : Self.size.height)
         .overlay { if let c = model.confirmation { ConfirmationOverlay(confirmation: c) } }
         .onAppear {
             AppDelegate.openMain = { [openWindow] in openWindow(id: AppFrame.windowID); NSApp.activate() }
             AppDelegate.openKeys = { [openWindow] in openWindow(id: KeysView.windowID); NSApp.activate() }
+        }
+    }
+
+    static let sidebarWidth: CGFloat = 170
+
+    /// The open tab: a list in a scroll view, or a form that scrolls itself (credentials, locales, profiles)
+    @ViewBuilder private var content: some View {
+        if model.tab.isForm {
+            HomeList(tab: model.tab, model: model).id(model.tab)
+                .overlay(alignment: .bottom) { FooterMessage(model: model) }
+        } else {
+            ScrollView { HomeList(tab: model.tab, model: model).padding([.horizontal, .bottom], BrandStyle.margin).background(OverlayScrollers()) }
+                .id(model.tab)   // each tab opens at its top
+                .overlay(alignment: .bottom) { FooterMessage(model: model) }
         }
     }
 
@@ -221,7 +247,7 @@ struct HomeTabBar: View {
 
     var body: some View {
         HStack(spacing: BrandTokens.Spacing.s) {
-            ForEach(model.home?.tabs ?? []) { tab in
+            ForEach((model.home?.tabs ?? []).filter { $0.group == model.group }) { tab in
                 if let id = AppModel.HomeTab(rawValue: tab.id) { button(id, tab) }
             }
         }
@@ -253,6 +279,93 @@ struct HomeTabBar: View {
 
     @ViewBuilder private func badge(_ b: HomePage.TabBadge?) -> some View {
         if let b {
+            let help = Text(verbatim: model.t(b.help))
+            switch b.kind {
+            case "count": CountBadge(count: b.count ?? 0, color: b.tone.color).help(help)
+            case "working": ProgressView().controlSize(.mini).help(help)
+            case "failed": Image(systemName: "xmark.circle.fill").font(.caption2).foregroundStyle(b.tone.color).help(help)
+            default: Circle().fill(b.tone.color).frame(width: BrandTokens.Size.dot, height: BrandTokens.Size.dot).help(help)
+            }
+        }
+    }
+}
+
+/// The menu bar window's choice between the groups (plan B147): what runs, and the workshop
+struct HomeGroupSwitch: View {
+    let model: AppModel
+
+    var body: some View {
+        HStack(spacing: BrandTokens.Spacing.l) {
+            ForEach(model.home?.groups ?? []) { g in
+                let selected = model.group == g.id
+                Button { model.selectGroup(g.id) } label: {
+                    HStack(spacing: BrandTokens.Spacing.s) {
+                        Text(verbatim: model.t(g.title)).font(.caption.weight(selected ? .semibold : .regular))
+                        if g.attention && !selected {
+                            Circle().fill(BrandTokens.Colors.warning).frame(width: BrandTokens.Size.dot, height: BrandTokens.Size.dot)
+                        }
+                    }
+                    .foregroundStyle(selected ? BrandStyle.cyan : .secondary)
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+            }
+            Spacer()
+        }
+    }
+}
+
+/// The app window's sidebar (plan B147): the groups with their tabs and what needs attention there
+struct HomeSidebar: View {
+    let model: AppModel
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: BrandTokens.Spacing.xxl) {
+                ForEach(model.home?.groups ?? []) { g in
+                    VStack(alignment: .leading, spacing: BrandTokens.Spacing.xs) {
+                        Text(verbatim: model.t(g.title).uppercased()).font(.caption2.weight(.semibold)).foregroundStyle(.tertiary)
+                            .padding(.horizontal, BrandTokens.Spacing.l)
+                        ForEach((model.home?.tabs ?? []).filter { $0.group == g.id }) { tab in
+                            if let id = AppModel.HomeTab(rawValue: tab.id) { item(id, tab) }
+                        }
+                    }
+                }
+            }
+            .padding(BrandTokens.Spacing.l)
+        }
+    }
+
+    private func item(_ id: AppModel.HomeTab, _ tab: HomePage.Tab) -> some View {
+        let selected = model.tab == id
+        return Button { model.tab = id } label: {
+            HStack(spacing: BrandTokens.Spacing.l) {
+                Image(systemName: Icons.symbol(tab.icon)?.main ?? "circle").font(.system(size: BrandTokens.Icon.tab, weight: .medium))
+                    .frame(width: 18)
+                Text(verbatim: model.t(tab.label)).font(.callout.weight(selected ? .semibold : .regular)).lineLimit(1)
+                Spacer(minLength: 0)
+                HomeTabBadge(badge: tab.badge, model: model)
+                if id == .activity && model.unseenActivity {
+                    Circle().fill(BrandStyle.cyan).frame(width: BrandTokens.Size.dot, height: BrandTokens.Size.dot).help("New messages")
+                }
+            }
+            .foregroundStyle(selected ? .primary : .secondary)
+            .padding(.horizontal, BrandTokens.Spacing.l).frame(height: 28)
+            .background(selected ? Color.primary.opacity(BrandTokens.Opacity.selected) : .clear,
+                        in: RoundedRectangle(cornerRadius: BrandTokens.Radius.tab, style: .continuous))
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+    }
+}
+
+/// A tab's badge: a count, a spinner, a failure, a dot
+struct HomeTabBadge: View {
+    let badge: HomePage.TabBadge?
+    let model: AppModel
+
+    var body: some View {
+        if let b = badge {
             let help = Text(verbatim: model.t(b.help))
             switch b.kind {
             case "count": CountBadge(count: b.count ?? 0, color: b.tone.color).help(help)

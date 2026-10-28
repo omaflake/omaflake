@@ -1145,15 +1145,9 @@ fn primary_actions_and_short_labels() {
     let home = get(&c, "home", json!({}));
     let short: Vec<Option<&str>> =
         home["actions"].as_array().unwrap().iter().map(|a| a["shortLabel"]["key"].as_str()).collect();
-    assert_eq!(short, [Some("Doctor"), None, None, None, None, Some("Data Folder"), Some("Quit")]);
-    // Locales next to the credentials (plan B141)
-    assert_eq!(
-        (home["actions"][2]["icon"].clone(), home["actions"][2]["params"]["page"].clone()),
-        (json!("globe"), json!("locales"))
-    );
-    // The credentials' key next to the settings (plan B137)
-    assert_eq!(home["actions"][1]["icon"], "key");
-    assert_eq!(home["actions"][1]["params"]["page"], "credentials");
+    assert_eq!(short, [Some("Doctor"), None, Some("Data Folder"), Some("Quit")]);
+    // Credentials, locales and profiles are tabs of the workshop now (plan B147), not header buttons
+    assert!(home["actions"].as_array().unwrap().iter().all(|a| a["params"]["page"] != "credentials"));
 }
 
 #[test]
@@ -1507,7 +1501,21 @@ fn looks_are_a_tab_with_their_colours_usage_and_offers() {
     let mut c = ctx();
     let home = get(&c, "home", json!({}));
     let tabs: Vec<&str> = home["tabs"].as_array().unwrap().iter().map(|t| t["id"].as_str().unwrap()).collect();
-    assert_eq!(tabs, ["vms", "images", "recipes", "modules", "looks", "activity"]);
+    assert_eq!(
+        tabs,
+        ["vms", "images", "recipes", "activity", "modules", "looks", "credentials", "locales", "profiles"]
+    );
+    // Two groups (plan B147): what runs, and the workshop where the parts are configured
+    let groups: Vec<&str> = home["groups"].as_array().unwrap().iter().map(|g| g["id"].as_str().unwrap()).collect();
+    assert_eq!(groups, ["run", "workshop"]);
+    let workshop: Vec<&str> = home["tabs"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter(|t| t["group"] == "workshop")
+        .map(|t| t["id"].as_str().unwrap())
+        .collect();
+    assert_eq!(workshop, ["modules", "looks", "credentials", "locales", "profiles"]);
     let page = get(&c, "looks", json!({}));
     assert_eq!(page["title"]["key"], "Looks");
     let rose = &page["rows"][0];
@@ -1536,7 +1544,9 @@ fn looks_are_a_tab_with_their_colours_usage_and_offers() {
     let page = get(&c, "looks", json!({}));
     assert_eq!(page["empty"]["action"]["method"], "looks.installRecommended");
     let home = get(&c, "home", json!({}));
-    assert_eq!(home["tabs"][4]["badge"]["tone"], "warning");
+    let looks = home["tabs"].as_array().unwrap().iter().find(|t| t["id"] == "looks").unwrap();
+    assert_eq!(looks["badge"]["tone"], "warning");
+    assert_eq!(home["groups"][1]["attention"], true, "the workshop shows that a tab of it needs attention");
     // The build page can't build without a look
     c.jobs.clear();
     let build = get(&c, "build", json!({"recipe": "omaflake.nixos.dev@velvet-tiger-orbit"}));

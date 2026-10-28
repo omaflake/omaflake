@@ -21,48 +21,6 @@
     },
     {
       "enabled": true,
-      "icon": "key",
-      "id": "credentials",
-      "label": {
-        "key": "Credentials",
-        "text": "Credentials"
-      },
-      "method": "ui.show",
-      "params": {
-        "page": "credentials",
-        "params": {}
-      }
-    },
-    {
-      "enabled": true,
-      "icon": "globe",
-      "id": "locales",
-      "label": {
-        "key": "Locales",
-        "text": "Locales"
-      },
-      "method": "ui.show",
-      "params": {
-        "page": "locales",
-        "params": {}
-      }
-    },
-    {
-      "enabled": true,
-      "icon": "gauge",
-      "id": "profiles",
-      "label": {
-        "key": "Profiles",
-        "text": "Profiles"
-      },
-      "method": "ui.show",
-      "params": {
-        "page": "profiles",
-        "params": {}
-      }
-    },
-    {
-      "enabled": true,
       "icon": "settings",
       "id": "settings",
       "label": {
@@ -127,6 +85,26 @@
     }
   ],
   "firstTab": "vms",
+  "groups": [
+    {
+      "attention": true,
+      "icon": "vm",
+      "id": "run",
+      "title": {
+        "key": "Run",
+        "text": "Run"
+      }
+    },
+    {
+      "attention": false,
+      "icon": "workshop",
+      "id": "workshop",
+      "title": {
+        "key": "Workshop",
+        "text": "Workshop"
+      }
+    }
+  ],
   "tabs": [
     {
       "badge": {
@@ -138,6 +116,7 @@
         "kind": "count",
         "tone": "success"
       },
+      "group": "run",
       "icon": "vm",
       "id": "vms",
       "label": {
@@ -154,6 +133,7 @@
         "kind": "working",
         "tone": "accent"
       },
+      "group": "run",
       "icon": "image",
       "id": "images",
       "label": {
@@ -170,6 +150,7 @@
         "kind": "dot",
         "tone": "warning"
       },
+      "group": "run",
       "icon": "recipe",
       "id": "recipes",
       "label": {
@@ -178,6 +159,16 @@
       }
     },
     {
+      "group": "run",
+      "icon": "activity",
+      "id": "activity",
+      "label": {
+        "key": "Activity",
+        "text": "Activity"
+      }
+    },
+    {
+      "group": "workshop",
       "icon": "module",
       "id": "modules",
       "label": {
@@ -186,6 +177,7 @@
       }
     },
     {
+      "group": "workshop",
       "icon": "look",
       "id": "looks",
       "label": {
@@ -194,11 +186,30 @@
       }
     },
     {
-      "icon": "activity",
-      "id": "activity",
+      "group": "workshop",
+      "icon": "key",
+      "id": "credentials",
       "label": {
-        "key": "Activity",
-        "text": "Activity"
+        "key": "Credentials",
+        "text": "Credentials"
+      }
+    },
+    {
+      "group": "workshop",
+      "icon": "globe",
+      "id": "locales",
+      "label": {
+        "key": "Locales",
+        "text": "Locales"
+      }
+    },
+    {
+      "group": "workshop",
+      "icon": "gauge",
+      "id": "profiles",
+      "label": {
+        "key": "Profiles",
+        "text": "Profiles"
       }
     }
   ],

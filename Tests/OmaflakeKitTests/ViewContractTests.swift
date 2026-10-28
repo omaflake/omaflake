@@ -23,20 +23,21 @@ extension APIContractTests {
         [
             "home": {
                 guard case .home(let h) = try page("home", as: "home") else { throw Unexpected() }
-                #expect(h.actions.map(\.id) == ["doctor", "credentials", "locales", "profiles", "settings", "dataFolder", "quit"] && h.actions[0].badge == 3)
-                #expect(h.actions[6].confirm?.text.args == [.string("research")] && h.firstTab == "vms")
-                #expect(h.actions[1].icon == "key")
-                #expect(h.tabs.map(\.id) == ["vms", "images", "recipes", "modules", "looks", "activity"] && h.tabs[0].badge?.count == 1)
+                #expect(h.actions.map(\.id) == ["doctor", "settings", "dataFolder", "quit"] && h.actions[0].badge == 3)
+                #expect(h.actions[3].confirm?.text.args == [.string("research")] && h.firstTab == "vms")
+                #expect(h.tabs.map(\.id) == ["vms", "images", "recipes", "activity", "modules", "looks", "credentials", "locales", "profiles"] && h.tabs[0].badge?.count == 1)
                 #expect(h.tabs[1].badge?.kind == "working" && h.tabs[2].badge?.tone == .warning && h.tabs[3].badge == nil)
+                // Two groups (plan B147): every tab names one of them, and each tab is one of the app's
+                #expect(h.groups.map(\.id) == ["run", "workshop"] && h.tabs.allSatisfy { t in h.groups.contains { $0.id == t.group } })
                 // The window's title is data; the header's short labels
                 #expect(h.title == ViewText(verbatim: "omaflake"))
-                #expect(h.actions.map { $0.shortLabel?.key } == ["Doctor", nil, nil, nil, nil, "Data Folder", "Quit"])
-                #expect(h.actions[5].label.key == "Show Data Folder in Finder" && !h.actions.contains { $0.primary })
+                #expect(h.actions.map { $0.shortLabel?.key } == ["Doctor", nil, "Data Folder", "Quit"])
+                #expect(h.actions[2].label.key == "Show Data Folder in Finder" && !h.actions.contains { $0.primary })
             },
             "home.linux": {
                 // Host wording is the core's: the host-neutral variant on Linux
                 guard case .home(let h) = try page("home.linux", as: "home") else { throw Unexpected() }
-                #expect(h.actions[5].label.key == "Show Data Folder" && h.actions[5].shortLabel?.key == "Data Folder")
+                #expect(h.actions[2].label.key == "Show Data Folder" && h.actions[2].shortLabel?.key == "Data Folder")
             },
             "vms": {
                 guard case .vms(let p) = try page("vms", as: "vms") else { throw Unexpected() }
