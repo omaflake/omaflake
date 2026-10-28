@@ -13,14 +13,20 @@ are collected under *Unreleased*. Releases: [GitHub](https://github.com/omaflake
 
 ## [Unreleased]
 
+## [0.7.1] – 2026-10-29
+
+NixOS VMs no longer start in a black window: omaflake's loading screen shows from the window's first frame until the
+desktop, and the desktop comes about ten seconds sooner. It needs omaflake's new QEMU – the Doctor does not offer it
+yet, update it once in a terminal with `nix profile upgrade qemu` (it builds QEMU, about ten minutes) – and the
+loading screen in the guest needs images built from this version on.
+
 ### Added
 
-- NixOS VMs start about five seconds sooner: the boot menu no longer waits (images built from now on; hold a key at
-  boot to see it).
 - NixOS VMs show omaflake's loading screen from the window's first frame until the desktop instead of a black window:
   the omaflake flake large in the middle, small flakes drifting behind it and a progress bar (QEMU patches
-  `qemu-virgl-2d-flush` and `qemu-cocoa-loading-image` – update QEMU in the Doctor; images built from now on).
-- NixOS VMs start about five seconds sooner again: the firmware no longer counts down before it boots.
+  `qemu-virgl-2d-flush` and `qemu-cocoa-loading-image`; images built from now on).
+- NixOS VMs start about ten seconds sooner: neither the firmware nor the boot menu waits any longer (images built from
+  now on for the boot menu; hold a key at boot to see it).
 
 ## [0.7.0] – 2026-10-28
 

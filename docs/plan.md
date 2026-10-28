@@ -503,6 +503,13 @@ for `omaf ui` and the Linux app and German error messages everywhere (B125), the
 for `omaf new -r` when its recipe line names another computer's folder; click tests of B119/B121 (macOS app, Linux app on a real desktop). Then M12 once the Developer ID
 is there.
 
+**Release 0.7.1 (2026-10-29):** B155 – NixOS guests show omaflake's loading screen from the window's first frame (QEMU
+patches `qemu-virgl-2d-flush` and `qemu-cocoa-loading-image`, patchset 6; omaflake's own Plymouth theme;
+`plymouth.ignore-serial-consoles`), no wait in the firmware or the boot menu – the desktop at about 11 s instead of
+about 20 s of black. The Doctor does not see an older omaflake QEMU (it checks 3D only): the changelog tells users to
+run `nix profile upgrade qemu` – OPEN: a Doctor check of the patchset. Open: the 2 s of black between Plymouth and
+Hyprland. Unsigned, for the maintainer to try first – OPEN until then.
+
 **Release 0.7.0 (2026-10-28):** B146–B154 – the IPSW after a macOS update and its download (B146); key bindings with
 modes, the keys view, the four groups, the recipe and key binding studios (B147); key caps, the help switch, the menu
 bar for running things, the studios as kits with search, chips and pages, a key editor with recording, the catalog tabs
