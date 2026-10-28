@@ -934,13 +934,16 @@ fn view_goldens() -> Vec<(&'static str, Value)> {
             )
             .unwrap(),
         ),
-        ("settings", page("settings", json!({"values": {"input": "acme/recipes", "private": true}}))),
+        ("settings", page("settings", json!({}))),
+        ("sources", page("sources", json!({"values": {"input": "acme/recipes", "private": true}}))),
+        ("recipeCatalog", page("recipeCatalog", json!({}))),
+        ("keymaps", page("keymaps", json!({}))),
         ("activity", page("activity", json!({}))),
         ("home.linux", build(&linux, &PageRef { page: "home".into(), params: json!({}) }).unwrap()),
         ("settings.linux", build(&linux, &PageRef { page: "settings".into(), params: json!({}) }).unwrap()),
         ("doctor.linux", build(&linux_tcg, &PageRef { page: "doctor".into(), params: json!({}) }).unwrap()),
         ("vm.linux", build(&linux_tcg, &PageRef { page: "vm".into(), params: json!({"name": "research"}) }).unwrap()),
-        ("recipes.loading", build(&loading, &PageRef { page: "recipes".into(), params: json!({}) }).unwrap()),
+        ("recipes.loading", build(&loading, &PageRef { page: "recipeCatalog".into(), params: json!({}) }).unwrap()),
         ("import", serde_json::to_value(import::page(&import_params, inspection)).unwrap()),
         (
             "event.view.changed",

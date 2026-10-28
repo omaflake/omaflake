@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! The Recipes tab (`recipes`): one row per recipe line with its versions (plan B111), what the remote sources offer
-//! (plan B107), newer versions there, the suggestion at the first start – the app's `RecipeRowView`,
-//! `RecipeVersionRow`, `OfferedRecipeRow` and `RecipeUpdates`. Lab recipes only in developer mode.
+//! The recipe tabs (plan B147): "Build Images" in the workshop (`recipes`) – one row per recipe line here with its
+//! versions (plan B111), newer versions in the sources, the suggestion at the first start –, and "Recipes" in the
+//! catalog (`recipeCatalog`) – what the remote sources offer (plan B107). Both in the shape of one page (the app's
+//! `RecipeRowView`, `RecipeVersionRow`, `OfferedRecipeRow` and `RecipeUpdates`). Lab recipes only in developer mode.
 
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -166,7 +167,17 @@ pub fn recipe_rows(recipes: &[RecipeDto]) -> Vec<&RecipeDto> {
     rows
 }
 
+/// "Build Images": the recipes here
 pub(crate) fn page(ctx: &Ctx, p: &RecipesParams) -> RecipesPage {
+    tab(ctx, p, false)
+}
+
+/// The catalog's recipes: what the sources offer
+pub(crate) fn catalog_page(ctx: &Ctx, p: &RecipesParams) -> RecipesPage {
+    tab(ctx, p, true)
+}
+
+fn tab(ctx: &Ctx, p: &RecipesParams, catalog: bool) -> RecipesPage {
     let f = &p.filter;
     let all = recipe_rows(&ctx.recipes.recipes);
     let tag_ok = |tags: &[String]| f.tag.as_ref().is_none_or(|t| tags.contains(t));
@@ -178,6 +189,7 @@ pub(crate) fn page(ctx: &Ctx, p: &RecipesParams) -> RecipesPage {
                 && f.kind.is_none_or(|k| k == r.kind)
                 && tag_ok(&r.tags)
         })
+        .filter(|_| !catalog)
         .map(|r| row(ctx, r))
         .collect();
     let offered_all: Vec<&CatalogRecipeDto> =
@@ -190,10 +202,14 @@ pub(crate) fn page(ctx: &Ctx, p: &RecipesParams) -> RecipesPage {
                 && f.kind.is_none_or(|k| k == r.kind)
                 && tag_ok(&r.tags)
         })
+        .filter(|_| catalog)
         .map(|r| offered_row(ctx, r))
         .collect();
-    let tags: BTreeSet<&String> = all.iter().flat_map(|r| r.tags.iter()).collect();
-    let mut groups = f.base_groups("With image", "Without image");
+    let mut tags: BTreeSet<&String> = all.iter().flat_map(|r| r.tags.iter()).collect();
+    if catalog {
+        tags = offered_all.iter().flat_map(|r| r.tags.iter()).collect();
+    }
+    let mut groups = if catalog { Vec::new() } else { f.base_groups("With image", "Without image") };
     if !tags.is_empty() {
         let mut options = vec![Choice::new(serde_json::Value::Null, Text::new("All"))];
         options.extend(tags.iter().map(|t| Choice::new(json!(t), Text::verbatim(*t))));
@@ -212,7 +228,11 @@ pub(crate) fn page(ctx: &Ctx, p: &RecipesParams) -> RecipesPage {
         value: json!(f.other_systems),
         options: vec![],
     });
-    let mut head = ListHead::new("Recipes", rows.len(), all.len());
+    let mut head = if catalog {
+        ListHead::new("Recipes in your sources", offered.len(), offered_all.len())
+    } else {
+        ListHead::new("Build Images", rows.len(), all.len())
+    };
     head.filter = Some(Filter { active: f.is_active(), groups });
     head.actions = vec![
         Action::call("refresh", Text::new("Refresh"), Some("refresh"), "recipes.available", json!({}))
@@ -236,39 +256,58 @@ pub(crate) fn page(ctx: &Ctx, p: &RecipesParams) -> RecipesPage {
         Action::show("newRecipe", Text::new("New Recipe …"), Some("add"), "recipeStudio", json!({}))
             .help(Text::new("Put a recipe together from modules, a look and key bindings")),
     ];
+    if catalog {
+        head.actions.retain(|a| a.id != "newRecipe");
+    }
     // Recipes being downloaded are left out (their Install is greyed out)
     let shown = offered.iter().map(|r| (r.actions.as_slice(), r.badges.iter().any(|b| b.id == "official")));
     head.actions.extend(install_all("recipes.installAll", shown, false));
-    head.empty = if all.is_empty() && offered.is_empty() {
+    head.empty = if catalog {
+        if offered_all.is_empty() {
+            Some(Hint::new(
+                "recipe",
+                Text::new(if ctx.fetching {
+                    "Looking into the recipe sources …"
+                } else if ctx.available.is_some() {
+                    "Every recipe of your sources is here – more come with another source (Catalog → Sources)."
+                } else {
+                    "Not looked into the sources yet – Refresh does."
+                }),
+                Tone::Normal,
+            ))
+        } else if offered.is_empty() {
+            Some(filtered_out("recipes"))
+        } else {
+            None
+        }
+    } else if all.is_empty() {
         Some(Hint::new(
             "recipe",
-            Text::new(if ctx.fetching {
-                "Looking into the recipe sources …"
-            } else {
-                "No recipes – add a recipe source in Settings."
-            }),
+            Text::new("No recipes here yet – install some from the catalog (Catalog → Recipes), or put one together in the Recipe Studio."),
             Tone::Normal,
         ))
-    } else if rows.is_empty() && offered.is_empty() {
+    } else if rows.is_empty() {
         Some(filtered_out("recipes"))
     } else {
         None
     };
-    let suggestion = ctx.available.as_ref().filter(|a| all.is_empty() && !a.suggested.is_empty()).map(|_| {
-        Hint::new("official", Text::new("Start with the official recipes?"), Tone::Accent).action(
-            Action::call(
-                "installSuggested",
-                Text::new("Install suggested"),
-                Some("install"),
-                "recipes.installSuggested",
-                json!({}),
+    let suggestion =
+        ctx.available.as_ref().filter(|a| !catalog && all.is_empty() && !a.suggested.is_empty()).map(|_| {
+            Hint::new("official", Text::new("Start with the official recipes?"), Tone::Accent).action(
+                Action::call(
+                    "installSuggested",
+                    Text::new("Install suggested"),
+                    Some("install"),
+                    "recipes.installSuggested",
+                    json!({}),
+                )
+                .primary(),
             )
-            .primary(),
-        )
-    });
+        });
     let errors = ctx
         .available
         .as_ref()
+        .filter(|_| catalog)
         .map(|a| {
             a.errors
                 .iter()
@@ -292,15 +331,15 @@ pub(crate) fn page(ctx: &Ctx, p: &RecipesParams) -> RecipesPage {
         catalogs_loaded: ctx.available.is_some(),
         loading: ctx.fetching,
         loading_text: ctx.fetching.then(|| Text::new("Looking into the recipe sources …")),
-        updates: updates(ctx),
+        updates: if catalog { None } else { updates(ctx) },
         suggestion,
         rows,
-        offered_title: (!offered.is_empty()).then(|| Text::new("More recipes in your sources")),
+        offered_title: None,
         offered,
         unreadable,
         errors,
-        lab_hidden,
-        lab_hint: lab_hidden.then(|| {
+        lab_hidden: lab_hidden && catalog,
+        lab_hint: (lab_hidden && catalog).then(|| {
             Hint::new("lab", Text::new("Lab recipes are hidden – Developer Mode in Settings shows them."), Tone::Normal)
                 .action(Action::show("settings", Text::new("Settings"), Some("settings"), "settings", json!({})))
         }),

@@ -25,10 +25,10 @@ extension APIContractTests {
                 guard case .home(let h) = try page("home", as: "home") else { throw Unexpected() }
                 #expect(h.actions.map(\.id) == ["doctor", "settings", "dataFolder", "quit"] && h.actions[0].badge == 3)
                 #expect(h.actions[3].confirm?.text.args == [.string("research")] && h.firstTab == "vms")
-                #expect(h.tabs.map(\.id) == ["vms", "images", "recipes", "activity", "recipeStudio", "keymapStudio", "modules", "looks", "credentials", "locales", "profiles"] && h.tabs[0].badge?.count == 1)
-                #expect(h.tabs[1].badge?.kind == "working" && h.tabs[2].badge?.tone == .warning && h.tabs[3].badge == nil)
+                #expect(h.tabs.map(\.id) == ["vms", "images", "activity", "recipes", "recipeStudio", "keymapStudio", "recipeCatalog", "modules", "looks", "keymaps", "sources", "credentials", "locales", "profiles"] && h.tabs[0].badge?.count == 1)
+                #expect(h.tabs[1].badge?.kind == "working" && h.tabs[3].badge?.tone == .warning && h.tabs[2].badge == nil)
                 // Two groups (plan B147): every tab names one of them, and each tab is one of the app's
-                #expect(h.groups.map(\.id) == ["run", "workshop"] && h.tabs.allSatisfy { t in h.groups.contains { $0.id == t.group } })
+                #expect(h.groups.map(\.id) == ["run", "workshop", "catalog", "profiles"] && h.tabs.allSatisfy { t in h.groups.contains { $0.id == t.group } })
                 // The window's title is data; the header's short labels
                 #expect(h.title == ViewText(verbatim: "omaflake"))
                 #expect(h.actions.map { $0.shortLabel?.key } == ["Doctor", nil, "Data Folder", "Quit"])
@@ -92,8 +92,9 @@ extension APIContractTests {
             },
             "recipes": {
                 guard case .recipes(let p) = try page("recipes", as: "recipes") else { throw Unexpected() }
-                #expect(p.catalogsLoaded && !p.loading && p.errors.count == 1 && p.unreadable.count == 1)
-                #expect(p.head.actions.map(\.id) == ["refresh", "import", "newRecipe", "installAll"] && !p.rows.isEmpty && !p.offered.isEmpty)
+                // Build Images (plan B147): the recipes here; what the sources offer is the catalog's
+                #expect(p.catalogsLoaded && !p.loading && p.errors.isEmpty && p.unreadable.count == 1)
+                #expect(p.head.actions.map(\.id) == ["refresh", "import", "newRecipe"] && !p.rows.isEmpty && p.offered.isEmpty)
                 #expect(p.updates?.rows.isEmpty == false)
                 let r = try #require(p.rows.first { $0.recipe.id == "omaflake.nixos.dev@velvet-tiger-orbit" })
                 #expect(r.lamp.state == .working || r.lamp.state == .attention)
@@ -102,12 +103,27 @@ extension APIContractTests {
                 #expect(r.detail.notes?.first?.action?.method == "recipes.installParts")
                 #expect(r.actions.first?.id == "keys" && r.actions.first?.params["page"] == .string("keys"))
                 #expect(p.head.filter?.groups.contains { $0.kind == .toggle && $0.id == "otherSystems" } == true)
-                #expect(p.offeredTitle?.key == "More recipes in your sources" && p.loadingText == nil && p.labHint == nil)
-                #expect(p.offered.allSatisfy { $0.actions.primary?.id == "install" })
+                #expect(p.loadingText == nil && p.labHint == nil)
                 // Building blocked by the Doctor: the build button stays, greyed out with its sign (plan B145)
                 #expect(p.rows.map { $0.actions.primary?.id } == ["build", "build"])
                 #expect(p.rows[0].actions.primary?.enabled == false && p.rows[0].actions.primary?.badge == 1)
                 #expect(p.updates?.rows.allSatisfy(\.action.primary) == true)
+            },
+            "recipeCatalog": {
+                guard case .recipes(let p) = try page("recipeCatalog", as: "recipeCatalog") else { throw Unexpected() }
+                #expect(p.rows.isEmpty && !p.offered.isEmpty && p.errors.count == 1 && p.updates == nil)
+                #expect(p.head.actions.map(\.id) == ["refresh", "import", "installAll"])
+                #expect(p.offered.allSatisfy { $0.actions.primary?.id == "install" })
+            },
+            "keymaps": {
+                guard case .looks(let p) = try page("keymaps", as: "keymaps") else { throw Unexpected() }
+                #expect(p.rows.first?.actions.first?.params["page"] == .string("keymapStudio"))
+            },
+            "sources": {
+                guard case .sources(let p) = try page("sources", as: "sources") else { throw Unexpected() }
+                #expect(p.sources.rows.count == 2 && p.sources.add.fields.map(\.id) == ["input", "private"])
+                #expect(p.sources.add.fields.map(\.valueParam) == ["input", "private"] && p.sources.addAction.primary)
+                #expect(p.sources.addAction.ask.first?.kind == .password && p.sources.rows[0].actions[1].on != nil)
             },
             "recipes.loading": {
                 guard case .recipes(let p) = try page("recipes.loading", as: "recipes") else { throw Unexpected() }
@@ -240,7 +256,7 @@ extension APIContractTests {
             },
             "profiles": {
                 guard case .credentials(let p) = try page("profiles", as: "profiles") else { throw Unexpected() }
-                #expect(p.title.key == "Profiles" && p.rows.first?.subtitle.text == "2 CPU · 4 GB RAM")
+                #expect(p.title.key == "Performance" && p.rows.first?.subtitle.text == "2 CPU · 4 GB RAM")
             },
             "profile": {
                 guard case .credential(let p) = try page("profile", as: "profile") else { throw Unexpected() }
@@ -276,10 +292,7 @@ extension APIContractTests {
             },
             "settings": {
                 guard case .settings(let p) = try page("settings", as: "settings") else { throw Unexpected() }
-                #expect(p.sources.rows.count == 2 && p.sources.add.fields.map(\.id) == ["input", "private"])
-                #expect(p.sources.add.fields.map(\.valueParam) == ["input", "private"] && p.sources.addAction.primary)
                 #expect(p.general.fields.allSatisfy { $0.valueParam == nil })
-                #expect(p.sources.addAction.ask.first?.kind == .password && p.sources.rows[0].actions[1].on != nil)
                 #expect(p.general.fields.allSatisfy { $0.set?.method == "settings.set" })
                 #expect(p.guest.fields.map(\.id) == ["hostKeyboard"] && p.guest.fields[0].choices.first?.value == .null)
                 #expect(p.dataFolder.actions.map(\.id) == ["default", "move"])

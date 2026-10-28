@@ -18,7 +18,7 @@ use omaflake_core::api::views::keys::KeysPage;
 use omaflake_core::api::views::new_vm::NewVmPage;
 use omaflake_core::api::views::recipe_studio::{RecipeStudioPage, StudioModule};
 use omaflake_core::api::views::recipes::{OfferedRow, RecipeRowView, RecipesPage};
-use omaflake_core::api::views::settings::{SettingsPage, SettingsSection};
+use omaflake_core::api::views::settings::{SettingsPage, SettingsSection, SourcesPage};
 use omaflake_core::api::views::vms::{VmRowView, VmsPage};
 use omaflake_core::api::views::{PageRef, Text};
 use omaflake_core::prerequisites::PrerequisiteStatus;
@@ -77,6 +77,7 @@ pub fn list<'a>(app: &'a App, tab: &str, m: &'a Model) -> El<'a> {
         Model::Credentials(c) => credentials(app, tab, c),
         Model::Studio(st) => studio(app, tab, st),
         Model::KeymapStudio(k) => keymap_studio(app, tab, k),
+        Model::Sources(sp) => sources(app, tab, sp),
         Model::Error(e) => error(e),
         _ => error(&format!("{tab}: not a list")),
     }
@@ -1243,8 +1244,9 @@ fn mac_base<'a>(app: &'a App, page: &str, m: &'a MacBasePage) -> El<'a> {
     c.into()
 }
 
-fn settings<'a>(app: &'a App, page: &str, st: &'a SettingsPage) -> El<'a> {
-    let src = &st.sources;
+/// The recipe sources (plan B147: a tab of the catalog): in their order, and a new one
+fn sources<'a>(app: &'a App, page: &str, sp: &'a SourcesPage) -> El<'a> {
+    let src = &sp.sources;
     let mut rows = Column::new();
     for r in &src.rows {
         let mut line = row![
@@ -1273,15 +1275,18 @@ fn settings<'a>(app: &'a App, page: &str, st: &'a SettingsPage) -> El<'a> {
         add = add.push(field_view(app, page, field, false));
     }
     add = add.push(row![space::horizontal(), button_of(&src.add_action, Some(page), app.pulse)]);
-    let mut c = column![column![
-        section_title(&src.title),
+    column![
         container(column![rows, divider(), container(add).padding(spacing::CARD_PADDING)])
             .width(Length::Fill)
             .style(style::card),
         secondary(s(&src.footer)),
     ]
-    .spacing(spacing::M)]
-    .spacing(spacing::XXL);
+    .spacing(spacing::M)
+    .into()
+}
+
+fn settings<'a>(app: &'a App, page: &str, st: &'a SettingsPage) -> El<'a> {
+    let mut c = column![].spacing(spacing::XXL);
     c = c.push(settings_section(app, page, &st.general));
     c = c.push(settings_section(app, page, &st.guest));
     let df = &st.data_folder;
@@ -1576,6 +1581,9 @@ pub mod tests {
             "profile" => "profile",
             "recipeStudio" => "recipeStudio",
             "keymapStudio" => "keymapStudio",
+            "sources" => "sources",
+            "recipeCatalog" => "recipeCatalog",
+            "keymaps" => "keymaps",
             "keys" => "keys",
             "newVm" => "newVm",
             "build" => "build",
@@ -1661,8 +1669,8 @@ pub mod tests {
         assert!(primary_of(&b.actions).is_none());
         let n: NewVmPage = golden("newVm");
         assert_eq!(primary_of(&n.actions).map(|a| a.id.as_str()), Some("create"));
-        let st: SettingsPage = golden("settings");
-        assert!(st.sources.add_action.primary);
+        let sp: SourcesPage = golden("sources");
+        assert!(sp.sources.add_action.primary);
         // The home header's short labels
         let home: omaflake_core::api::views::home::HomePage = golden("home");
         let short: Vec<String> = home.actions.iter().filter_map(|a| a.short_label.as_ref().map(s)).collect();

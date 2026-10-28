@@ -19,10 +19,12 @@ are collected under *Unreleased*. Releases: [GitHub](https://github.com/omaflake
   the way to each mode (Zellij: Ctrl+g › p › Pane), where a key leads afterwards ("then Locked") and, on a click, what
   it does in the program's own words. The macOS app shows them in a window of its own, the Linux app and `omaf ui` on
   a page. The keys no longer fill a recipe's details.
-- The tabs come in two groups: **Run** (VMs, images, recipes, activity) and the **Workshop** (modules and key
-  bindings, looks, credentials, locales, profiles). The app window shows both in a sidebar; the menu bar window, the
-  Linux app and `omaf ui` switch the group next to the tabs. Credentials, locales and profiles moved from the header
-  into the workshop.
+- The tabs come in four groups: **Run** (VMs, images, activity), the **Workshop** (Build Images, Recipe Studio,
+  Key Binding Studio), the **Catalog** (recipes the sources offer, modules, looks, key bindings, sources) and
+  **Profiles** (credentials, locales, performance – before "Profiles"). The app window shows them in a sidebar; the menu
+  bar window, the Linux app and `omaf ui` switch the group next to the tabs. Credentials, locales and profiles moved
+  from the header, the sources from the Settings; the recipes here and those offered are tabs of their own, as are
+  modules and key bindings.
 - The Recipe Studio replaces the recipe editor: modules are found in the catalog – search, and filters by
   capability, tag and author – and added with one click instead of a switch each. The recipe says while it is put
   together what is missing (with a button that adds the module providing it), what does not go together and which

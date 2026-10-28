@@ -1,0 +1,478 @@
+{
+  "actions": [
+    {
+      "enabled": true,
+      "help": {
+        "key": "Look for new recipes in the sources",
+        "text": "Look for new recipes in the sources"
+      },
+      "icon": "refresh",
+      "id": "refresh",
+      "label": {
+        "key": "Refresh",
+        "text": "Refresh"
+      },
+      "method": "recipes.available",
+      "params": {}
+    },
+    {
+      "ask": [
+        {
+          "accept": "recipe",
+          "button": {
+            "key": "Import",
+            "text": "Import"
+          },
+          "check": {
+            "method": "packages.inspect",
+            "param": "path",
+            "params": {
+              "expect": "recipe",
+              "external": false
+            }
+          },
+          "kind": "package",
+          "label": {
+            "key": "Package",
+            "text": "Package"
+          },
+          "multiple": true,
+          "param": "params.path",
+          "prompt": {
+            "key": "Recipes (.omaflake-recipe) or a folder of recipes – copied into your recipes",
+            "text": "Recipes (.omaflake-recipe) or a folder of recipes – copied into your recipes"
+          }
+        }
+      ],
+      "enabled": true,
+      "help": {
+        "key": "Import recipes – a copy into your recipes (sources to use as they are: Settings)",
+        "text": "Import recipes – a copy into your recipes (sources to use as they are: Settings)"
+      },
+      "icon": "import",
+      "id": "import",
+      "label": {
+        "key": "Import",
+        "text": "Import"
+      },
+      "method": "ui.step",
+      "params": {
+        "page": "import",
+        "params": {
+          "expect": "recipe"
+        }
+      }
+    },
+    {
+      "confirm": {
+        "button": {
+          "key": "Install All",
+          "text": "Install All"
+        },
+        "destructive": false,
+        "text": {
+          "key": "Some are not reviewed by the omaflake team – their Nix code runs on this computer when an image is built with them.",
+          "text": "Some are not reviewed by the omaflake team – their Nix code runs on this computer when an image is built with them."
+        },
+        "title": {
+          "args": [
+            2
+          ],
+          "key": "Install all %lld?",
+          "text": "Install all 2?"
+        }
+      },
+      "enabled": true,
+      "help": {
+        "args": [
+          2
+        ],
+        "key": "Install all %lld shown here",
+        "text": "Install all 2 shown here"
+      },
+      "icon": "download",
+      "id": "installAll",
+      "label": {
+        "key": "Install All",
+        "text": "Install All"
+      },
+      "method": "recipes.installAll",
+      "params": {
+        "items": [
+          {
+            "id": "omaflake.nixos.minimal",
+            "source": "github:omaflake/recipes@main"
+          },
+          {
+            "id": "lab.nixos.try",
+            "source": "github:omaflake/recipes@main"
+          }
+        ]
+      }
+    }
+  ],
+  "catalogsLoaded": true,
+  "count": 2,
+  "errors": [
+    {
+      "icon": "warning",
+      "text": {
+        "text": "example.org: HTTP 404"
+      },
+      "tone": "warning"
+    }
+  ],
+  "filter": {
+    "active": false,
+    "groups": [
+      {
+        "id": "tag",
+        "kind": "choice",
+        "label": {
+          "key": "Tag",
+          "text": "Tag"
+        },
+        "options": [
+          {
+            "label": {
+              "key": "All",
+              "text": "All"
+            },
+            "value": null
+          },
+          {
+            "label": {
+              "text": "minimal"
+            },
+            "value": "minimal"
+          }
+        ],
+        "value": null
+      },
+      {
+        "id": "otherSystems",
+        "kind": "toggle",
+        "label": {
+          "key": "Other Architectures",
+          "text": "Other Architectures"
+        },
+        "value": false
+      }
+    ]
+  },
+  "labHidden": false,
+  "loading": false,
+  "offered": [
+    {
+      "actions": [
+        {
+          "enabled": true,
+          "icon": "install",
+          "id": "install",
+          "label": {
+            "args": [
+              "omaflake/recipes"
+            ],
+            "key": "Install from %@",
+            "text": "Install from omaflake/recipes"
+          },
+          "method": "recipes.install",
+          "params": {
+            "id": "omaflake.nixos.minimal",
+            "source": "github:omaflake/recipes@main"
+          },
+          "primary": true
+        }
+      ],
+      "author": "omaflake",
+      "badges": [
+        {
+          "help": {
+            "key": "Official recipe",
+            "text": "Official recipe"
+          },
+          "icon": "official",
+          "id": "official",
+          "tone": "accent"
+        }
+      ],
+      "detail": {
+        "description": "A small NixOS",
+        "info": [
+          {
+            "label": {
+              "key": "ID",
+              "text": "ID"
+            },
+            "value": {
+              "text": "omaflake/nixos/minimal"
+            }
+          },
+          {
+            "label": {
+              "key": "Source",
+              "text": "Source"
+            },
+            "value": {
+              "args": [
+                {
+                  "text": "omaflake/recipes"
+                },
+                {
+                  "key": "official",
+                  "text": "official"
+                }
+              ],
+              "key": "%@ · %@",
+              "text": "omaflake/recipes · official"
+            }
+          },
+          {
+            "label": {
+              "key": "Architectures",
+              "text": "Architectures"
+            },
+            "value": {
+              "text": "aarch64-linux"
+            }
+          },
+          {
+            "label": {
+              "key": "License",
+              "text": "License"
+            },
+            "value": {
+              "text": "MIT"
+            }
+          },
+          {
+            "label": {
+              "key": "Modules",
+              "text": "Modules"
+            },
+            "value": {
+              "text": "omaflake/hyprland, omaflake/neovim ≥ 1.0.0"
+            }
+          },
+          {
+            "label": {
+              "key": "Files",
+              "text": "Files"
+            },
+            "value": {
+              "args": [
+                1,
+                {
+                  "bytes": 412
+                }
+              ],
+              "key": "%lld files, %@",
+              "text": "1 files, 412 bytes"
+            }
+          }
+        ]
+      },
+      "id": "omaflake.nixos.minimal",
+      "kind": {
+        "help": {
+          "key": "NixOS guest",
+          "text": "NixOS guest"
+        },
+        "icon": "nixos",
+        "id": "kind",
+        "tone": "normal"
+      },
+      "lamp": {
+        "help": {
+          "key": "Not installed",
+          "text": "Not installed"
+        },
+        "state": "off"
+      },
+      "name": "minimal",
+      "recipe": {
+        "author": "omaflake",
+        "description": "A small NixOS",
+        "files": [
+          {
+            "path": "recipe.toml",
+            "sha256": "9f86d081884c7d65",
+            "size": 412
+          }
+        ],
+        "id": "omaflake.nixos.minimal",
+        "keymaps": [
+          "omaflake/default"
+        ],
+        "kind": "nixos",
+        "lab": false,
+        "license": "MIT",
+        "look": "omaflake/omaflake",
+        "modules": [
+          "omaflake/hyprland",
+          "omaflake/neovim ≥ 1.0.0"
+        ],
+        "name": "minimal",
+        "runsHere": true,
+        "source": "github:omaflake/recipes@main",
+        "systems": [
+          "aarch64-linux"
+        ],
+        "tags": [
+          "minimal"
+        ],
+        "version": "2"
+      },
+      "tags": [
+        "minimal"
+      ]
+    },
+    {
+      "actions": [
+        {
+          "enabled": true,
+          "icon": "install",
+          "id": "install",
+          "label": {
+            "args": [
+              "omaflake/recipes"
+            ],
+            "key": "Install from %@",
+            "text": "Install from omaflake/recipes"
+          },
+          "method": "recipes.install",
+          "params": {
+            "id": "lab.nixos.try",
+            "source": "github:omaflake/recipes@main"
+          },
+          "primary": true
+        }
+      ],
+      "author": "lab",
+      "badges": [
+        {
+          "help": {
+            "key": "Development recipe (developer mode)",
+            "text": "Development recipe (developer mode)"
+          },
+          "icon": "lab",
+          "id": "lab",
+          "tone": "warning"
+        }
+      ],
+      "detail": {
+        "description": "A small NixOS",
+        "info": [
+          {
+            "label": {
+              "key": "ID",
+              "text": "ID"
+            },
+            "value": {
+              "text": "lab/nixos/try"
+            }
+          },
+          {
+            "label": {
+              "key": "Source",
+              "text": "Source"
+            },
+            "value": {
+              "text": "omaflake/recipes"
+            }
+          },
+          {
+            "label": {
+              "key": "Architectures",
+              "text": "Architectures"
+            },
+            "value": {
+              "text": "aarch64-linux"
+            }
+          },
+          {
+            "label": {
+              "key": "Files",
+              "text": "Files"
+            },
+            "value": {
+              "args": [
+                1,
+                {
+                  "bytes": 412
+                }
+              ],
+              "key": "%lld files, %@",
+              "text": "1 files, 412 bytes"
+            }
+          }
+        ],
+        "warning": {
+          "key": "Not reviewed by the omaflake team – its Nix code runs on this Mac when you build it.",
+          "text": "Not reviewed by the omaflake team – its Nix code runs on this Mac when you build it."
+        }
+      },
+      "id": "lab.nixos.try",
+      "kind": {
+        "help": {
+          "key": "NixOS guest",
+          "text": "NixOS guest"
+        },
+        "icon": "nixos",
+        "id": "kind",
+        "tone": "normal"
+      },
+      "lamp": {
+        "help": {
+          "key": "Not installed",
+          "text": "Not installed"
+        },
+        "state": "off"
+      },
+      "name": "try",
+      "recipe": {
+        "author": "lab",
+        "description": "A small NixOS",
+        "files": [
+          {
+            "path": "recipe.toml",
+            "sha256": "9f86d081884c7d65",
+            "size": 412
+          }
+        ],
+        "id": "lab.nixos.try",
+        "keymaps": [],
+        "kind": "nixos",
+        "lab": true,
+        "modules": [],
+        "name": "try",
+        "runsHere": true,
+        "source": "github:omaflake/recipes@main",
+        "systems": [
+          "aarch64-linux"
+        ],
+        "tags": [
+          "minimal"
+        ],
+        "version": "2"
+      },
+      "tags": [
+        "minimal"
+      ]
+    }
+  ],
+  "rows": [],
+  "title": {
+    "key": "Recipes in your sources",
+    "text": "Recipes in your sources"
+  },
+  "unreadable": [
+    {
+      "icon": "warning",
+      "text": {
+        "text": "acme/nixos/x: recipe.toml: unknown key"
+      },
+      "tone": "warning"
+    }
+  ]
+}

@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 //! The main page's frame (`home`): the header's buttons and the tabs with what needs attention there (the app's
-//! `MainView.header` and `HomeTabBar`). The tabs come in two groups (plan B147): what runs – VMs, images, recipes,
-//! the activity – and the workshop, where the parts are configured – the recipe studio, modules and key bindings,
-//! looks, credentials, locales, profiles. Which tab is open and whether the activity was seen are the UI's own.
+//! `MainView.header` and `HomeTabBar`). The tabs come in four groups (plan B147): Run – VMs, images, the activity –,
+//! the Workshop where things are built – images from recipes, recipes, key bindings –, the Catalog – recipes, modules,
+//! looks and key bindings from the sources, and the sources –, and Profiles – credentials, locales, performance. Which tab is open and whether the activity was seen are the UI's own.
 
 use serde::{Deserialize, Serialize};
 use serde_json::json;
@@ -134,43 +134,49 @@ pub(crate) fn page(ctx: &Ctx) -> HomePage {
             }),
         ),
         tab("images", "Images", "image", "run", images_badge),
+        tab("activity", "Activity", "activity", "run", None),
         tab(
             "recipes",
-            "Recipes",
-            "recipe",
-            "run",
+            "Build Images",
+            "build",
+            "workshop",
             outdated.then(|| warning("A recipe changed since its image was built")),
         ),
-        tab("activity", "Activity", "activity", "run", None),
         tab("recipeStudio", "Recipe Studio", "studio", "workshop", None),
         tab("keymapStudio", "Key Binding Studio", "keyboard", "workshop", None),
-        tab("modules", "Modules", "module", "workshop", None),
+        tab("recipeCatalog", "Recipes", "recipe", "catalog", None),
+        tab("modules", "Modules", "module", "catalog", None),
         tab(
             "looks",
             "Looks",
             "look",
-            "workshop",
+            "catalog",
             ctx.looks.looks.is_empty().then(|| warning("No look installed – images are built with one")),
         ),
+        tab("keymaps", "Key Bindings", "keyboard", "catalog", None),
+        tab("sources", "Sources", "source", "catalog", None),
         tab(
             "credentials",
             "Credentials",
             "key",
-            "workshop",
+            "profiles",
             ctx.credentials.is_empty().then(|| warning("No credential yet – images are built with one")),
         ),
-        tab("locales", "Locales", "globe", "workshop", None),
-        tab("profiles", "Profiles", "gauge", "workshop", None),
+        tab("locales", "Locales", "globe", "profiles", None),
+        tab("profiles", "Performance", "gauge", "profiles", None),
     ];
     let attention = |g: &str| tabs.iter().any(|t| t.group == g && t.badge.as_ref().is_some_and(|b| b.kind != "count"));
+    let group = |id: &str, title: &str, icon: &str| TabGroup {
+        id: id.into(),
+        title: Text::new(title),
+        icon: icon.into(),
+        attention: attention(id),
+    };
     let groups = vec![
-        TabGroup { id: "run".into(), title: Text::new("Run"), icon: "vm".into(), attention: attention("run") },
-        TabGroup {
-            id: "workshop".into(),
-            title: Text::new("Workshop"),
-            icon: "workshop".into(),
-            attention: attention("workshop"),
-        },
+        group("run", "Run", "vm"),
+        group("workshop", "Workshop", "workshop"),
+        group("catalog", "Catalog", "recipe"),
+        group("profiles", "Profiles", "key"),
     ];
     HomePage {
         title: Text::verbatim("omaflake"),

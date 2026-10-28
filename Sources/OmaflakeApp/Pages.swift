@@ -615,7 +615,6 @@ struct SettingsView: View {
 
     var body: some View {
         Form {
-            sources
             Section(model.t(page.general.title)) {
                 // The app's own: its frame, launch at login, its language
                 VStack(alignment: .leading, spacing: BrandTokens.Spacing.xxs) {
@@ -671,8 +670,24 @@ struct SettingsView: View {
         .scrollContentBackground(.hidden)
     }
 
+}
+
+// MARK: - Sources
+
+/// The recipe sources, a tab of the catalog (plan B147; before it a section of the settings)
+struct SourcesView: View {
+    let page: SourcesPage
+    let ref: PageRef
+    @Bindable var model: AppModel
+
     /// Recipe Sources (spec §11.3, plan B107): in their order (an earlier source wins), and a new one
-    private var sources: some View {
+    var body: some View {
+        Form { section }
+            .formStyle(.grouped)
+            .scrollContentBackground(.hidden)
+    }
+
+    private var section: some View {
         Section {
             ForEach(page.sources.rows) { s in
                 HStack(spacing: BrandTokens.Spacing.l) {

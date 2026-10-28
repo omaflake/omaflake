@@ -55,7 +55,7 @@ fn row(p: &ProfileDto) -> CredentialRow {
 
 pub(crate) fn page(ctx: &Ctx) -> CredentialsPage {
     CredentialsPage {
-        title: Text::new("Profiles"),
+        title: Text::new("Performance"),
         intro: Text::new(
             "How big a new VM is: its CPU cores and RAM. A new VM gets the default profile unless you choose another; without any, it gets what its recipe asks for. A recipe says what it needs at least – a smaller profile gets a warning.",
         ),

@@ -89,10 +89,12 @@ while omaflake is not in front (menu window closed, app window hidden or in the 
 - "New VM" is opened from an image row and creates from that image (no picker); "Build Image" is opened from a recipe
   row or a build row and builds that recipe (no picker); there is no default image (plan B100)
 - Main window: header with icons (Doctor with an orange dot when something needs attention, Settings, data folder in
-  Finder, Quit – asks first while VMs are running), then the tabs in two groups (plan B147): **Run** – VMs, Images,
-  Recipes, Activity – and **Workshop** – Modules (with key binding sets), Looks, Credentials, Locales, Profiles. The
-  app window has a sidebar with both groups; the menu bar window, narrower, switches the group above the tab bar
-  (a dot at the other group when a tab of it needs attention). Each tab is one list that scrolls on its own (plan B91);
+  Finder, Quit – asks first while VMs are running), then the tabs in four groups (plan B147): **Run** – VMs, Images,
+  Activity –, the **Workshop** – Build Images (the recipes here, built into images), Recipe Studio, Key Binding
+  Studio –, the **Catalog** – Recipes (what the sources offer), Modules, Looks, Key Bindings, Sources (before in the
+  Settings) – and **Profiles** – Credentials, Locales, Performance (CPU cores and RAM of new VMs). The app window has a
+  sidebar with the groups; the menu bar window, narrower, switches the group above the tab bar (a dot at a group when
+  a tab of it needs attention). Each tab is one list that scrolls on its own (plan B91);
   the app remembers the last tab, the very first time (no VM yet) it opens on Recipes:
   - **VMs** (badge: running VMs); a VM is created from an image row (plan B100)
   - **Images** (Vorlagen; badge: spinner while a build runs, red ✕ after a failed one): every built image on its own

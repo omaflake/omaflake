@@ -984,10 +984,15 @@ public struct SettingsPage: Decodable, Sendable, Equatable {
     }
 
     public var title: ViewText
-    public var sources: Sources
     public var general: Section
     public var guest: Section
     public var dataFolder: DataFolder
+}
+
+/// `sources` (plan B147): the recipe sources, a tab of the catalog
+public struct SourcesPage: Decodable, Sendable, Equatable {
+    public var title: ViewText
+    public var sources: SettingsPage.Sources
 }
 
 public struct ActivityPage: Decodable, Sendable, Equatable {
@@ -1069,7 +1074,7 @@ public enum PageModel: Sendable, Equatable {
     case home(HomePage), vms(VmsPage), vm(VmPage), images(ImagesPage), image(ImagePage), recipes(RecipesPage)
     case newVm(NewVmPage), build(BuildPage), doctor(DoctorPage), macBase(MacBasePage), settings(SettingsPage)
     case activity(ActivityPage), importStep(ImportPage), credentials(CredentialsPage), credential(CredentialPage)
-    case looks(LooksPage), keys(KeysPage), studio(RecipeStudioPage), keymapStudio(KeymapStudioPage)
+    case looks(LooksPage), keys(KeysPage), studio(RecipeStudioPage), keymapStudio(KeymapStudioPage), sources(SourcesPage)
     /// The page could not be built
     case error(ViewError)
     /// A page this client does not know
@@ -1094,6 +1099,10 @@ public enum PageModel: Sendable, Equatable {
         case "doctor": self = .doctor(try DoctorPage(from: decoder))
         case "macBase": self = .macBase(try MacBasePage(from: decoder))
         case "settings": self = .settings(try SettingsPage(from: decoder))
+        // The catalog (plan B147): the sources, the recipes they offer (the recipes' shape), key bindings (the looks')
+        case "sources": self = .sources(try SourcesPage(from: decoder))
+        case "recipeCatalog": self = .recipes(try RecipesPage(from: decoder))
+        case "keymaps": self = .looks(try LooksPage(from: decoder))
         case "credentials": self = .credentials(try CredentialsPage(from: decoder))
         case "credential": self = .credential(try CredentialPage(from: decoder))
         // Locales (plan B141): the same page and form as credentials

@@ -96,12 +96,30 @@
       }
     },
     {
-      "attention": false,
+      "attention": true,
       "icon": "workshop",
       "id": "workshop",
       "title": {
         "key": "Workshop",
         "text": "Workshop"
+      }
+    },
+    {
+      "attention": false,
+      "icon": "recipe",
+      "id": "catalog",
+      "title": {
+        "key": "Catalog",
+        "text": "Catalog"
+      }
+    },
+    {
+      "attention": false,
+      "icon": "key",
+      "id": "profiles",
+      "title": {
+        "key": "Profiles",
+        "text": "Profiles"
       }
     }
   ],
@@ -142,6 +160,15 @@
       }
     },
     {
+      "group": "run",
+      "icon": "activity",
+      "id": "activity",
+      "label": {
+        "key": "Activity",
+        "text": "Activity"
+      }
+    },
+    {
       "badge": {
         "help": {
           "key": "A recipe changed since its image was built",
@@ -150,21 +177,12 @@
         "kind": "dot",
         "tone": "warning"
       },
-      "group": "run",
-      "icon": "recipe",
+      "group": "workshop",
+      "icon": "build",
       "id": "recipes",
       "label": {
-        "key": "Recipes",
-        "text": "Recipes"
-      }
-    },
-    {
-      "group": "run",
-      "icon": "activity",
-      "id": "activity",
-      "label": {
-        "key": "Activity",
-        "text": "Activity"
+        "key": "Build Images",
+        "text": "Build Images"
       }
     },
     {
@@ -186,7 +204,16 @@
       }
     },
     {
-      "group": "workshop",
+      "group": "catalog",
+      "icon": "recipe",
+      "id": "recipeCatalog",
+      "label": {
+        "key": "Recipes",
+        "text": "Recipes"
+      }
+    },
+    {
+      "group": "catalog",
       "icon": "module",
       "id": "modules",
       "label": {
@@ -195,7 +222,7 @@
       }
     },
     {
-      "group": "workshop",
+      "group": "catalog",
       "icon": "look",
       "id": "looks",
       "label": {
@@ -204,7 +231,25 @@
       }
     },
     {
-      "group": "workshop",
+      "group": "catalog",
+      "icon": "keyboard",
+      "id": "keymaps",
+      "label": {
+        "key": "Key Bindings",
+        "text": "Key Bindings"
+      }
+    },
+    {
+      "group": "catalog",
+      "icon": "source",
+      "id": "sources",
+      "label": {
+        "key": "Sources",
+        "text": "Sources"
+      }
+    },
+    {
+      "group": "profiles",
       "icon": "key",
       "id": "credentials",
       "label": {
@@ -213,7 +258,7 @@
       }
     },
     {
-      "group": "workshop",
+      "group": "profiles",
       "icon": "globe",
       "id": "locales",
       "label": {
@@ -222,12 +267,12 @@
       }
     },
     {
-      "group": "workshop",
+      "group": "profiles",
       "icon": "gauge",
       "id": "profiles",
       "label": {
-        "key": "Profiles",
-        "text": "Profiles"
+        "key": "Performance",
+        "text": "Performance"
       }
     }
   ],

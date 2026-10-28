@@ -128,7 +128,8 @@ fn row(p: &PartDto) -> LookRow {
         subtitle: Text::joined(vec![Text::verbatim(&p.reference), Text::verbatim(&p.version), what(p), usage]),
         badges: badges(p),
         swatches: None,
-        actions: if p.update { vec![actions[0].clone()] } else { vec![] },
+        // The quick buttons: open in the key binding studio, update
+        actions: actions.iter().filter(|a| a.id == "studio" || a.id == "update").cloned().collect(),
         detail: LookDetail { info: lines, actions },
     }
 }
@@ -169,15 +170,26 @@ fn order(p: &PartDto) -> (u8, String) {
     (group, p.title.to_lowercase())
 }
 
+/// The catalog's modules (plan B147: key binding sets have a tab of their own, `keymaps_page`)
 pub(crate) fn page(ctx: &Ctx) -> LooksPage {
+    tab(ctx, "module")
+}
+
+/// The catalog's key binding sets: here and offered, each opening in the key binding studio
+pub(crate) fn keymaps_page(ctx: &Ctx) -> LooksPage {
+    tab(ctx, "keymap")
+}
+
+fn tab(ctx: &Ctx, kind: &str) -> LooksPage {
     let a = &ctx.modules;
-    let mut here: Vec<&PartDto> = a.parts.iter().collect();
+    let mut here: Vec<&PartDto> = a.parts.iter().filter(|p| p.kind == kind).collect();
     here.sort_by_key(|p| order(p));
-    let mut offered: Vec<&PartDto> = a.offered.iter().collect();
+    let mut offered: Vec<&PartDto> = a.offered.iter().filter(|p| p.kind == kind).collect();
     offered.sort_by_key(|p| order(p));
     let rows: Vec<LookRow> = here.into_iter().map(row).collect();
     let offered: Vec<LookRow> = offered.into_iter().map(offered_row).collect();
-    let mut head = ListHead::new("Modules", rows.len(), rows.len());
+    let keymaps = kind == "keymap";
+    let mut head = ListHead::new(if keymaps { "Key Bindings" } else { "Modules" }, rows.len(), rows.len());
     head.actions =
         vec![Action::call("refresh", Text::new("Refresh"), Some("refresh"), "modules.list", json!({"fetch": true}))
             .help(Text::new("Look into the sources for modules and key bindings"))
@@ -185,10 +197,20 @@ pub(crate) fn page(ctx: &Ctx) -> LooksPage {
     let installing = ctx.active_job(crate::api::types::JobKind::ModuleInstall).is_some();
     let shown = offered.iter().map(|r| (r.actions.as_slice(), r.badges.iter().any(|b| b.id == "official")));
     head.actions.extend(install_all("modules.installAll", shown, installing));
+    if keymaps {
+        head.actions.push(
+            Action::show("new", Text::new("New Key Bindings …"), Some("add"), "keymapStudio", json!({}))
+                .help(Text::new("Key bindings of your own, in the key binding studio")),
+        );
+    }
     head.empty = (rows.is_empty() && offered.is_empty()).then(|| {
         Hint::new(
-            "module",
-            Text::new("No module yet – installing a recipe brings the modules it is made of."),
+            if keymaps { "keyboard" } else { "module" },
+            Text::new(if keymaps {
+                "No key bindings yet – installing a recipe brings the ones it names; the key binding studio makes your own."
+            } else {
+                "No module yet – installing a recipe brings the modules it is made of."
+            }),
             Tone::Normal,
         )
     });
@@ -205,8 +227,10 @@ pub(crate) fn page(ctx: &Ctx) -> LooksPage {
             .iter()
             .map(|(id, e)| Hint::new("warning", tf!("%@ cannot be read: %@", id, e), Tone::Warning))
             .collect(),
-        footer: Text::new(
-            "A module is a piece of a recipe – a desktop, a terminal, an editor, LaTeX – written in Nix; key bindings give its actions their keys. Recipes name them, and installing a recipe brings them along. Modules are code: install them only from sources you trust.",
-        ),
+        footer: Text::new(if keymaps {
+            "Key bindings give the modules' actions their keys – a recipe names one or two sets, a later one wins. Each module works without any: it has its own keys."
+        } else {
+            "A module is a piece of a recipe – a desktop, a terminal, an editor, LaTeX – written in Nix; key bindings give its actions their keys. Recipes name them, and installing a recipe brings them along. Modules are code: install them only from sources you trust."
+        }),
     }
 }

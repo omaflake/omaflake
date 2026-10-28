@@ -1,0 +1,288 @@
+{
+  "sources": {
+    "add": {
+      "fields": [
+        {
+          "ask": {
+            "button": {
+              "key": "Use",
+              "text": "Use"
+            },
+            "kind": "folder",
+            "label": {
+              "key": "Folder …",
+              "text": "Folder …"
+            },
+            "param": "input",
+            "prompt": {
+              "key": "Folder with recipes (recipes/<author>/<kind>/<name>/)",
+              "text": "Folder with recipes (recipes/<author>/<kind>/<name>/)"
+            }
+          },
+          "enabled": true,
+          "id": "input",
+          "kind": "text",
+          "label": {
+            "key": "GitHub repository, HTTPS URL or folder",
+            "text": "GitHub repository, HTTPS URL or folder"
+          },
+          "param": "input",
+          "value": "acme/recipes",
+          "valueParam": "input"
+        },
+        {
+          "enabled": true,
+          "id": "private",
+          "kind": "toggle",
+          "label": {
+            "key": "Private repository",
+            "text": "Private repository"
+          },
+          "param": "private",
+          "value": true,
+          "valueParam": "private"
+        }
+      ],
+      "title": {
+        "key": "Recipe Sources",
+        "text": "Recipe Sources"
+      }
+    },
+    "addAction": {
+      "ask": [
+        {
+          "kind": "password",
+          "label": {
+            "key": "Fine-grained token (Contents: Read-only on this repository)",
+            "text": "Fine-grained token (Contents: Read-only on this repository)"
+          },
+          "param": "token",
+          "prompt": {
+            "key": "The token is checked against the repository and kept in your Keychain – never in a file.",
+            "text": "The token is checked against the repository and kept in your Keychain – never in a file."
+          }
+        }
+      ],
+      "enabled": true,
+      "icon": "add",
+      "id": "add",
+      "label": {
+        "key": "Check and Add",
+        "text": "Check and Add"
+      },
+      "method": "sources.add",
+      "params": {
+        "input": "acme/recipes",
+        "private": true
+      },
+      "primary": true
+    },
+    "footer": {
+      "key": "omaflake ships no recipes; it reads them from these sources. Recipes from other sources than omaflake/recipes are not reviewed by the omaflake team – their Nix code runs on this Mac when you build them.",
+      "text": "omaflake ships no recipes; it reads them from these sources. Recipes from other sources than omaflake/recipes are not reviewed by the omaflake team – their Nix code runs on this Mac when you build them."
+    },
+    "rows": [
+      {
+        "actions": [
+          {
+            "enabled": false,
+            "help": {
+              "key": "Earlier: wins when two sources have the same recipe",
+              "text": "Earlier: wins when two sources have the same recipe"
+            },
+            "icon": "up",
+            "id": "up",
+            "label": {
+              "key": "Earlier",
+              "text": "Earlier"
+            },
+            "method": "sources.move",
+            "params": {
+              "id": "github:omaflake/recipes@main",
+              "up": true
+            }
+          },
+          {
+            "enabled": true,
+            "id": "enabled",
+            "label": {
+              "key": "Enabled",
+              "text": "Enabled"
+            },
+            "method": "sources.setEnabled",
+            "on": true,
+            "params": {
+              "enabled": false,
+              "id": "github:omaflake/recipes@main"
+            }
+          },
+          {
+            "confirm": {
+              "button": {
+                "key": "Remove",
+                "text": "Remove"
+              },
+              "destructive": true,
+              "text": {
+                "key": "Recipes installed from it stay until you remove them; its token goes from the Keychain.",
+                "text": "Recipes installed from it stay until you remove them; its token goes from the Keychain."
+              },
+              "title": {
+                "args": [
+                  "omaflake/recipes"
+                ],
+                "key": "Remove the source “%@”?",
+                "text": "Remove the source “omaflake/recipes”?"
+              }
+            },
+            "destructive": true,
+            "enabled": true,
+            "icon": "trash",
+            "id": "remove",
+            "label": {
+              "key": "Remove this source",
+              "text": "Remove this source"
+            },
+            "method": "sources.remove",
+            "params": {
+              "id": "github:omaflake/recipes@main"
+            }
+          }
+        ],
+        "badges": [
+          {
+            "help": {
+              "key": "Official recipes",
+              "text": "Official recipes"
+            },
+            "icon": "official",
+            "id": "official",
+            "tone": "accent"
+          }
+        ],
+        "icon": "github",
+        "id": "github:omaflake/recipes@main",
+        "name": "omaflake/recipes",
+        "source": {
+          "branch": "main",
+          "displayName": "omaflake/recipes",
+          "enabled": true,
+          "hasToken": false,
+          "id": "github:omaflake/recipes@main",
+          "kind": "github",
+          "location": "omaflake/recipes",
+          "official": true,
+          "private": false
+        },
+        "subtitle": {
+          "key": "GitHub",
+          "text": "GitHub"
+        }
+      },
+      {
+        "actions": [
+          {
+            "enabled": true,
+            "help": {
+              "key": "Earlier: wins when two sources have the same recipe",
+              "text": "Earlier: wins when two sources have the same recipe"
+            },
+            "icon": "up",
+            "id": "up",
+            "label": {
+              "key": "Earlier",
+              "text": "Earlier"
+            },
+            "method": "sources.move",
+            "params": {
+              "id": "url:https://example.org/catalog.json",
+              "up": true
+            }
+          },
+          {
+            "enabled": true,
+            "id": "enabled",
+            "label": {
+              "key": "Enabled",
+              "text": "Enabled"
+            },
+            "method": "sources.setEnabled",
+            "on": false,
+            "params": {
+              "enabled": true,
+              "id": "url:https://example.org/catalog.json"
+            }
+          },
+          {
+            "confirm": {
+              "button": {
+                "key": "Remove",
+                "text": "Remove"
+              },
+              "destructive": true,
+              "text": {
+                "key": "Recipes installed from it stay until you remove them; its token goes from the Keychain.",
+                "text": "Recipes installed from it stay until you remove them; its token goes from the Keychain."
+              },
+              "title": {
+                "args": [
+                  "example.org"
+                ],
+                "key": "Remove the source “%@”?",
+                "text": "Remove the source “example.org”?"
+              }
+            },
+            "destructive": true,
+            "enabled": true,
+            "icon": "trash",
+            "id": "remove",
+            "label": {
+              "key": "Remove this source",
+              "text": "Remove this source"
+            },
+            "method": "sources.remove",
+            "params": {
+              "id": "url:https://example.org/catalog.json"
+            }
+          }
+        ],
+        "badges": [
+          {
+            "help": {
+              "key": "Private – token in the Keychain",
+              "text": "Private – token in the Keychain"
+            },
+            "icon": "lock",
+            "id": "private",
+            "tone": "normal"
+          }
+        ],
+        "icon": "url",
+        "id": "url:https://example.org/catalog.json",
+        "name": "example.org",
+        "source": {
+          "displayName": "example.org",
+          "enabled": false,
+          "hasToken": true,
+          "id": "url:https://example.org/catalog.json",
+          "kind": "url",
+          "location": "https://example.org/catalog.json",
+          "official": false,
+          "private": true
+        },
+        "subtitle": {
+          "key": "HTTPS",
+          "text": "HTTPS"
+        }
+      }
+    ],
+    "title": {
+      "key": "Recipe Sources",
+      "text": "Recipe Sources"
+    }
+  },
+  "title": {
+    "key": "Recipe Sources",
+    "text": "Recipe Sources"
+  }
+}

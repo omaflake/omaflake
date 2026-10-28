@@ -56,6 +56,8 @@ pub enum Model {
     Studio(Box<omaflake_core::api::views::recipe_studio::RecipeStudioPage>),
     /// The key binding studio (plan B147)
     KeymapStudio(Box<omaflake_core::api::views::keymap_studio::KeymapStudioPage>),
+    /// The recipe sources (plan B147: a tab of the catalog)
+    Sources(Box<omaflake_core::api::views::settings::SourcesPage>),
     /// A page that cannot be built (`model: {error}`) or that this app cannot read
     Error(String),
 }
@@ -113,6 +115,10 @@ pub fn decode(page: &str, v: Value) -> Model {
         "profile" => de(v, Model::Credential),
         "recipeStudio" => de(v, Model::Studio),
         "keymapStudio" => de(v, Model::KeymapStudio),
+        // The catalog (plan B147): the sources, the recipes they offer (the recipes' shape), key bindings (the looks')
+        "sources" => de(v, Model::Sources),
+        "recipeCatalog" => de(v, Model::Recipes),
+        "keymaps" => de(v, Model::Looks),
         "modules" => de(v, Model::Looks),
         // The credential of a macOS base from before bases kept theirs: the same form (plan B139)
         "baseCredential" => de(v, Model::Credential),
@@ -147,6 +153,7 @@ impl Model {
             Model::Keys(p) => &p.title,
             Model::Studio(p) => &p.title,
             Model::KeymapStudio(p) => &p.title,
+            Model::Sources(p) => &p.title,
             Model::Error(_) => return None,
         })
     }
@@ -1055,7 +1062,7 @@ impl App {
             Some(Model::MacBase(m)) => m.fields.clone(),
             Some(Model::Build(b)) => b.fields.clone(),
             Some(Model::Credential(c)) => c.fields.clone(),
-            Some(Model::Settings(s)) => s.sources.add.fields.clone(),
+            Some(Model::Sources(s)) => s.sources.add.fields.clone(),
             _ => vec![],
         };
         for f in fields {

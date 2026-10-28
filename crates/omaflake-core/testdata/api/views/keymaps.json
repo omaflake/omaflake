@@ -1,0 +1,206 @@
+{
+  "actions": [
+    {
+      "enabled": true,
+      "help": {
+        "key": "Look into the sources for modules and key bindings",
+        "text": "Look into the sources for modules and key bindings"
+      },
+      "icon": "refresh",
+      "id": "refresh",
+      "label": {
+        "key": "Refresh",
+        "text": "Refresh"
+      },
+      "method": "modules.list",
+      "params": {
+        "fetch": true
+      }
+    },
+    {
+      "enabled": true,
+      "help": {
+        "key": "Key bindings of your own, in the key binding studio",
+        "text": "Key bindings of your own, in the key binding studio"
+      },
+      "icon": "add",
+      "id": "new",
+      "label": {
+        "key": "New Key Bindings …",
+        "text": "New Key Bindings …"
+      },
+      "method": "ui.show",
+      "params": {
+        "page": "keymapStudio",
+        "params": {}
+      }
+    }
+  ],
+  "catalogsLoaded": true,
+  "count": 1,
+  "footer": {
+    "key": "Key bindings give the modules' actions their keys – a recipe names one or two sets, a later one wins. Each module works without any: it has its own keys.",
+    "text": "Key bindings give the modules' actions their keys – a recipe names one or two sets, a later one wins. Each module works without any: it has its own keys."
+  },
+  "loading": false,
+  "offered": [],
+  "rows": [
+    {
+      "actions": [
+        {
+          "enabled": true,
+          "icon": "keyboard",
+          "id": "studio",
+          "label": {
+            "key": "Copy to My Key Bindings …",
+            "text": "Copy to My Key Bindings …"
+          },
+          "method": "ui.show",
+          "params": {
+            "page": "keymapStudio",
+            "params": {
+              "id": "omaflake.keymap.default"
+            }
+          }
+        }
+      ],
+      "badges": [
+        {
+          "help": {
+            "key": "By omaflake, from its catalog",
+            "text": "By omaflake, from its catalog"
+          },
+          "icon": "official",
+          "id": "official",
+          "tone": "accent"
+        }
+      ],
+      "detail": {
+        "actions": [
+          {
+            "enabled": true,
+            "icon": "keyboard",
+            "id": "studio",
+            "label": {
+              "key": "Copy to My Key Bindings …",
+              "text": "Copy to My Key Bindings …"
+            },
+            "method": "ui.show",
+            "params": {
+              "page": "keymapStudio",
+              "params": {
+                "id": "omaflake.keymap.default"
+              }
+            }
+          },
+          {
+            "confirm": {
+              "button": {
+                "key": "Remove",
+                "text": "Remove"
+              },
+              "destructive": true,
+              "text": {
+                "key": "Install it again from its source any time.",
+                "text": "Install it again from its source any time."
+              },
+              "title": {
+                "args": [
+                  "omaflake"
+                ],
+                "key": "Remove %@?",
+                "text": "Remove omaflake?"
+              }
+            },
+            "destructive": true,
+            "enabled": true,
+            "icon": "trash",
+            "id": "remove",
+            "label": {
+              "key": "Remove …",
+              "text": "Remove …"
+            },
+            "method": "modules.remove",
+            "params": {
+              "id": "omaflake.keymap.default"
+            }
+          }
+        ],
+        "info": [
+          {
+            "label": {
+              "key": "About",
+              "text": "About"
+            },
+            "value": {
+              "text": "omaflake."
+            }
+          },
+          {
+            "full": "omaflake/hyprland terminal: Super+Return",
+            "label": {
+              "key": "Keys",
+              "text": "Keys"
+            },
+            "value": {
+              "text": "omaflake/hyprland terminal: Super+Return"
+            }
+          },
+          {
+            "label": {
+              "key": "Source",
+              "text": "Source"
+            },
+            "value": {
+              "text": "omaflake/recipes"
+            }
+          },
+          {
+            "label": {
+              "key": "Used by",
+              "text": "Used by"
+            },
+            "value": {
+              "key": "no recipe",
+              "text": "no recipe"
+            }
+          }
+        ]
+      },
+      "id": "omaflake.keymap.default",
+      "lamp": {
+        "help": {
+          "key": "No recipe here is made of it",
+          "text": "No recipe here is made of it"
+        },
+        "state": "off"
+      },
+      "name": "omaflake",
+      "subtitle": {
+        "args": [
+          {
+            "text": "omaflake/default"
+          },
+          {
+            "text": "1.0.0"
+          },
+          {
+            "key": "key bindings",
+            "text": "key bindings"
+          },
+          {
+            "key": "no recipe",
+            "text": "no recipe"
+          }
+        ],
+        "key": "%@ · %@ · %@ · %@",
+        "text": "omaflake/default · 1.0.0 · key bindings · no recipe"
+      }
+    }
+  ],
+  "title": {
+    "key": "Key Bindings",
+    "text": "Key Bindings"
+  },
+  "unreadable": []
+}

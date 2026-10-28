@@ -55,6 +55,7 @@ pub fn lucide(name: &str) -> Option<Icon> {
         "key" => Icon::KeyRound,
         "workshop" => Icon::Wrench,
         "studio" => Icon::Layers,
+        "source" => Icon::Inbox,
         "minus" => Icon::CircleMinus,
         "keyboard" => Icon::Keyboard,
         "globe" => Icon::Globe,

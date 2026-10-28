@@ -1356,3 +1356,18 @@
 "Differs from the module's own" = "Weicht von der eigenen Taste des Moduls ab";
 "No key bindings \"%@\" of yours" = "Kein Tasten-Set „%@“ von dir";
 "There are key bindings \"%@\" already" = "Es gibt schon ein Tasten-Set „%@“";
+
+/* Four groups (plan B147) */
+"Build Images" = "Vorlagen bauen";
+"Key Bindings" = "Tasten-Sets";
+"Sources" = "Quellen";
+"Performance" = "Leistung";
+"Recipes in your sources" = "Rezepte in deinen Quellen";
+"Every recipe of your sources is here – more come with another source (Catalog → Sources)." = "Alle Rezepte deiner Quellen sind da – mehr gibt es mit einer weiteren Quelle (Katalog → Quellen).";
+"Not looked into the sources yet – Refresh does." = "Noch nicht in die Quellen geschaut – Aktualisieren tut es.";
+"No recipes here yet – install some from the catalog (Catalog → Recipes), or put one together in the Recipe Studio." = "Noch keine Rezepte hier – installiere welche aus dem Katalog (Katalog → Rezepte) oder stell eines im Rezept-Studio zusammen.";
+"New Key Bindings …" = "Neues Tasten-Set …";
+"Key bindings of your own, in the key binding studio" = "Eigene Tasten-Sets, im Tasten-Studio";
+"No key bindings yet – installing a recipe brings the ones it names; the key binding studio makes your own." = "Noch keine Tasten-Sets – ein installiertes Rezept bringt die mit, die es nennt; das Tasten-Studio macht eigene.";
+"Key bindings give the modules' actions their keys – a recipe names one or two sets, a later one wins. Each module works without any: it has its own keys." = "Tasten-Sets geben den Aktionen der Module ihre Tasten – ein Rezept nennt ein oder zwei Sets, das spätere gewinnt. Jedes Modul funktioniert auch ohne: Es hat eigene Tasten.";
+"Language, region, time zone and the guests' keyboards are a locale's (Profiles → Locales); the default credential is set under Profiles → Credentials, the default look in Catalog → Looks. Images keep what they were built with – build one again to take a change." = "Sprache, Region, Zeitzone und die Tastaturen der Gäste gehören zu einer Locale (Profile → Locales); der Standard-Zugang wird unter Profile → Zugänge festgelegt, der Standard-Look unter Katalog → Looks. Vorlagen behalten, womit sie gebaut wurden – neu bauen übernimmt eine Änderung.";

@@ -26,6 +26,7 @@ enum Icons {
         case "stop": ("stop.fill", nil)
         case "terminal": ("terminal", nil)
         case "folder": ("folder", nil)
+        case "source": ("tray.full", nil)
         case "export": ("square.and.arrow.up", nil)
         case "import": ("square.and.arrow.down", nil)
         case "external": ("externaldrive.badge.plus", nil)

@@ -518,7 +518,7 @@ Pages and their params:
 
 | Page | Params | What |
 |---|---|---|
-| `home` | – | the header's buttons (Doctor with its issue count, Settings, data folder, Quit), the tabs with their badges and `group`, and `groups: [{id, title, icon, attention}]` – `run` (VMs, images, recipes, activity) and `workshop` (modules, looks, credentials, locales, profiles; plan B147) |
+| `home` | – | the header's buttons (Doctor with its issue count, Settings, data folder, Quit), the tabs with their badges and `group`, and `groups: [{id, title, icon, attention}]` (plan B147) – `run` (vms, images, activity), `workshop` (recipes – "Build Images" –, recipeStudio, keymapStudio), `catalog` (recipeCatalog, modules, looks, keymaps, sources), `profiles` (credentials, locales, profiles – "Performance") |
 | `vms` | `filter?` | the VMs tab (§10.5) |
 | `vm` | `name` | one VM: `{row}` as in `vms` (a TUI's detail screen) |
 | `images` | `filter?` | the Images tab: build jobs on top, then every image |
@@ -535,6 +535,9 @@ Pages and their params:
 | `recipeStudio` | `id?, values?` | a recipe of your own put together from the catalog's modules, a look and key bindings (plan B147; before it `recipeEditor`, plan B142) |
 | `credential` | `id?` | one credential's form: new, or to edit (only the name while images use it) |
 | `baseCredential` | `name` | the same form for a macOS base from before bases kept their credential: which one its user has (plan B139) |
+| `recipeCatalog` | `filter?` | the recipes the sources offer (plan B147): the shape of `recipes` with `rows` empty – `offered`, the sources' `errors`, the lab hint, Install All; `recipes` itself ("Build Images") has the recipes here, their updates and the first start's suggestion |
+| `keymaps` | – | the key binding sets here and offered (plan B147), in the shape of `modules` (which has the modules only); each row opens it in the key binding studio, "New Key Bindings …" in the head |
+| `sources` | `values?` | the recipe sources (plan B147; before it a section of `settings`): `{title, sources: {title, rows, add, addAction, footer}}` |
 | `keymapStudio` | `id?, values?` | a key binding set of your own (plan B147): `{title, id?, intro, about (name, title, description, platform, base), module, search, hints, groups: [{title, start, way, rows: [{action, title, key (a text field, "h / Left"), after? (a choice of the module's modes), changed, reset? (ui.field with `also`), does?, conflict?, own}]}], changed, actions}`; values `key:<module>:<action>`, `after:<module>:<action>`; Save (`keymaps.save`) gets only what differs from the modules' own keys |
 | `keys` | `recipe` \| `image` \| `vm` | a recipe's keys – of an image or a VM through its recipe – by module and by the mode of its program (plan B147): `{title, subtitle, intro, notes, modules: [{reference, title, groups: [{mode?, title, start, way: [{caps, mode}], rows: [{action, keys, caps, title, after?, backToStart, switches, does?, from?, own}]}]}], keymaps, search}`; `caps` are a key's chords as key caps (⌘ ⌃ ⇧ on a Mac host). Rows of recipes, images and VMs whose recipe has keys open it with `ui.show` (action `keys`, icon `keyboard`); the macOS app shows it in a window of its own |
 | `macBase` | `values?` | Create macOS Base |

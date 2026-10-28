@@ -51,10 +51,11 @@ final class AppModel {
 
     /// Tabs of the main page (plan B91); the core's `home` page names them
     enum HomeTab: String, CaseIterable {
-        case vms, images, recipes, activity, recipeStudio, keymapStudio, modules, looks, credentials, locales, profiles
+        case vms, images, activity, recipes, recipeStudio, keymapStudio, recipeCatalog, modules, looks, keymaps, sources
+        case credentials, locales, profiles
 
-        /// The studios, credentials, locales and profiles are forms that scroll themselves
-        var isForm: Bool { [.recipeStudio, .keymapStudio, .credentials, .locales, .profiles].contains(self) }
+        /// The studios, the sources, credentials, locales and profiles are forms that scroll themselves
+        var isForm: Bool { [.recipeStudio, .keymapStudio, .sources, .credentials, .locales, .profiles].contains(self) }
     }
 
     /// The group of the open tab (plan B147): `run` or `workshop`, as the core's tabs say
@@ -433,7 +434,7 @@ final class AppModel {
         case .macBase(let p)?: p.fields
         case .build(let p)?: p.fields ?? []
         case .credential(let p)?: p.fields
-        case .settings(let p)?: p.sources.add.fields
+        case .sources(let p)?: p.sources.add.fields
         case .studio(let p)?: p.fields
         case .keymapStudio(let p)?: p.fields
         default: []

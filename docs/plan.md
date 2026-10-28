@@ -1150,6 +1150,17 @@ development build on the real catalog: a copy of omaflake/default with Zellij's 
 apps; a recipe built with an own set and Zellij's keys pressed in the VM; editing an action that works in several
 modes' `after` (left out: one choice would change it in each).
 
+**B147, step 6 (2026-10-28): four groups, by the maintainer after trying the development build.** Run (vms, images,
+activity), Workshop (recipes as "Build Images", recipeStudio, keymapStudio), Catalog (recipeCatalog, modules, looks,
+keymaps, sources), Profiles (credentials, locales, profiles as "Performance"). Decided here: the activity stays in Run,
+modules go into the catalog next to key bindings, the sources leave the settings. Pages: `recipes` has the recipes
+here, their updates and the suggestion; `recipeCatalog` (the same shape) what the sources offer, their errors, the lab
+hint and Install All; `modules` the modules only, `keymaps` the key binding sets (a quick button opens one in the key
+binding studio; "New Key Bindings …"); `sources` the sources section that was the settings' (`settings` has none now).
+UIs: SwiftUI `SourcesView` (out of `SettingsView`), iced `sources`, `omaf ui` `sources`; `recipeCatalog` and `keymaps` use
+the recipes' and looks' views. **Checked:** `cargo test`, `swift test` (goldens `recipeCatalog`, `keymaps`, `sources`,
+`recipes.loading` now from the catalog). **OPEN:** clicked in the apps.
+
 **B129 (2026-10-24): clipboard on a GNOME host.** Mutter has no data-control protocol: `wl-paste --watch` ends at once.
 `Wayland::start` now treats an end within 500 ms as refused, and `detect` falls back to xclip through Xwayland, which
 Mutter keeps in sync (`X11::through_xwayland`, Mutter's `.mutter-Xwaylandauth.*` cookie when XAUTHORITY is unset; its

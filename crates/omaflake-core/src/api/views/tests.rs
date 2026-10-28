@@ -501,7 +501,12 @@ fn recipe_rows_by_line_with_offers_and_updates() {
     assert_eq!(lab["actions"][1]["enabled"], false);
     assert_eq!(lab["actions"][1]["reason"]["text"], "Not for this Mac – it is built for aarch64-darwin");
 
-    // Offered: not installed, from the official source
+    // Offered: not installed, from the official source – the catalog's tab (plan B147)
+    assert!(page["offered"].as_array().unwrap().is_empty(), "Build Images has the recipes here only");
+    let catalog = get(&c, "recipeCatalog", json!({"filter": {"otherSystems": true}}));
+    assert_eq!(catalog["title"]["key"], "Recipes in your sources");
+    assert!(catalog["rows"].as_array().unwrap().is_empty());
+    let page = catalog;
     let offered: Vec<&str> = page["offered"].as_array().unwrap().iter().map(|o| o["id"].as_str().unwrap()).collect();
     assert_eq!(offered, ["omaflake.nixos.minimal", "lab.nixos.try"]);
     assert_eq!(page["offered"][0]["actions"][0]["label"]["text"], "Install from omaflake/recipes");
@@ -510,11 +515,14 @@ fn recipe_rows_by_line_with_offers_and_updates() {
         page["offered"][1]["detail"]["warning"]["key"],
         "Not reviewed by the omaflake team – its Nix code runs on this Mac when you build it."
     );
-    assert_eq!(page["updates"]["rows"][0]["action"]["label"]["key"], "Update");
-    assert!(page["updates"].get("all").is_none());
     assert_eq!(page["errors"][0]["text"]["text"], "example.org: HTTP 404");
-    assert!(page.get("suggestion").is_none(), "there are recipes already");
     assert_eq!(page["catalogsLoaded"], true);
+    assert!(page.get("updates").is_none(), "newer versions of the recipes here: Build Images");
+    let build = get(&c, "recipes", json!({}));
+    assert_eq!(build["updates"]["rows"][0]["action"]["label"]["key"], "Update");
+    assert!(build["updates"].get("all").is_none());
+    assert!(build.get("suggestion").is_none(), "there are recipes already");
+    assert!(build["errors"].as_array().unwrap().is_empty(), "the sources' errors are the catalog's");
     let tags = get(&c, "recipes", json!({"filter": {"tag": "gui"}}));
     assert_eq!((tags["count"].clone(), tags["offered"].clone()), (json!(1), json!([])));
 }
@@ -525,9 +533,13 @@ fn recipes_at_the_first_start() {
     c.recipes.recipes.clear();
     let page = get(&c, "recipes", json!({}));
     assert_eq!(page["suggestion"]["action"]["method"], "recipes.installSuggested");
+    assert_eq!(
+        page["empty"]["text"]["key"],
+        "No recipes here yet – install some from the catalog (Catalog → Recipes), or put one together in the Recipe Studio."
+    );
     c.available = None;
     c.fetching = true;
-    let page = get(&c, "recipes", json!({}));
+    let page = get(&c, "recipeCatalog", json!({}));
     assert_eq!(page["empty"]["text"]["key"], "Looking into the recipe sources …");
     assert_eq!((page["catalogsLoaded"].clone(), page["loading"].clone()), (json!(false), json!(true)));
     assert_eq!(action(&page["actions"], "refresh")["busy"], true);
@@ -1100,14 +1112,18 @@ fn mac_base_page() {
 #[test]
 fn settings_fields_store_themselves() {
     let c = ctx();
-    let page = get(&c, "settings", json!({}));
-    let rows = &page["sources"]["rows"];
+    // The sources are a tab of the catalog (plan B147)
+    let sources = get(&c, "sources", json!({}));
+    assert_eq!(sources["title"]["key"], "Recipe Sources");
+    let rows = &sources["sources"]["rows"];
     assert_eq!(rows[0]["actions"][0]["enabled"], false, "the first source cannot move up");
     assert_eq!(rows[1]["badges"][0]["help"]["key"], "Private – token in the Keychain");
     assert_eq!(
         action(&rows[1]["actions"], "enabled")["params"],
         json!({"id": "url:https://example.org/catalog.json", "enabled": true})
     );
+    let page = get(&c, "settings", json!({}));
+    assert!(page.get("sources").is_none());
     let dev = action(&page["general"]["fields"], "developerMode");
     assert_eq!(dev["set"], json!({"method": "settings.set", "params": {}, "param": "developerMode"}));
     assert_eq!(dev["value"], true);
@@ -1124,13 +1140,13 @@ fn settings_fields_store_themselves() {
     assert_eq!(action(&df["actions"], "move")["reason"]["key"], "Stop all VMs before moving the data folder.");
     assert_eq!(action(&df["actions"], "move")["confirm"]["title"]["args"][0], json!({"param": "target"}));
     // The new source's form: private only for GitHub, the token is asked when sent
-    assert_eq!(page["sources"]["addAction"]["enabled"], false);
-    let page = get(&c, "settings", json!({"values": {"input": "acme/recipes", "private": true}}));
+    assert_eq!(sources["sources"]["addAction"]["enabled"], false);
+    let page = get(&c, "sources", json!({"values": {"input": "acme/recipes", "private": true}}));
     let add = &page["sources"]["addAction"];
     assert_eq!(add["params"], json!({"input": "acme/recipes", "private": true}));
     assert_eq!(add["ask"][0]["param"], "token");
     assert_eq!(page["sources"]["add"]["fields"].as_array().unwrap().len(), 2);
-    let page = get(&c, "settings", json!({"values": {"input": "https://example.org/c.json", "private": true}}));
+    let page = get(&c, "sources", json!({"values": {"input": "https://example.org/c.json", "private": true}}));
     assert_eq!(page["sources"]["addAction"]["params"]["private"], false);
     assert!(settings::looks_like_github("https://github.com/a/b") && !settings::looks_like_github("~/recipes"));
 }
@@ -1147,9 +1163,10 @@ fn home_tabs_and_header() {
         page["tabs"][0]["badge"],
         json!({"kind": "count", "count": 1, "tone": "success", "help": {"key": "Running", "text": "Running"}})
     );
-    assert_eq!(page["tabs"][1]["badge"]["kind"], "working");
-    assert_eq!(page["tabs"][2]["badge"]["kind"], "dot");
-    assert!(page["tabs"][3].get("badge").is_none(), "unseen activity is the UI's");
+    let tab = |id: &str| page["tabs"].as_array().unwrap().iter().find(|t| t["id"] == id).unwrap().clone();
+    assert_eq!(tab("images")["badge"]["kind"], "working");
+    assert_eq!(tab("recipes")["badge"]["kind"], "dot");
+    assert!(tab("activity").get("badge").is_none(), "unseen activity is the UI's");
     assert_eq!(page["firstTab"], "vms");
 }
 
@@ -1243,11 +1260,11 @@ fn primary_actions_and_short_labels() {
     assert_eq!(primaries(&images["rows"][0]["actions"]), ["doctor"], "blocked: the way to the Doctor");
     assert_eq!(primaries(&images["rows"][1]["actions"]), ["newVm"]);
     let recipes = get(&c, "recipes", json!({}));
-    assert_eq!(primaries(&recipes["offered"][0]["actions"]), ["install"]);
+    assert_eq!(primaries(&get(&c, "recipeCatalog", json!({}))["offered"][0]["actions"]), ["install"]);
     assert_eq!(recipes["updates"]["rows"][0]["action"]["primary"], true);
     let new_vm = get(&c, "newVm", json!({"image": "omaflake.nixos.dev@cedar-mango-lift"}));
     assert_eq!(primaries(&new_vm["actions"]), ["create"]);
-    let settings = get(&c, "settings", json!({}));
+    let settings = get(&c, "sources", json!({}));
     assert_eq!(settings["sources"]["addAction"]["primary"], true);
     assert!(settings["sources"]["rows"][0]["actions"].as_array().unwrap().iter().all(|a| a.get("primary").is_none()));
     c.vms[0].status = VmStatus::Stopped;
@@ -1272,7 +1289,7 @@ fn form_fields_name_their_value_and_every_page_has_a_title() {
     assert_eq!(action(&new_vm["sections"][1]["fields"], "memoryGB")["param"], "settings.memoryGB");
     let mac = get(&c, "newVm", json!({"image": "omaflake.macos.dev@stone-lamp"}));
     assert!(action(&mac["sections"][1]["fields"], "diskGB").get("valueParam").is_none(), "shown, not edited");
-    let settings = get(&c, "settings", json!({"values": {"input": "acme/recipes"}}));
+    let settings = get(&c, "sources", json!({"values": {"input": "acme/recipes"}}));
     let add: Vec<&str> = settings["sources"]["add"]["fields"]
         .as_array()
         .unwrap()
@@ -1288,7 +1305,10 @@ fn form_fields_name_their_value_and_every_page_has_a_title() {
         ("vm", json!({"name": "research"}), "research"),
         ("images", json!({}), "Images"),
         ("image", json!({"name": "omaflake.macos.dev@stone-lamp"}), "omaflake.macos.dev@stone-lamp"),
-        ("recipes", json!({}), "Recipes"),
+        ("recipes", json!({}), "Build Images"),
+        ("recipeCatalog", json!({}), "Recipes in your sources"),
+        ("keymaps", json!({}), "Key Bindings"),
+        ("sources", json!({}), "Recipe Sources"),
         ("activity", json!({}), "Activity"),
     ] {
         assert_eq!(get(&c, p, params)["title"]["text"], title);
@@ -1298,12 +1318,12 @@ fn form_fields_name_their_value_and_every_page_has_a_title() {
 #[test]
 fn recipes_say_what_they_show() {
     let mut c = ctx();
-    let page = get(&c, "recipes", json!({}));
-    assert_eq!(page["offeredTitle"]["key"], "More recipes in your sources");
+    let page = get(&c, "recipeCatalog", json!({}));
+    assert!(page.get("offeredTitle").is_none(), "the tab says it: Recipes in your sources");
     assert!(page.get("loadingText").is_none() && page.get("labHint").is_none());
     c.fetching = true;
     c.recipes.lab_hidden = true;
-    let page = get(&c, "recipes", json!({}));
+    let page = get(&c, "recipeCatalog", json!({}));
     assert_eq!(page["loadingText"]["key"], "Looking into the recipe sources …");
     assert_eq!(page["labHint"]["text"]["key"], "Lab recipes are hidden – Developer Mode in Settings shows them.");
     assert_eq!(page["labHint"]["action"]["params"], json!({"page": "settings", "params": {}}));
@@ -1365,7 +1385,7 @@ fn linux_hosts_get_their_own_words() {
     let keyboard = action(&settings["guest"]["fields"], "hostKeyboard");
     assert_eq!(keyboard["choices"][0]["label"]["key"], "As the system says – %@");
     assert_eq!(
-        settings["sources"]["rows"][1]["badges"][0]["help"]["key"],
+        get(&c, "sources", json!({}))["sources"]["rows"][1]["badges"][0]["help"]["key"],
         "Private – token stored (keyring or tokens.json)"
     );
     let images = get(&c, "images", json!({}));
@@ -1618,28 +1638,35 @@ fn looks_are_a_tab_with_their_colours_usage_and_offers() {
         [
             "vms",
             "images",
-            "recipes",
             "activity",
+            "recipes",
             "recipeStudio",
             "keymapStudio",
+            "recipeCatalog",
             "modules",
             "looks",
+            "keymaps",
+            "sources",
             "credentials",
             "locales",
             "profiles"
         ]
     );
-    // Two groups (plan B147): what runs, and the workshop where the parts are configured
+    // Four groups (plan B147): run, build, find, who and how big
     let groups: Vec<&str> = home["groups"].as_array().unwrap().iter().map(|g| g["id"].as_str().unwrap()).collect();
-    assert_eq!(groups, ["run", "workshop"]);
-    let workshop: Vec<&str> = home["tabs"]
-        .as_array()
-        .unwrap()
-        .iter()
-        .filter(|t| t["group"] == "workshop")
-        .map(|t| t["id"].as_str().unwrap())
-        .collect();
-    assert_eq!(workshop, ["recipeStudio", "keymapStudio", "modules", "looks", "credentials", "locales", "profiles"]);
+    assert_eq!(groups, ["run", "workshop", "catalog", "profiles"]);
+    let of = |g: &str| -> Vec<String> {
+        home["tabs"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .filter(|t| t["group"] == g)
+            .map(|t| t["id"].as_str().unwrap().to_string())
+            .collect()
+    };
+    assert_eq!(of("workshop"), ["recipes", "recipeStudio", "keymapStudio"]);
+    assert_eq!(of("catalog"), ["recipeCatalog", "modules", "looks", "keymaps", "sources"]);
+    assert_eq!(of("profiles"), ["credentials", "locales", "profiles"]);
     let page = get(&c, "looks", json!({}));
     assert_eq!(page["title"]["key"], "Looks");
     let rose = &page["rows"][0];
@@ -1670,7 +1697,7 @@ fn looks_are_a_tab_with_their_colours_usage_and_offers() {
     let home = get(&c, "home", json!({}));
     let looks = home["tabs"].as_array().unwrap().iter().find(|t| t["id"] == "looks").unwrap();
     assert_eq!(looks["badge"]["tone"], "warning");
-    assert_eq!(home["groups"][1]["attention"], true, "the workshop shows that a tab of it needs attention");
+    assert_eq!(home["groups"][2]["attention"], true, "the catalog shows that a tab of it needs attention");
     // The build page can't build without a look
     c.jobs.clear();
     let build = get(&c, "build", json!({"recipe": "omaflake.nixos.dev@velvet-tiger-orbit"}));
@@ -1720,7 +1747,16 @@ fn modules_tab_profiles_and_the_recipe_studio() {
     let page = get(&c, "modules", json!({}));
     assert_eq!(page["title"]["key"], "Modules");
     let rows = page["rows"].as_array().unwrap();
-    assert_eq!(rows.iter().map(|r| r["name"].as_str().unwrap()).collect::<Vec<_>>(), ["Hyprland", "omaflake"]);
+    assert_eq!(rows.iter().map(|r| r["name"].as_str().unwrap()).collect::<Vec<_>>(), ["Hyprland"]);
+    // Key bindings: a tab of their own (plan B147), each opening in the key binding studio
+    let keymaps = get(&c, "keymaps", json!({}));
+    assert_eq!(keymaps["title"]["key"], "Key Bindings");
+    let set = &keymaps["rows"][0];
+    assert_eq!(set["name"], "omaflake");
+    assert_eq!(
+        action(&set["actions"], "studio")["params"],
+        json!({"page": "keymapStudio", "params": {"id": "omaflake.keymap.default"}})
+    );
     assert_eq!(rows[0]["subtitle"]["text"], "omaflake/hyprland · 1.0.0 · NixOS module · 1 recipe");
     assert_eq!(ids(&rows[0]["actions"]), ["update"]);
     let remove = action(&rows[0]["detail"]["actions"], "remove");

@@ -136,19 +136,19 @@ fn subscribes_home_activity_and_the_first_tab() {
 fn tab_goes_on_into_the_workshop() {
     let mut h = Harness::new(none);
     h.model("vms", json!({}), fixture("vms"));
-    for _ in 0..4 {
+    for _ in 0..3 {
         h.key(KeyCode::Tab);
     }
-    assert_eq!(h.app.tab, "recipeStudio", "the workshop's first tab");
-    h.key(KeyCode::Tab);
-    assert_eq!(h.app.tab, "keymapStudio");
-    h.key(KeyCode::Tab);
-    assert_eq!(h.app.tab, "modules");
-    h.model("modules", json!({}), fixture("modules"));
+    assert_eq!(h.app.tab, "recipes", "the workshop's first tab: Build Images");
+    for want in ["recipeStudio", "keymapStudio", "recipeCatalog"] {
+        h.key(KeyCode::Tab);
+        assert_eq!(h.app.tab, want);
+    }
+    h.model("recipeCatalog", json!({}), fixture("recipeCatalog"));
     let s = h.screen();
-    // The running group needs attention (a build runs): its name has the dot
-    assert!(s.contains("Recipe Studio") && s.contains("Modules") && s.contains("│ Run • ›"), "{s}");
-    assert!(!s.contains("Images"), "the running group's tabs are hidden: {s}");
+    // The catalog's tabs; the others by name – Run with its dot (a build runs)
+    assert!(s.contains("Recipes") && s.contains("Sources") && s.contains("│ Run • ›"), "{s}");
+    assert!(!s.contains("Images ◐"), "the running group's tabs are hidden: {s}");
 }
 
 #[test]
@@ -159,7 +159,6 @@ fn draws_the_vms_tab() {
     for want in [
         "VMs 1",
         "Images",
-        "Recipes",
         "Activity",
         "Virtual Machines",
         "research",
@@ -169,8 +168,10 @@ fn draws_the_vms_tab() {
         // home's short labels; the letters come from what is written
         "D Doctor 3",
         "S Settings  A Data Folder  q Quit",
-        // the other group by its name (plan B147)
-        "│ Workshop ›",
+        // the other groups by their names (plan B147); the workshop's dot: a recipe changed since its image
+        "│ Workshop • ›",
+        "│ Catalog ›",
+        "│ Profiles ›",
         "/ Filter",
         "i ⇩ Import",
         "r ↗ Run from There",
@@ -209,21 +210,16 @@ fn draws_every_page() {
         (
             "recipes",
             "recipes",
-            vec![
-                "‹ Esc  Recipes",
-                "Newer recipe versions in your sources",
-                "omaflake/nixos/dev",
-                "minimal",
-                "example.org: HTTP 404",
-                "More recipes in your sources",
-            ],
+            vec!["‹ Esc  Build Images", "Newer recipe versions in your sources", "omaflake/nixos/dev"],
         ),
+        ("recipeCatalog", "recipeCatalog", vec!["‹ Esc  Recipes in your sources", "minimal", "example.org: HTTP 404"]),
+        ("sources", "sources", vec!["Recipe Sources", "omaflake/recipes", "Check and Add"]),
+        ("keymaps", "keymaps", vec!["Key Bindings", "omaflake"]),
         (
-            "recipes",
+            "recipeCatalog",
             "recipes.loading",
             vec![
                 "Looking into the recipe sources …",
-                "More recipes in your sources",
                 "Lab recipes are hidden – Developer Mode in Settings shows them.",
             ],
         ),
@@ -263,19 +259,8 @@ fn draws_every_page() {
         ),
         ("images", "images", vec!["macOS Bases", "mac-base-26A434", "macOS 26A434 · Work (alex)", "newest"]),
         ("doctor", "doctor", vec!["‹ Esc  Doctor", "omaf ui", "Core", "Up to date", "Nix", "Check Again"]),
-        (
-            "settings",
-            "settings",
-            vec![
-                "‹ Esc  Settings",
-                "Recipe Sources",
-                "omaflake/recipes",
-                "General",
-                "[x] Check for updates",
-                "Data Folder",
-            ],
-        ),
-        ("settings", "settings.linux", vec!["‹ Esc  Settings", "Recipe Sources", "on this computer"]),
+        ("settings", "settings", vec!["‹ Esc  Settings", "General", "[x] Check for updates", "Data Folder"]),
+        ("settings", "settings.linux", vec!["‹ Esc  Settings", "This computer"]),
         ("newVm", "newVm", vec!["‹ Esc  New VM", "CPU cores: 2", "‹ 4 ›", "Create", "Cancel"]),
         ("macBase", "macBase", vec!["‹ Esc  Create macOS Base", "Create Base", "differs from macUser", "Full Log"]),
         ("vm", "vm", vec!["‹ Esc  research", "Runs from", "Remove …"]),
@@ -395,9 +380,11 @@ fn enter_does_the_primary_action_only() {
     assert_eq!(row.default.map(|d| row.actions[d]["id"].clone()), Some(images["rows"][0]["actions"][2]["id"].clone()));
     // A hint without a primary (the lab hint) has no default: Enter opens its actions
     let mut h = Harness::new(none);
-    h.key(KeyCode::Tab);
-    h.key(KeyCode::Tab);
-    h.model("recipes", json!({}), fixture("recipes.loading"));
+    for _ in 0..6 {
+        h.key(KeyCode::Tab);
+    }
+    assert_eq!(h.app.tab, "recipeCatalog");
+    h.model("recipeCatalog", json!({}), fixture("recipes.loading"));
     let page = h.app.page();
     let lab = page.items.iter().find(|i| i.key == "labHint").unwrap();
     assert_eq!(lab.default, None);

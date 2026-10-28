@@ -58,7 +58,7 @@ pub use activity::ActivityEntry;
 pub use text::{Arg, Text};
 
 /// Every page `views.get` knows
-pub const PAGES: [&str; 25] = [
+pub const PAGES: [&str; 28] = [
     "home",
     "vms",
     "vm",
@@ -84,6 +84,9 @@ pub const PAGES: [&str; 25] = [
     "baseCredential",
     "keys",
     "keymapStudio",
+    "sources",
+    "recipeCatalog",
+    "keymaps",
 ];
 
 /// The computer the core runs on (`initialize`'s `host`): texts that name the Mac, Finder or the Keychain have a
@@ -365,10 +368,13 @@ pub(crate) fn build(ctx: &Ctx, page: &PageRef) -> Result<Value, RpcError> {
         }
         "settings" => {
             let answer = ctx.settings_answer.as_ref().ok_or_else(|| RpcError::internal("settings not gathered"))?;
-            to_value(settings::page(ctx, answer, &page_params(p)?))
+            to_value(settings::page(ctx, answer))
         }
         "activity" => to_value(activity::page(&ctx.activity, ctx.settings.notifications)),
         "keys" => to_value(keys::page(ctx, &page_params(p)?)),
+        "sources" => to_value(settings::sources_page(ctx, &page_params(p)?)),
+        "recipeCatalog" => to_value(recipes::catalog_page(ctx, &page_params(p)?)),
+        "keymaps" => to_value(modules::keymaps_page(ctx)),
         "keymapStudio" => to_value(keymap_studio::page(ctx, &page_params(p)?)),
         other => Err(RpcError::invalid_params(format!("page \"{other}\": {}", PAGES.join(", ")))),
     }

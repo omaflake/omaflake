@@ -508,6 +508,10 @@ pub fn page(ctx: &Ctx, name: &str, model: &Value) -> Page {
         // The recipe studio (plan B147)
         "recipeStudio" => studio(ctx, model, &mut p),
         "keymapStudio" => keymap_studio(ctx, model, &mut p),
+        // The catalog (plan B147): the sources, the recipes they offer (the recipes' shape), key bindings (the looks')
+        "sources" => sources(ctx, model, &mut p),
+        "recipeCatalog" => recipes(ctx, model, &mut p),
+        "keymaps" => looks(ctx, model, &mut p),
         "credential" => credential(ctx, "credential", model, &mut p),
         // The credential of a macOS base from before bases kept theirs: the same form (plan B139)
         "baseCredential" => credential(ctx, "baseCredential", model, &mut p),
@@ -1191,8 +1195,8 @@ fn keymap_studio(ctx: &Ctx, model: &Value, p: &mut Page) {
     }
 }
 
-fn settings(ctx: &Ctx, model: &Value, p: &mut Page) {
-    let th = ctx.theme;
+/// The recipe sources (plan B147: a tab of the catalog): in their order, and a new one
+fn sources(ctx: &Ctx, model: &Value, p: &mut Page) {
     let src = &model["sources"];
     p.items.push(heading(ctx, t(&src["title"])));
     for row in arr(src, "rows") {
@@ -1213,6 +1217,10 @@ fn settings(ctx: &Ctx, model: &Value, p: &mut Page) {
     if let Some(f) = src.get("footer") {
         p.items.push(Item::line("", secondary_line(ctx, t(f), 2)));
     }
+}
+
+fn settings(ctx: &Ctx, model: &Value, p: &mut Page) {
+    let th = ctx.theme;
     for id in ["general", "guest"] {
         let sec = &model[id];
         if !sec.is_object() {

@@ -17,7 +17,6 @@ use crate::recipe_sources::RecipeSourceKind;
 pub struct SettingsPage {
     /// "Settings"
     pub title: Text,
-    pub sources: SourcesSection,
     pub general: SettingsSection,
     pub guest: SettingsSection,
     pub data_folder: DataFolderSection,
@@ -30,6 +29,14 @@ pub struct SettingsSection {
     pub fields: Vec<Field>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub footer: Option<Text>,
+}
+
+/// `sources` (plan B147): the recipe sources – a tab of the catalog, no longer part of the settings
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SourcesPage {
+    pub title: Text,
+    pub sources: SourcesSection,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -161,8 +168,7 @@ fn source_row(ctx: &Ctx, s: &SourceDto, first: bool) -> SourceRow {
     }
 }
 
-pub(crate) fn page(ctx: &Ctx, answer: &SettingsAnswer, p: &SettingsParams) -> SettingsPage {
-    let s = &answer.settings;
+pub(crate) fn sources_page(ctx: &Ctx, p: &SettingsParams) -> SourcesPage {
     let rows = ctx.sources.iter().enumerate().map(|(i, s)| source_row(ctx, s, i == 0)).collect();
     let github = looks_like_github(&p.values.input);
     let private = github && p.values.private;
@@ -210,7 +216,23 @@ pub(crate) fn page(ctx: &Ctx, answer: &SettingsAnswer, p: &SettingsParams) -> Se
         )));
         add = add.ask(token);
     }
+    SourcesPage {
+        title: Text::new("Recipe Sources"),
+        sources: SourcesSection {
+            title: Text::new("Recipe Sources"),
+            rows,
+            add: SettingsSection { title: Text::new("Recipe Sources"), fields: add_fields, footer: None },
+            add_action: add,
+            footer: Text::new(ctx.on_host(
+                "omaflake ships no recipes; it reads them from these sources. Recipes from other sources than omaflake/recipes are not reviewed by the omaflake team – their Nix code runs on this Mac when you build them.",
+                "omaflake ships no recipes; it reads them from these sources. Recipes from other sources than omaflake/recipes are not reviewed by the omaflake team – their Nix code runs on this computer when you build them.",
+            )),
+        },
+    }
+}
 
+pub(crate) fn page(ctx: &Ctx, answer: &SettingsAnswer) -> SettingsPage {
+    let s = &answer.settings;
     let flag = |id: &str, label: &str, help: &str, value: bool| {
         Field::new(id, FieldKind::Toggle, Text::new(label), json!(value)).help(Text::new(help)).settings(id, json!({}))
     };
@@ -249,7 +271,7 @@ pub(crate) fn page(ctx: &Ctx, answer: &SettingsAnswer, p: &SettingsParams) -> Se
         title: Text::new(ctx.on_host("This Mac", "This computer")),
         fields: vec![host_keyboard],
         footer: Some(Text::new(
-            "Language, region, time zone and the guests' keyboards are a locale's (Locales, the globe at the top); the default credential is set on the Credentials page, the default look in the Looks tab. Images keep what they were built with – build one again to take a change.",
+            "Language, region, time zone and the guests' keyboards are a locale's (Profiles → Locales); the default credential is set under Profiles → Credentials, the default look in Catalog → Looks. Images keep what they were built with – build one again to take a change.",
         )),
     };
 
@@ -285,22 +307,7 @@ pub(crate) fn page(ctx: &Ctx, answer: &SettingsAnswer, p: &SettingsParams) -> Se
             "By default omaflake keeps everything in ~/.omaflake.",
         )),
     };
-    SettingsPage {
-        title: Text::new("Settings"),
-        sources: SourcesSection {
-            title: Text::new("Recipe Sources"),
-            rows,
-            add: SettingsSection { title: Text::new("Recipe Sources"), fields: add_fields, footer: None },
-            add_action: add,
-            footer: Text::new(ctx.on_host(
-                "omaflake ships no recipes; it reads them from these sources. Recipes from other sources than omaflake/recipes are not reviewed by the omaflake team – their Nix code runs on this Mac when you build them.",
-                "omaflake ships no recipes; it reads them from these sources. Recipes from other sources than omaflake/recipes are not reviewed by the omaflake team – their Nix code runs on this computer when you build them.",
-            )),
-        },
-        general,
-        guest,
-        data_folder,
-    }
+    SettingsPage { title: Text::new("Settings"), general, guest, data_folder }
 }
 
 /// Choices with plain names (UIs may name them in their language: Foundation's locale names in the app)
