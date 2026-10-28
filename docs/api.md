@@ -532,7 +532,7 @@ Pages and their params:
 | `modules` | – | the Modules tab: modules and key binding sets here with the recipes made of them, what the sources offer (plan B142; the looks' shape) |
 | `locales`, `locale` | `id?, values?` | the locales and one locale's form (plan B141; the credentials' shapes) |
 | `profiles`, `profile` | `id?, values?` | the profiles and one profile's form (plan B142; the credentials' shapes) |
-| `recipeStudio` | `id?, values?` | a recipe of your own put together from the catalog's modules, a look and key bindings (plan B147; before it `recipeEditor`, plan B142) |
+| `recipeStudio` | `id?, values?` | a recipe of your own put together from the catalog's modules – searched with suggestions, narrowed by chips, five a page (plan B148) –, a look and key bindings (plan B147; before it `recipeEditor`, plan B142) |
 | `credential` | `id?` | one credential's form: new, or to edit (only the name while images use it) |
 | `baseCredential` | `name` | the same form for a macOS base from before bases kept their credential: which one its user has (plan B139) |
 | `recipeCatalog` | `filter?` | the recipes the sources offer (plan B147): the shape of `recipes` with `rows` empty – `offered`, the sources' `errors`, the lab hint, Install All; `recipes` itself ("Build Images") has the recipes here, their updates and the first start's suggestion |
@@ -872,13 +872,18 @@ installAll – `modules.installAll {items}` (the offered rows; confirm when one 
 
 **recipeStudio** (params `id?` – a recipe to edit when it is one of yours (My Recipes), else to copy –, `values`; plan
 B147, before it the recipe editor of B142): `{title, id?, intro, about, catalog, recipe, dress, vm, titles, actions}`.
-`about`: fields name, platform (nixos | macos), description. `catalog`: `{title, count, search (a text field,
-`values.search`), filters (capability, tag, author – choices, "" = any), rows, empty?}` – the platform's modules here
-and offered that are not in the recipe and match. `recipe`: `{title, rows, hints, empty?, keys?}` – its modules, what
+`about`: fields name, platform (nixos | macos), description. `catalog` (plan B148): `{title, count, search (a text
+field, `values.search`), suggest, tags, rows, pages, empty?, reset?}` – the platform's modules here and offered that
+match, those in the recipe too (`inside`), five a page (`values.page`, from 0; a page that is gone is the last one):
+`pages: {index, count, text ("6–10 of 23"), previous?, next?}`; `suggest` while something is typed – up to six
+`{reference, title, subtitle, inside, action?}`, the title's start first, the action adds it and clears the search;
+`tags` every tag and capability as a chip `{id, label, count, on, action}` (several on: all of them; `values.tags`);
+`reset` clears search and chips. `recipe`: `{title, rows, hints, empty?, keys?}` – its modules, what
 is wrong (a module that needs a capability none provides, with the action that adds the one to add; exclusive
 capabilities twice; keys that overlap or break the key rule; modules still to install), `keys` the keys page on the
 draft (`keys {draft: {platform, modules, keymaps, name}}`). A row: `{reference, title, description, subtitle, badges,
-tags, action}` – the action is `ui.field` on `values.modules` with the whole new list (add or remove). `dress`: look,
+tags, inside, details (InfoLines: about, provides, needs, works with, keys, tags, version, source), detailActions
+(its keys window), action}` – the action is `ui.field` on `values.modules` with the whole new list (add or remove). `dress`: look,
 keymap1, keymap2; `vm`: cpus, memoryGB, diskGB, display, network, share, ephemeral. Actions: cancel, delete (one of
 yours: `recipes.delete {base}`, confirm), save (`recipes.save`, `then: back`; disabled without a valid name or a
 module). It is a tab of the workshop too (a new recipe).

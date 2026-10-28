@@ -289,8 +289,10 @@ fn draws_every_page() {
                 "Copy to My Recipes",
                 "Your recipe – 2 modules",
                 "Hyprland",
-                "Catalog",
-                "Every module is in the recipe",
+                // Finding modules (plan B148): the chips, those in the recipe checked
+                "Find modules",
+                "✓ Hyprland",
+                "desktop",
                 "Key bindings 1",
                 "Save",
             ],

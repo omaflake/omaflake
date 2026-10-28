@@ -127,7 +127,8 @@ pub fn help_of(a: &Action) -> String {
     a.help.as_ref().map(s).unwrap_or_else(|| s(&a.label))
 }
 
-fn run(a: &Action, form: Option<&str>) -> Option<Message> {
+/// The message that runs an action (none while it is off)
+pub fn message_of(a: &Action, form: Option<&str>) -> Option<Message> {
     a.enabled.then(|| Message::Run(Box::new(a.clone()), form.map(str::to_string)))
 }
 
@@ -211,10 +212,10 @@ pub fn action_icon<'a>(a: &Action, pulse: bool) -> El<'a> {
                     .padding(Padding { top: 0.0, right: 1.0, bottom: 0.0, left: 0.0 }),
             );
         }
-        let b = button(content).padding(0).style(style::icon_button(color)).on_press_maybe(run(a, None));
+        let b = button(content).padding(0).style(style::icon_button(color)).on_press_maybe(message_of(a, None));
         return tip(b, help_of(a));
     }
-    icon_button(glyph, help_of(a), run(a, None), color, warn)
+    icon_button(glyph, help_of(a), message_of(a, None), color, warn)
 }
 
 /// An action with symbol and name in a thin frame (`ActionButton`); `form` for a page's own action
@@ -230,7 +231,7 @@ pub fn action_button<'a>(a: &Action, form: Option<&str>, pulse: bool) -> El<'a> 
     let b = button(container(r).height(22).align_y(Alignment::Center))
         .padding([0.0, spacing::L])
         .style(style::action_button(color, a.destructive))
-        .on_press_maybe(run(a, form));
+        .on_press_maybe(message_of(a, form));
     tip(b, if a.enabled { a.help.as_ref().map(s).unwrap_or_default() } else { help_of(a) })
 }
 
@@ -248,7 +249,7 @@ pub fn primary_button<'a>(a: &Action, form: Option<&str>, pulse: bool) -> El<'a>
     let b = button(container(r).height(26).align_y(Alignment::Center))
         .padding([0.0, spacing::XXL])
         .style(style::primary_button(color))
-        .on_press_maybe(run(a, form));
+        .on_press_maybe(message_of(a, form));
     tip(b, if a.enabled { a.help.as_ref().map(s).unwrap_or_default() } else { help_of(a) })
 }
 
@@ -264,7 +265,7 @@ pub fn chip<'a>(a: &Action) -> El<'a> {
     let b = button(container(r).height(22).align_y(Alignment::Center))
         .padding([0.0, spacing::L])
         .style(style::chip(on))
-        .on_press_maybe(run(a, None));
+        .on_press_maybe(message_of(a, None));
     tip(b, help_of(a))
 }
 

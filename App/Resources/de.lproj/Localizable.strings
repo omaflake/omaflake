@@ -1382,3 +1382,17 @@
 "or" = "oder";
 "Workshop, Catalog and Profiles …" = "Werkstatt, Katalog und Profile …";
 "Opens the app window with every group" = "Öffnet das App-Fenster mit allen Gruppen";
+
+/* Recipe studio: search, chips, pages (plan B148) */
+"%lld modules" = "%lld Module";
+"%lld–%lld of %lld" = "%1$lld–%2$lld von %3$lld";
+"Find modules" = "Module finden";
+"Tags" = "Tags";
+"Version" = "Version";
+"Show all" = "Alle zeigen";
+"Previous" = "Zurück";
+"Next" = "Weiter";
+"No module matches – change the search or the tags" = "Kein Modul passt – Suche oder Tags ändern";
+"In the recipe" = "Im Rezept";
+"In the recipe – a click takes it out" = "Im Rezept – ein Klick nimmt es heraus";
+"Clear" = "Leeren";

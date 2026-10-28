@@ -110,106 +110,264 @@
   "catalog": {
     "count": {
       "args": [
-        0,
-        0
+        2
       ],
-      "key": "%lld of %lld modules",
-      "text": "0 of 0 modules"
+      "key": "%lld modules",
+      "text": "2 modules"
     },
-    "empty": {
-      "key": "Every module is in the recipe",
-      "text": "Every module is in the recipe"
+    "pages": {
+      "count": 1,
+      "index": 0,
+      "text": {
+        "args": [
+          1,
+          2,
+          2
+        ],
+        "key": "%lld–%lld of %lld",
+        "text": "1–2 of 2"
+      }
     },
-    "filters": [
+    "rows": [
       {
-        "choices": [
+        "action": {
+          "enabled": true,
+          "icon": "minus",
+          "id": "remove",
+          "label": {
+            "key": "Remove",
+            "text": "Remove"
+          },
+          "method": "ui.field",
+          "params": {
+            "field": "modules",
+            "page": "recipeStudio",
+            "params": {
+              "id": "omaflake.nixos.dev@velvet-tiger-orbit"
+            },
+            "value": [
+              "omaflake/wezterm"
+            ],
+            "valueParam": "modules"
+          }
+        },
+        "badges": [
+          {
+            "help": {
+              "key": "Official – from omaflake",
+              "text": "Official – from omaflake"
+            },
+            "icon": "official",
+            "id": "official",
+            "tone": "accent"
+          }
+        ],
+        "description": "Hyprland.",
+        "detailActions": [
+          {
+            "enabled": true,
+            "icon": "keyboard",
+            "id": "keys",
+            "label": {
+              "key": "Keys …",
+              "text": "Keys …"
+            },
+            "method": "ui.show",
+            "params": {
+              "page": "keys",
+              "params": {
+                "module": "omaflake/hyprland",
+                "platform": "nixos"
+              }
+            }
+          }
+        ],
+        "details": [
           {
             "label": {
-              "key": "any",
-              "text": "any"
+              "key": "About",
+              "text": "About"
             },
-            "value": ""
+            "value": {
+              "text": "Hyprland."
+            }
           },
           {
             "label": {
+              "key": "Provides",
+              "text": "Provides"
+            },
+            "value": {
+              "text": "desktop"
+            }
+          },
+          {
+            "label": {
+              "key": "Needs",
+              "text": "Needs"
+            },
+            "value": {
+              "text": "terminal"
+            }
+          },
+          {
+            "label": {
+              "key": "Keys",
+              "text": "Keys"
+            },
+            "value": {
+              "args": [
+                1
+              ],
+              "key": "%lld keys",
+              "text": "1 keys"
+            }
+          },
+          {
+            "label": {
+              "key": "Version",
+              "text": "Version"
+            },
+            "value": {
+              "text": "1.0.0"
+            }
+          },
+          {
+            "label": {
+              "key": "Source",
+              "text": "Source"
+            },
+            "value": {
+              "text": "omaflake/recipes"
+            }
+          }
+        ],
+        "inside": true,
+        "reference": "omaflake/hyprland",
+        "subtitle": {
+          "args": [
+            {
               "text": "desktop"
             },
-            "value": "desktop"
-          },
-          {
-            "label": {
-              "text": "terminal"
-            },
-            "value": "terminal"
-          }
-        ],
-        "enabled": true,
-        "id": "capability",
-        "kind": "choice",
-        "label": {
-          "key": "Capability",
-          "text": "Capability"
+            {
+              "args": [
+                "terminal"
+              ],
+              "key": "needs %@",
+              "text": "needs terminal"
+            }
+          ],
+          "key": "%@ · %@",
+          "text": "desktop · needs terminal"
         },
-        "param": "capability",
-        "value": "",
-        "valueParam": "capability"
+        "tags": [],
+        "title": "Hyprland"
       },
       {
-        "choices": [
+        "action": {
+          "enabled": true,
+          "icon": "minus",
+          "id": "remove",
+          "label": {
+            "key": "Remove",
+            "text": "Remove"
+          },
+          "method": "ui.field",
+          "params": {
+            "field": "modules",
+            "page": "recipeStudio",
+            "params": {
+              "id": "omaflake.nixos.dev@velvet-tiger-orbit"
+            },
+            "value": [
+              "omaflake/hyprland"
+            ],
+            "valueParam": "modules"
+          }
+        },
+        "badges": [
+          {
+            "help": {
+              "key": "Official – from omaflake",
+              "text": "Official – from omaflake"
+            },
+            "icon": "official",
+            "id": "official",
+            "tone": "accent"
+          },
+          {
+            "help": {
+              "key": "Not here yet – installed with the recipe",
+              "text": "Not here yet – installed with the recipe"
+            },
+            "icon": "download",
+            "id": "offered",
+            "label": {
+              "key": "from the catalog",
+              "text": "from the catalog"
+            },
+            "tone": "normal"
+          }
+        ],
+        "description": "WezTerm.",
+        "details": [
           {
             "label": {
-              "key": "any",
-              "text": "any"
+              "key": "About",
+              "text": "About"
             },
-            "value": ""
+            "value": {
+              "text": "WezTerm."
+            }
           },
           {
             "label": {
+              "key": "Provides",
+              "text": "Provides"
+            },
+            "value": {
               "text": "terminal"
-            },
-            "value": "terminal"
-          }
-        ],
-        "enabled": true,
-        "id": "tag",
-        "kind": "choice",
-        "label": {
-          "key": "Tag",
-          "text": "Tag"
-        },
-        "param": "tag",
-        "value": "",
-        "valueParam": "tag"
-      },
-      {
-        "choices": [
-          {
-            "label": {
-              "key": "any",
-              "text": "any"
-            },
-            "value": ""
+            }
           },
           {
             "label": {
-              "text": "omaflake"
+              "key": "Tags",
+              "text": "Tags"
             },
-            "value": "omaflake"
+            "value": {
+              "text": "terminal"
+            }
+          },
+          {
+            "label": {
+              "key": "Version",
+              "text": "Version"
+            },
+            "value": {
+              "text": "1.0.0"
+            }
+          },
+          {
+            "label": {
+              "key": "Source",
+              "text": "Source"
+            },
+            "value": {
+              "text": "omaflake/recipes"
+            }
           }
         ],
-        "enabled": true,
-        "id": "author",
-        "kind": "choice",
-        "label": {
-          "key": "Author",
-          "text": "Author"
+        "inside": true,
+        "reference": "omaflake/wezterm",
+        "subtitle": {
+          "text": "terminal"
         },
-        "param": "author",
-        "value": "",
-        "valueParam": "author"
+        "tags": [
+          "terminal"
+        ],
+        "title": "WezTerm"
       }
     ],
-    "rows": [],
     "search": {
       "enabled": true,
       "id": "search",
@@ -225,9 +383,80 @@
       "value": "",
       "valueParam": "search"
     },
+    "suggest": [],
+    "tags": [
+      {
+        "action": {
+          "enabled": true,
+          "id": "tag",
+          "label": {
+            "text": "desktop"
+          },
+          "method": "ui.field",
+          "on": false,
+          "params": {
+            "also": [
+              {
+                "value": null,
+                "valueParam": "page"
+              }
+            ],
+            "field": "tags",
+            "page": "recipeStudio",
+            "params": {
+              "id": "omaflake.nixos.dev@velvet-tiger-orbit"
+            },
+            "value": [
+              "desktop"
+            ],
+            "valueParam": "tags"
+          }
+        },
+        "count": 1,
+        "id": "desktop",
+        "label": {
+          "text": "desktop"
+        },
+        "on": false
+      },
+      {
+        "action": {
+          "enabled": true,
+          "id": "tag",
+          "label": {
+            "text": "terminal"
+          },
+          "method": "ui.field",
+          "on": false,
+          "params": {
+            "also": [
+              {
+                "value": null,
+                "valueParam": "page"
+              }
+            ],
+            "field": "tags",
+            "page": "recipeStudio",
+            "params": {
+              "id": "omaflake.nixos.dev@velvet-tiger-orbit"
+            },
+            "value": [
+              "terminal"
+            ],
+            "valueParam": "tags"
+          }
+        },
+        "count": 1,
+        "id": "terminal",
+        "label": {
+          "text": "terminal"
+        },
+        "on": false
+      }
+    ],
     "title": {
-      "key": "Catalog",
-      "text": "Catalog"
+      "key": "Find modules",
+      "text": "Find modules"
     }
   },
   "dress": [
@@ -394,6 +623,86 @@
           }
         ],
         "description": "Hyprland.",
+        "detailActions": [
+          {
+            "enabled": true,
+            "icon": "keyboard",
+            "id": "keys",
+            "label": {
+              "key": "Keys …",
+              "text": "Keys …"
+            },
+            "method": "ui.show",
+            "params": {
+              "page": "keys",
+              "params": {
+                "module": "omaflake/hyprland",
+                "platform": "nixos"
+              }
+            }
+          }
+        ],
+        "details": [
+          {
+            "label": {
+              "key": "About",
+              "text": "About"
+            },
+            "value": {
+              "text": "Hyprland."
+            }
+          },
+          {
+            "label": {
+              "key": "Provides",
+              "text": "Provides"
+            },
+            "value": {
+              "text": "desktop"
+            }
+          },
+          {
+            "label": {
+              "key": "Needs",
+              "text": "Needs"
+            },
+            "value": {
+              "text": "terminal"
+            }
+          },
+          {
+            "label": {
+              "key": "Keys",
+              "text": "Keys"
+            },
+            "value": {
+              "args": [
+                1
+              ],
+              "key": "%lld keys",
+              "text": "1 keys"
+            }
+          },
+          {
+            "label": {
+              "key": "Version",
+              "text": "Version"
+            },
+            "value": {
+              "text": "1.0.0"
+            }
+          },
+          {
+            "label": {
+              "key": "Source",
+              "text": "Source"
+            },
+            "value": {
+              "text": "omaflake/recipes"
+            }
+          }
+        ],
+        "inside": true,
         "reference": "omaflake/hyprland",
         "subtitle": {
           "args": [
@@ -406,17 +715,10 @@
               ],
               "key": "needs %@",
               "text": "needs terminal"
-            },
-            {
-              "key": "1 key",
-              "text": "1 key"
-            },
-            {
-              "text": "omaflake/recipes"
             }
           ],
-          "key": "%@ · %@ · %@ · %@",
-          "text": "desktop · needs terminal · 1 key · omaflake/recipes"
+          "key": "%@ · %@",
+          "text": "desktop · needs terminal"
         },
         "tags": [],
         "title": "Hyprland"
@@ -468,18 +770,57 @@
           }
         ],
         "description": "WezTerm.",
-        "reference": "omaflake/wezterm",
-        "subtitle": {
-          "args": [
-            {
-              "text": "terminal"
+        "details": [
+          {
+            "label": {
+              "key": "About",
+              "text": "About"
             },
-            {
+            "value": {
+              "text": "WezTerm."
+            }
+          },
+          {
+            "label": {
+              "key": "Provides",
+              "text": "Provides"
+            },
+            "value": {
+              "text": "terminal"
+            }
+          },
+          {
+            "label": {
+              "key": "Tags",
+              "text": "Tags"
+            },
+            "value": {
+              "text": "terminal"
+            }
+          },
+          {
+            "label": {
+              "key": "Version",
+              "text": "Version"
+            },
+            "value": {
+              "text": "1.0.0"
+            }
+          },
+          {
+            "label": {
+              "key": "Source",
+              "text": "Source"
+            },
+            "value": {
               "text": "omaflake/recipes"
             }
-          ],
-          "key": "%@ · %@",
-          "text": "terminal · omaflake/recipes"
+          }
+        ],
+        "inside": true,
+        "reference": "omaflake/wezterm",
+        "subtitle": {
+          "text": "terminal"
         },
         "tags": [
           "terminal"

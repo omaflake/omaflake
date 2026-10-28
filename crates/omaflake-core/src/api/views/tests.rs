@@ -1171,6 +1171,37 @@ fn home_tabs_and_header() {
     assert_eq!(page["firstTab"], "vms");
 }
 
+/// The recipe studio's catalog a page at a time (plan B148): five modules, Next and Previous, a page that is gone
+#[test]
+fn recipe_studio_pages_through_the_catalog() {
+    let mut c = ctx();
+    let wezterm = c.modules.offered.iter().chain(c.modules.parts.iter()).find(|p| p.reference == "omaflake/wezterm");
+    let wezterm = wezterm.cloned().unwrap();
+    for i in 0..10 {
+        let mut m = wezterm.clone();
+        m.reference = format!("zoe/term{i:02}");
+        m.id = format!("zoe.module.term{i:02}");
+        m.title = format!("Term {i:02}");
+        c.modules.offered.push(m);
+    }
+    let page = |n: Value| get(&c, "recipeStudio", json!({"values": {"page": n}}));
+    let first = page(json!(null));
+    let cat = &first["catalog"];
+    assert_eq!(cat["rows"].as_array().unwrap().len(), 5);
+    assert_eq!((cat["pages"]["index"].as_u64(), cat["pages"]["count"].as_u64()), (Some(0), Some(3)));
+    assert_eq!(cat["pages"]["text"]["text"], "1–5 of 12");
+    assert!(cat["pages"].get("previous").is_none());
+    assert_eq!(cat["pages"]["next"]["params"]["value"], 1);
+    let last = page(json!(2));
+    assert_eq!(last["catalog"]["rows"].as_array().unwrap().len(), 2);
+    assert_eq!(last["catalog"]["pages"]["text"]["text"], "11–12 of 12");
+    assert!(last["catalog"]["pages"].get("next").is_none());
+    assert_eq!(page(json!(9))["catalog"]["pages"]["index"], 2, "a page that is gone is the last one");
+    // Typing: six suggestions at most
+    let typed = get(&c, "recipeStudio", json!({"values": {"search": "term"}}));
+    assert_eq!(typed["catalog"]["suggest"].as_array().unwrap().len(), 6);
+}
+
 /// The help switch (plan B148): off by default, the home page's action turns it on; a hint that only explains says so
 #[test]
 fn help_switch_on_the_home_page() {
@@ -1799,7 +1830,10 @@ fn modules_tab_profiles_and_the_recipe_studio() {
         rows.as_array().unwrap().iter().map(|r| r["reference"].as_str().unwrap().to_string()).collect()
     };
     assert_eq!(refs(&studio["recipe"]["rows"]), ["omaflake/hyprland", "omaflake/wezterm"]);
-    assert_eq!(studio["catalog"]["empty"]["key"], "Every module is in the recipe", "NixOS only: VS Code is macOS");
+    // The catalog shows them too, checked (plan B148); NixOS only: VS Code is macOS
+    assert_eq!(refs(&studio["catalog"]["rows"]), ["omaflake/hyprland", "omaflake/wezterm"]);
+    assert_eq!(studio["catalog"]["rows"][0]["inside"], true);
+    assert_eq!(studio["catalog"]["count"]["text"], "2 modules");
     let save = action(&studio["actions"], "save");
     assert_eq!(save["params"]["modules"], json!(["omaflake/hyprland", "omaflake/wezterm"]));
     assert_eq!(save["params"]["keymaps"], json!(["omaflake/default"]));
@@ -1813,8 +1847,12 @@ fn modules_tab_profiles_and_the_recipe_studio() {
     assert_eq!(remove["params"]["params"], json!({"id": "omaflake.nixos.dev@velvet-tiger-orbit"}));
     // A new recipe with Hyprland only: it needs a terminal – said, with the one to add; WezTerm is in the catalog
     let new = get(&c, "recipeStudio", json!({"values": {"modules": ["omaflake/hyprland"]}}));
-    assert_eq!(refs(&new["catalog"]["rows"]), ["omaflake/wezterm"]);
-    let wezterm = &new["catalog"]["rows"][0];
+    assert_eq!(refs(&new["catalog"]["rows"]), ["omaflake/hyprland", "omaflake/wezterm"]);
+    let wezterm = &new["catalog"]["rows"][1];
+    assert_eq!(wezterm["inside"], false);
+    let about: Vec<&str> =
+        wezterm["details"].as_array().unwrap().iter().filter_map(|l| l["label"]["key"].as_str()).collect();
+    assert!(about.contains(&"Provides") && about.contains(&"Source"), "{about:?}");
     assert!(wezterm["badges"].as_array().unwrap().iter().any(|b| b["id"] == "offered"));
     assert_eq!(wezterm["action"]["params"]["value"], json!(["omaflake/hyprland", "omaflake/wezterm"]));
     let need = &new["recipe"]["hints"][0];
@@ -1822,12 +1860,22 @@ fn modules_tab_profiles_and_the_recipe_studio() {
     assert_eq!(need["action"]["label"]["text"], "Add WezTerm");
     assert_eq!(need["action"]["params"]["value"], json!(["omaflake/hyprland", "omaflake/wezterm"]));
     assert_eq!(need["action"]["params"]["params"], json!({}));
-    // A search that matches nothing
+    // A search that matches nothing; Show all clears it and the chips
     let searched = get(&c, "recipeStudio", json!({"values": {"modules": ["omaflake/hyprland"], "search": "zzz"}}));
-    assert_eq!(searched["catalog"]["empty"]["key"], "No module matches – change the search");
-    // Filters: by capability
-    let filtered = get(&c, "recipeStudio", json!({"values": {"capability": "desktop"}}));
+    assert_eq!(searched["catalog"]["empty"]["key"], "No module matches – change the search or the tags");
+    assert_eq!(searched["catalog"]["reset"]["params"]["also"][0]["valueParam"], "tags");
+    // Suggestions while typing: the title first; taking one adds it and ends the search
+    let typed = get(&c, "recipeStudio", json!({"values": {"modules": ["omaflake/hyprland"], "search": "wez"}}));
+    let first = &typed["catalog"]["suggest"][0];
+    assert_eq!((first["reference"].as_str(), first["inside"].as_bool()), (Some("omaflake/wezterm"), Some(false)));
+    assert_eq!(first["action"]["params"]["value"], json!(["omaflake/hyprland", "omaflake/wezterm"]));
+    assert_eq!(first["action"]["params"]["also"][0]["valueParam"], "search");
+    // Chips: tags and capabilities; one on narrows the list and goes back to the first page
+    let filtered = get(&c, "recipeStudio", json!({"values": {"tags": ["desktop"]}}));
     assert_eq!(refs(&filtered["catalog"]["rows"]), ["omaflake/hyprland"]);
+    let chip = filtered["catalog"]["tags"].as_array().unwrap().iter().find(|t| t["id"] == "desktop").unwrap();
+    assert_eq!((chip["on"].as_bool(), &chip["action"]["params"]["value"]), (Some(true), &json!([])));
+    assert_eq!(chip["action"]["params"]["also"][0]["valueParam"], "page");
     assert_eq!(filtered["title"]["key"], "Recipe Studio");
     let none = get(&c, "recipeStudio", json!({"values": {"name": "x"}}));
     assert_eq!(action(&none["actions"], "save")["reason"]["key"], "Choose at least one module");

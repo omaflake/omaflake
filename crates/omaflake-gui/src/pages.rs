@@ -849,61 +849,156 @@ fn studio<'a>(app: &'a App, page: &str, st: &'a RecipeStudioPage) -> El<'a> {
         }
         container(f).padding(spacing::CARD_PADDING).width(Length::Fill).style(style::card)
     };
-    let module = |m: &'a StudioModule| -> El<'a> {
+    let title_of = |m: &'a StudioModule| {
         let mut head = row![text(m.title.clone()).size(text_size::CALLOUT).font(style::semibold())]
             .spacing(spacing::M)
             .align_y(Alignment::Center);
         for b in &m.badges {
             head = head.push(badge(b));
         }
-        row![
-            column![head, caption(s(&m.subtitle)).color(style::SECONDARY), caption(m.description.clone())]
-                .spacing(spacing::XXS)
-                .width(Length::Fill),
-            action_button(&m.action, None, app.pulse),
-        ]
-        .spacing(spacing::L)
-        .align_y(Alignment::Center)
-        .into()
+        head
     };
     let mut c = column![widgets::help_note(s(&st.intro)), section_title(&st.titles.about), fields(&st.about)]
         .spacing(spacing::L);
-    // The recipe
+    // The recipe: its modules, each with a button to take it out; what is missing or does not fit
     let mut head = row![text(s(&st.recipe.title)).size(text_size::CALLOUT).font(style::semibold()).width(Length::Fill)]
         .align_y(Alignment::Center);
     if let Some(k) = &st.recipe.keys {
         head = head.push(action_button(k, None, app.pulse));
     }
     let mut recipe = column![head].spacing(spacing::L);
-    if !st.recipe.hints.is_empty() {
-        recipe = recipe.push(notes(app, &st.recipe.hints));
-    }
     if let Some(e) = &st.recipe.empty {
         recipe = recipe.push(secondary(s(e)));
     }
     for m in &st.recipe.rows {
-        recipe = recipe.push(module(m));
+        recipe = recipe.push(
+            row![
+                column![title_of(m), caption(s(&m.subtitle)).color(style::SECONDARY)]
+                    .spacing(spacing::XXS)
+                    .width(Length::Fill),
+                widgets::icon_button(
+                    "minus",
+                    s(&m.action.label),
+                    widgets::message_of(&m.action, None),
+                    style::SECONDARY,
+                    false
+                ),
+            ]
+            .spacing(spacing::L)
+            .align_y(Alignment::Center),
+        );
+    }
+    if !st.recipe.hints.is_empty() {
+        recipe = recipe.push(notes(app, &st.recipe.hints));
     }
     c = c.push(container(recipe).padding(spacing::CARD_PADDING).width(Length::Fill).style(style::card));
-    // The catalog
-    let mut catalog = column![
-        row![
-            text(s(&st.catalog.title)).size(text_size::CALLOUT).font(style::semibold()).width(Length::Fill),
-            caption(s(&st.catalog.count)).color(style::SECONDARY),
-        ],
-        field_view(app, page, &st.catalog.search, false),
-    ]
-    .spacing(spacing::L);
-    let mut filters = row![].spacing(spacing::L);
-    for f in &st.catalog.filters {
-        filters = filters.push(container(field_view(app, page, f, false)).width(Length::Fill));
+    // Finding modules (plan B148): the search with its suggestions, the chips, a page of five, each opening its details
+    let cat = &st.catalog;
+    let mut top = row![text(s(&cat.title)).size(text_size::CALLOUT).font(style::semibold()).width(Length::Fill)]
+        .spacing(spacing::L)
+        .align_y(Alignment::Center);
+    if let Some(r) = &cat.reset {
+        top = top.push(action_button(r, None, app.pulse));
     }
-    catalog = catalog.push(filters);
-    if let Some(e) = &st.catalog.empty {
+    let mut catalog =
+        column![top.push(caption(s(&cat.count)).color(style::SECONDARY)), field_view(app, page, &cat.search, false)]
+            .spacing(spacing::L);
+    if !cat.suggest.is_empty() {
+        let mut list = Column::new().spacing(spacing::XXS);
+        for sug in &cat.suggest {
+            let label = row![
+                text(sug.title.clone()).size(text_size::CALLOUT).font(style::semibold()),
+                caption(s(&sug.subtitle)).color(style::SECONDARY).width(Length::Fill),
+                icon(if sug.inside { "check" } else { "add" }, text_size::CALLOUT, style::CYAN),
+            ]
+            .spacing(spacing::M)
+            .align_y(Alignment::Center);
+            let mut b = button(label).width(Length::Fill).padding([spacing::XS, spacing::L]).style(style::row_button);
+            if let Some(a) = &sug.action {
+                b = b.on_press_maybe(widgets::message_of(a, None));
+            }
+            list = list.push(b);
+        }
+        catalog = catalog.push(container(list).padding(spacing::XS).width(Length::Fill).style(style::detail_box));
+    }
+    if !cat.tags.is_empty() {
+        let chips: Vec<El<'a>> = cat
+            .tags
+            .iter()
+            .map(|t| {
+                let fg = if t.on { style::CYAN } else { style::SECONDARY };
+                button(
+                    row![
+                        text(s(&t.label)).size(text_size::CAPTION).color(fg),
+                        text(t.count.to_string()).size(text_size::CAPTION).color(style::tertiary()),
+                    ]
+                    .spacing(spacing::XS),
+                )
+                .padding([2.0, spacing::L])
+                .style(style::tab(t.on))
+                .on_press_maybe(widgets::message_of(&t.action, None))
+                .into()
+            })
+            .collect();
+        catalog = catalog
+            .push(iced::widget::Row::with_children(chips).spacing(spacing::S).wrap().vertical_spacing(spacing::S));
+    }
+    if let Some(e) = &cat.empty {
         catalog = catalog.push(secondary(s(e)));
     }
-    for m in &st.catalog.rows {
-        catalog = catalog.push(module(m));
+    for m in &cat.rows {
+        let key = format!("studio:{}", m.reference);
+        let mark: El<'a> = if m.inside {
+            widgets::icon_button(
+                "check",
+                s(&m.action.label),
+                widgets::message_of(&m.action, None),
+                style::SUCCESS,
+                false,
+            )
+        } else {
+            action_button(&m.action, None, app.pulse)
+        };
+        let header = row![
+            column![title_of(m), caption(m.description.clone()).color(style::SECONDARY)]
+                .spacing(spacing::XXS)
+                .width(Length::Fill),
+            mark,
+        ]
+        .spacing(spacing::L)
+        .align_y(Alignment::Center);
+        catalog = catalog.push(expandable(key.clone(), app.expanded.contains(&key), header.into(), || {
+            let mut d = Column::new().spacing(spacing::S);
+            for l in &m.details {
+                d = d.push(widgets::info_line(l));
+            }
+            let mut acts = row![].spacing(spacing::L);
+            for a in &m.detail_actions {
+                acts = acts.push(action_button(a, None, app.pulse));
+            }
+            d.push(acts).into()
+        }));
+    }
+    if cat.pages.count > 1 {
+        let pager = |name: &str, a: &'a Option<omaflake_core::api::views::common::Action>| -> El<'a> {
+            widgets::icon_button(
+                name,
+                a.as_ref().map(|a| s(&a.label)).unwrap_or_default(),
+                a.as_ref().and_then(|a| widgets::message_of(a, None)),
+                style::TEXT,
+                false,
+            )
+        };
+        catalog = catalog.push(
+            row![
+                caption(s(&cat.pages.text)).color(style::SECONDARY).width(Length::Fill),
+                pager("chevron-left", &cat.pages.previous),
+                caption(format!("{} / {}", cat.pages.index + 1, cat.pages.count)),
+                pager("chevron-right", &cat.pages.next),
+            ]
+            .spacing(spacing::M)
+            .align_y(Alignment::Center),
+        );
     }
     c = c.push(container(catalog).padding(spacing::CARD_PADDING).width(Length::Fill).style(style::card));
     c = c.push(section_title(&st.titles.dress)).push(fields(&st.dress));

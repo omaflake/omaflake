@@ -1158,15 +1158,53 @@ fn studio(ctx: &Ctx, model: &Value, p: &mut Page) {
             Span::styled(format!("  {}", t(&catalog["count"])), th.secondary()),
         ]),
     ));
+    // Finding modules (plan B148): the search, what it suggests, the chips, a page of five that open their details
     p.items.push(field(ctx, page, &catalog["search"]));
-    for f in arr(catalog, "filters") {
-        p.items.push(field(ctx, page, f));
+    for sug in arr(catalog, "suggest") {
+        let inside = b(sug, "inside");
+        let line = Line::from(vec![
+            Span::raw("    "),
+            Span::styled(if inside { "✓ " } else { "+ " }, th.accent()),
+            Span::styled(s(sug, "title").to_string(), th.text()),
+            Span::styled(format!("  {}", t(&sug["subtitle"])), th.secondary()),
+        ]);
+        let actions: Vec<Value> = sug.get("action").filter(|a| a.is_object()).cloned().into_iter().collect();
+        p.items.push(Item::row(format!("suggest:{}", s(sug, "reference")), vec![line], actions));
+    }
+    let chips: Vec<Value> = arr(catalog, "tags").iter().map(|t| t["action"].clone()).collect();
+    if let Some(bar) = button_bar(ctx, "studio:tags", &chips) {
+        p.items.push(bar);
+    }
+    if let Some(bar) = catalog.get("reset").and_then(|r| button_bar(ctx, "studio:reset", std::slice::from_ref(r))) {
+        p.items.push(bar);
     }
     if let Some(e) = catalog.get("empty") {
         p.items.push(Item::line("", secondary_line(ctx, t(e), 2)));
     }
     for m in arr(catalog, "rows") {
-        p.items.push(module(m, "catalog"));
+        let key = format!("catalog:{}", s(m, "reference"));
+        let open = ctx.expanded.contains(&key);
+        let mut item = module(m, "catalog");
+        if b(m, "inside") {
+            item.lines[0].spans.insert(1, Span::styled("✓ ", th.accent()));
+        }
+        item.expandable = true;
+        item.open = open;
+        if open {
+            for l in arr(m, "details") {
+                item.lines.push(secondary_line(ctx, format!("{}: {}", t(&l["label"]), t(&l["value"])), 6));
+            }
+            item.actions.extend(arr(m, "detailActions").iter().cloned());
+        }
+        p.items.push(item);
+    }
+    let pages = &catalog["pages"];
+    if pages["count"].as_u64().unwrap_or(1) > 1 {
+        let nav: Vec<Value> = ["previous", "next"].iter().filter_map(|k| pages.get(*k).cloned()).collect();
+        p.items.push(Item::line("", secondary_line(ctx, t(&pages["text"]), 2)));
+        if let Some(bar) = button_bar(ctx, "studio:pages", &nav) {
+            p.items.push(bar);
+        }
     }
     for (title, list) in [("dress", "dress"), ("vm", "vm")] {
         p.items.push(Item::blank());

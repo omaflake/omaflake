@@ -265,7 +265,9 @@ extension APIContractTests {
             "recipeStudio": {
                 // The recipe studio (plan B147): the recipe's modules, the catalog, a field per choice
                 guard case .studio(let p) = try page("recipeStudio", as: "recipeStudio") else { throw Unexpected() }
-                #expect(p.recipe.rows.map(\.reference) == ["omaflake/hyprland", "omaflake/wezterm"] && p.catalog.empty != nil)
+                #expect(p.recipe.rows.map(\.reference) == ["omaflake/hyprland", "omaflake/wezterm"])
+                // The catalog a page at a time, those in the recipe checked, the chips (plan B148)
+                #expect(p.catalog.rows.allSatisfy(\.inside) && p.catalog.pages.count == 1 && !p.catalog.tags.isEmpty)
                 #expect(p.recipe.rows[1].action.method == "ui.field" && p.recipe.rows[1].action.params["valueParam"] == .string("modules"))
                 #expect(p.fields.contains { $0.id == "search" } && p.actions.last?.method == "recipes.save")
             },

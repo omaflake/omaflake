@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 //! The recipe studio (`recipeStudio`, plan B147; before it the recipe editor of B141/B142): a recipe of your own put
-//! together like a kit. The catalog – the modules here and those your sources offer – is searched and filtered by
-//! capability, tag and author; a module is added to the recipe or taken out of it with one click. The recipe says
+//! together like a kit. The catalog – the modules here and those your sources offer – is searched (with suggestions
+//! while typing) and narrowed by tags and capabilities as chips, five modules a page, each opening its details (plan
+//! B148); a module is added to the recipe or taken out of it with one click. The recipe says
 //! what is wrong while you build it – a module that needs another (with the one to add), two that do not go together,
 //! overlapping keys – and shows its keys before it is saved. Look, key binding sets, what a VM needs at least and how
 //! it runs are fields as before. Saved into My Recipes (`my_recipes::MyRecipes`). Opened empty (the workshop's tab,
@@ -30,8 +31,8 @@ pub struct StudioParams {
     /// The recipe it starts from: one of yours is edited, any other copied
     #[serde(default)]
     pub id: Option<String>,
-    /// The form's values: name, platform, description, modules (references), search, capability, tag, author, look,
-    /// keymap1, keymap2, cpus, memoryGB, diskGB, display, network, share, ephemeral
+    /// The form's values: name, platform, description, modules (references), search, tags (a list), page (from 0),
+    /// look, keymap1, keymap2, cpus, memoryGB, diskGB, display, network, share, ephemeral
     #[serde(default)]
     pub values: Map<String, Value>,
 }
@@ -66,19 +67,70 @@ pub struct StudioTitles {
     pub vm: Text,
 }
 
+/// The modules of the catalog shown at once (plan B148)
+pub const PAGE_SIZE: usize = 5;
+/// The names suggested while typing
+pub const SUGGESTIONS: usize = 6;
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct StudioCatalog {
     pub title: Text,
-    /// "12 of 24 modules"
+    /// "24 modules", "3 of 24 modules"
     pub count: Text,
     pub search: Field,
-    /// Capability, tag, author (choices; "" = any)
-    pub filters: Vec<Field>,
-    /// The modules that match and are not in the recipe yet
+    /// While something is typed: the names that match best (a UI shows them under the field; Enter takes the first)
+    pub suggest: Vec<StudioSuggestion>,
+    /// Tags and capabilities as chips, the most common first; several on: modules with all of them
+    pub tags: Vec<StudioTag>,
+    /// One page of the modules that match – those in the recipe too, marked `inside`
     pub rows: Vec<StudioModule>,
+    pub pages: StudioPages,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub empty: Option<Text>,
+    /// Clears the search and the chips
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub reset: Option<Action>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct StudioSuggestion {
+    pub reference: String,
+    pub title: String,
+    /// What it provides ("terminal")
+    pub subtitle: Text,
+    /// In the recipe already
+    pub inside: bool,
+    /// Add it (a module in the recipe has none)
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub action: Option<Action>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct StudioTag {
+    pub id: String,
+    pub label: Text,
+    /// Modules of the platform with it
+    pub count: usize,
+    pub on: bool,
+    /// Turns it on or off (and goes back to the first page)
+    pub action: Action,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct StudioPages {
+    /// From 0
+    pub index: usize,
+    pub count: usize,
+    /// "6–10 of 23"
+    pub text: Text,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub previous: Option<Action>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub next: Option<Action>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -106,6 +158,13 @@ pub struct StudioModule {
     pub subtitle: Text,
     pub badges: Vec<Badge>,
     pub tags: Vec<String>,
+    /// In the recipe (the catalog marks it with a check instead of Add)
+    pub inside: bool,
+    /// What a UI shows when it is opened: what it is, provides, needs, works with, keys, version, source
+    pub details: Vec<InfoLine>,
+    /// Opened: its keys in the keys window (a module here with keys)
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub detail_actions: Vec<Action>,
     /// Add to the recipe, or take out of it
     pub action: Action,
 }
@@ -237,34 +296,41 @@ pub(crate) fn page(ctx: &Ctx, p: &StudioParams) -> Option<RecipeStudioPage> {
             .value_param("description"),
     ];
 
-    // The catalog: search and filters
-    let search = text("search").unwrap_or_default().trim().to_lowercase();
-    let capability = text("capability").unwrap_or_default();
-    let tag = text("tag").unwrap_or_default();
-    let author = text("author").unwrap_or_default();
-    let any = || Choice::new(json!(""), Text::new("any"));
-    let distinct =
-        |f: &dyn Fn(&PartDto) -> Vec<String>| -> BTreeSet<String> { modules.iter().flat_map(|m| f(m)).collect() };
-    let filter = |id: &str, label: &str, value: &str, values: BTreeSet<String>| {
-        let mut choices = vec![any()];
-        choices.extend(values.into_iter().map(|x| Choice::new(json!(x), Text::verbatim(x.clone()))));
-        choice_field(id, Text::new(label), value, choices)
-    };
-    let filters = vec![
-        filter("capability", "Capability", &capability, distinct(&|m| m.provides.clone())),
-        filter("tag", "Tag", &tag, distinct(&|m| m.tags.clone())),
-        filter("author", "Author", &author, distinct(&|m| vec![m.reference.split('/').next().unwrap_or("").into()])),
-    ];
+    // The catalog: the search, the chips (tags and capabilities), one page of what matches (plan B148)
+    let query = text("search").unwrap_or_default();
+    let search = query.trim().to_lowercase();
+    let on: Vec<String> = v
+        .get("tags")
+        .and_then(Value::as_array)
+        .map(|l| l.iter().filter_map(Value::as_str).map(str::to_string).collect())
+        .unwrap_or_default();
+    let labels_of = |m: &PartDto| -> BTreeSet<String> { m.tags.iter().chain(m.provides.iter()).cloned().collect() };
     let matches = |m: &PartDto| {
         let hay =
             format!("{} {} {} {} {}", m.title, m.description, m.reference, m.tags.join(" "), m.provides.join(" "))
                 .to_lowercase();
-        search.split_whitespace().all(|w| hay.contains(w))
-            && (capability.is_empty() || m.provides.contains(&capability))
-            && (tag.is_empty() || m.tags.contains(&tag))
-            && (author.is_empty() || m.reference.starts_with(&format!("{author}/")))
+        let labels = labels_of(m);
+        search.split_whitespace().all(|w| hay.contains(w)) && on.iter().all(|t| labels.contains(t))
     };
+    // Best first while searching: the title starts with it, then contains it, then the rest; else the kit's order
+    let rank = |m: &PartDto| {
+        let title = m.title.to_lowercase();
+        if search.is_empty() || title.starts_with(&search) {
+            0
+        } else if title.contains(&search) {
+            1
+        } else {
+            2
+        }
+    };
+    let mut found: Vec<&PartDto> = modules.iter().copied().filter(|m| matches(m)).collect();
+    found.sort_by_key(|m| rank(m));
     let here = |m: &PartDto| ctx.modules.parts.iter().any(|x| x.id == m.id);
+    let add_list = |m: &PartDto| {
+        let mut list = chosen.clone();
+        list.push(m.reference.clone());
+        list
+    };
     let row = |m: &PartDto, inside: bool| {
         let mut sub = Vec::new();
         if !m.provides.is_empty() {
@@ -273,12 +339,6 @@ pub(crate) fn page(ctx: &Ctx, p: &StudioParams) -> Option<RecipeStudioPage> {
         if !m.needs.is_empty() {
             sub.push(tf!("needs %@", m.needs.join(", ")));
         }
-        match m.keys.len() {
-            0 => {}
-            1 => sub.push(Text::new("1 key")),
-            n => sub.push(tf!("%lld keys", n)),
-        }
-        sub.push(Text::verbatim(&m.source_name));
         let mut badges = Vec::new();
         if m.official {
             badges.push(Badge::new("official", "official", Text::new("Official – from omaflake"), Tone::Accent));
@@ -292,13 +352,42 @@ pub(crate) fn page(ctx: &Ctx, p: &StudioParams) -> Option<RecipeStudioPage> {
         if m.unfree {
             badges.push(Badge::new("unfree", "unfree", Text::new("Not free software"), Tone::Warning));
         }
+        let mut details = Vec::new();
+        if !m.description.is_empty() {
+            details.push(InfoLine::new("About", Text::verbatim(&m.description)));
+        }
+        if !m.provides.is_empty() {
+            details.push(InfoLine::new("Provides", Text::verbatim(m.provides.join(", "))));
+        }
+        if !m.needs.is_empty() {
+            details.push(InfoLine::new("Needs", Text::verbatim(m.needs.join(", "))));
+        }
+        if !m.enhances.is_empty() {
+            details.push(InfoLine::new("Works with", Text::verbatim(m.enhances.join(", "))));
+        }
+        if !m.keys.is_empty() {
+            details.push(InfoLine::new("Keys", tf!("%lld keys", m.keys.len())));
+        }
+        if !m.tags.is_empty() {
+            details.push(InfoLine::new("Tags", Text::verbatim(m.tags.join(", "))));
+        }
+        details.push(InfoLine::new("Version", Text::verbatim(&m.version)));
+        details.push(InfoLine::new("Source", Text::verbatim(&m.source_name)));
+        let mut detail_actions = Vec::new();
+        if here(m) && !m.keys.is_empty() {
+            detail_actions.push(Action::show(
+                "keys",
+                Text::new("Keys …"),
+                Some("keyboard"),
+                "keys",
+                json!({"module": m.reference, "platform": platform.as_str()}),
+            ));
+        }
         let action = if inside {
             let list: Vec<String> = chosen.iter().filter(|r| **r != m.reference).cloned().collect();
             set_modules("remove", Text::new("Remove"), "minus", &page_params, list)
         } else {
-            let mut list = chosen.clone();
-            list.push(m.reference.clone());
-            set_modules("add", Text::new("Add"), "add", &page_params, list).primary()
+            set_modules("add", Text::new("Add"), "add", &page_params, add_list(m)).primary()
         };
         StudioModule {
             reference: m.reference.clone(),
@@ -307,31 +396,114 @@ pub(crate) fn page(ctx: &Ctx, p: &StudioParams) -> Option<RecipeStudioPage> {
             subtitle: Text::joined(sub),
             badges,
             tags: m.tags.clone(),
+            inside,
+            details,
+            detail_actions,
             action,
         }
     };
-    let offered: Vec<StudioModule> =
-        modules.iter().filter(|m| !chosen.contains(&m.reference) && matches(m)).map(|m| row(m, false)).collect();
-    let outside = modules.len() - chosen.len();
+    let pages = found.len().div_ceil(PAGE_SIZE).max(1);
+    // A page that is gone (the search found fewer) is the last one
+    let index = v.get("page").and_then(Value::as_u64).map(|n| n as usize).unwrap_or(0).min(pages - 1);
+    let go = |id: &str, label: &str, icon: &str, to: usize| {
+        let mut a = Action::field(id, Text::new(label), Some(icon), PAGE, page_params.clone(), "page", "page");
+        a.params["value"] = json!(to);
+        a
+    };
+    let shown: Vec<StudioModule> =
+        found.iter().skip(index * PAGE_SIZE).take(PAGE_SIZE).map(|m| row(m, chosen.contains(&m.reference))).collect();
+    let first = index * PAGE_SIZE + 1;
+    let pages_info = StudioPages {
+        index,
+        count: pages,
+        text: if found.is_empty() {
+            Text::verbatim("")
+        } else {
+            tf!("%lld–%lld of %lld", first, first + shown.len() - 1, found.len())
+        },
+        previous: (index > 0).then(|| go("previous", "Previous", "chevron-left", index - 1)),
+        next: (index + 1 < pages).then(|| go("next", "Next", "chevron-right", index + 1)),
+    };
+    let suggest: Vec<StudioSuggestion> = if search.is_empty() {
+        vec![]
+    } else {
+        found
+            .iter()
+            .take(SUGGESTIONS)
+            .map(|m| {
+                let inside = chosen.contains(&m.reference);
+                StudioSuggestion {
+                    reference: m.reference.clone(),
+                    title: m.title.clone(),
+                    subtitle: Text::verbatim(m.provides.join(", ")),
+                    inside,
+                    action: (!inside).then(|| {
+                        let mut a = set_modules("add", tf!("Add %@", &m.title), "add", &page_params, add_list(m));
+                        // Added: the search is done
+                        a.params["also"] =
+                            json!([{"valueParam": "search", "value": null}, {"valueParam": "page", "value": null}]);
+                        a
+                    }),
+                }
+            })
+            .collect()
+    };
+    // The chips: every tag and capability of the platform's modules, the most common first
+    let mut counts: BTreeMap<String, usize> = BTreeMap::new();
+    for m in &modules {
+        for l in labels_of(m) {
+            *counts.entry(l).or_default() += 1;
+        }
+    }
+    let mut chips: Vec<(String, usize)> = counts.into_iter().collect();
+    chips.sort_by(|a, b| b.1.cmp(&a.1).then(a.0.cmp(&b.0)));
+    let tags = chips
+        .into_iter()
+        .map(|(id, count)| {
+            let is_on = on.contains(&id);
+            let list: Vec<String> = if is_on {
+                on.iter().filter(|t| **t != id).cloned().collect()
+            } else {
+                [on.clone(), vec![id.clone()]].concat()
+            };
+            let mut a = Action::field("tag", Text::verbatim(&id), None, PAGE, page_params.clone(), "tags", "tags");
+            a.params["value"] = json!(list);
+            a.params["also"] = json!([{"valueParam": "page", "value": null}]);
+            StudioTag { label: Text::verbatim(&id), id, count, on: is_on, action: a.switch(is_on) }
+        })
+        .collect();
+    let filtered = !search.is_empty() || !on.is_empty();
     let catalog = StudioCatalog {
-        title: Text::new("Catalog"),
-        count: tf!("%lld of %lld modules", offered.len(), outside),
+        title: Text::new("Find modules"),
+        count: if filtered {
+            tf!("%lld of %lld modules", found.len(), modules.len())
+        } else {
+            tf!("%lld modules", modules.len())
+        },
         search: {
-            let mut f =
-                Field::new("search", FieldKind::Text, Text::new("Search"), json!(text("search").unwrap_or_default()))
-                    .value_param("search");
+            let mut f = Field::new("search", FieldKind::Text, Text::new("Search"), json!(query)).value_param("search");
             f.placeholder = Some(Text::new("Search modules: name, what it is, tags"));
             f
         },
-        filters,
-        empty: offered.is_empty().then(|| {
-            Text::new(if outside == 0 {
-                "Every module is in the recipe"
-            } else {
-                "No module matches – change the search"
-            })
+        suggest,
+        tags,
+        rows: shown,
+        pages: pages_info,
+        empty: found.is_empty().then(|| Text::new("No module matches – change the search or the tags")),
+        reset: filtered.then(|| {
+            let mut a = Action::field(
+                "reset",
+                Text::new("Show all"),
+                Some("refresh"),
+                PAGE,
+                page_params.clone(),
+                "search",
+                "search",
+            );
+            a.params["value"] = Value::Null;
+            a.params["also"] = json!([{"valueParam": "tags", "value": null}, {"valueParam": "page", "value": null}]);
+            a
         }),
-        rows: offered,
     };
 
     // The recipe: its modules in the catalog's order, what is wrong while it is built

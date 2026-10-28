@@ -26,8 +26,9 @@ are collected under *Unreleased*. Releases: [GitHub](https://github.com/omaflake
   sidebar too, `omaf ui` switches the group next to the tabs. Credentials, locales and profiles moved
   from the header, the sources from the Settings; the recipes here and those offered are tabs of their own, as are
   modules and key bindings.
-- The Recipe Studio replaces the recipe editor: modules are found in the catalog – search, and filters by
-  capability, tag and author – and added with one click instead of a switch each. The recipe says while it is put
+- The Recipe Studio replaces the recipe editor: modules are found in the catalog like a kit – a search that suggests
+  names while you type, tags and capabilities as chips, five modules a page that open their details – and added with
+  one click instead of a switch each; the app shows the catalog and the recipe side by side. The recipe says while it is put
   together what is missing (with a button that adds the module providing it), what does not go together and which
   keys overlap, and shows its keys before it is saved. It is the workshop's first tab and opens from "New Recipe …",
   "Edit …" and "Copy to My Recipes …".

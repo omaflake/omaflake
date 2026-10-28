@@ -1188,6 +1188,18 @@ repository.
 - **Checked:** `cargo test`, `swift test` (goldens: caps, `help`), clippy. **OPEN:** clicked in the apps; the TUI's
   switch shows no on/off of its own.
 
+**B148, step 2 (2026-10-28): the recipe studio as a kit.** `recipeStudio.catalog` has no choice filters any more:
+`search` with `suggest` (up to six while typing – the title's start first; taking one adds it and clears the search),
+`tags` (every tag and capability of the platform's modules as a chip, the most common first; several on: all of
+them), one page of five `rows` (those in the recipe too, `inside`) with `pages` (Previous/Next as `ui.field` on
+`values.page`; a page that is gone is the last), `reset`. A row has `details` (InfoLines) and `detailActions` (its keys
+window, a module here with keys). UIs: SwiftUI two columns from 720 pt (finding on the left, the recipe on the right;
+one column below, the recipe first), the search with a suggestion list (↑/↓, Enter, Esc), chips in a wrapping
+`ChipFlow`, rows opening their details, ✓ or + per row, a pager, the VM folded in a disclosure, the actions in a bar
+at the bottom; iced the same in one column (suggestions, wrapping chips, expandable rows, pager); `omaf ui` suggestions
+as rows, the chips and the pager as button bars, details with Space. **Checked:** `cargo test` (new
+`recipe_studio_pages_through_the_catalog`), `swift test`, clippy. **OPEN:** clicked in the apps.
+
 **B129 (2026-10-24): clipboard on a GNOME host.** Mutter has no data-control protocol: `wl-paste --watch` ends at once.
 `Wayland::start` now treats an end within 500 ms as refused, and `detect` falls back to xclip through Xwayland, which
 Mutter keeps in sync (`X11::through_xwayland`, Mutter's `.mutter-Xwaylandauth.*` cookie when XAUTHORITY is unset; its

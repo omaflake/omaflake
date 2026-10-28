@@ -592,17 +592,71 @@ public struct RecipeStudioPage: Decodable, Sendable, Equatable {
         public var subtitle: ViewText
         public var badges: [Badge]
         public var tags: [String]
+        /// In the recipe: the catalog shows a check instead of Add (plan B148)
+        public var inside: Bool
+        /// Shown when it is opened
+        public var details: [InfoLine]
+        public var detailActions: [ViewAction]
         public var action: ViewAction
         public var id: String { reference }
+
+        enum CodingKeys: String, CodingKey {
+            case reference, title, description, subtitle, badges, tags, inside, details, detailActions, action
+        }
+
+        public init(from decoder: Decoder) throws {
+            let c = try decoder.container(keyedBy: CodingKeys.self)
+            reference = try c.decode(String.self, forKey: .reference)
+            title = try c.decode(String.self, forKey: .title)
+            description = try c.decode(String.self, forKey: .description)
+            subtitle = try c.decode(ViewText.self, forKey: .subtitle)
+            badges = try c.decode([Badge].self, forKey: .badges)
+            tags = try c.decode([String].self, forKey: .tags)
+            inside = try c.decode(Bool.self, forKey: .inside)
+            details = try c.decode([InfoLine].self, forKey: .details)
+            detailActions = try c.decodeIfPresent([ViewAction].self, forKey: .detailActions) ?? []
+            action = try c.decode(ViewAction.self, forKey: .action)
+        }
+    }
+
+    /// A name suggested while typing (plan B148)
+    public struct Suggestion: Decodable, Sendable, Equatable, Identifiable {
+        public var reference: String
+        public var title: String
+        public var subtitle: ViewText
+        public var inside: Bool
+        public var action: ViewAction?
+        public var id: String { reference }
+    }
+
+    /// A tag or capability as a chip
+    public struct Tag: Decodable, Sendable, Equatable, Identifiable {
+        public var id: String
+        public var label: ViewText
+        public var count: Int
+        public var on: Bool
+        public var action: ViewAction
+    }
+
+    /// The catalog's pages of five
+    public struct Pages: Decodable, Sendable, Equatable {
+        public var index: Int
+        public var count: Int
+        public var text: ViewText
+        public var previous: ViewAction?
+        public var next: ViewAction?
     }
 
     public struct Catalog: Decodable, Sendable, Equatable {
         public var title: ViewText
         public var count: ViewText
         public var search: Field
-        public var filters: [Field]
+        public var suggest: [Suggestion]
+        public var tags: [Tag]
         public var rows: [Module]
+        public var pages: Pages
         public var empty: ViewText?
+        public var reset: ViewAction?
     }
 
     public struct Recipe: Decodable, Sendable, Equatable {
@@ -631,7 +685,7 @@ public struct RecipeStudioPage: Decodable, Sendable, Equatable {
     public var actions: [ViewAction]
 
     /// Every field whose value the page keeps
-    public var fields: [Field] { about + [catalog.search] + catalog.filters + dress + vm }
+    public var fields: [Field] { about + [catalog.search] + dress + vm }
 }
 
 /// `keymapStudio` (plan B147): a key binding set of your own, one module at a time by mode
