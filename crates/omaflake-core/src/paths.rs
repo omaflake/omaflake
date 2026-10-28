@@ -105,6 +105,10 @@ impl Paths {
     pub fn dock_icon(&self) -> PathBuf {
         self.root.join("cache/dock-icon.png")
     }
+    /// The image QEMU's 3D window shows until the guest draws (written by the core when QEMU starts with one)
+    pub fn loading_image(&self) -> PathBuf {
+        self.root.join("cache/loading.png")
+    }
     pub fn cache(&self) -> PathBuf {
         self.root.join("cache")
     }

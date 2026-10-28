@@ -86,7 +86,8 @@ Guest user for SSH: `--user` on `omaf new`, otherwise `user = "…"` from the re
 Environment variables: `VM_HOME` (instead of `~/.omaflake`), `VM_FLAKE`, `VM_QEMU`, `VM_RUNNER` (signed `omaf-runner`;
 otherwise `omaf config --runner`, otherwise next to `omaf`, otherwise PATH). QEMU without `VM_QEMU`/`omaf config --qemu`: `qemu-system-aarch64` on a Mac, `qemu-system-<host arch>` on Linux, from PATH. Linux:
 `OMAFLAKE_ACCEL=tcg` starts VMs with TCG even where KVM works (to compare, or when KVM misbehaves).
-For window starts `omaf` passes `OMAFLAKE_DOCK_ICON` to QEMU (omaflake Dock icon, needs QEMU patchset p4 from `qemu/build.sh`).
+For window starts `omaf` passes `OMAFLAKE_DOCK_ICON` to QEMU (omaflake Dock icon, needs QEMU patchset p4 from `qemu/build.sh`),
+for 3D windows also `OMAFLAKE_LOADING_IMAGE` (the loading image until the guest draws, p6).
 
 ### `omaf ui` – keys
 

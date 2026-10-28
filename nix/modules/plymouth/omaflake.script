@@ -1,0 +1,145 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# omaflake's loading screen for NixOS guests (plan B155), a Plymouth script theme. The layout comes from layout.script
+# (brand/generate.py), put in front of this file by nix/modules/plymouth.nix; QEMU shows the first frame of it
+# (brand/png/loading/) until this runs, so nothing jumps. Moving: the flake's red and cyan drift apart and back with a
+# short glitch now and then, small flakes drift down behind it, the bar at the bottom shows the boot's progress.
+
+W = Window.GetWidth(0);
+H = Window.GetHeight(0);
+Window.SetBackgroundTopColor(0.0706, 0.0706, 0.0706);
+Window.SetBackgroundBottomColor(0.0706, 0.0706, 0.0706);
+
+# Background: covers the screen (its images are 16:9)
+bg = Image("background.png");
+f = Math.Max(W / bg.GetWidth(), H / bg.GetHeight());
+bg_sprite = Sprite(bg.Scale(Math.Int(bg.GetWidth() * f), Math.Int(bg.GetHeight() * f)));
+bg_sprite.SetX(Math.Int((W - bg.GetWidth() * f) / 2));
+bg_sprite.SetY(Math.Int((H - bg.GetHeight() * f) / 2));
+bg_sprite.SetZ(-100);
+
+# The flake: three layers – red and cyan under the white core
+S = Math.Int(H * layout.flake);
+cx = W / 2;
+cy = H * layout.cy;
+red = Sprite(Image("flake-red.png").Scale(S, S));
+cyan = Sprite(Image("flake-cyan.png").Scale(S, S));
+white = Sprite(Image("flake-white.png").Scale(S, S));
+red.SetZ(10);
+cyan.SetZ(11);
+white.SetZ(12);
+white.SetX(Math.Int(cx - S / 2));
+white.SetY(Math.Int(cy - S / 2));
+split_x = S * layout.split_x;
+split_y = S * layout.split_y;
+
+# The word mark
+ww = Math.Int(H * layout.word);
+wh = Math.Int(ww * layout.word_aspect);
+word = Sprite(Image("word.png").Scale(ww, wh));
+word.SetX(Math.Int(cx - ww / 2));
+word.SetY(Math.Int(H * layout.word_y - wh / 2));
+word.SetZ(12);
+
+# Small flakes drifting down behind everything else
+M = 14;
+for (i = 0; i < M; i++) {
+    size = Math.Int(H * (0.03 + 0.05 * Math.Random()));
+    minis[i].sprite = Sprite(Image("mini-" + (i % layout.minis) + ".png").Scale(size, size));
+    minis[i].size = size;
+    minis[i].x = W * Math.Random();
+    minis[i].y = H * Math.Random();
+    minis[i].speed = H * (0.0006 + 0.0012 * Math.Random());
+    minis[i].sway = H * 0.02 * Math.Random();
+    minis[i].phase = 6.28 * Math.Random();
+    minis[i].sprite.SetOpacity(0.25 + 0.4 * Math.Random());
+    minis[i].sprite.SetZ(-50);
+}
+
+# The bar: a track and its fill, centred near the bottom
+bw = Math.Int(W * 0.22);
+bh = Math.Max(Math.Int(H * 0.004), 3);
+bx = Math.Int((W - bw) / 2);
+by = Math.Int(H * 0.86);
+track = Sprite(Image("bar-track.png").Scale(bw, bh));
+track.SetX(bx);
+track.SetY(by);
+track.SetZ(20);
+fill_image = Image("bar-fill.png");
+fill = Sprite();
+fill.SetX(bx);
+fill.SetY(by);
+fill.SetZ(21);
+
+t = 0;
+progress = 0;
+shown = 0;
+filled = -1;
+
+fun refresh() {
+    global.t += 1 / 50;
+    # The split breathes; every few seconds a short glitch pulls it far apart and shifts it
+    k = 1 + 0.45 * Math.Sin(global.t * 1.6);
+    jolt = 0;
+    phase = global.t % 3.7;
+    if (phase < 0.12) {
+        k = 3.2;
+        jolt = S * 0.012;
+    }
+    red.SetX(Math.Int(cx - S / 2 - split_x * k));
+    red.SetY(Math.Int(cy - S / 2 + split_y * k + jolt));
+    cyan.SetX(Math.Int(cx - S / 2 + split_x * k));
+    cyan.SetY(Math.Int(cy - S / 2 - split_y * k - jolt));
+
+    for (i = 0; i < M; i++) {
+        m = minis[i];
+        m.y += m.speed;
+        if (m.y > H + m.size) {
+            m.y = -m.size;
+            m.x = W * Math.Random();
+        }
+        m.sprite.SetX(Math.Int(m.x + m.sway * Math.Sin(global.t * 0.7 + m.phase) - m.size / 2));
+        m.sprite.SetY(Math.Int(m.y - m.size / 2));
+        minis[i] = m;
+    }
+
+    # The bar follows the progress smoothly and never goes back
+    global.shown += (global.progress - global.shown) * 0.08;
+    px = Math.Int(bw * global.shown);
+    if (px != global.filled && px > 0) {
+        fill.SetImage(fill_image.Scale(px, bh));
+        global.filled = px;
+    }
+}
+Plymouth.SetRefreshFunction(refresh);
+
+fun boot_progress(duration, value) {
+    if (value > global.progress)
+        global.progress = Math.Min(value, 1);
+}
+Plymouth.SetBootProgressFunction(boot_progress);
+
+# A question (a password, say) – rare in a VM: shown as text under the bar
+fun show_prompt(text) {
+    global.prompt = Sprite(Image.Text(text, 1, 1, 1));
+    global.prompt.SetX(Math.Int((W - global.prompt.GetImage().GetWidth()) / 2));
+    global.prompt.SetY(by + H * 0.03);
+    global.prompt.SetZ(30);
+}
+
+fun display_password(prompt, bullets) {
+    stars = "";
+    for (i = 0; i < bullets; i++)
+        stars += "•";
+    show_prompt(prompt + "  " + stars);
+}
+Plymouth.SetDisplayPasswordFunction(display_password);
+
+fun display_question(prompt, entry) {
+    show_prompt(prompt + "  " + entry);
+}
+Plymouth.SetDisplayQuestionFunction(display_question);
+
+fun display_normal() {
+    global.prompt = NULL;
+}
+Plymouth.SetDisplayNormalFunction(display_normal);

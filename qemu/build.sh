@@ -23,7 +23,7 @@ qemu_version=11.1.2
 virgl_version=1.3.0
 angle_version=1.0.16
 epoxy_commit=1b6d7db184bb1a0d9af0e200e06a0331028eaaae
-patchset=5   # bump when the patch selection changes (new folder, the old one stays usable)
+patchset=6   # bump when the patch selection changes (new folder, the old one stays usable)
 tag="qemu-$qemu_version-virgl$virgl_version-angle$angle_version-p$patchset"
 prefix=$base/$tag   # complete only once $prefix/.complete exists
 brew_prefix=$(brew --prefix)
@@ -54,6 +54,7 @@ own_patches=(
   qemu-cocoa-initial-size       # zoom-to-fit: window follows guest resolution until the user resizes it (p3)
   qemu-cocoa-dock-icon          # Dock icon from OMAFLAKE_DOCK_ICON (set by omaf/the app for window starts) (p4)
   qemu-virgl-2d-flush           # flush virgl context 0 after 2D transfers: firmware, boot menu, console visible with gl=on (p5)
+  qemu-cocoa-loading-image      # the loading image from OMAFLAKE_LOADING_IMAGE until the guest draws (set by omaf/the app) (p6)
 )
 # virglrenderer patches from startergo/homebrew-virglrenderer v1.0.42 (list as in their formula)
 virgl_patches=(

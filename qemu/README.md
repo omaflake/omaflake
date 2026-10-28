@@ -51,6 +51,7 @@ Own patches (`patches/omaflake/`):
 | `qemu-cocoa-initial-size` (p3) | with `zoom-to-fit`, the window follows the guest resolution until you resize it (otherwise it stays at ~640×480) |
 | `qemu-cocoa-dock-icon` (p4) | Dock icon from the image file in `OMAFLAKE_DOCK_ICON` (set by `omaf` and the app); without it the bare binary shows the generic icon |
 | `qemu-virgl-2d-flush` (p5) | flushes virgl's context 0 after each 2D transfer; with `gl=on` (CGL) the firmware, the boot menu and the console were black until the first 3D client (plan B155) |
+| `qemu-cocoa-loading-image` (p6) | the OpenGL window shows the image in `OMAFLAKE_LOADING_IMAGE` (set by `omaf` and the app) instead of the firmware, until the guest sets a scanout of its own after it, then fades (plan B155) |
 
 Not included: Cocoa comfort patches (branding, immersive, pinch, scroll, keyboard), SDL audio, USB –
 they build on each other (`qemu-cocoa-full-grab-focus` does not apply without the previous ones).

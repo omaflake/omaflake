@@ -1328,7 +1328,8 @@ other), then fixed:
 
 **B155 (2026-10-28): a loading screen while a NixOS guest boots.** The window was black until Hyprland drew. The guest
 module (`nix/modules/vm-guest.nix`, option `vm.bootSplash.enable`, default on, every NixOS image) now shows Plymouth's
-`spinner` theme with omaflake's white mark (`nix/modules/omaflake-splash.png`, written by brand/generate.py), loads
+`spinner` theme with omaflake's white mark (`nix/modules/omaflake-splash.png`, written by brand/generate.py; replaced
+on 2026-10-29 by omaflake's own theme, below), loads
 `virtio_gpu` in the initrd so it shows from the kernel's start, and boots quiet (`quiet splash`, console log level 3,
 udev and systemd status quiet in the initrd) – the kernel lines stay in the journal, the serial log has fewer of them.
 macOS guests need none: Virtualization.framework shows Apple's boot screen. Checked: `nix flake check` (both flakes,
@@ -1386,6 +1387,35 @@ Plymouth's screen was not seen there either (OPEN: whether Plymouth draws throug
   research-walx from the checkout, frames every 0.8 s):* black until 1.5 s (QEMU's start), the TianoCore logo with its
   progress bar until 6 s, about 1.5 s black (kernel), Plymouth's spinner with omaflake's mark from 8 s, Hyprland at
   13 s (before: about 20 s of black). So step 3 (a loading image in QEMU) is set aside.
+
+  *One picture from the start (2026-10-29):* three more steps, wanted by the maintainer.
+  - **The firmware's wait:** the progress bar "Start boot option" was EDK2 counting down its `Timeout` variable (5 s;
+    `ArmVirtQemu.dsc`, `PcdPlatformBootTimeOut`). `GetFrontPageTimeoutFromQemu` (QemuBootOrderLib) takes QEMU's
+    `-boot menu=on,splash-time=N` instead, in ms rounded up, and 0 skips the countdown (`PlatformBm.c`); omaf passes
+    `-boot menu=on,splash-time=0` to every guest. Esc at the start still opens the firmware's setup (OPEN: not tried).
+  - **omaflake's own loading screen:** a Plymouth script theme (`nix/modules/plymouth/`, theme `omaflake`): the hero
+    flake large in the middle with the word mark under it, the brand's pixels spread over the whole screen, small
+    flakes drifting down behind it, the red and cyan layers breathing apart with a short glitch every 3.7 s, a cyan
+    bar near the bottom with the boot's progress (`Plymouth.SetBootProgressFunction`, from the last boot's times).
+    brand/generate.py renders its images and its layout (`layout.script`, in units of the screen's height), so the
+    script and the still image below place everything alike. The functions it uses were checked in Plymouth's
+    sources (`script-lib-*.c`, `.script`); assigning a name inside a function changes a global of that name
+    (`script_evaluate_var`), hence `global.` for the state.
+  - **No firmware screen, no black before the splash:** instead of an own firmware build with omaflake's logo (EDK2
+    for aarch64 built on a Linux builder, shipped with QEMU), QEMU hides the firmware: patch
+    `qemu-cocoa-loading-image` (p6) shows `OMAFLAKE_LOADING_IMAGE` – the theme's first frame,
+    `brand/png/loading/omaflake-loading.png`, embedded in omaf and written to `<data>/cache/loading.png` – from the
+    3D window's first frame, through the firmware (its scanouts, resources 1 and 2) and the kernel's start (scanout
+    disabled, about 1.9 s), until the guest sets a scanout of its own (Plymouth's, resource 4), then fades in 300 ms;
+    after 60 s without one it fades anyway. Measured with QEMU's virtio-gpu trace before (2026-10-29): firmware
+    0.45–6.2 s, disable 6.2 s, Plymouth's scanout 8.1 s, back to the console 12.2 s, Hyprland 13.4 s.
+  - *Tried (2026-10-29, QEMU `#qemu` with p6 run by hand with a VM's arguments, a new image of research-walx from the
+    checkout, frames every 0.6 s):* the loading image from the first frame (0.4 s, while the window is still
+    640×480), the theme with its bar and drifting flakes from about 4 s – the hand-over shows no jump –, black from
+    8.8 s, Hyprland at about 11 s (before: 13 s). The firmware's screen never shows.
+  - **OPEN:** the 2 s between Plymouth's end and Hyprland's first frame (getty's auto-login, zsh, Hyprland's start)
+    stay black – `plymouth quit --retain-splash` does not help while Hyprland is not yet DRM master; Hyprland would
+    have to take over from Plymouth (as GDM does).
 
 **B129 (2026-10-24): clipboard on a GNOME host.** Mutter has no data-control protocol: `wl-paste --watch` ends at once.
 `Wayland::start` now treats an end within 500 ms as refused, and `detect` falls back to xclip through Xwayland, which

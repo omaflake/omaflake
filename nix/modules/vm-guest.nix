@@ -6,6 +6,24 @@
 
 let
   omaflakeAgent = pkgs.callPackage ../agent/package.nix { };
+  # omaflake's loading screen, a Plymouth script theme (plymouth/: the script, and the images and layout
+  # brand/generate.py writes)
+  plymouthTheme = pkgs.runCommand "plymouth-theme-omaflake" { } ''
+    dir=$out/share/plymouth/themes/omaflake
+    mkdir -p $dir
+    cp ${./plymouth}/*.png $dir/
+    cat ${./plymouth/layout.script} ${./plymouth/omaflake.script} > $dir/omaflake.script
+    cat > $dir/omaflake.plymouth <<EOF
+    [Plymouth Theme]
+    Name=omaflake
+    Description=omaflake's loading screen
+    ModuleName=script
+
+    [script]
+    ImageDir=$dir
+    ScriptFile=$dir/omaflake.script
+    EOF
+  '';
 in
 {
   options.vm.shareFolder.enable = lib.mkOption {
@@ -126,13 +144,13 @@ in
     environment.etc."mpv/mpv.conf".text = ''
       gpu-api=opengl
     '';
-    # The loading screen (plan B155): Plymouth's spinner with omaflake's mark (brand/generate.py writes it here) from the
-    # kernel's start until the desktop – the graphics driver in the initrd, so it shows that early; quiet, so no kernel
-    # or systemd lines are drawn over it (they stay in the journal; the serial log has fewer kernel lines then)
+    # The loading screen (plan B155): omaflake's own Plymouth theme from the kernel's start until the desktop – the
+    # graphics driver in the initrd, so it shows that early; quiet, so no kernel or systemd lines are drawn over it
+    # (they stay in the journal; the serial log has fewer kernel lines then). QEMU shows its first frame before that.
     boot.plymouth = lib.mkIf config.vm.bootSplash.enable {
       enable = true;
-      theme = "spinner";
-      logo = ./omaflake-splash.png;
+      theme = "omaflake";
+      themePackages = [ plymouthTheme ];
     };
     boot.initrd.kernelModules = lib.mkIf config.vm.bootSplash.enable [ "virtio_gpu" ];
     boot.consoleLogLevel = lib.mkIf config.vm.bootSplash.enable 3;

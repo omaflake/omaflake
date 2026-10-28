@@ -1,0 +1,216 @@
+From: omaflake contributors
+Subject: cocoa: a loading image until the guest's own picture
+
+With OMAFLAKE_LOADING_IMAGE (a PNG; set by omaf and the app) the OpenGL
+window shows that image from its first frame instead of the firmware's
+screen, and keeps it until the guest sets a scanout of its own after the
+firmware's ended (the kernel took over the GPU): its boot splash or its
+console. Then the image fades out in 300 ms. Without such a scanout within
+60 s it fades anyway. The image is the first frame of the guest's boot
+splash, so the window shows one picture from start to splash.
+
+diff --git a/ui/cocoa.m b/ui/cocoa.m
+index 9934d707f..a6572478b 100644
+--- a/ui/cocoa.m
++++ b/ui/cocoa.m
+@@ -50,6 +50,7 @@
+ #include "qemu-version.h"
+ #include "qemu/cutils.h"
+ #include "qemu/main-loop.h"
++#include "qemu/timer.h"
+ #include "qemu/module.h"
+ #include "qemu/error-report.h"
+ #include <Carbon/Carbon.h>
+@@ -2325,6 +2326,122 @@ static void cocoa_gl_switch(DisplayChangeListener *dcl,
+     gl_dirty = true;
+ }
+ 
++/*
++ * omaflake: a loading image while the guest boots. With OMAFLAKE_LOADING_IMAGE
++ * (a PNG; omaf and the app set it) the window shows that image from its first
++ * frame instead of the firmware's screen, and keeps it until the guest shows a
++ * picture of its own after the firmware: the firmware's scanout ends (the
++ * kernel resets the GPU), the next one is the guest's (its boot splash or its
++ * console), and the image fades into it. The image is the first frame of the
++ * guest's boot splash, so the hand-over does not jump. Without a scanout after
++ * the firmware within 60 s (a guest that never sets one), it fades anyway.
++ */
++enum {
++    LOADING_OFF,
++    LOADING_FIRMWARE,   /* until the firmware's scanout ends */
++    LOADING_KERNEL,     /* until the guest's first scanout of its own */
++    LOADING_FADING,
++};
++#define LOADING_FADE_MS 300
++#define LOADING_TIMEOUT_MS 60000
++
++static int loading_state;
++static int64_t loading_deadline;
++static int64_t loading_fade_start;
++static uint8_t *loading_pixels;
++static int loading_w, loading_h;
++static GLuint loading_tex;
++
++static void cocoa_loading_init(void)
++{
++    const char *path = getenv("OMAFLAKE_LOADING_IMAGE");
++    if (!path || !*path) {
++        return;
++    }
++    NSImage *image = [[NSImage alloc] initWithContentsOfFile:
++                      [NSString stringWithUTF8String:path]];
++    CGImageRef cg = [image CGImageForProposedRect:NULL context:nil hints:nil];
++    if (!cg) {
++        [image release];
++        return;
++    }
++    loading_w = (int)CGImageGetWidth(cg);
++    loading_h = (int)CGImageGetHeight(cg);
++    loading_pixels = g_malloc0((size_t)loading_w * loading_h * 4);
++    CGColorSpaceRef space = CGColorSpaceCreateDeviceRGB();
++    CGContextRef ctx = CGBitmapContextCreate(loading_pixels, loading_w, loading_h,
++                                             8, loading_w * 4, space,
++                                             kCGImageAlphaPremultipliedLast);
++    /* Row 0 of the buffer is the image's top row, as in QEMU's surfaces */
++    CGContextDrawImage(ctx, CGRectMake(0, 0, loading_w, loading_h), cg);
++    CGContextRelease(ctx);
++    CGColorSpaceRelease(space);
++    [image release];
++    loading_deadline = qemu_clock_get_ms(QEMU_CLOCK_REALTIME) + LOADING_TIMEOUT_MS;
++    qatomic_set(&loading_state, LOADING_FIRMWARE);
++    gl_dirty = true;
++}
++
++static void cocoa_loading_end(void)
++{
++    if (qatomic_read(&loading_state) == LOADING_FIRMWARE ||
++        qatomic_read(&loading_state) == LOADING_KERNEL) {
++        loading_fade_start = qemu_clock_get_ms(QEMU_CLOCK_REALTIME);
++        qatomic_set(&loading_state, LOADING_FADING);
++        gl_dirty = true;
++    }
++}
++
++/*
++ * Draws the loading image over the window, covering it (16:9, cropped to the
++ * window's shape); returns whether the guest's frame is hidden entirely.
++ */
++static bool cocoa_loading_render(NSSize size)
++{
++    int state = qatomic_read(&loading_state);
++    float alpha = 1;
++
++    if (state == LOADING_OFF) {
++        return false;
++    }
++    if (state == LOADING_FADING) {
++        int64_t t = qemu_clock_get_ms(QEMU_CLOCK_REALTIME) - loading_fade_start;
++        if (t >= LOADING_FADE_MS) {
++            qatomic_set(&loading_state, LOADING_OFF);
++            if (loading_tex) {
++                glDeleteTextures(1, &loading_tex);
++                loading_tex = 0;
++            }
++            g_free(loading_pixels);
++            loading_pixels = NULL;
++            return false;
++        }
++        alpha = 1 - (float)t / LOADING_FADE_MS;
++    }
++    if (!loading_tex) {
++        glGenTextures(1, &loading_tex);
++        glBindTexture(GL_TEXTURE_2D, loading_tex);
++        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, loading_w, loading_h, 0,
++                     GL_RGBA, GL_UNSIGNED_BYTE, loading_pixels);
++    }
++
++    double f = MAX(size.width / loading_w, size.height / loading_h);
++    GLint w = (GLint)(loading_w * f + 0.5), h = (GLint)(loading_h * f + 0.5);
++    glViewport((GLint)(size.width - w) / 2, (GLint)(size.height - h) / 2, w, h);
++    glBindTexture(GL_TEXTURE_2D, loading_tex);
++    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
++    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
++    if (alpha < 1) {
++        glEnable(GL_BLEND);
++        glBlendColor(0, 0, 0, alpha);
++        glBlendFunc(GL_CONSTANT_ALPHA, GL_ONE_MINUS_CONSTANT_ALPHA);
++    }
++    qemu_gl_run_texture_blit(dgc.gls, false);
++    glDisable(GL_BLEND);
++    glViewport(0, 0, size.width, size.height);
++    return state != LOADING_FADING;
++}
++
+ static void cocoa_gl_render(void)
+ {
+     NSSize size = [cocoaView convertSizeToBacking:[cocoaView frame].size];
+@@ -2359,7 +2476,12 @@ static void cocoa_gl_render(void)
+         }
+     }
+ 
+-    if (gl_scanout_borrow) {
++    bool covered = qatomic_read(&loading_state) == LOADING_FIRMWARE ||
++                   qatomic_read(&loading_state) == LOADING_KERNEL;
++
++    if (covered) {
++        /* omaflake: the loading image only (below) */
++    } else if (gl_scanout_borrow) {
+         DisplayGLTexture texture = gl_scanout_borrow(gl_scanout_id);
+ 
+         if (cocoa_gl_trace_enabled()) {
+@@ -2412,14 +2534,26 @@ static void cocoa_gl_render(void)
+         cocoa_gl_log_error("render end");
+     }
+ 
++    cocoa_loading_render(size);
++
+     /* Clear dirty flag after render completes to ensure clean handoff */
+     gl_dirty = false;
++    /* omaflake: the fade needs a frame at every refresh */
++    if (qatomic_read(&loading_state) == LOADING_FADING) {
++        gl_dirty = true;
++    }
+ }
+ 
+ static void cocoa_gl_refresh(DisplayChangeListener *dcl)
+ {
+     cocoa_refresh(dcl);
+ 
++    if (qatomic_read(&loading_state) != LOADING_OFF &&
++        qatomic_read(&loading_state) != LOADING_FADING &&
++        qemu_clock_get_ms(QEMU_CLOCK_REALTIME) > loading_deadline) {
++        cocoa_loading_end();
++    }
++
+     if (gl_dirty) {
+ 
+         if (cocoa_gl_trace_enabled()) {
+@@ -2450,6 +2584,10 @@ static void cocoa_gl_scanout_disable(DisplayChangeListener *dcl)
+ {
+     gl_scanout_borrow = NULL;
+     gl_dirty = true;
++    /* omaflake: the firmware's scanout ended – the guest's own comes next */
++    if (qatomic_read(&loading_state) == LOADING_FIRMWARE) {
++        qatomic_set(&loading_state, LOADING_KERNEL);
++    }
+ 
+     cocoa_gl_log("scanout disable");
+ }
+@@ -2463,6 +2601,9 @@ static void cocoa_gl_scanout_texture(DisplayChangeListener *dcl,
+     gl_scanout_id = backing_id;
+     gl_scanout_borrow = backing_borrow;
+     gl_dirty = true;
++    if (qatomic_read(&loading_state) == LOADING_KERNEL) {
++        cocoa_loading_end();
++    }
+ 
+     cocoa_gl_log("scanout texture id=%u region=%ux%u+%u+%u",
+                  backing_id, w, h, x, y);
+@@ -2582,6 +2723,7 @@ static void cocoa_display_init(DisplayState *ds, DisplayOptions *opts)
+ 
+         dgc.gls = qemu_gl_init_shader();
+         dcl.ops = &dcl_gl_ops;
++        cocoa_loading_init();
+ 
+         for (unsigned int index = 0; ; index++) {
+             QemuConsole *con = qemu_console_lookup_by_index(index);

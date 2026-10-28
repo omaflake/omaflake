@@ -222,6 +222,10 @@ impl QemuCommand {
             format!("if=pflash,format=raw,readonly=on,file={}", self.firmware),
             "-drive".into(),
             format!("if=pflash,format=raw,file={}", p.efivars().display()),
+            // No boot wait in the firmware (plan B155): EDK2 counts down "Start boot option" for its Timeout variable
+            // (5 s) unless QEMU passes a splash time – then that, here 0 (QemuBootOrderLib, GetFrontPageTimeoutFromQemu)
+            "-boot".into(),
+            "menu=on,splash-time=0".into(),
             // Fixed PCI addresses (slot): a window adds GPU and USB devices, which used to shift the disk to another
             // slot – the UEFI boot entry stored in efivars then no longer matched and the VM fell into the UEFI
             // shell (plan B32). bootindex=0 also lets the firmware pick the disk over such a stale entry.
@@ -582,6 +586,8 @@ mod tests {
             "if=pflash,format=raw,readonly=on,file=/fw.fd",
             "-drive",
             "if=pflash,format=raw,file=/vm/instances/t1/efivars.fd",
+            "-boot",
+            "menu=on,splash-time=0",
             "-drive",
             "if=none,id=hd0,format=qcow2,file=/vm/instances/t1/disk.qcow2",
             "-device",

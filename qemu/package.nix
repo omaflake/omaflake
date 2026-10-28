@@ -2,7 +2,7 @@
 # omaflake's QEMU as a Nix package (spec §11.2): the same build as qemu/build.sh – QEMU with 3D for NixOS guests
 # (virtio-gpu-gl via virglrenderer, ANGLE from nixpkgs and libepoxy) – but from nixpkgs' derivations, without Homebrew:
 #   nix profile install github:omaflake/omaflake#qemu
-# Sources are pinned by hash; versions and patch lists match qemu/build.sh (patchset 5).
+# Sources are pinned by hash; versions and patch lists match qemu/build.sh (patchset 6).
 # Binary cache so that users don't compile it: OPEN.
 {
   lib,
@@ -64,7 +64,9 @@ let
   qemuPatches = map (p: ./patches/try-omarchy/${p}.patch) [
     "qemu-texture-borrowing-11.1" "qemu-gpu-spike-resolution-fix" "qemu-9p-guest-owner" "qemu-hvf-free-page-reclaim"
     "qemu-hvf-mapped-sections" "qemu-darwin-gpu-fence-poll" "qemu-cocoa-dynamic-display"
-  ] ++ map (p: ./patches/omaflake/${p}.patch) [ "qemu-cocoa-initial-size" "qemu-cocoa-dock-icon" "qemu-virgl-2d-flush" ];
+  ] ++ map (p: ./patches/omaflake/${p}.patch) [ "qemu-cocoa-initial-size" "qemu-cocoa-dock-icon" "qemu-virgl-2d-flush"
+    "qemu-cocoa-loading-image"
+  ];
 in
 (qemu.override {
   hostCpuTargets = [ "aarch64-softmmu" ];

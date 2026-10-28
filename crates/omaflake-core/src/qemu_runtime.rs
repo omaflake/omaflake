@@ -4,7 +4,8 @@
 //! Not 1:1: Swift took the window's initial resolution from CoreGraphics (`CGDisplayCopyDisplayMode`) and wrote the
 //! Dock icon itself (`Brand.dockIconFile`, AppKit). The core writes the Dock icon now: the brand's 512 px app icon is
 //! embedded (`DOCK_ICON`) and written to `<data>/cache/dock-icon.png` (`Paths::dock_icon`) when QEMU starts with a
-//! window; QEMU gets `OMAFLAKE_DOCK_ICON` pointing at it.
+//! window; QEMU gets `OMAFLAKE_DOCK_ICON` pointing at it. Likewise the loading image a 3D window shows until the guest
+//! draws (`LOADING_IMAGE`, `Paths::loading_image`, `OMAFLAKE_LOADING_IMAGE`; plan B155).
 //!
 //! The main screen: a UI can tell the core its size with `set_main_screen_resolution`, process-wide; the API passes
 //! none (decided: the core's own reading is exact). Without it macOS asks `system_profiler SPDisplaysDataType -json` once (cached for the process): the main display's pixels
@@ -252,8 +253,18 @@ impl QemuRuntime {
         let icon = self.paths.dock_icon();
         let icon_text = icon.to_string_lossy().into_owned();
         let mut extra_env: Vec<(&str, &str)> = vec![];
-        if display != DisplayMode::None && target.ui == crate::qemu_command::Ui::Cocoa && write_dock_icon(&icon) {
+        if display != DisplayMode::None && target.ui == crate::qemu_command::Ui::Cocoa && write_asset(&icon, DOCK_ICON)
+        {
             extra_env.push(("OMAFLAKE_DOCK_ICON", &icon_text));
+        }
+        // The loading image until the guest draws (patch qemu-cocoa-loading-image, the 3D window only)
+        let loading = self.paths.loading_image();
+        let loading_text = loading.to_string_lossy().into_owned();
+        if display == DisplayMode::Gpu
+            && target.ui == crate::qemu_command::Ui::Cocoa
+            && write_asset(&loading, LOADING_IMAGE)
+        {
+            extra_env.push(("OMAFLAKE_LOADING_IMAGE", &loading_text));
         }
         // A 3D window of QEMU from Nix outside NixOS: Mesa from QEMU's nixpkgs (plan B127)
         let gl_env = if display == DisplayMode::Gpu && target.ui == crate::qemu_command::Ui::Gtk {
@@ -506,15 +517,20 @@ pub(crate) fn prepare_efivars(efivars: &Path, template: &Path) -> Result<()> {
 /// The app icon QEMU's window shows in the Dock (brand/png/icon/omaflake-icon-512.png, made by brand/generate.py)
 pub(crate) const DOCK_ICON: &[u8] = include_bytes!("../../../brand/png/icon/omaflake-icon-512.png");
 
-/// Writes the Dock icon to `file` unless it is there already with these bytes; false when it cannot be written
-pub(crate) fn write_dock_icon(file: &Path) -> bool {
-    if std::fs::read(file).is_ok_and(|d| d == DOCK_ICON) {
+/// What QEMU's 3D window shows until the guest draws: the first frame of the guests' boot splash
+/// (brand/png/loading/omaflake-loading.png, made by brand/generate.py; patch qemu-cocoa-loading-image)
+pub(crate) const LOADING_IMAGE: &[u8] = include_bytes!("../../../brand/png/loading/omaflake-loading.png");
+
+/// Writes `data` (an embedded image) to `file` unless it is there already with these bytes; false when it cannot be
+/// written
+pub(crate) fn write_asset(file: &Path, data: &[u8]) -> bool {
+    if std::fs::read(file).is_ok_and(|d| d == data) {
         return true;
     }
     if let Some(dir) = file.parent() {
         let _ = std::fs::create_dir_all(dir);
     }
-    crate::file_format::write_atomic(file, DOCK_ICON).is_ok()
+    crate::file_format::write_atomic(file, data).is_ok()
 }
 
 pub fn tail(path: &Path, lines: usize) -> String {
@@ -655,15 +671,16 @@ mod tests {
     }
 
     #[test]
-    fn the_dock_icon_is_written_once() {
+    fn the_window_images_are_written_once() {
         let (_dir, paths) = temp_paths();
-        let file = paths.dock_icon();
-        assert!(DOCK_ICON.starts_with(b"\x89PNG"));
-        assert!(write_dock_icon(&file));
-        assert_eq!(std::fs::read(&file).unwrap(), DOCK_ICON);
-        std::fs::write(&file, b"old").unwrap();
-        assert!(write_dock_icon(&file));
-        assert_eq!(std::fs::read(&file).unwrap(), DOCK_ICON);
+        for (file, data) in [(paths.dock_icon(), DOCK_ICON), (paths.loading_image(), LOADING_IMAGE)] {
+            assert!(data.starts_with(b"\x89PNG"));
+            assert!(write_asset(&file, data));
+            assert_eq!(std::fs::read(&file).unwrap(), data);
+            std::fs::write(&file, b"old").unwrap();
+            assert!(write_asset(&file, data));
+            assert_eq!(std::fs::read(&file).unwrap(), data);
+        }
     }
 
     #[test]

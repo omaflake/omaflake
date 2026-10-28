@@ -30,6 +30,7 @@ endorsement.
 | Square, edge-to-edge | `png/icon-square/omaflake-icon-square-*.png` |
 | Monochrome (stickers, print, single colour) | `svg/omaflake-glyph-black.svg`, `-white.svg`, `png/glyph/` |
 | Monochrome, tiny (16–48 px) | `svg/omaflake-glyph-small-black.svg`, `-white.svg`, `png/glyph-small/` |
+| NixOS guests' loading screen | `../nix/modules/plymouth/` (the Plymouth theme's images and `layout.script`) and `png/loading/omaflake-loading.png` (its first frame, which QEMU's window shows until the guest draws; embedded in omaf); sources in `svg/loading/` |
 
 Website head:
 
