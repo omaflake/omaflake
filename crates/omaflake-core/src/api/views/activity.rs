@@ -143,6 +143,11 @@ pub fn job_ended(job: &JobDto) -> Option<(Level, Text, Option<Notification>)> {
         (K::BuilderSetup | K::BuilderApply, S::Finished) => {
             (Level::Info, Text::new("Linux builder settings applied"), None)
         }
+        (K::NixCleanUp, S::Finished) => {
+            let message = result(()).get("message").and_then(Value::as_str).map(str::to_string);
+            (Level::Info, message.map(Text::verbatim).unwrap_or_else(|| Text::new("Nix Store cleaned up")), None)
+        }
+        (K::NixCleanUp, S::Failed) => (Level::Error, tf!("Nix Store: %@", error), None),
         (K::BuilderCleanUp, S::Finished) => {
             let message = result(()).get("message").and_then(Value::as_str).map(str::to_string);
             (Level::Info, message.map(Text::verbatim).unwrap_or_else(|| Text::new("Linux builder cleaned up")), None)

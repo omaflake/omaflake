@@ -57,6 +57,10 @@ are collected under *Unreleased*. Releases: [GitHub](https://github.com/omaflake
 
 ### Fixed
 
+- Building images no longer fills the Nix Store: each build left its disk there (several GB) after copying it into
+  the data folder. omaflake now removes it after the build, and the Doctor shows what the Nix Store holds with
+  "Clean Up …" for what earlier builds left.
+
 - After a macOS update the Doctor no longer calls the IPSW missing: an older one keeps creating bases, and a newer
   macOS from Apple is offered as an optional download.
 - Downloading macOS on its own needs only the space of the IPSW, not that of a base and an image too. A download

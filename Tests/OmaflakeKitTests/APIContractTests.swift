@@ -264,7 +264,8 @@ struct APIContractTests {
         let jobs: [Job] = try load("jobs.list")
         let byID = Dictionary(uniqueKeysWithValues: jobs.map { ($0.id, $0) })
         func job(_ id: String) -> Job { byID[id]! }
-        #expect(jobs.count == 14)
+        #expect(jobs.count == 15)
+        #expect(job("j15").kind == .nixCleanUp)
         let build = job("j1")
         #expect(build.kind == .build && build.isRunning && build.guestKind == .nixos && build.cancellable)
         #expect(build.progress == Job.Progress(step: 3, total: 5, title: "Copying the image", done: 120, of: 400, fraction: 0.62))
@@ -282,7 +283,7 @@ struct APIContractTests {
         #expect(job("j11").state == .failed && job("j11").error != nil && job("j11").kind.isBuilderTask)
         #expect(job("j12").state == .cancelled && job("j13").state == .checking && job("j13").kind == .builderApply)
         #expect(job("j14").result(as: MessageResult.self)?.message.hasPrefix("Linux builder") == true)
-        #expect(Set(jobs.map(\.kind)).count == 11 && !jobs.contains { $0.kind == .unknown || $0.state == .unknown })
+        #expect(Set(jobs.map(\.kind)).count == 12 && !jobs.contains { $0.kind == .unknown || $0.state == .unknown })
     }
 
     /// An event's params wrapped as the notification line the server writes

@@ -119,6 +119,9 @@ pub struct Prerequisite {
     pub free_bytes: Option<i64>,
     #[serde(default)]
     pub needed_bytes: Option<i64>,
+    /// The Nix Store: what it holds, where it is a volume of its own (plan B149)
+    #[serde(default)]
+    pub used_bytes: Option<i64>,
     /// macOS base: its guest user, and the recipes' macUser when it differs
     #[serde(default)]
     pub base_user: Option<String>,
@@ -143,6 +146,8 @@ struct PrerequisiteJson<'a> {
     #[serde(skip_serializing_if = "Option::is_none")]
     needed_bytes: Option<i64>,
     #[serde(skip_serializing_if = "Option::is_none")]
+    used_bytes: Option<i64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     base_user: Option<&'a str>,
     #[serde(skip_serializing_if = "Option::is_none")]
     expected_user: Option<&'a str>,
@@ -160,6 +165,7 @@ impl Serialize for Prerequisite {
             settable_path: self.settable_path(),
             free_bytes: self.free_bytes,
             needed_bytes: self.needed_bytes,
+            used_bytes: self.used_bytes,
             base_user: self.base_user.as_deref(),
             expected_user: self.expected_user.as_deref(),
         }
@@ -183,6 +189,7 @@ impl Prerequisite {
             install,
             free_bytes: None,
             needed_bytes: None,
+            used_bytes: None,
             base_user: None,
             expected_user: None,
         }
@@ -694,16 +701,9 @@ impl Prerequisites {
         let settings = Settings::load(&self.paths);
         if cfg!(target_os = "linux") {
             // Images build here, natively – no Linux builder (plan B124)
-            return vec![
-                self.flake_eval(&settings),
-                self.space(PrerequisiteItem::NixSpace, Path::new("/nix/store"), Self::NIX_SPACE_NEEDED),
-            ];
+            return vec![self.flake_eval(&settings), self.nix_space()];
         }
-        vec![
-            self.builder_running(),
-            self.flake_eval(&settings),
-            self.space(PrerequisiteItem::NixSpace, Path::new("/nix/store"), Self::NIX_SPACE_NEEDED),
-        ]
+        vec![self.builder_running(), self.flake_eval(&settings), self.nix_space()]
     }
 
     /// `latest`: what Apple offers this Mac (`MacOsRelease::latest`), None when unknown (offline).
@@ -882,6 +882,13 @@ impl Prerequisites {
         )
     }
 
+    /// Free space for builds in the Nix Store, and what the store holds where it is a volume of its own (plan B149)
+    fn nix_space(&self) -> Prerequisite {
+        let mut p = self.space(PrerequisiteItem::NixSpace, Path::new("/nix/store"), Self::NIX_SPACE_NEEDED);
+        p.used_bytes = volume_used(Path::new("/nix"));
+        p
+    }
+
     pub(crate) fn space(&self, item: PrerequisiteItem, at: &Path, needed: i64) -> Prerequisite {
         let free = free_space(at).unwrap_or(0);
         let enough = free >= needed;
@@ -1005,6 +1012,27 @@ impl Prerequisites {
         let fields: Vec<&str> = line.split(' ').filter(|f| !f.is_empty()).collect();
         fields.len() > 1 && fields[1].split(',').any(|s| s == "aarch64-linux")
     }
+}
+
+/// What a volume of its own holds (`statvfs`: blocks less free blocks – per volume on APFS); None when `path` is no
+/// mount point of its own (on most Linux hosts /nix is a folder of the root file system: no size of the store alone)
+pub fn volume_used(path: &Path) -> Option<i64> {
+    use std::os::unix::ffi::OsStrExt;
+    use std::os::unix::fs::MetadataExt;
+    let own = fs::metadata(path).ok()?.dev();
+    let parent = fs::metadata(path.parent()?).ok()?.dev();
+    if own == parent {
+        return None;
+    }
+    let c = std::ffi::CString::new(path.as_os_str().as_bytes()).ok()?;
+    // SAFETY: a zeroed statvfs is a valid out-parameter; `c` is NUL-terminated and outlives the call
+    let mut st: libc::statvfs = unsafe { std::mem::zeroed() };
+    if unsafe { libc::statvfs(c.as_ptr(), &mut st) } != 0 {
+        return None;
+    }
+    #[allow(clippy::unnecessary_cast)] // the field types differ between macOS and Linux
+    let used = (st.f_blocks as u64).saturating_sub(st.f_bfree as u64).saturating_mul(st.f_frsize as u64);
+    Some(used.min(i64::MAX as u64) as i64)
 }
 
 #[cfg(test)]

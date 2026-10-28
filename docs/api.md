@@ -226,7 +226,7 @@ short as it can be).
   `cli`, `builderRunning`, `flakeEval`, `nixSpace`, `ipsw`, `macBase`, `macSpace`; a Linux host checks `host`, `kvm`,
   `nix`, `flakes`, `qemu`, `flake`, `sshKey`, `credential`, `look`, `git`, `cli`, then `flakeEval`, `nixSpace` – no macOS preflight, plan B124), `status` (`ok` | `limited` | `missing`),
   `title` (English; UIs translate by `item`), `required`, `detail`, `hint`, `install` (a command), `settablePath`,
-  `freeBytes`, `neededBytes`, `baseUser`, `expectedUser`. `git` and `cli` (the `omaf` command on the user's PATH) are
+  `freeBytes`, `neededBytes`, `usedBytes` (nixSpace: what the Nix Store holds where it is a volume of its own, plan B149), `baseUser`, `expectedUser`. `git` and `cli` (the `omaf` command on the user's PATH) are
   optional (`required` false, not counted in `issues`).
 - **MacOSRelease** – `version`, `build`, `url`, `bytes`.
 - **Unreadable** – a file this omaflake cannot read (too old, too new, damaged; plan B114): `name` (the VM, image or
@@ -243,7 +243,7 @@ comes as events, and `jobs.*` ask and steer.
 {
   "id": "j7",
   "kind": "build",          // build | macos-install | ipsw-download | builder-install-nix | builder-mount-nix | builder-setup
-                            // | builder-apply | builder-clean-up | cli-install | import | export | data-move
+                            // | builder-apply | builder-clean-up | nix-clean-up | cli-install | import | export | data-move
                             // | recipe-install | look-install | module-install
                             // | recipe-install
   "title": "Build dev",
@@ -277,7 +277,7 @@ move writes `data-move.log` next to config.json, as `logs/` moves along). Downlo
 | `data-move` | `{dataFolder}` |
 | `ipsw-download` | `{file, version}` |
 | `macos-install` | `{base, existing, ready}` |
-| `builder-install-nix`, `builder-mount-nix`, `builder-setup`, `builder-apply`, `builder-clean-up` | `{message}` – what it did, in English |
+| `builder-install-nix`, `builder-mount-nix`, `builder-setup`, `builder-apply`, `builder-clean-up`, `nix-clean-up` | `{message}` – what it did, in English |
 | `cli-install` | `{link, installed, message}` – the link, whether it is there now (install) or was removed; `message` in English |
 
 - **Builds** queue: one build per guest kind at a time, NixOS and macOS side by side (plan B60). Right before it
@@ -437,6 +437,7 @@ values (plan B141). A recipe whose modules or key binding sets are not here is r
 | `macos.installBase` | `credential?, ipsw?` | Job `macos-install` → `result: {base, existing, ready}` – the guest user, full name and password from the credential (ID or name; default: the default credential), recorded in the base (plan B139); `user, fullName, password` directly still work (API version 1) |
 | `doctor.installCli` / `doctor.uninstallCli` | – | Job `cli-install` → `result: {link, installed, message}` – the `omaf` command (plan B122): a symlink to this omaflake's `omaf` (inside omaflake.app the bundled `Contents/MacOS/omaf`, else the running executable or the `omaf` next to it). macOS: `/usr/local/bin/omaf` through the administrator dialog (a dismissed dialog cancels the job); Linux: `~/.local/bin/omaf`, no root. Install replaces a link or an older `omaf` there and refuses another file (`exists`); Uninstall removes only omaflake's link (`not-found` otherwise); one at a time (`in-use`) |
 | `builder.installNix` / `builder.mountNix` / `builder.setup` / `builder.apply` (`force?`) / `builder.cleanUp` | – | Job → `result: {message}` – each asks for an administrator through the system's own dialog; one at a time (`in-use`); `builder.apply` on a nix-darwin system that is not omaflake's needs `force` (error data `replacesConfiguration`); a dismissed dialog cancels the job |
+| `nix.cleanUp` | – | Job (`nix-clean-up`) → `result: {message}` (plan B149): `nix-collect-garbage` as the user – removes what nothing uses from the Nix Store; profiles' generations stay; not while a build runs (`in-use`). The Doctor offers it at `nixSpace` ("Clean Up …", with a question) |
 
 ### Views (§10)
 

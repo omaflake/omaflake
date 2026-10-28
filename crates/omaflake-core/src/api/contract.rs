@@ -641,6 +641,8 @@ pub(crate) fn prerequisite(item: PrerequisiteItem, status: PrerequisiteStatus) -
         settable_path: matches!(item, PrerequisiteItem::Nix | PrerequisiteItem::Qemu | PrerequisiteItem::Flake),
         free_bytes: None,
         needed_bytes: None,
+        // The Nix Store as a volume of its own (plan B149)
+        used_bytes: (item == PrerequisiteItem::NixSpace).then_some(476_000_000_000),
         base_user: None,
         expected_user: None,
     }
@@ -820,6 +822,12 @@ pub(crate) fn jobs() -> Vec<JobDto> {
             JobKind::BuilderCleanUp,
             JobState::Finished,
             r(MessageResult { message: "Linux builder: 18G → 28G free".into() }),
+        ),
+        job(
+            "j15",
+            JobKind::NixCleanUp,
+            JobState::Finished,
+            r(MessageResult { message: "Nix Store: 476.0 GB → 7.0 GB".into() }),
         ),
     ]
 }

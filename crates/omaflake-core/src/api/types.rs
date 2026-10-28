@@ -568,6 +568,9 @@ pub struct PrerequisiteDto {
     pub free_bytes: Option<i64>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub needed_bytes: Option<i64>,
+    /// The Nix Store's size where it is a volume of its own (plan B149)
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub used_bytes: Option<i64>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub base_user: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -1006,6 +1009,8 @@ pub enum JobKind {
     BuilderSetup,
     BuilderApply,
     BuilderCleanUp,
+    /// Remove what nothing uses from this computer's Nix Store (`nix.cleanUp`, `nix-collect-garbage`, plan B149)
+    NixCleanUp,
     /// Install or uninstall the `omaf` command (`doctor.installCli`, `doctor.uninstallCli`)
     CliInstall,
     Import,
@@ -1231,6 +1236,7 @@ mod tests {
         assert_eq!(s(RecipeSourceKind::Github), json!("github"));
         assert_eq!(s(RecipeSourceKind::Url), json!("url"));
         assert_eq!(s(JobKind::BuilderCleanUp), json!("builder-clean-up"));
+        assert_eq!(s(JobKind::NixCleanUp), json!("nix-clean-up"));
         assert_eq!(s(JobKind::CliInstall), json!("cli-install"));
         assert_eq!(s(JobKind::MacosInstall), json!("macos-install"));
         assert_eq!(s(UpdateState::NoFeed), json!("noFeed"));

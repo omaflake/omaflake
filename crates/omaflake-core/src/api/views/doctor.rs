@@ -156,8 +156,15 @@ pub fn hint_on(p: &PrerequisiteDto, host: super::HostOs) -> Text {
 
 /// Paths and versions as found; space in the UI's units (`RequirementText.detail`)
 fn detail(p: &PrerequisiteDto) -> Text {
-    match (p.free_bytes, p.needed_bytes) {
-        (Some(free), Some(needed)) => Text::fmt("%@ free, about %@ needed", vec![Arg::bytes(free), Arg::bytes(needed)]),
+    match (p.free_bytes, p.needed_bytes, p.used_bytes) {
+        // The Nix Store's own size where it is a volume of its own (plan B149)
+        (Some(free), Some(needed), Some(used)) => Text::fmt(
+            "%@ free, about %@ needed – the Nix Store holds %@",
+            vec![Arg::bytes(free), Arg::bytes(needed), Arg::bytes(used)],
+        ),
+        (Some(free), Some(needed), None) => {
+            Text::fmt("%@ free, about %@ needed", vec![Arg::bytes(free), Arg::bytes(needed)])
+        }
         _ => Text::verbatim(&p.detail),
     }
 }
@@ -395,6 +402,26 @@ fn item(ctx: &Ctx, p: &PrerequisiteDto) -> DoctorItem {
                 .enabled_if(report.is_some_and(|d| d.latest_release.is_some()), None),
             ),
         }
+    }
+    // The Nix Store keeps what builds leave until a garbage collection (plan B149): clean it up from here
+    if p.item == I::NixSpace {
+        let cleaning = ctx.active_job(JobKind::NixCleanUp).is_some();
+        let building = ctx.active_job(JobKind::Build).is_some();
+        let mut clean = Action::call("cleanUpNix", Text::new("Clean Up …"), Some("clean"), "nix.cleanUp", json!({}))
+            .help(Text::new("Removes what nothing uses from the Nix Store (nix-collect-garbage)"))
+            .busy(cleaning)
+            .enabled_if(!cleaning && !building, building.then(|| Text::new("A build runs")))
+            .confirm(
+                Confirm::new(
+                    Text::new("Clean up the Nix Store?"),
+                    Text::new("Removes everything in the Nix Store that nothing uses any more – mostly what earlier builds left. Your images, VMs and Nix profiles stay. The next build may take longer, as parts are built or downloaded again."),
+                )
+                .button("Clean Up"),
+            );
+        if p.status != S::Ok {
+            clean = clean.primary();
+        }
+        actions.push(clean);
     }
     if p.item == I::MacBase {
         actions.push(

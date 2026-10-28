@@ -1231,6 +1231,23 @@ page); `omaf ui` the search as a field (`Browse.field`, `set` = `ui.filter`, run
 pages as button bars. **Checked:** `cargo test` (`catalog_tabs_search_chips_and_pages`), `swift test`, clippy.
 **OPEN:** clicked in the apps; Install All installs what the page shows, not every match.
 
+**B149 (2026-10-28): the Nix Store filled the Mac.** Found by the maintainer with 6 GB left on a 4 TB disk: the Nix Store
+volume held 476 GB, 469 GB of it kept by nothing – 364 GB the disks of 44 NixOS image builds (`nixos-disk-image`), each
+copied out into the data folder and never deleted in the store (`nix build --no-link`: no GC root, but no garbage
+collection either), the rest what those builds were made of. `nix-collect-garbage` freed 432.8 GiB (75991 paths).
+Decided (the maintainer): omaflake removes its own leftovers and the Doctor offers the rest.
+- `ImageStore::build` deletes the image's store path after copying the disk out (`nix store delete`, as the user –
+  the daemon refuses a path something still uses; a failure is only logged). The system closure stays for faster
+  rebuilds. A rebuild of the same version builds the disk again (minutes) and then finds the image.
+- Doctor, `nixSpace`: what the store holds where /nix is a volume of its own (`prerequisites::volume_used`: statvfs
+  blocks less free blocks, a mount point of its own – none on most Linux hosts), and "Clean Up …" (`nix.cleanUp`, job
+  `nix-clean-up`: `nix-collect-garbage` as the user, profiles' generations stay, not during a build), primary while the
+  space is short; the result says the store's size before and after.
+- **Checked:** `cargo test` (`doctor_cleans_up_the_nix_store`, `nix_clean_up_says_what_it_freed`), `swift test`,
+  clippy. **OPEN:** a build in the app deleting its disk from the store (not run yet); the Linux builder VM's own disk
+  (`/private/var/lib/linux-builder/nixos.qcow2`, 99 GB here) does not shrink when its store is cleaned up – the qcow2
+  keeps its size; whether to compact it.
+
 **B129 (2026-10-24): clipboard on a GNOME host.** Mutter has no data-control protocol: `wl-paste --watch` ends at once.
 `Wayland::start` now treats an end within 500 ms as refused, and `detect` falls back to xclip through Xwayland, which
 Mutter keeps in sync (`X11::through_xwayland`, Mutter's `.mutter-Xwaylandauth.*` cookie when XAUTHORITY is unset; its

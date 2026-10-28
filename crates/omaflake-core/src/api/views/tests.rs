@@ -1285,6 +1285,30 @@ fn catalog_tabs_search_chips_and_pages() {
     assert!(get(&c, "looks", json!({}))["browse"]["pages"].is_object());
 }
 
+/// The Nix Store at the Doctor (plan B149): what it holds, and Clean Up (nix-collect-garbage) after a question
+#[test]
+fn doctor_cleans_up_the_nix_store() {
+    let mut c = ctx();
+    let mut space = crate::api::contract::prerequisite(
+        crate::prerequisites::PrerequisiteItem::NixSpace,
+        crate::prerequisites::PrerequisiteStatus::Ok,
+    );
+    (space.free_bytes, space.needed_bytes) = (Some(441_000_000_000), Some(30_000_000_000));
+    c.doctor.as_mut().unwrap().nixos_preflight.push(space);
+    let page = get(&c, "doctor", json!({}));
+    let item = page["sections"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .flat_map(|s| s["items"].as_array().unwrap().clone())
+        .find(|i| i["item"] == "nixSpace")
+        .unwrap();
+    assert_eq!(item["detail"]["key"], "%@ free, about %@ needed – the Nix Store holds %@");
+    let clean = action(&item["actions"], "cleanUpNix");
+    assert_eq!(clean["method"], "nix.cleanUp");
+    assert!(clean["confirm"].is_object(), "asks first");
+}
+
 /// The help switch (plan B148): off by default, the home page's action turns it on; a hint that only explains says so
 #[test]
 fn help_switch_on_the_home_page() {

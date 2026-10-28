@@ -235,5 +235,21 @@
     "started": "2026-10-23T09:00:00Z",
     "state": "finished",
     "title": "BuilderCleanUp"
+  },
+  {
+    "cancellable": false,
+    "finished": "2026-10-23T09:05:00Z",
+    "hiddenLines": 0,
+    "id": "j15",
+    "kind": "nix-clean-up",
+    "lastOutput": "2026-10-23T09:04:59Z",
+    "logFile": "/data/logs/j15.log",
+    "logLines": 3,
+    "result": {
+      "message": "Nix Store: 476.0 GB → 7.0 GB"
+    },
+    "started": "2026-10-23T09:00:00Z",
+    "state": "finished",
+    "title": "NixCleanUp"
   }
 ]

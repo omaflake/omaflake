@@ -1433,3 +1433,15 @@
 "Search key bindings" = "Tasten-Sets durchsuchen";
 "Search looks: name, colours, tags" = "Looks durchsuchen: Name, Farben, Tags";
 "Search recipes: name, what it is, modules" = "Rezepte durchsuchen: Name, was es ist, Module";
+
+/* The Nix Store at the Doctor (plan B149) */
+"nix-collect-garbage failed (%@) – see log" = "nix-collect-garbage ist fehlgeschlagen (%@) – siehe Protokoll";
+"%@ free, about %@ needed – the Nix Store holds %@" = "%1$@ frei, etwa %2$@ nötig – der Nix Store belegt %3$@";
+"A build runs" = "Ein Build läuft";
+"Clean Up" = "Aufräumen";
+"Clean up the Nix Store?" = "Nix Store aufräumen?";
+"Removes what nothing uses from the Nix Store (nix-collect-garbage)" = "Entfernt aus dem Nix Store, was nichts mehr braucht (nix-collect-garbage)";
+"Removes everything in the Nix Store that nothing uses any more – mostly what earlier builds left. Your images, VMs and Nix profiles stay. The next build may take longer, as parts are built or downloaded again." = "Entfernt alles aus dem Nix Store, was nichts mehr braucht – meist Reste früherer Builds. Deine Vorlagen, VMs und Nix-Profile bleiben. Der nächste Build kann länger dauern, weil Teile neu gebaut oder geladen werden.";
+"Nix Store cleaned up" = "Nix Store aufgeräumt";
+"Nix Store: %@" = "Nix Store: %@";
+"Clean up the Nix Store" = "Nix Store aufräumen";

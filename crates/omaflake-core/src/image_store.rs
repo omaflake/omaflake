@@ -416,10 +416,24 @@ impl ImageStore {
             Self::write_info(&info, &dir)?;
         }
         self.set_current(&name)?;
+        // The disk is out of the store now: its copy there goes (plan B149) – several GB a build, kept by nothing, that
+        // filled the store until a garbage collection. The system it was made of stays for faster rebuilds; only the
+        // daemon's check decides (a path something still uses is not deleted), and a failure only says so.
+        Self::delete_from_store(&store_path, log);
         // The recipe version it is built from stays (plan B111); older ones may go now
         library.keep(recipe, &Settings::load(&self.paths));
         library.prune_versions();
         self.image(&name)
+    }
+
+    /// `nix store delete <path>`: removes one path from the Nix Store when nothing uses it; a failure is logged
+    pub(crate) fn delete_from_store(store_path: &str, log: &Log) {
+        let r = Shell::run("nix", &["store", "delete", store_path], &crate::shell::RunOptions::default());
+        match r {
+            Ok(r) if r.status == 0 => log("Removed the image's copy from the Nix store"),
+            Ok(r) => log(&format!("The image's copy stays in the Nix store: {}", r.stderr.trim())),
+            Err(e) => log(&format!("The image's copy stays in the Nix store: {e}")),
+        }
     }
 
     /// The qcow2 of a NixOS store path → `<package>/disk.qcow2` (read-only). The package then needs no GC root and

@@ -469,6 +469,7 @@ pub(crate) fn prerequisite_dto(p: &Prerequisite) -> PrerequisiteDto {
         settable_path: p.settable_path(),
         free_bytes: p.free_bytes,
         needed_bytes: p.needed_bytes,
+        used_bytes: p.used_bytes,
         base_user: p.base_user.clone(),
         expected_user: p.expected_user.clone(),
     }

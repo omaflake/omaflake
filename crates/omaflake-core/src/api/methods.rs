@@ -336,6 +336,7 @@ impl Server {
                 self.builder_job(JobKind::BuilderApply, params::<P>(p)?.force)
             }
             "builder.cleanUp" => self.builder_job(JobKind::BuilderCleanUp, false),
+            "nix.cleanUp" => self.nix_clean_up(),
             // Jobs
             "jobs.list" => Answer::of(self.inner.jobs.list()),
             "jobs.log" => {
@@ -2322,6 +2323,42 @@ impl Server {
         Ok(Answer::Job(self.inner.jobs.submit(spec)))
     }
 
+    /// Removes what nothing uses from this computer's Nix Store (plan B149): `nix-collect-garbage` as the user – the
+    /// Nix daemon deletes only paths no GC root, profile or running process keeps; profiles' older generations stay.
+    /// Old image disks are most of it: a build copies its disk out of the store and deletes it there itself
+    /// (`ImageStore::build`), but builds of older versions left theirs.
+    fn nix_clean_up(&self) -> Reply {
+        if let Some(job) = self.inner.jobs.any_active(&[JobKind::NixCleanUp, JobKind::Build]) {
+            return Err(RpcError::from(crate::vm_err!(codes::IN_USE, "{} runs already", job.title)));
+        }
+        let mut spec = JobSpec::new(
+            JobKind::NixCleanUp,
+            "Clean up the Nix Store",
+            Box::new(move |ctx: &JobCtx| {
+                ctx.log("Removing what nothing uses from the Nix Store …");
+                let before = crate::prerequisites::volume_used(std::path::Path::new("/nix"));
+                let log = ctx.log_sink();
+                let r = crate::shell::Shell::stream(
+                    "nix-collect-garbage",
+                    &[] as &[&str],
+                    &crate::shell::StreamOptions::default(),
+                    &|line: &str| log(line),
+                )?;
+                if r.status != 0 {
+                    return Err(crate::vm_err!("nix-collect-garbage failed ({}) – see log", r.status));
+                }
+                let after = crate::prerequisites::volume_used(std::path::Path::new("/nix"));
+                let message = nix_clean_up_summary(&format!("{}\n{}", r.stdout, r.stderr), before, after);
+                ctx.log(&message);
+                result(MessageResult { message })
+            }),
+        );
+        spec.cancellable = false;
+        let s = self.clone();
+        spec.on_end = Some(Box::new(move |_| s.check_doctor_later()));
+        Ok(Answer::Job(self.inner.jobs.submit(spec)))
+    }
+
     /// Install or uninstall the `omaf` command (plan B122): the link to this omaflake's `omaf`; on macOS through the
     /// administrator dialog (a dismissed dialog cancels the job), on Linux in ~/.local/bin without root
     fn cli_job(&self, install: bool) -> Reply {
@@ -2492,6 +2529,24 @@ fn file_safe(name: &str) -> String {
 /// The kebab-case name of a job kind (its JSON value)
 fn job_kind_name(kind: JobKind) -> String {
     serde_json::to_value(kind).ok().and_then(|v| v.as_str().map(str::to_string)).unwrap_or_else(|| "job".into())
+}
+
+/// What `nix-collect-garbage` freed: the store's size before and after where it is a volume of its own, else its own
+/// last line ("1234 store paths deleted, 456.78 GiB freed")
+pub(crate) fn nix_clean_up_summary(output: &str, before: Option<i64>, after: Option<i64>) -> String {
+    if let (Some(b), Some(a)) = (before, after) {
+        return format!(
+            "Nix Store: {} → {}",
+            crate::ipsw_downloader::gigabytes(b),
+            crate::ipsw_downloader::gigabytes(a)
+        );
+    }
+    output
+        .lines()
+        .rev()
+        .find(|l| l.contains("freed"))
+        .map(|l| format!("Nix Store: {}", l.trim()))
+        .unwrap_or_else(|| "Nix Store cleaned up".to_string())
 }
 
 /// The clean-up's "before" and "after" lines of df (size, used, avail, …) → "Linux builder: 40G → 52G free"
@@ -2976,6 +3031,16 @@ fn keys_of(keys: &crate::keymaps::Keys) -> BTreeMap<String, String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn nix_clean_up_says_what_it_freed() {
+        let out = "deleting '/nix/store/x'\n76000 store paths deleted, 437.12 GiB freed\n";
+        assert_eq!(nix_clean_up_summary(out, None, None), "Nix Store: 76000 store paths deleted, 437.12 GiB freed");
+        assert_eq!(
+            nix_clean_up_summary(out, Some(476_000_000_000), Some(7_000_000_000)),
+            "Nix Store: 476.0 GB → 7.0 GB"
+        );
+    }
 
     #[test]
     fn cleanup_summary_reads_df() {
