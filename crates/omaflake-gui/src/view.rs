@@ -53,10 +53,8 @@ pub fn glow_image(size: Size) -> image::Handle {
 impl App {
     pub fn view(&self, _: window::Id) -> El<'_> {
         widgets::set_help(self.home_model().and_then(|h| h.help.on).unwrap_or(false));
-        let content: El<'_> = match self.current() {
-            Some(page) => self.page_frame(&page),
-            None => self.home(),
-        };
+        // The header and the sidebar stay; a page opens next to them (plan B152)
+        let content: El<'_> = self.home();
         let background: El<'_> = match &self.glow {
             Some((_, h)) => {
                 image(h.clone()).width(Length::Fill).height(Length::Fill).content_fit(iced::ContentFit::Fill).into()
@@ -88,6 +86,18 @@ impl App {
 
     fn home(&self) -> El<'_> {
         let header = self.header();
+        if let Some(page) = self.current() {
+            return column![
+                container(header).padding(Padding {
+                    top: style::spacing::MARGIN,
+                    right: style::spacing::MARGIN,
+                    bottom: spacing::XL,
+                    left: style::spacing::MARGIN
+                }),
+                row![self.sidebar(), widgets::vertical_divider(), self.page_frame(&page)].height(Length::Fill),
+            ]
+            .into();
+        }
         let list: El<'_> = match self.model(&self.tab_page()) {
             Some(m) => pages::list(self, &self.tab, m),
             None => pages::waiting(self.status.as_deref()),

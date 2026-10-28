@@ -131,22 +131,32 @@ struct MainView: View {
 
     var body: some View {
         Group {
-            if let page = model.path.last {
-                VStack(alignment: .leading, spacing: 0) {
-                    PageHeader(title: title(page), model: model)
-                    Divider()
-                    PageView(ref: page, model: model)
-                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-                }
-            } else if inWindow {
-                // The app window: a sidebar with the two groups, the open tab next to it (plan B147)
+            if inWindow {
+                // The app window: the header and the sidebar with the groups always there (plan B147, B152); next to
+                // them the open tab, or a page opened from it (Doctor, Settings, an image …) with its way back
                 VStack(spacing: 0) {
                     header.padding([.horizontal, .top], BrandStyle.margin).padding(.bottom, BrandTokens.Spacing.xl)
                     HStack(alignment: .top, spacing: 0) {
                         HomeSidebar(model: model).frame(width: Self.sidebarWidth)
                         Divider()
-                        content(model.tab).padding(.top, BrandTokens.Spacing.s)
+                        if let page = model.path.last {
+                            VStack(alignment: .leading, spacing: 0) {
+                                PageHeader(title: title(page), model: model)
+                                Divider()
+                                PageView(ref: page, model: model)
+                                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+                            }
+                        } else {
+                            content(model.tab).padding(.top, BrandTokens.Spacing.s)
+                        }
                     }
+                }
+            } else if let page = model.path.last {
+                VStack(alignment: .leading, spacing: 0) {
+                    PageHeader(title: title(page), model: model)
+                    Divider()
+                    PageView(ref: page, model: model)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
                 }
             } else {
                 // The menu bar window is for running things (plan B148): the Run group's tabs, large; the workshop,
@@ -371,7 +381,8 @@ struct HomeSidebar: View {
 
     private func item(_ id: AppModel.HomeTab, _ tab: HomePage.Tab) -> some View {
         let selected = model.tab == id
-        return Button { model.tab = id } label: {
+        // A click goes to the tab at once – a page open on top of the last one closes (plan B152)
+        return Button { model.closePages(); model.tab = id } label: {
             HStack(spacing: BrandTokens.Spacing.l) {
                 Image(systemName: Icons.symbol(tab.icon)?.main ?? "circle").font(.system(size: BrandTokens.Icon.tab, weight: .medium))
                     .frame(width: 18)

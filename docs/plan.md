@@ -1281,6 +1281,12 @@ the window anyway. German: the maintainer chose "Region"/"Regionen" for locale(s
 "Locales"); the locale's own field "Language and region" became "Sprache und Format", the build page's choice
 "Region". **Checked:** `swift test`, `cargo test` (translations). **OPEN:** tried in the app.
 
+**B152 (2026-10-28): the app window keeps its header and sidebar.** A page opened from a tab or the header (Doctor,
+Settings, an image, a VM, New VM …) took the whole window before; now it opens next to the sidebar, below the header
+with omaflake and its icons, with its own way back. A click in the sidebar goes to that tab at once and closes the pages
+open on top (`AppModel.closePages`; iced `Message::Tab` empties the stack). The menu bar window is unchanged: a page
+takes it whole, as it is narrow. **Checked:** `swift test`, `cargo test`. **OPEN:** tried in the apps.
+
 **B129 (2026-10-24): clipboard on a GNOME host.** Mutter has no data-control protocol: `wl-paste --watch` ends at once.
 `Wayland::start` now treats an end within 500 ms as refused, and `detect` falls back to xclip through Xwayland, which
 Mutter keeps in sync (`X11::through_xwayland`, Mutter's `.mutter-Xwaylandauth.*` cookie when XAUTHORITY is unset; its

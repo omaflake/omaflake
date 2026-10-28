@@ -51,6 +51,9 @@ are collected under *Unreleased*. Releases: [GitHub](https://github.com/omaflake
 
 ### Changed
 
+- In the app window the header and the sidebar stay while a page is open – the Doctor, the settings, an image –
+  so another tab is always one click away.
+
 - Keys are drawn as key caps everywhere – |Ctrl| |g| – named as on your keyboard (Ctrl, Opt, Shift, Cmd on a Mac;
   Ctrl, Alt, Shift, Super on Linux), never as "⌃g" or "Ctrl+g". Overlapping keys are shown the same way.
 

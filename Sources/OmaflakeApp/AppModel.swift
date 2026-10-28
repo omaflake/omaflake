@@ -141,6 +141,12 @@ final class AppModel {
         didSet { subscribe() }
     }
 
+    /// Closes every page open on top of the tabs (a click in the app window's sidebar); their form values go
+    func closePages() {
+        for ref in path { formValues[ref.page] = nil }
+        path = []
+    }
+
     func back() {
         guard let last = path.popLast() else { return }
         formValues[last.page] = nil

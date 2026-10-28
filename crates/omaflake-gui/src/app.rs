@@ -579,6 +579,10 @@ impl App {
             Message::Tray(e) => self.tray_event(e),
             Message::Answer(purpose, result) => self.answered(purpose, result),
             Message::Tab(tab) => {
+                // The sidebar goes to the tab at once: pages open on top of the last one close (plan B152)
+                while let Some(p) = self.stack.pop() {
+                    self.forms.remove(&p.page);
+                }
                 self.tab = tab;
                 self.tab_chosen = true;
                 self.filter_menu = None;
