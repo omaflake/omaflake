@@ -10,7 +10,7 @@ use std::collections::{HashMap, HashSet};
 use chrono::{DateTime, Utc};
 use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::{Line, Span};
-use serde_json::Value;
+use serde_json::{json, Value};
 
 use crate::icons::IconSet;
 use crate::text::{arr, b, bytes_text, date_text, duration_text, parse_date, s, t, tr, trf};
@@ -467,6 +467,13 @@ fn field(ctx: &Ctx, prefix: &str, f: &Value) -> Item {
         lines.push(toned_line(ctx, t(e), Tone::Danger, 6));
     } else if let (false, Some(r)) = (enabled, f.get("reason")) {
         lines.push(secondary_line(ctx, t(r), 6));
+    } else if let (true, Some(h), false) = (ctx.help, f.get("help"), s(f, "kind") == "path") {
+        // A field's explanation with the help switch on (plan B148); a path field's `help` is its reset button
+        lines.push(Line::from(vec![
+            Span::raw(" ".repeat(6)),
+            Span::styled("? ", ctx.theme.accent()),
+            Span::styled(t(h), ctx.theme.secondary()),
+        ]));
     }
     let selectable = s(f, "kind") != "info";
     Item {
@@ -507,11 +514,18 @@ fn list_head(page: &mut Page, model: &Value) {
     page.tools = arr(model, "actions").to_vec();
 }
 
+/// A chip's action, its label with how many have the tag ("terminal 3")
+fn chip_with_count(tag: &Value) -> Value {
+    let mut a = tag["action"].clone();
+    a["label"] = json!({"text": format!("{} {}", t(&tag["label"]), tag["count"])});
+    a
+}
+
 /// A catalog tab's search and chips (plan B148): the search a field (Enter edits it), the chips a button bar
 fn browse_top(ctx: &Ctx, model: &Value, p: &mut Page) {
     let Some(b) = model.get("browse").filter(|b| b.is_object()) else { return };
     p.items.push(field(ctx, "browse", &b["field"]));
-    let mut chips: Vec<Value> = arr(b, "tags").iter().map(|t| t["action"].clone()).collect();
+    let mut chips: Vec<Value> = arr(b, "tags").iter().map(chip_with_count).collect();
     if let Some(r) = b.get("reset").filter(|r| r.is_object()) {
         chips.insert(0, r.clone());
     }
@@ -1212,7 +1226,7 @@ fn studio(ctx: &Ctx, model: &Value, p: &mut Page) {
         let actions: Vec<Value> = sug.get("action").filter(|a| a.is_object()).cloned().into_iter().collect();
         p.items.push(Item::row(format!("suggest:{}", s(sug, "reference")), vec![line], actions));
     }
-    let chips: Vec<Value> = arr(catalog, "tags").iter().map(|t| t["action"].clone()).collect();
+    let chips: Vec<Value> = arr(catalog, "tags").iter().map(chip_with_count).collect();
     if let Some(bar) = button_bar(ctx, "studio:tags", &chips) {
         p.items.push(bar);
     }
@@ -1398,7 +1412,8 @@ fn keymap_studio(ctx: &Ctx, model: &Value, p: &mut Page) {
                     line.push(Span::styled(" ●", th.accent()));
                 }
                 if let Some(a) = r.get("after") {
-                    line.push(Span::styled(format!("  → {}", t(a)), th.accent()));
+                    let arrow = if b(r, "backToStart") { "↩" } else { "→" };
+                    line.push(Span::styled(format!("  {arrow} {}", t(a)), th.accent()));
                 }
                 let mut lines = vec![Line::from(line)];
                 if let Some(c) = r.get("conflict") {

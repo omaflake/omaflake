@@ -420,19 +420,17 @@ pub(crate) fn page(ctx: &Ctx, p: &LookStudioParams) -> LookStudioPage {
     // The look as it is now: the base's data with what was chosen here
     let mut look = data.clone();
     if let Value::Object(m) = &mut look {
-        for k in ["$schema", "version", "author", "license", "homepage", "description_de"] {
+        for k in ["$schema", "version", "author", "homepage", "description_de"] {
             m.remove(k);
         }
+        // look v1 asks for both (a look of yours is MIT like the catalog's)
+        m.insert("license".into(), json!("MIT"));
         m.insert("title".into(), json!(if title.is_empty() { name.clone() } else { title.clone() }));
         m.insert("description".into(), json!(description));
         m.insert("appearance".into(), json!(appearance));
         let tag_list: Vec<String> =
             tags.split(',').map(|t| t.trim().to_lowercase()).filter(|t| !t.is_empty()).collect();
-        if tag_list.is_empty() {
-            m.remove("tags");
-        } else {
-            m.insert("tags".into(), json!(tag_list));
-        }
+        m.insert("tags".into(), json!(tag_list));
         if plain {
             m.insert("plain".into(), json!(true));
             for k in ["colors", "terminal", "desktop", "neovim", "emacs"] {

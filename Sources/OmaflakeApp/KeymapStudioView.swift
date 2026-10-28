@@ -391,8 +391,10 @@ private struct AfterChoice: View {
 
     var body: some View {
         let value = model.formValue(ref.page, field) ?? field.value
-        let first = Array(field.choices.prefix(2))
-        let others = Array(field.choices.dropFirst(2))
+        // Staying and going back to the start mode as switches; when the mode is the start mode, staying is going back
+        let isSegment = { (c: Choice) in ["stays in %@", "back to %@"].contains(c.label.key ?? "") }
+        let first = field.choices.filter(isSegment)
+        let others = field.choices.filter { !isSegment($0) }
         VStack(alignment: .leading, spacing: BrandTokens.Spacing.s) {
             Text(verbatim: model.t(field.label)).font(.callout.weight(.medium))
             HStack(spacing: BrandTokens.Spacing.s) {

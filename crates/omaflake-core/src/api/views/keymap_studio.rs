@@ -190,8 +190,9 @@ fn keys_text(keys: &[String]) -> String {
 }
 
 /// "h / Left" → ["h", "Left"]; None when one is not a key
+/// Keys are apart by " / " – a key may be "/" itself ("Ctrl+/"); "h/Left" without spaces is one (wrong) key
 fn parse_keys(text: &str) -> Option<Vec<String>> {
-    let keys: Vec<String> = text.split('/').map(|k| k.trim().to_string()).filter(|k| !k.is_empty()).collect();
+    let keys: Vec<String> = text.split(" / ").map(|k| k.trim().to_string()).filter(|k| !k.is_empty()).collect();
     (!keys.is_empty() && keys.iter().all(|k| parse_key(k).is_some())).then_some(keys)
 }
 
@@ -285,14 +286,31 @@ pub(crate) fn page(ctx: &Ctx, p: &KeymapStudioParams) -> KeymapStudioPage {
     let name = text("name").unwrap_or_else(|| from.map(|k| k.name.clone()).unwrap_or_default());
     let title = text("title").unwrap_or_else(|| from.map(|k| k.title.clone()).unwrap_or_default());
     let description = text("description").unwrap_or_else(|| from.map(|k| k.description.clone()).unwrap_or_default());
-    let platform = text("platform").and_then(|k| GuestKind::parse(&k)).unwrap_or(GuestKind::Nixos);
     let base_ref = text("base").unwrap_or_else(|| from.map(Keymap::reference).unwrap_or_default());
     let base = sets.iter().find(|k| k.reference() == base_ref);
+    let store = ModuleStore::new(ctx.paths.clone());
+    let all_modules = store.list(&settings);
+    // The platform: as chosen, else the one of the modules the set starts from names (macOS only when all are macOS's)
+    let platform = text("platform").and_then(|k| GuestKind::parse(&k)).unwrap_or_else(|| {
+        let named: Vec<GuestKind> = base
+            .map(|b| {
+                b.keys
+                    .keys()
+                    .filter_map(|r| all_modules.iter().find(|m| &m.reference() == r))
+                    .map(|m| m.platform)
+                    .collect()
+            })
+            .unwrap_or_default();
+        if !named.is_empty() && named.iter().all(|p| *p == GuestKind::Macos) {
+            GuestKind::Macos
+        } else {
+            GuestKind::Nixos
+        }
+    });
 
     // The platform's modules with keys; those the set covers: as chosen, else those the base set names, else all
-    let store = ModuleStore::new(ctx.paths.clone());
     let mut modules: Vec<Module> =
-        store.list(&settings).into_iter().filter(|m| m.platform == platform && !m.actions.is_empty()).collect();
+        all_modules.iter().filter(|m| m.platform == platform && !m.actions.is_empty()).cloned().collect();
     modules.sort_by_key(|m| (!m.desktop, m.title.to_lowercase()));
     let covered: Vec<String> = match v.get("modules").and_then(Value::as_array) {
         Some(list) => list.iter().filter_map(Value::as_str).map(str::to_string).collect(),
@@ -323,15 +341,30 @@ pub(crate) fn page(ctx: &Ctx, p: &KeymapStudioParams) -> KeymapStudioPage {
         if let Some(t) = text("draftText") {
             match parse_keys(&t) {
                 Some(k) => return Some(k),
-                None => draft_error = Some(Text::new("Keys like Ctrl+g, Super+Return, Space f f – several with /")),
+                None => {
+                    draft_error = Some(Text::new("Keys like Ctrl+g, Super+Return, Space f f – several apart by “ / ”"))
+                }
             }
         }
-        v.get("draft").and_then(|d| keys_of(d).ok())
+        // No key at all is a draft too (the last one taken out): Apply waits for one
+        match v.get("draft") {
+            Some(Value::Array(l)) if l.is_empty() => Some(vec![]),
+            d => d.and_then(|d| keys_of(d).ok()),
+        }
     });
     let draft_after = edit.as_ref().and_then(|_| text("draftAfter"));
 
-    // The set as chosen: the base set's entries, then the page's values – only what differs from the modules' keys
-    let mut keys: Keys = BTreeMap::new();
+    // The set as chosen: the base set's entries, then the page's values – only what differs from the modules' keys.
+    // What the base names for modules not shown here (the other platform's, or modules not installed) stays as it is.
+    let mut keys: Keys = base
+        .map(|b| {
+            b.keys
+                .iter()
+                .filter(|(r, _)| !modules.iter().any(|m| &m.reference() == *r))
+                .map(|(r, a)| (r.clone(), a.clone()))
+                .collect()
+        })
+        .unwrap_or_default();
     let mut errors: BTreeMap<String, Text> = BTreeMap::new();
     for m in modules.iter().filter(|m| covered.contains(&m.reference())) {
         let r = m.reference();
@@ -344,7 +377,10 @@ pub(crate) fn page(ctx: &Ctx, p: &KeymapStudioParams) -> KeymapStudioPage {
                 match keys_of(value) {
                     Ok(k) => key = k,
                     Err(()) => {
-                        errors.insert(id, Text::new("Keys like Ctrl+g, Super+Return, Space f f – several with /"));
+                        errors.insert(
+                            id,
+                            Text::new("Keys like Ctrl+g, Super+Return, Space f f – several apart by “ / ”"),
+                        );
                     }
                 }
             }
@@ -352,12 +388,16 @@ pub(crate) fn page(ctx: &Ctx, p: &KeymapStudioParams) -> KeymapStudioPage {
                 after = Some(t);
             }
             if edit.as_ref() == Some(&(r.clone(), action.clone())) {
-                if let Some(k) = &draft_keys {
+                if let Some(k) = draft_keys.as_ref().filter(|k| !k.is_empty()) {
                     key = k.clone();
                 }
                 if let Some(t) = &draft_after {
                     after = Some(t.clone());
                 }
+            }
+            // Staying in its mode is what an action without `after` does: not a change
+            if a.after.is_none() && a.mode.len() == 1 && after.as_deref() == Some(a.mode[0].as_str()) {
+                after = None;
             }
             let entry = KeyEntry {
                 key: if key != a.key { key } else { vec![] },
@@ -555,7 +595,8 @@ pub(crate) fn page(ctx: &Ctx, p: &KeymapStudioParams) -> KeymapStudioPage {
         let bindings: Vec<&Binding> = composition.bindings.iter().filter(|x| &x.module == mr).collect();
         let found = ways(&bindings, start.as_deref());
         let here = (b.modes.len() == 1).then(|| b.modes[0].clone());
-        let current = b.keys.clone();
+        // The draft as it is – also none at all, after the last key was taken out
+        let current = draft_keys.clone().unwrap_or_else(|| b.keys.clone());
         let key_id = format!("key:{mr}:{ar}");
         let after_id = format!("after:{mr}:{ar}");
         let mut text_field = Field::new(

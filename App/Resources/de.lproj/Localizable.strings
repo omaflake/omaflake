@@ -1345,7 +1345,7 @@
 "%@ – %lld keys, %lld changed" = "%1$@ – %2$lld Tasten, %3$lld geändert";
 "1 key" = "1 Taste";
 "Search keys: what it does, its key" = "Tasten suchen: was sie tut, die Taste";
-"Keys like Ctrl+g, Super+Return, Space f f – several with /" = "Tasten wie Ctrl+g, Super+Return, Space f f – mehrere mit /";
+"Keys like Ctrl+g, Super+Return, Space f f – several apart by “ / ”" = "Tasten wie Ctrl+g, Super+Return, Space f f – mehrere getrennt durch „ / “";
 "Overlaps %@" = "Überschneidet sich mit %@";
 "then" = "danach";
 "stays in %@" = "bleibt in %@";
@@ -1524,3 +1524,4 @@
 "wins over the ones above" = "gewinnt gegen die darüber";
 "None – every module has its own keys" = "Keines – jedes Modul hat seine eigenen Tasten";
 "Add Key Bindings" = "Tasten-Set hinzufügen";
+"%@ runs – build when it is done" = "%@ läuft – baue, wenn es fertig ist";

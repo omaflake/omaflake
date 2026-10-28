@@ -71,8 +71,8 @@ pub fn list<'a>(app: &'a App, tab: &str, m: &'a Model) -> El<'a> {
     match m {
         Model::Vms(p) => vms(app, p),
         Model::Images(p) => images(app, p),
-        Model::Recipes(p) => recipes(app, p),
-        Model::Looks(p) => looks(app, p),
+        Model::Recipes(p) => recipes(app, tab, p),
+        Model::Looks(p) => looks(app, tab, p),
         Model::Activity(p) => activity(app, p),
         // Credentials, locales, profiles: tabs of the workshop (plan B147)
         Model::Credentials(c) => credentials(app, tab, c),
@@ -463,7 +463,8 @@ fn tags<'a>(tags: &'a [String]) -> Vec<El<'a>> {
     out
 }
 
-fn recipes<'a>(app: &'a App, p: &'a RecipesPage) -> El<'a> {
+/// `page`: the tab it is (`recipes`, `recipeCatalog`) – its filter and search go there
+fn recipes<'a>(app: &'a App, page: &str, p: &'a RecipesPage) -> El<'a> {
     let mut rows: Vec<El<'a>> = Vec::new();
     if let (true, Some(t)) = (p.loading, &p.loading_text) {
         rows.push(
@@ -519,11 +520,12 @@ fn recipes<'a>(app: &'a App, p: &'a RecipesPage) -> El<'a> {
     if let (true, Some(h)) = (p.lab_hidden, &p.lab_hint) {
         rows.push(hint(h, app.pulse));
     }
-    section(app, "recipes", &p.head, rows)
+    section(app, page, &p.head, rows)
 }
 
 /// The Looks tab (plan B141): the looks here with a strip of their colours, what the sources offer besides
-fn looks<'a>(app: &'a App, p: &'a omaflake_core::api::views::looks::LooksPage) -> El<'a> {
+/// `page`: the tab it is (`looks`, `modules`, `keymaps`) – its filter and search go there
+fn looks<'a>(app: &'a App, page: &str, p: &'a omaflake_core::api::views::looks::LooksPage) -> El<'a> {
     let mut rows: Vec<El<'a>> = Vec::new();
     if let (true, Some(t)) = (p.loading, &p.loading_text) {
         rows.push(
@@ -546,7 +548,7 @@ fn looks<'a>(app: &'a App, p: &'a omaflake_core::api::views::looks::LooksPage) -
     rows.extend(p.offered.iter().map(|r| look_row(app, r)));
     rows.extend(p.unreadable.iter().map(|h| hint(h, app.pulse)));
     // The explanation above the list, in a box of its own (plan B148)
-    column![widgets::help_note(s(&p.footer)), section(app, "looks", &p.head, rows)].spacing(spacing::XL).into()
+    column![widgets::help_note(s(&p.footer)), section(app, page, &p.head, rows)].spacing(spacing::XL).into()
 }
 
 /// A look's colours as a small strip; a plain look shows an empty frame
@@ -1398,10 +1400,11 @@ fn key_editor<'a>(app: &'a App, page: &str, e: &'a omaflake_core::api::views::ke
                 button(text(k.label.clone()).size(text_size::CAPTION).font(style::semibold()))
                     .padding([1.0, spacing::S])
                     .style(style::tab(false))
+                    // Put together – used as the key or added as another below (the app's own value)
                     .on_press(Message::FormSet {
                         page: page.to_string(),
-                        key: "draft".into(),
-                        value: json!([combo.join("+")]),
+                        key: "draftPending".into(),
+                        value: json!(combo.join("+")),
                     })
                     .into()
             })
@@ -1409,6 +1412,44 @@ fn key_editor<'a>(app: &'a App, page: &str, e: &'a omaflake_core::api::views::ke
         compose = compose
             .push(caption(s(&g.title)).color(style::tertiary()))
             .push(iced::widget::Row::with_children(keys).spacing(spacing::XS).wrap().vertical_spacing(spacing::XS));
+    }
+    // The key put together: as the key, or as one more (plan B148)
+    let pending = app.forms.get(page).and_then(|f| f.get("draftPending")).and_then(Value::as_str).map(str::to_string);
+    if let Some(p) = pending {
+        let label = |v: &str| {
+            e.modifiers
+                .iter()
+                .chain(e.key_groups.iter().flat_map(|g| g.keys.iter()))
+                .find(|k| k.value == v)
+                .map(|k| k.label.clone())
+                .unwrap_or_else(|| v.to_string())
+        };
+        let caps: Vec<Vec<String>> = p.split(' ').map(|chord| chord.split('+').map(label).collect()).collect();
+        let set = |keys: Vec<String>| Message::FormSetMany {
+            page: page.to_string(),
+            values: vec![
+                ("draft".into(), json!(keys)),
+                ("draftText".into(), Value::Null),
+                ("draftPending".into(), Value::Null),
+            ],
+        };
+        let mut more = e.keys.clone();
+        more.push(p.clone());
+        compose = compose.push(
+            row![
+                caption(tr("New:")).color(style::SECONDARY),
+                widgets::key_caps(&caps),
+                space::horizontal(),
+                button(text(tr("Use as the Key")).size(text_size::CALLOUT))
+                    .style(style::tab(true))
+                    .on_press(set(vec![p.clone()])),
+                button(text(tr("Add as Another")).size(text_size::CALLOUT))
+                    .style(style::tab(false))
+                    .on_press(set(more)),
+            ]
+            .spacing(spacing::M)
+            .align_y(Alignment::Center),
+        );
     }
     c = c.push(card(compose));
     // Typed, for several keys at once ("h / Left")

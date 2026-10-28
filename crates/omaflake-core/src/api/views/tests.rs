@@ -807,7 +807,7 @@ own = true
     std::fs::create_dir_all(&set).unwrap();
     std::fs::write(
         set.join("keymap.toml"),
-        "\"$schema\" = \"https://omaflake.dev/schema/keymap/v2.json\"\nversion = \"1.0.0\"\ntitle = \"Base\"\n[keys.\"alice/mux\"]\nunlock = \"Ctrl+a\"\n",
+        "\"$schema\" = \"https://omaflake.dev/schema/keymap/v2.json\"\nversion = \"1.0.0\"\ntitle = \"Base\"\n[keys.\"alice/mux\"]\nunlock = \"Ctrl+a\"\n[keys.\"bob/elsewhere\"]\nx = \"Ctrl+x\"\n",
     )
     .unwrap();
     let mut s = crate::paths::Settings::load(&paths);
@@ -888,16 +888,30 @@ own = true
     assert_eq!(page["hints"][0]["text"]["key"], "Keys overlap: %@ and %@");
     assert_eq!(left["reset"]["params"]["also"][0]["valueParam"], "after:alice/mux:left");
     let save = action(&page["actions"], "save");
+    // A module not here (another platform's, or not installed) keeps what the base set gives it (B154)
     assert_eq!(
         save["params"]["keys"],
-        json!({"alice/mux": {"unlock": "Ctrl+a", "new": {"after": "pane"}, "left": ["n", "Left"]}})
+        json!({"alice/mux": {"unlock": "Ctrl+a", "new": {"after": "pane"}, "left": ["n", "Left"]},
+            "bob/elsewhere": {"x": "Ctrl+x"}})
     );
+    // Staying in its mode is no change for an action without `after`; the last key taken out leaves none to apply
+    let values = json!({"name": "mine", "after:alice/mux:left": "pane"});
+    let page = get(&c, "keymapStudio", json!({"id": "alice.keymap.base", "values": values}));
+    assert_eq!(row(&page, "left")["changed"], false);
+    assert!(action(&page["actions"], "save")["params"]["keys"]["alice/mux"].get("left").is_none());
+    let values = json!({"name": "mine", "edit": "alice/mux:left", "draft": []});
+    let ed = get(&c, "keymapStudio", json!({"id": "alice.keymap.base", "values": values}))["editor"].clone();
+    assert_eq!((ed["keys"].clone(), ed["apply"]["enabled"].clone()), (json!([]), json!(false)));
+    // A key that is "/" itself, typed
+    let values = json!({"name": "mine", "edit": "alice/mux:left", "draftText": "Ctrl+/ / Left"});
+    let ed = get(&c, "keymapStudio", json!({"id": "alice.keymap.base", "values": values}))["editor"].clone();
+    assert_eq!(ed["keys"], json!(["Ctrl+/", "Left"]));
     assert_eq!(save["params"]["name"], "mine");
     assert!(save["params"].get("previous").is_none(), "a copy");
     // A module taken out of the set: its changes are not saved
     let values = json!({"name": "mine", "modules": [], "key:alice/mux:left": ["n"]});
     let page = get(&c, "keymapStudio", json!({"id": "alice.keymap.base", "values": values}));
-    assert_eq!(action(&page["actions"], "save")["params"]["keys"], json!({}));
+    assert_eq!(action(&page["actions"], "save")["params"]["keys"], json!({"bob/elsewhere": {"x": "Ctrl+x"}}));
     assert!(page["cards"].as_array().unwrap().is_empty());
     // Typed keys (a terminal's editor): one that is not a key is said there, Apply waits
     let values = json!({"name": "mine", "edit": "alice/mux:left", "draftText": "Hyper+x"});
@@ -1240,6 +1254,9 @@ fn recipe_studio_pages_through_the_catalog() {
     assert_eq!(last["catalog"]["pages"]["text"]["text"], "11–12 of 12");
     assert!(last["catalog"]["pages"].get("next").is_none());
     assert_eq!(page(json!(9))["catalog"]["pages"]["index"], 2, "a page that is gone is the last one");
+    // Another search starts on the first page
+    let other = get(&c, "recipeStudio", json!({"values": {"page": 2, "pageSearch": "", "search": "term"}}));
+    assert_eq!(other["catalog"]["pages"]["index"], 0);
     // Typing: six suggestions at most
     let typed = get(&c, "recipeStudio", json!({"values": {"search": "term"}}));
     assert_eq!(typed["catalog"]["suggest"].as_array().unwrap().len(), 6);

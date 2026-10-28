@@ -970,6 +970,10 @@ impl Server {
         if let Some(job) = self.inner.jobs.active(JobKind::Build, Some(&p.recipe)) {
             return Ok(Answer::Job(job));
         }
+        // Not while the Nix Store is cleaned up (plan B149): it could take what the build just made
+        if let Some(job) = self.inner.jobs.any_active(&[JobKind::NixCleanUp]) {
+            return Err(RpcError::from(crate::vm_err!(codes::IN_USE, "{} runs – build when it is done", job.title)));
+        }
         let recipes = self.recipes().map_err(err)?;
         let d = recipes.defaults.get(&p.recipe).ok_or_else(|| {
             RpcError::from(crate::vm_err!(

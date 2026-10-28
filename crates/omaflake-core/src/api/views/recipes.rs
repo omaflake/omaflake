@@ -285,7 +285,7 @@ fn tab(ctx: &Ctx, p: &RecipesParams, catalog: bool) -> RecipesPage {
                 Tone::Normal,
             ))
         } else if offered.is_empty() {
-            Some(filtered_out("recipes"))
+            Some(filtered_out("recipeCatalog"))
         } else {
             None
         }

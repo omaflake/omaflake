@@ -224,6 +224,11 @@ pub enum Message {
         key: String,
         value: Value,
     },
+    /// Several form values of one page at once (`null` drops one): one request to the core
+    FormSetMany {
+        page: String,
+        values: Vec<(String, Value)>,
+    },
     /// Choosing a form field's path (its `ask`)
     FormChoose {
         page: String,
@@ -307,6 +312,8 @@ pub struct App {
     /// Rows whose first state the model gives (Doctor items): what the user changed
     pub toggled: HashSet<String>,
     pub forms: HashMap<String, Map<String, Value>>,
+    /// A form tab's choices while the same form is open as a page on top
+    pub tab_forms: HashMap<String, Map<String, Value>>,
     pub edits: HashMap<String, String>,
     pub logs: HashMap<String, Log>,
     pub jobs: BTreeMap<String, JobDto>,
@@ -316,7 +323,7 @@ pub struct App {
     pub seen_activity: u64,
     pub notified: Option<u64>,
     pub notifications: bool,
-    pub catalogs_asked: bool,
+    pub catalogs_asked: std::collections::HashSet<String>,
     pub pulse: bool,
     /// The pages whose model shows something working (a pulsing lamp, a busy action, loading, a running job): only
     /// then – or with a toast – the app ticks; an idle window is not redrawn (plan B123)
@@ -369,6 +376,7 @@ impl App {
             expanded: HashSet::new(),
             toggled: HashSet::new(),
             forms: HashMap::new(),
+            tab_forms: HashMap::new(),
             latest: HashMap::new(),
             edits: HashMap::new(),
             logs: HashMap::new(),
@@ -379,7 +387,7 @@ impl App {
             seen_activity: 0,
             notified: None,
             notifications: true,
-            catalogs_asked: false,
+            catalogs_asked: std::collections::HashSet::new(),
             pulse: false,
             animated: HashSet::new(),
             subscribed: Vec::new(),
@@ -584,6 +592,9 @@ impl App {
                 while let Some(p) = self.stack.pop() {
                     self.forms.remove(&p.page);
                 }
+                for (page, v) in self.tab_forms.drain() {
+                    self.forms.insert(page, v);
+                }
                 self.tab = tab;
                 self.tab_chosen = true;
                 self.filter_menu = None;
@@ -631,6 +642,12 @@ impl App {
             Message::Run(action, form) => self.start(*action, form),
             Message::FormSet { page, key, value } => {
                 self.set_form(page, key, Some(value));
+                self.resubscribe()
+            }
+            Message::FormSetMany { page, values } => {
+                for (key, value) in values {
+                    self.set_form(page.clone(), key, Some(value));
+                }
                 self.resubscribe()
             }
             Message::FormChoose { page, field } => {
@@ -790,10 +807,19 @@ impl App {
     }
 
     fn back(&mut self) -> Task<Message> {
-        if let Some(p) = self.stack.pop() {
-            // A form starts afresh next time
-            if !self.stack.iter().any(|q| q.page == p.page) {
-                self.forms.remove(&p.page);
+        match self.stack.pop() {
+            Some(p) => {
+                // A form starts afresh next time; a tab's own choices come back
+                if !self.stack.iter().any(|q| q.page == p.page) {
+                    self.forms.remove(&p.page);
+                    if let Some(v) = self.tab_forms.remove(&p.page) {
+                        self.forms.insert(p.page, v);
+                    }
+                }
+            }
+            // On a form tab (a studio's Cancel, or Save's `then: back`): its choices go, it starts afresh
+            None => {
+                self.forms.remove(&self.tab);
             }
         }
         self.resubscribe()
@@ -812,7 +838,15 @@ impl App {
             };
         }
         self.filter_menu = None;
-        self.forms.remove(page);
+        // A form that is a tab too (the studios): opened as a page it starts afresh, the tab's choices wait aside and
+        // come back when the page closes (they share the page's name, plan B154)
+        if !self.stack.iter().any(|p| p.page == page) {
+            if let Some(v) = self.forms.remove(page) {
+                self.tab_forms.insert(page.to_string(), v);
+            }
+        } else {
+            self.forms.remove(page);
+        }
         self.stack.push(page_ref(page, params));
         if self.window.is_none() {
             return Task::batch([self.open_window(), self.resubscribe()]);
@@ -840,9 +874,12 @@ impl App {
         }
     }
 
-    /// The recipes, modules and looks tabs fetch the sources' catalogs once when they open (as the macOS app did)
+    /// The catalog tabs fetch the sources' catalogs once each when they open (as the macOS app does)
     fn refresh_catalogs_once(&mut self) -> Task<Message> {
-        if !matches!(self.tab.as_str(), "recipes" | "modules" | "looks") || self.catalogs_asked {
+        let tab = self.tab.clone();
+        if !matches!(tab.as_str(), "recipes" | "recipeCatalog" | "modules" | "keymaps" | "looks")
+            || self.catalogs_asked.contains(&tab)
+        {
             return Task::none();
         }
         let (loaded, head) = match self.models.get(&self.tab_page().key()) {
@@ -851,11 +888,11 @@ impl App {
             _ => return Task::none(),
         };
         if loaded {
-            self.catalogs_asked = true;
+            self.catalogs_asked.insert(tab);
             return Task::none();
         }
         let refresh = head.actions.iter().find(|a| a.id == "refresh" && a.enabled).cloned();
-        self.catalogs_asked = true;
+        self.catalogs_asked.insert(tab);
         match refresh {
             Some(a) => self.start(a, None),
             None => Task::none(),

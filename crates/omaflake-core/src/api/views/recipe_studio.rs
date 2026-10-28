@@ -433,11 +433,15 @@ pub(crate) fn page(ctx: &Ctx, p: &StudioParams) -> Option<RecipeStudioPage> {
         }
     };
     let pages = found.len().div_ceil(PAGE_SIZE).max(1);
-    // A page that is gone (the search found fewer) is the last one
-    let index = v.get("page").and_then(Value::as_u64).map(|n| n as usize).unwrap_or(0).min(pages - 1);
+    // The page belongs to the search it was turned with (`pageSearch`): another search starts on the first; a page
+    // that is gone (fewer found) is the last one
+    let same_search = v.get("pageSearch").and_then(Value::as_str).unwrap_or_default() == query;
+    let index =
+        v.get("page").and_then(Value::as_u64).filter(|_| same_search).map(|n| n as usize).unwrap_or(0).min(pages - 1);
     let go = |id: &str, label: &str, icon: &str, to: usize| {
         let mut a = Action::field(id, Text::new(label), Some(icon), PAGE, page_params.clone(), "page", "page");
         a.params["value"] = json!(to);
+        a.params["also"] = json!([{"valueParam": "pageSearch", "value": query}]);
         a
     };
     let shown: Vec<StudioModule> =

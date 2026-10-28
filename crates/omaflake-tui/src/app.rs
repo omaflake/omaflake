@@ -379,13 +379,17 @@ impl App {
                 self.home = Some(model.clone());
             }
             "activity" => self.notify_activity(model),
-            "looks" | "modules" if !b(model, "catalogsLoaded") && !b(model, "loading") && !self.looks_asked => {
+            "looks" | "modules" | "keymaps"
+                if !b(model, "catalogsLoaded") && !b(model, "loading") && !self.looks_asked =>
+            {
                 self.looks_asked = true;
                 if let Some(refresh) = arr(model, "actions").iter().find(|a| s(a, "id") == "refresh").cloned() {
                     self.run_action(&refresh);
                 }
             }
-            "recipes" if !b(model, "catalogsLoaded") && !b(model, "loading") && !self.catalogs_asked => {
+            "recipes" | "recipeCatalog"
+                if !b(model, "catalogsLoaded") && !b(model, "loading") && !self.catalogs_asked =>
+            {
                 // As the app: the tab looks into the remote catalogs once when it opens (api.md §10.5)
                 self.catalogs_asked = true;
                 if let Some(refresh) = arr(model, "actions").iter().find(|a| s(a, "id") == "refresh").cloned() {

@@ -127,8 +127,12 @@ final class AppModel {
 
     /// Opens a page one level deeper; the same page already open further up becomes the current one again
     func show(_ ref: PageRef) {
-        // The studio is a tab too: a recipe opened in it starts from that recipe, not from the tab's choices
-        if ref.page == "recipeStudio" || ref.page == "keymapStudio" || ref.page == "lookStudio" { formValues[ref.page] = nil }
+        // A form that is a tab too (the studios): opened as a page it starts afresh – the tab's choices wait aside and
+        // come back when the page closes (they share the page's name, plan B154)
+        if HomeTab(rawValue: ref.page)?.isForm == true {
+            if !path.contains(where: { $0.page == ref.page }) { tabValues[ref.page] = formValues[ref.page] }
+            formValues[ref.page] = nil
+        }
         if let i = path.firstIndex(where: { $0.page == ref.page }) {
             path = Array(path[..<i]) + [ref]
         } else {
@@ -144,13 +148,29 @@ final class AppModel {
     /// Closes every page open on top of the tabs (a click in the app window's sidebar); their form values go
     func closePages() {
         for ref in path { formValues[ref.page] = nil }
+        for (page, values) in tabValues { formValues[page] = values }
+        tabValues = [:]
         path = []
     }
 
+    /// One page back; on a form tab (a studio's Cancel, or Save's `then: back`) its choices go and it starts afresh
     func back() {
-        guard let last = path.popLast() else { return }
+        guard let last = path.popLast() else {
+            if tab.isForm, formValues[tab.rawValue] != nil {
+                formValues[tab.rawValue] = nil
+                subscribe()
+            }
+            return
+        }
         formValues[last.page] = nil
+        if !path.contains(where: { $0.page == last.page }), let saved = tabValues.removeValue(forKey: last.page) {
+            formValues[last.page] = saved
+            subscribe()
+        }
     }
+
+    /// A form tab's choices while the same form is open as a page on top
+    private var tabValues: [String: [String: JSONValue]] = [:]
 
     // MARK: Forms (newVm, macBase, the new source in settings)
 

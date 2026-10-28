@@ -203,7 +203,7 @@ impl MyRecipes {
                     ([one], Some(a)) => format!("{{ key = {}, after = {} }}", q(one), q(a)),
                     (keys, Some(a)) => format!("{{ key = {}, after = {} }}", list(keys), q(a)),
                 };
-                t.push_str(&format!("{action} = {value}\n"));
+                t.push_str(&format!("{} = {value}\n", q(action)));
             }
         }
         Ok(t)
@@ -221,16 +221,31 @@ impl MyRecipes {
         if renamed && folder.exists() {
             return Err(vm_err!(codes::EXISTS, "There are key bindings \"{}\" already", d.name));
         }
+        // What is written must be key bindings this omaflake reads – checked in a folder of its own first, so a set that
+        // is not one never replaces the one there
+        let id = format!("{}.keymap.{}", Self::AUTHOR, d.name);
+        Self::check_first("keymap.toml", &text, |dir| {
+            crate::keymaps::KeymapStore::read(&id, dir, String::new(), None).map(|_| ())
+        })?;
         fs::create_dir_all(&folder).with_path(&folder)?;
         write_atomic(&folder.join("keymap.toml"), text.as_bytes())?;
-        // What is written must be key bindings this omaflake reads
-        let id = format!("{}.keymap.{}", Self::AUTHOR, d.name);
-        crate::keymaps::KeymapStore::read(&id, &folder, String::new(), None)?;
         if let (true, Some(p)) = (renamed, previous) {
             let _ = Disposal::delete(&[self.keymap_folder(&p)]);
         }
         self.add_source()?;
         Ok(format!("{}/{}", Self::AUTHOR, d.name))
+    }
+
+    /// Writes `text` as `file` into a temporary folder and reads it back with `read` – before it goes where it belongs
+    fn check_first(file: &str, text: &str, read: impl FnOnce(&Path) -> Result<()>) -> Result<()> {
+        let nanos =
+            std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_nanos()).unwrap_or(0);
+        let dir = std::env::temp_dir().join(format!("omaflake-check-{}-{nanos}", std::process::id()));
+        fs::create_dir_all(&dir).with_path(&dir)?;
+        let checked = fs::write(dir.join(file), text).with_path(&dir.join(file)).and_then(|_| read(&dir));
+        // Only the check's own copy goes
+        let _ = fs::remove_dir_all(&dir);
+        checked
     }
 
     /// `<data>/my-recipes/looks/my/<name>`
@@ -269,11 +284,13 @@ impl MyRecipes {
         if renamed && folder.exists() {
             return Err(vm_err!(codes::EXISTS, "There is a look \"{}\" already", name));
         }
+        // What is written must be a look this omaflake reads – checked first, so a broken one never replaces a good one
+        let id = format!("{}.look.{}", Self::AUTHOR, name);
+        Self::check_first("look.toml", &text, |dir| {
+            crate::looks::LookStore::read(&id, dir, String::new(), None).map(|_| ())
+        })?;
         fs::create_dir_all(&folder).with_path(&folder)?;
         write_atomic(&folder.join("look.toml"), text.as_bytes())?;
-        // What is written must be a look this omaflake reads
-        let id = format!("{}.look.{}", Self::AUTHOR, name);
-        crate::looks::LookStore::read(&id, &folder, String::new(), None)?;
         if let (true, Some(p)) = (renamed, previous) {
             let _ = Disposal::delete(&[self.look_folder(&p)]);
         }

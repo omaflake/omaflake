@@ -155,6 +155,8 @@
             "clock": "#3fd0e0",
             "inactive_border": "#2c313c"
           },
+          "license": "MIT",
+          "tags": [],
           "terminal": {
             "bright": [
               "#4b5263",
