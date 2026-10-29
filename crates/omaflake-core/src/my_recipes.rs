@@ -13,7 +13,7 @@ use std::path::{Path, PathBuf};
 use serde_json::Value;
 
 use crate::composition::{LocaleRules, PartRef, RecipeSpec, Requirements};
-use crate::error::{codes, IoContext, Result};
+use crate::error::{IoContext, Result, codes};
 use crate::file_format::write_atomic;
 use crate::models::GuestKind;
 use crate::paths::{Paths, Settings};

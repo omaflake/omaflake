@@ -151,11 +151,7 @@ impl KvmState {
 
     /// This host's /dev/kvm (Missing on a Mac)
     pub fn detect() -> KvmState {
-        if cfg!(target_os = "linux") {
-            Self::of(Path::new(Self::DEVICE))
-        } else {
-            KvmState::Missing
-        }
+        if cfg!(target_os = "linux") { Self::of(Path::new(Self::DEVICE)) } else { KvmState::Missing }
     }
 }
 
@@ -168,11 +164,7 @@ pub fn host_accel() -> Accel {
     if std::env::var("OMAFLAKE_ACCEL").as_deref() == Ok("tcg") {
         return Accel::Tcg;
     }
-    if KvmState::detect() == KvmState::Usable {
-        Accel::Kvm
-    } else {
-        Accel::Tcg
-    }
+    if KvmState::detect() == KvmState::Usable { Accel::Kvm } else { Accel::Tcg }
 }
 
 /// The sound server of a Linux session, as QEMU's `-audiodev` driver: PipeWire when its socket is there and QEMU has

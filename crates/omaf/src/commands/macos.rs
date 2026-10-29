@@ -4,12 +4,12 @@
 use std::io::Write;
 use std::path::Path;
 
+use omaflake_core::MacBaseInstaller;
 use omaflake_core::credentials::Credentials;
 use omaflake_core::mac_base_installer::{BaseOutcome, BaseRecord, BaseRequest};
-use omaflake_core::MacBaseInstaller;
 
 use crate::cli;
-use crate::util::{folder_path, usage, Env, Outcome};
+use crate::util::{Env, Outcome, folder_path, usage};
 
 fn last_component(p: &Path) -> String {
     p.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default()

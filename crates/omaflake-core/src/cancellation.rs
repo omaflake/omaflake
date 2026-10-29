@@ -70,11 +70,7 @@ impl Cancellation {
 
     /// Errs with "Cancelled" (code `cancelled`) when cancelled – call it between steps.
     pub fn check(&self) -> Result<()> {
-        if self.is_cancelled() {
-            Err(Error::cancelled())
-        } else {
-            Ok(())
-        }
+        if self.is_cancelled() { Err(Error::cancelled()) } else { Ok(()) }
     }
 
     /// Runs `handler` on cancel (right away if already cancelled).

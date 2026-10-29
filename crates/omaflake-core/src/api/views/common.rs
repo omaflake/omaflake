@@ -3,9 +3,9 @@
 //! status lamps, badges, info lines, hints, filters and form fields.
 
 use serde::{Deserialize, Serialize};
-use serde_json::{json, Map, Value};
+use serde_json::{Map, Value, json};
 
-use super::text::{tf, Text};
+use super::text::{Text, tf};
 use crate::api::types::PrerequisiteDto;
 
 /// What something says at a glance: its colour role (design tokens: normal = secondary label, accent = cyan,

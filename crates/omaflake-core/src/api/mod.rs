@@ -36,7 +36,7 @@ pub mod views;
 use std::sync::Arc;
 use std::time::Duration;
 
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 
 pub use events::{Notify, Topic};
 pub use protocol::RpcError;
@@ -70,8 +70,8 @@ mod tests {
     use super::jobs::{JobCtx, JobSpec};
     use super::types::JobKind;
     use super::*;
-    use crate::paths::tests::temp_paths;
     use crate::paths::Settings;
+    use crate::paths::tests::temp_paths;
 
     fn request(id: i64, method: &str, params: Value) -> Value {
         json!({"jsonrpc": "2.0", "id": id, "method": method, "params": params})

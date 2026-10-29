@@ -97,11 +97,13 @@ fn write_value(out: &mut String, v: &Value, level: usize, esc: bool) {
 
 /// Whole-number doubles as integers (Swift writes `0`, not `0.0`)
 fn write_number(out: &mut String, n: &serde_json::Number) {
-    if let Some(f) = n.as_f64().filter(|_| n.is_f64()) {
-        if f.is_finite() && f.fract() == 0.0 && f.abs() < 1e15 {
-            out.push_str(&format!("{}", f as i64));
-            return;
-        }
+    if let Some(f) = n.as_f64().filter(|_| n.is_f64())
+        && f.is_finite()
+        && f.fract() == 0.0
+        && f.abs() < 1e15
+    {
+        out.push_str(&format!("{}", f as i64));
+        return;
     }
     out.push_str(&n.to_string());
 }

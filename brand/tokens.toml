@@ -1,13 +1,14 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 # omaflake design tokens – the one source for colours, spacing, radii, type and sizes of every interface
-# (SwiftUI on macOS, iced on Linux; plan B119) and for the brand artwork's palette (generate.py).
+# (SwiftUI on macOS, iced on Linux; plan B119). [palette] is a copy of omaflake/brand's palette.toml (the artwork's
+# colours): change a colour there first.
 #
 # Change a value here, then run `python3 brand/tokens.py` – it writes Sources/OmaflakeApp/BrandTokens.swift,
-# crates/omaflake-brand/src/tokens.rs and brand/omaflake-look.toml. `python3 brand/tokens.py --check` fails
+# crates/omaflake-brand/src/tokens.rs, brand/omaflake-look.toml and Sources/OmaflakeKit/Brand/BrandAssets.swift. `python3 brand/tokens.py --check` fails
 # when they are out of date.
 # Names are snake_case here; Swift gets lowerCamelCase, Rust UPPER_SNAKE_CASE.
 
-# --- brand palette (icons, banner, favicon, app) -----------------------------------------------------------------
+# --- brand palette (a copy of omaflake/brand's palette.toml) ---------------------------------------------------------------
 [palette]
 background = "#121212"
 red = "#FF3B3B"

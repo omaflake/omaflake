@@ -9,7 +9,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
 
 use crate::error::{IoContext, Result};
-use crate::file_format::{write_atomic, FileFormat, Step};
+use crate::file_format::{FileFormat, Step, write_atomic};
 use crate::models::InstanceConfig;
 use crate::packages::{Package, PackageKind};
 use crate::platform::{expand_tilde, home_dir, standardize};
@@ -60,10 +60,10 @@ impl Paths {
     /// Data folder from VM_HOME (settings file inside it), otherwise `home` in ~/.omaflake/config.json,
     /// otherwise ~/.omaflake.
     pub fn standard() -> Paths {
-        if let Ok(custom) = std::env::var("VM_HOME") {
-            if !custom.is_empty() {
-                return Paths::new(custom, None);
-            }
+        if let Ok(custom) = std::env::var("VM_HOME")
+            && !custom.is_empty()
+        {
+            return Paths::new(custom, None);
         }
         let config = Self::default_home().join("config.json");
         let home = Settings::load_file(&config).home.map(|h| PathBuf::from(expand_tilde(&h)));
@@ -524,10 +524,10 @@ impl Settings {
 
     /// Flake path: VM_FLAKE > config.json > the image flake that comes with omaflake.app
     pub fn flake_path(&self) -> Result<String> {
-        if let Ok(env) = std::env::var("VM_FLAKE") {
-            if !env.is_empty() {
-                return Ok(env);
-            }
+        if let Ok(env) = std::env::var("VM_FLAKE")
+            && !env.is_empty()
+        {
+            return Ok(env);
         }
         if let Some(flake) = &self.flake {
             return Ok(expand_tilde(flake));

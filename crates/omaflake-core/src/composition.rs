@@ -653,10 +653,11 @@ mod tests {
         assert!(c.issues.iter().any(
             |i| matches!(i, Issue::Needs { module, capability } if module == "o/hyprland" && capability == "terminal")
         ));
-        assert!(c
-            .issues
-            .iter()
-            .any(|i| matches!(i, Issue::Incompatible { capability, .. } if capability == "default-editor")));
+        assert!(
+            c.issues
+                .iter()
+                .any(|i| matches!(i, Issue::Incompatible { capability, .. } if capability == "default-editor"))
+        );
         // Zellij's unlock and Neovim's Ctrl+g (Neovim runs inside Zellij); Zellij's lock is in a mode – no overlap there
         let overlaps: Vec<(String, String)> = c
             .issues

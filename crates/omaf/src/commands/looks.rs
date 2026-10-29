@@ -2,11 +2,11 @@
 //! `omaf looks` (plan B141): how the guests look – installed from the sources' catalogs (or used from a local folder
 //! source), one of them the default for new images; `omaf build --look` chooses another.
 
+use omaflake_core::Settings;
 use omaflake_core::looks::LookStore;
 use omaflake_core::recipe_sources::{RecipeSource, RecipeSourceKind, SourceClient};
-use omaflake_core::Settings;
 
-use crate::util::{pad, usage, Env, Outcome};
+use crate::util::{Env, Outcome, pad, usage};
 
 fn store(env: &Env) -> LookStore {
     LookStore::new(env.paths.clone())
@@ -90,8 +90,10 @@ pub fn install(reference: &str) -> Outcome {
     let wanted: Vec<String> = if reference == "recommended" {
         LookStore::RECOMMENDED.iter().map(|x| x.to_string()).collect()
     } else {
-        vec![LookStore::id_of(reference)
-            .ok_or_else(|| usage(&["looks", "install"], format!("{reference}: write <author>/<name>")))?]
+        vec![
+            LookStore::id_of(reference)
+                .ok_or_else(|| usage(&["looks", "install"], format!("{reference}: write <author>/<name>")))?,
+        ]
     };
     let found = catalogs(&s);
     for id in &wanted {

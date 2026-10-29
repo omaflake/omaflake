@@ -18,7 +18,7 @@ use std::sync::mpsc;
 use std::time::{Duration, Instant};
 
 use crate::builder_maintenance::shell_quote;
-use crate::error::{codes, IoContext, Result};
+use crate::error::{IoContext, Result, codes};
 use crate::platform::{home_dir, is_executable_file, login_shell, user_name};
 use crate::prerequisites::{Prerequisite, PrerequisiteItem, PrerequisiteStatus};
 
@@ -92,11 +92,7 @@ impl CliLink {
 
     /// `/usr/local/bin/omaf` on macOS, `~/.local/bin/omaf` elsewhere
     pub fn link_path(mac: bool, home: &Path) -> PathBuf {
-        if mac {
-            PathBuf::from("/usr/local/bin/omaf")
-        } else {
-            home.join(".local/bin/omaf")
-        }
+        if mac { PathBuf::from("/usr/local/bin/omaf") } else { home.join(".local/bin/omaf") }
     }
 
     /// This omaflake's `omaf` (canonical), from the running executable

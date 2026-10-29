@@ -5,7 +5,7 @@
 use omaflake_core::profiles::{ProfileChange, Profiles};
 
 use crate::cli;
-use crate::util::{pad, usage, Env, Outcome};
+use crate::util::{Env, Outcome, pad, usage};
 
 fn store(env: &Env) -> Profiles {
     Profiles::new(env.paths.clone())

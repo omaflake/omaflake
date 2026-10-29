@@ -3,12 +3,12 @@
 //! choices a guest kind allows, what is wrong with the values, and the create action (the app's `NewVMView`).
 
 use serde::{Deserialize, Serialize};
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 
-use super::common::*;
-use super::text::{tf, Text};
-use super::vms::{kind_badge, mac_limit, recipe_name};
 use super::Ctx;
+use super::common::*;
+use super::text::{Text, tf};
+use super::vms::{kind_badge, mac_limit, recipe_name};
 use crate::api::types::{ImageDto, RecipeDto};
 use crate::models::{GuestKind, NetworkMode};
 
@@ -243,14 +243,16 @@ pub(crate) fn page(ctx: &Ctx, p: &NewVmParams) -> Option<NewVmPage> {
         .collect();
     resources.push(network);
 
-    let mut share_fields = vec![Field::new(
-        "share",
-        FieldKind::Toggle,
-        Text::new(ctx.on_host("Share a Mac folder with the VM", "Share a folder with the VM")),
-        json!(share),
-    )
-    .param("settings.share")
-    .value_param("share")];
+    let mut share_fields = vec![
+        Field::new(
+            "share",
+            FieldKind::Toggle,
+            Text::new(ctx.on_host("Share a Mac folder with the VM", "Share a folder with the VM")),
+            json!(share),
+        )
+        .param("settings.share")
+        .value_param("share"),
+    ];
     if share {
         let mut folder = Field::new("sharePath", FieldKind::Path, Text::new("Folder"), json!(share_path))
             .param("sharePath")

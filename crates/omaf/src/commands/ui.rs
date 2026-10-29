@@ -5,9 +5,9 @@
 use std::io::IsTerminal;
 
 use omaflake_core::{Error, Paths};
+use omaflake_tui::Options;
 use omaflake_tui::core::{self as tui_core, Connection};
 use omaflake_tui::icons::IconSet;
-use omaflake_tui::Options;
 
 use crate::cli::Ui;
 use crate::commands::service;

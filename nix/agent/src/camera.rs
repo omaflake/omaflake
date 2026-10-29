@@ -68,8 +68,15 @@ impl Camera {
         let fd = device.as_raw_fd();
         let mut f = Raw::<208>::new();
         f.set(0, V4L2_BUF_TYPE_VIDEO_OUTPUT);
-        for (offset, value) in [(8, WIDTH), (12, HEIGHT), (16, u32::from_le_bytes(*b"NV12")), (20, V4L2_FIELD_NONE),
-                                (24, WIDTH), (28, FRAME_BYTES as u32), (32, V4L2_COLORSPACE_REC709)] {
+        for (offset, value) in [
+            (8, WIDTH),
+            (12, HEIGHT),
+            (16, u32::from_le_bytes(*b"NV12")),
+            (20, V4L2_FIELD_NONE),
+            (24, WIDTH),
+            (28, FRAME_BYTES as u32),
+            (32, V4L2_COLORSPACE_REC709),
+        ] {
             f.set(offset, value);
         }
         ioctl(fd, VIDIOC_S_FMT, &mut f)?;

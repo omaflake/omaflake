@@ -10,7 +10,7 @@ use std::collections::{BTreeMap, VecDeque};
 use serde::{Deserialize, Serialize};
 
 use super::common::*;
-use super::text::{tf, Text};
+use super::text::{Text, tf};
 use super::{Ctx, HostOs};
 use crate::api::types::{RecipeDto, RecipePartsDto};
 use crate::composition::Binding;

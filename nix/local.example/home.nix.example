@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
 # Optional: rename to home.nix – a home-manager module added for the guest user.
 { pkgs, settings, ... }:
 

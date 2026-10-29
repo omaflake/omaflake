@@ -6,6 +6,8 @@
 //!
 //! Texts are the model's English `text`; translating by `key` is OPEN for the TUI.
 
+#![forbid(unsafe_code)]
+
 pub mod app;
 pub mod core;
 pub mod icons;
@@ -21,9 +23,9 @@ use std::time::{Duration, Instant};
 
 use crossterm::event::{self, DisableMouseCapture, EnableMouseCapture, Event, MouseButton, MouseEventKind};
 use crossterm::execute;
-use crossterm::terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen};
-use ratatui::backend::CrosstermBackend;
+use crossterm::terminal::{EnterAlternateScreen, LeaveAlternateScreen, disable_raw_mode, enable_raw_mode};
 use ratatui::Terminal;
+use ratatui::backend::CrosstermBackend;
 
 use crate::app::{App, Command, Effect, Msg};
 use crate::core::Connection;
@@ -95,10 +97,10 @@ pub fn run(options: Options, connect: &Connector) -> Result<(), String> {
             app.tick += 1;
             last_tick = Instant::now();
         }
-        if let Some((_, _, at)) = &app.status {
-            if at.elapsed() > Duration::from_secs(12) {
-                app.status = None;
-            }
+        if let Some((_, _, at)) = &app.status
+            && at.elapsed() > Duration::from_secs(12)
+        {
+            app.status = None;
         }
         if let Err(e) = term.draw(|f| ui::draw(f, &mut app)) {
             break Err(e.to_string());
@@ -171,11 +173,7 @@ fn has_desktop() -> bool {
 }
 
 fn opener() -> &'static str {
-    if cfg!(target_os = "macos") {
-        "open"
-    } else {
-        "xdg-open"
-    }
+    if cfg!(target_os = "macos") { "open" } else { "xdg-open" }
 }
 
 fn spawn_quiet(cmd: &mut std::process::Command) -> Result<(), String> {

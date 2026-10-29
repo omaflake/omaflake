@@ -12,7 +12,7 @@ use crate::vm_err;
 use std::collections::VecDeque;
 use std::fs::File;
 use std::io::Write;
-use std::panic::{catch_unwind, AssertUnwindSafe};
+use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Condvar, Mutex, MutexGuard};
@@ -25,7 +25,7 @@ use super::events::{Events, Topic};
 use super::types::{JobChanged, JobDto, JobKind, JobLines, JobLog, JobProgress, JobState};
 use crate::build_progress::BuildProgressTracker;
 use crate::cancellation::Cancellation;
-use crate::error::{codes, Result};
+use crate::error::{Result, codes};
 use crate::json;
 use crate::models::GuestKind;
 use crate::{Log, Progress};
@@ -147,19 +147,19 @@ impl Job {
     /// A log line: into the file, the progress tracker and – unless it is routine – the shown log
     pub fn append(&self, line: &str) {
         let mut d = self.lock();
-        if let Some(t) = &d.tracker {
-            if t.feed(line) {
-                let p = t.progress();
-                d.progress = Some(JobProgress {
-                    step: p.step,
-                    total: p.total,
-                    title: p.title.clone(),
-                    done: p.done as i64,
-                    of: p.of as i64,
-                    fraction: p.fraction(),
-                });
-                d.dirty = true;
-            }
+        if let Some(t) = &d.tracker
+            && t.feed(line)
+        {
+            let p = t.progress();
+            d.progress = Some(JobProgress {
+                step: p.step,
+                total: p.total,
+                title: p.title.clone(),
+                done: p.done as i64,
+                of: p.of as i64,
+                fraction: p.fraction(),
+            });
+            d.dirty = true;
         }
         d.last_output = Some(json::now());
         if let Some(f) = d.file.as_mut() {
@@ -552,15 +552,17 @@ impl Jobs {
             return;
         }
         let jobs = Arc::downgrade(self);
-        std::thread::spawn(move || loop {
-            std::thread::sleep(PUMP_INTERVAL);
-            let Some(jobs) = jobs.upgrade() else { return };
-            if jobs.closed.load(Ordering::SeqCst) {
-                return;
-            }
-            let list: Vec<Arc<Job>> = jobs.lock().clone();
-            for job in list {
-                job.flush();
+        std::thread::spawn(move || {
+            loop {
+                std::thread::sleep(PUMP_INTERVAL);
+                let Some(jobs) = jobs.upgrade() else { return };
+                if jobs.closed.load(Ordering::SeqCst) {
+                    return;
+                }
+                let list: Vec<Arc<Job>> = jobs.lock().clone();
+                for job in list {
+                    job.flush();
+                }
             }
         });
     }

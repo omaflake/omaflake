@@ -3,13 +3,13 @@
 //! kept in the keychain for macOS bases and builds. An image is built with one of them (`omaf build --credential`), a
 //! macOS base is created with one; the default is the settings'. Only the first one starts from this computer's user.
 
+use omaflake_core::Paths;
 use omaflake_core::credentials::{Credential, CredentialChange, Credentials};
 use omaflake_core::guest_settings::BuildChoice;
 use omaflake_core::platform::{full_user_name, user_name};
-use omaflake_core::Paths;
 
 use crate::cli;
-use crate::util::{pad, read_password, usage, Env, Failure, Outcome};
+use crate::util::{Env, Failure, Outcome, pad, read_password, usage};
 
 fn credential(credentials: &Credentials, reference: &str, command: &'static str) -> Result<Credential, Failure> {
     credentials

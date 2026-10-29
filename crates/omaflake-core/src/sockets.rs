@@ -7,7 +7,7 @@ use std::os::unix::net::UnixStream;
 use std::path::Path;
 use std::time::Duration;
 
-use crate::error::{os_text, Result};
+use crate::error::{Result, os_text};
 use crate::vm_err;
 
 /// Swift `enum Ports` (namespace)

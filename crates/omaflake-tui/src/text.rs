@@ -144,11 +144,7 @@ pub fn bytes_text(bytes: i64) -> String {
 pub fn duration_text(secs: i64) -> String {
     let secs = secs.max(0);
     let (h, m, s) = (secs / 3600, secs / 60 % 60, secs % 60);
-    if h > 0 {
-        format!("{h}:{m:02}:{s:02}")
-    } else {
-        format!("{m}:{s:02}")
-    }
+    if h > 0 { format!("{h}:{m:02}:{s:02}") } else { format!("{m}:{s:02}") }
 }
 
 #[cfg(test)]

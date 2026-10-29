@@ -6,16 +6,16 @@
 
 use std::path::{Path, PathBuf};
 use std::process::Command;
-use std::sync::mpsc;
 use std::sync::Arc;
+use std::sync::mpsc;
 use std::time::Duration;
 
 use iced::futures::channel::mpsc::Sender;
 use iced::futures::{SinkExt, Stream};
+use omaflake_core::Paths;
 use omaflake_core::api::client::Client;
 use omaflake_core::api::{RpcError, Server};
-use omaflake_core::Paths;
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 
 /// A failed call: what to show
 #[derive(Debug, Clone)]
@@ -81,7 +81,11 @@ impl Handle {
     }
 
     /// A call on a thread of its own, as a future for `Task::perform`
-    pub fn call(&self, method: &str, params: Value) -> impl std::future::Future<Output = Result<Value, CallError>> {
+    pub fn call(
+        &self,
+        method: &str,
+        params: Value,
+    ) -> impl std::future::Future<Output = Result<Value, CallError>> + use<> {
         let (tx, rx) = iced::futures::channel::oneshot::channel();
         let (me, method) = (self.clone(), method.to_string());
         std::thread::spawn(move || {
@@ -198,10 +202,10 @@ fn service(events: mpsc::Sender<(String, Value)>) -> Result<(Handle, Value), Str
     let pump = client.clone();
     std::thread::spawn(move || {
         while pump.is_open() {
-            if let Some(e) = pump.next_event(Duration::from_millis(500)) {
-                if events.send(e).is_err() {
-                    return;
-                }
+            if let Some(e) = pump.next_event(Duration::from_millis(500))
+                && events.send(e).is_err()
+            {
+                return;
             }
         }
     });

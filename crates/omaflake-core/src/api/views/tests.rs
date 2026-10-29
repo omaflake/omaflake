@@ -4,7 +4,7 @@
 
 use std::collections::BTreeMap;
 
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 
 use super::activity::{ActivityEntry, Notification};
 use super::text::Text;
@@ -972,10 +972,9 @@ fn doctor_offers_to_mount_the_nix_store() {
     let mount = action(&item["actions"], "mountNix");
     assert_eq!(mount["method"], "builder.mountNix");
     assert_eq!(mount["confirm"]["title"]["key"], "Mount the Nix Store?");
-    assert!(item["hint"]["key"]
-        .as_str()
-        .unwrap()
-        .starts_with("Nix is installed, but its volume is not mounted at /nix"));
+    assert!(
+        item["hint"]["key"].as_str().unwrap().starts_with("Nix is installed, but its volume is not mounted at /nix")
+    );
 }
 
 /// Apple offers a newer macOS than the IPSW here; a download that failed at once says why at the row (plan B146)
@@ -1114,10 +1113,9 @@ fn doctor_omaf_command() {
         "Add /home/u/.local/bin to your PATH in your shell's profile (export PATH=\"/home/u/.local/bin:$PATH\")."
     );
     assert_eq!(ids(&item["actions"]), ["installCli", "uninstallCli"]);
-    assert!(!action(&item["actions"], "installCli")["confirm"]["text"]["key"]
-        .as_str()
-        .unwrap()
-        .contains("administrator"));
+    assert!(
+        !action(&item["actions"], "installCli")["confirm"]["text"]["key"].as_str().unwrap().contains("administrator")
+    );
     // while it runs, both wait
     c.jobs.push(fx::job("j99", JobKind::CliInstall, JobState::Running, None));
     let item = cli_item(&c);
@@ -1654,9 +1652,9 @@ fn every_page_reads_back_as_its_type() {
 
 mod server {
     use super::*;
+    use crate::api::Server;
     use crate::api::events::tests::recorder;
     use crate::api::server::lock;
-    use crate::api::Server;
     use crate::paths::tests::temp_paths;
 
     #[test]

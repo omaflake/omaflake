@@ -7,7 +7,7 @@ use omaflake_core::locales::{LocaleChange, Locales};
 use omaflake_core::{GuestChoices, Settings};
 
 use crate::cli;
-use crate::util::{pad, usage, Env, Outcome};
+use crate::util::{Env, Outcome, pad, usage};
 
 fn keyboards(text: &str) -> Result<Vec<String>, crate::util::Failure> {
     let list: Vec<String> = text.split(',').map(|k| k.trim().to_string()).filter(|k| !k.is_empty()).collect();

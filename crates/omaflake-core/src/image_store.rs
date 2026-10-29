@@ -19,9 +19,10 @@ use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
 
+use crate::Log;
 use crate::cancellation::Cancellation;
-use crate::error::{codes, IoContext, Result};
-use crate::file_format::{write_atomic, FileFormat, Step, UnreadableFile};
+use crate::error::{IoContext, Result, codes};
+use crate::file_format::{FileFormat, Step, UnreadableFile, write_atomic};
 use crate::guest_settings::BuildChoice;
 use crate::instance_store::InstanceStore;
 use crate::ipsw_downloader::KeepAwake;
@@ -30,14 +31,13 @@ use crate::models::{GuestKind, RecipeDefaults, RecipeId};
 use crate::omaflake_id::OmaflakeId;
 use crate::packages::{Package, PackageKind};
 use crate::paths::{Paths, Settings};
-use crate::platform::{is_writable, resolve_symlinks, Platform};
+use crate::platform::{Platform, is_writable, resolve_symlinks};
 use crate::prerequisites::Prerequisites;
 use crate::recipe_sources::RecipeLibrary;
 use crate::shell::{RunOptions, Shell, ShellResult, StreamOptions};
 use crate::spawn::Pid;
 use crate::trash::Disposal;
 use crate::vm_err;
-use crate::Log;
 
 /// image.json, schema `image` (plan B114). 0 → 1: "flavor" became "recipe" (plan B92), `system` added – every
 /// image before it was built on a Mac with Apple silicon
@@ -465,11 +465,7 @@ impl ImageStore {
         if !flake.starts_with('/') {
             return flake.to_string();
         }
-        if Path::new(flake).join(".git").exists() {
-            flake.to_string()
-        } else {
-            format!("path:{flake}")
-        }
+        if Path::new(flake).join(".git").exists() { flake.to_string() } else { format!("path:{flake}") }
     }
 
     /// "omaflake.nixos.minimal" + a store path → "omaflake.nixos.minimal@cedar-mango-lift-…" (12 words, plan B111; the
@@ -483,10 +479,10 @@ impl ImageStore {
     pub fn recipe_revision(&self, recipe: &str, flake: &str) -> String {
         let library = RecipeLibrary::new(self.paths.clone());
         if let Some(entry) = library.available(&Settings::load(&self.paths)).into_iter().find(|e| e.id == recipe) {
-            if let Some(installed) = library.installed().get(recipe) {
-                if installed.source == entry.source {
-                    return installed.version.chars().take(10).collect();
-                }
+            if let Some(installed) = library.installed().get(recipe)
+                && installed.source == entry.source
+            {
+                return installed.version.chars().take(10).collect();
             }
             return self.git_rev(&entry.folder.to_string_lossy());
         }
@@ -505,11 +501,7 @@ impl ImageStore {
         };
         let rev = rev.trim();
         let dirty = Shell::check(&git, &["status", "--porcelain", "--", "."], &opts).is_ok_and(|s| !s.is_empty());
-        if dirty {
-            format!("{rev}-dirty")
-        } else {
-            rev.to_string()
-        }
+        if dirty { format!("{rev}-dirty") } else { rev.to_string() }
     }
 
     /// The line of a recipe ID (plan B110): from the recipe there is, else from an image built from it

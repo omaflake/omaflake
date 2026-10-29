@@ -4,7 +4,7 @@
 use omaflake_core::{RecipeLibrary, RecipeSource, RecipeSourceKind, SourceClient, SourceTokens};
 
 use crate::cli;
-use crate::util::{pad, read_line, usage, Env, Failure, Outcome};
+use crate::util::{Env, Failure, Outcome, pad, read_line, usage};
 
 /// Swift `RecipeSource.Kind.rawValue`
 pub fn kind_name(kind: RecipeSourceKind) -> &'static str {
@@ -17,10 +17,10 @@ pub fn kind_name(kind: RecipeSourceKind) -> &'static str {
 
 /// A source by its number in `omaf sources` (1 = first) or its ID (or location)
 pub fn source_index(reference: &str, sources: &[RecipeSource], command: &'static str) -> Result<usize, Failure> {
-    if let Ok(n) = reference.parse::<usize>() {
-        if (1..=sources.len()).contains(&n) {
-            return Ok(n - 1);
-        }
+    if let Ok(n) = reference.parse::<usize>()
+        && (1..=sources.len()).contains(&n)
+    {
+        return Ok(n - 1);
     }
     sources
         .iter()

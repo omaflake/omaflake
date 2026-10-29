@@ -14,11 +14,11 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use serde::{Deserialize, Serialize};
-use serde_json::{json, Map, Value};
+use serde_json::{Map, Value, json};
 
-use super::common::*;
-use super::text::{tf, Text};
 use super::Ctx;
+use super::common::*;
+use super::text::{Text, tf};
 use crate::api::types::PartDto;
 use crate::composition::{Composition, Issue, PartRef, RecipeSpec, Requirements};
 use crate::models::GuestKind;
@@ -280,13 +280,9 @@ pub(crate) fn page(ctx: &Ctx, p: &StudioParams) -> Option<RecipeStudioPage> {
     let memory = num("memoryGB", req.memory_gb);
     let disk = num("diskGB", req.disk_gb);
     let display = text("display").unwrap_or_else(|| {
-        from.and_then(|r| r.display).map(|d| d.as_str().to_string()).unwrap_or_else(|| {
-            if platform == GuestKind::Macos {
-                "window".into()
-            } else {
-                "gpu".into()
-            }
-        })
+        from.and_then(|r| r.display)
+            .map(|d| d.as_str().to_string())
+            .unwrap_or_else(|| if platform == GuestKind::Macos { "window".into() } else { "gpu".into() })
     });
     let network =
         text("network").unwrap_or_else(|| from.map(|r| r.network.as_str().to_string()).unwrap_or("shared".into()));
@@ -643,8 +639,10 @@ pub(crate) fn page(ctx: &Ctx, p: &StudioParams) -> Option<RecipeStudioPage> {
             look_choices.push(Choice::new(json!(l.reference), Text::verbatim(&l.title)));
         }
     }
-    let dress = vec![choice_field("look", Text::new("Look"), &look, look_choices)
-        .help(Text::new("Suggested – the build may choose another"))];
+    let dress = vec![
+        choice_field("look", Text::new("Look"), &look, look_choices)
+            .help(Text::new("Suggested – the build may choose another")),
+    ];
     // The key binding sets: each action sets the whole list (`ui.field` on `values.keymaps`)
     let set_keymaps = |id: &str, label: Text, icon: &str, list: Vec<String>| {
         let mut a = Action::field(id, label, Some(icon), PAGE, page_params.clone(), "keymaps", "keymaps");
@@ -654,7 +652,9 @@ pub(crate) fn page(ctx: &Ctx, p: &StudioParams) -> Option<RecipeStudioPage> {
     let n = keymap_refs.len();
     let keymaps_section = StudioKeymaps {
         title: Text::new("Key bindings"),
-        help: Text::new("Key binding sets give the modules' actions their keys; a later one wins for the same action. Without any, every module has its own keys."),
+        help: Text::new(
+            "Key binding sets give the modules' actions their keys; a later one wins for the same action. Without any, every module has its own keys.",
+        ),
         rows: keymap_refs
             .iter()
             .enumerate()
@@ -782,11 +782,7 @@ pub(crate) fn page(ctx: &Ctx, p: &StudioParams) -> Option<RecipeStudioPage> {
         dress,
         keymaps: keymaps_section,
         vm: vm_fields,
-        titles: StudioTitles {
-            about: Text::new("Recipe"),
-            dress: Text::new("Look"),
-            vm: Text::new("The VM"),
-        },
+        titles: StudioTitles { about: Text::new("Recipe"), dress: Text::new("Look"), vm: Text::new("The VM") },
         actions,
     })
 }

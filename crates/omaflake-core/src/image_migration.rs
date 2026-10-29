@@ -177,10 +177,11 @@ impl ImageStore {
                     }
                 }
             }
-            if changed && store.save(&c).is_ok() {
-                if let Some(note) = note {
-                    notes.push(note);
-                }
+            if changed
+                && store.save(&c).is_ok()
+                && let Some(note) = note
+            {
+                notes.push(note);
             }
         }
         notes.extend(self.migrate_recipe_ids(&store));

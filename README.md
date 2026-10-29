@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="brand/social/omaflake-social-1280x640.png" alt="omaflake – opinionated, disposable NixOS and macOS VMs on Mac and Linux" width="100%">
+  <img src="brand/png/social/omaflake-social-1280x640.png" alt="omaflake – opinionated, disposable NixOS and macOS VMs on Mac and Linux" width="100%">
 </p>
 
 # omaflake
@@ -129,15 +129,18 @@ Details: [docs/cli.md](docs/cli.md), [docs/macos-base.md](docs/macos-base.md).
 | [docs/linux-builder.md](docs/linux-builder.md) | building NixOS images on a Mac |
 | [nix/README.md](nix/README.md) | the image flake, its inputs and your local settings |
 | [qemu/README.md](qemu/README.md) | QEMU build with virglrenderer |
-| [brand/README.md](brand/README.md) | omaflake logo, icons, favicon, colours |
+| [brand/README.md](brand/README.md) | design tokens and the copies of the artwork; the brand kit itself is [omaflake/brand](https://github.com/omaflake/brand) |
 
 ## License
 
 omaflake is free software: you can redistribute it and/or modify it under the terms of the **GNU Affero General
 Public License, version 3 or (at your option) any later version** (`AGPL-3.0-or-later`), see [LICENSE](LICENSE).
 Copyright © 2026 falkOSS – Falcon Lake Open Source Software gUG (haftungsbeschränkt) i. G. and the omaflake contributors – omaflake
-is a project of [falkOSS](https://falkoss.org). The recipes in [omaflake/recipes](https://github.com/omaflake/recipes) are MIT
-licensed, so they can be copied and adapted freely. Third-party parts keep their licenses:
+is a project of [falkOSS](https://falkoss.org). Every file names its licence – in an SPDX header or in
+[REUSE.toml](REUSE.toml) ([REUSE](https://reuse.software), checked in CI); the texts are in [LICENSES/](LICENSES/).
+The recipes and modules in [omaflake/catalog](https://github.com/omaflake/catalog) are MIT licensed, so they can be
+copied and adapted freely. The logo and icons in `brand/` are copies from [omaflake/brand](https://github.com/omaflake/brand)
+under CC BY-ND 4.0; omaflake's name and brand are not covered by any licence. Third-party parts keep their licenses:
 the QEMU patches in `qemu/patches/` modify QEMU and are GPL-2.0-or-later like QEMU itself;
 patches taken from try-omarchy are MIT ([qemu/patches/try-omarchy/LICENSE](qemu/patches/try-omarchy/LICENSE)),
 startergo's virglrenderer/libepoxy patches are MIT ([qemu/patches/startergo/NOTICE](qemu/patches/startergo/NOTICE)).

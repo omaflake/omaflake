@@ -4,6 +4,7 @@ name = "omaflake-brand"
 description = "omaflake's design tokens (generated from brand/tokens.toml), for the Rust interfaces"
 version.workspace = true
 edition.workspace = true
+rust-version.workspace = true
 license.workspace = true
 publish.workspace = true
 repository.workspace = true
@@ -14,3 +15,6 @@ repository.workspace = true
 [dev-dependencies]
 # The up-to-date test re-reads brand/tokens.toml
 toml.workspace = true
+
+[lints]
+workspace = true

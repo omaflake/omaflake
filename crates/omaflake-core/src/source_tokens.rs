@@ -301,7 +301,7 @@ mod keychain {
         }
 
         fn set(&self, account: &str, label: &str, token: &str) -> Result<(), StoreError> {
-            use security_framework::passwords::{set_generic_password_options, PasswordOptions};
+            use security_framework::passwords::{PasswordOptions, set_generic_password_options};
             let mut options = PasswordOptions::new_generic_password(SourceTokens::SERVICE, account);
             options.set_label(label);
             set_generic_password_options(token.as_bytes(), options)
@@ -452,11 +452,7 @@ mod tests {
             Fake { reachable, items: RefCell::new(HashMap::new()) }
         }
         fn up(&self) -> std::result::Result<(), StoreError> {
-            if self.reachable {
-                Ok(())
-            } else {
-                Err(StoreError::Unavailable)
-            }
+            if self.reachable { Ok(()) } else { Err(StoreError::Unavailable) }
         }
     }
 

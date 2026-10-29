@@ -12,7 +12,7 @@ use std::sync::mpsc::{self, Receiver, RecvTimeoutError, Sender};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
-use serde_json::{json, Map, Value};
+use serde_json::{Map, Value, json};
 
 use super::protocol::{RpcError, SERVER_ERROR};
 use super::server::lock;
@@ -52,10 +52,10 @@ impl Client {
                     if let Some(method) = value.get("method").and_then(Value::as_str) {
                         let params = value.get("params").cloned().unwrap_or(Value::Null);
                         let _ = tx.send((method.to_string(), params));
-                    } else if let Some(id) = value.get("id").and_then(Value::as_u64) {
-                        if let Some(waiting) = lock(&pending).remove(&id) {
-                            let _ = waiting.send(value);
-                        }
+                    } else if let Some(id) = value.get("id").and_then(Value::as_u64)
+                        && let Some(waiting) = lock(&pending).remove(&id)
+                    {
+                        let _ = waiting.send(value);
                     }
                 }
                 open.store(false, Ordering::SeqCst);
@@ -157,7 +157,7 @@ impl Client {
                     return Err(RpcError::from(crate::vm_err!(
                         codes::NOT_FOUND,
                         "Job {id} left the list (dismissed elsewhere) – its log file has its end"
-                    )))
+                    )));
                 }
             }
             if !self.is_open() {

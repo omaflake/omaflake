@@ -4,9 +4,9 @@
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 
-use super::common::*;
-use super::text::{tf, Arg, Text};
 use super::Ctx;
+use super::common::*;
+use super::text::{Arg, Text, tf};
 use crate::agent_protocol::{AgentState, AgentStatus};
 use crate::api::types::Vm;
 use crate::models::{GuestKind, NetworkMode, VmStatus};
@@ -359,21 +359,21 @@ fn detail(ctx: &Ctx, v: &Vm) -> VmDetail {
     if let Some(location) = &v.location {
         info.push(InfoLine::new("Runs from", Text::verbatim(location)).full(location));
     }
-    if let Some(agent) = v.agent.as_ref().and_then(|a| serde_json::from_value::<AgentState>(a.clone()).ok()) {
-        if let Some(hello) = &agent.hello {
-            let line = if agent.agent_is_older() {
-                InfoLine::new("Agent", Text::verbatim(&hello.agent))
-                    .note(Text::new("older than this omaflake – rebuild the image"), Tone::Warning)
-            } else {
-                let os = hello.os_name.clone().or_else(|| hello.os.clone()).unwrap_or_default();
-                InfoLine::new("Agent", Text::verbatim(format!("{} · {os}", hello.agent)))
-            };
-            info.push(line);
-            if let Some(status) = &agent.status {
-                let line = guest_line(status);
-                let full = line.text.clone();
-                info.push(InfoLine::new("Guest", line).full(full));
-            }
+    if let Some(agent) = v.agent.as_ref().and_then(|a| serde_json::from_value::<AgentState>(a.clone()).ok())
+        && let Some(hello) = &agent.hello
+    {
+        let line = if agent.agent_is_older() {
+            InfoLine::new("Agent", Text::verbatim(&hello.agent))
+                .note(Text::new("older than this omaflake – rebuild the image"), Tone::Warning)
+        } else {
+            let os = hello.os_name.clone().or_else(|| hello.os.clone()).unwrap_or_default();
+            InfoLine::new("Agent", Text::verbatim(format!("{} · {os}", hello.agent)))
+        };
+        info.push(line);
+        if let Some(status) = &agent.status {
+            let line = guest_line(status);
+            let full = line.text.clone();
+            info.push(InfoLine::new("Guest", line).full(full));
         }
     }
 
@@ -427,7 +427,9 @@ fn detail(ctx: &Ctx, v: &Vm) -> VmDetail {
             "The VM runs from %@ – it is deleted there and cannot be restored. Its share folder is kept if it holds files. To keep it there, choose Stop Listing instead.",
             location
         ),
-        None => Text::new("The VM and its disk are deleted and cannot be restored. Its share folder is kept if it holds files."),
+        None => Text::new(
+            "The VM and its disk are deleted and cannot be restored. Its share folder is kept if it holds files.",
+        ),
     };
     actions.push(
         Action::call("remove", Text::new("Remove …"), Some("trash"), "vms.remove", json!({"name": name}))

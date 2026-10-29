@@ -23,11 +23,11 @@ use std::process::{Child, ChildStdout, Command, Stdio};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
-use base64::engine::general_purpose::STANDARD as BASE64;
 use base64::Engine;
+use base64::engine::general_purpose::STANDARD as BASE64;
 
-use crate::agent_protocol::{AgentMessage, AgentProtocol, AgentSender};
 use crate::Log;
+use crate::agent_protocol::{AgentMessage, AgentProtocol, AgentSender};
 
 pub const TEXT: &str = "text/plain;charset=utf-8";
 pub const PNG: &str = "image/png";
@@ -490,9 +490,10 @@ pub(crate) mod tests {
 
     #[test]
     fn forced_off() {
-        // no other test reads OMAFLAKE_CLIPBOARD
-        std::env::set_var("OMAFLAKE_CLIPBOARD", "none");
+        // SAFETY: no other test reads OMAFLAKE_CLIPBOARD, and none changes the environment while it runs
+        unsafe { std::env::set_var("OMAFLAKE_CLIPBOARD", "none") };
         assert!(detect().is_err());
-        std::env::remove_var("OMAFLAKE_CLIPBOARD");
+        // SAFETY: as above
+        unsafe { std::env::remove_var("OMAFLAKE_CLIPBOARD") };
     }
 }

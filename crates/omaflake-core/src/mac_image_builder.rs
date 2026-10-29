@@ -25,7 +25,7 @@ use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
 use crate::cancellation::Cancellation;
-use crate::error::{codes, IoContext, Result};
+use crate::error::{IoContext, Result, codes};
 use crate::guest_settings::BuildChoice;
 use crate::image_store::{Image, ImageInfo, ImageStore};
 use crate::ipsw_downloader::KeepAwake;
@@ -35,7 +35,7 @@ use crate::mac_vm::{DhcpLeases, MacVmBundle, RunnerClient};
 use crate::models::GuestKind;
 use crate::paths::{Paths, Settings};
 use crate::platform::Platform;
-use crate::qemu_runtime::{tail, FileLock};
+use crate::qemu_runtime::{FileLock, tail};
 use crate::recipe_sources::RecipeLibrary;
 use crate::shell::{RunOptions, Shell, ShellResult, StreamOptions};
 use crate::sockets::{self, Ports};
@@ -128,16 +128,16 @@ impl MacImageBuilder {
                 )
             })?;
         self.vz.check_entitlement()?;
-        if let Some(base_user) = MacBaseInstaller::user_of(&base, &paths.logs()) {
-            if base_user != r.user {
-                return Err(vm_err!(
-                    codes::PREREQUISITE,
-                    "{} has the guest user {base_user}, but the recipe expects {} (macUser in your recipes' local \
+        if let Some(base_user) = MacBaseInstaller::user_of(&base, &paths.logs())
+            && base_user != r.user
+        {
+            return Err(vm_err!(
+                codes::PREREQUISITE,
+                "{} has the guest user {base_user}, but the recipe expects {} (macUser in your recipes' local \
                          settings) – make them match",
-                    file_name(&base),
-                    r.user
-                ));
-            }
+                file_name(&base),
+                r.user
+            ));
         }
         let flake_ref = ImageStore::flake_ref(&r.flake);
         let cancelled = || vm_err!(codes::CANCELLED, "Build cancelled");

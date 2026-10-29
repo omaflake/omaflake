@@ -12,8 +12,8 @@ use serde_json::{Map, Value};
 
 use std::os::unix::fs::PermissionsExt;
 
-use crate::error::{codes, IoContext, Result};
-use crate::file_format::{write_atomic, FileFormat, Step};
+use crate::error::{IoContext, Result, codes};
+use crate::file_format::{FileFormat, Step, write_atomic};
 use crate::platform::is_writable;
 use crate::sockets::connect_unix;
 use crate::vm_err;
@@ -223,11 +223,7 @@ impl DhcpLeases {
             .filter(|p| !p.is_empty())
             .map(|part| {
                 let trimmed = part.trim_start_matches('0');
-                if trimmed.is_empty() {
-                    "0"
-                } else {
-                    trimmed
-                }
+                if trimmed.is_empty() { "0" } else { trimmed }
             })
             .collect::<Vec<_>>()
             .join(":")

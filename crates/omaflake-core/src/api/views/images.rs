@@ -7,10 +7,10 @@ use std::collections::HashSet;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 
-use super::common::*;
-use super::text::{tf, Arg, Text};
-use super::vms::{kind_badge, recipe_name, unreadable};
 use super::Ctx;
+use super::common::*;
+use super::text::{Arg, Text, tf};
+use super::vms::{kind_badge, recipe_name, unreadable};
 use crate::api::types::{ImageDto, JobDto, JobKind, JobState};
 use crate::guest_choices::GuestChoices;
 use crate::models::{GuestKind, RecipeId};
@@ -165,15 +165,22 @@ pub(crate) fn page(ctx: &Ctx, p: &ImagesParams) -> ImagesPage {
     }
     let mut head = ListHead::new("Images", rows.len(), all.len());
     head.filter = Some(Filter { active: f.is_active(), groups });
-    head.actions = vec![Action::call(
-        "import",
-        Text::new("Import"),
-        Some("import"),
-        "ui.step",
-        json!({"page": "import", "params": {"expect": "image"}}),
-    )
-    .help(Text::new("Import an image – a copy into the data folder"))
-    .ask(Ask::packages("image", false, "An image (.omaflake-image) – it is copied into the data folder", "Import"))];
+    head.actions = vec![
+        Action::call(
+            "import",
+            Text::new("Import"),
+            Some("import"),
+            "ui.step",
+            json!({"page": "import", "params": {"expect": "image"}}),
+        )
+        .help(Text::new("Import an image – a copy into the data folder"))
+        .ask(Ask::packages(
+            "image",
+            false,
+            "An image (.omaflake-image) – it is copied into the data folder",
+            "Import",
+        )),
+    ];
     head.empty = if all.is_empty() && jobs.is_empty() {
         Some(Hint::new("image", Text::new("No images yet – build one from a recipe."), Tone::Normal))
     } else if rows.is_empty() && jobs.is_empty() {

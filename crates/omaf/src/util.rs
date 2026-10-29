@@ -91,11 +91,7 @@ pub fn gib(bytes: u64) -> String {
 /// `s` padded with spaces to `n` characters; a longer one gets one space after it
 pub fn pad(s: &str, n: usize) -> String {
     let count = s.chars().count();
-    if count >= n {
-        format!("{s} ")
-    } else {
-        format!("{s}{}", " ".repeat(n - count))
-    }
+    if count >= n { format!("{s} ") } else { format!("{s}{}", " ".repeat(n - count)) }
 }
 
 /// A date in the Mac's time zone, e.g. "yyyy-MM-dd HH:mm" → `%Y-%m-%d %H:%M` (Swift `DateFormatter.dateFormat`)
@@ -209,12 +205,11 @@ pub fn resolve_image_in(input: &str, names: &[String]) -> Result<String> {
     }
     let mut base = RecipeId::base(input).to_string();
     let mut words = RecipeId::words(input).unwrap_or("").to_string();
-    if let Some(o) = OmaflakeId::parse(input) {
-        if o.kind == OmaflakeIdKind::Image {
-            if let Some(b) = RecipeRef::public_id(&o.identifier) {
-                (base, words) = (b, o.words);
-            }
-        }
+    if let Some(o) = OmaflakeId::parse(input)
+        && o.kind == OmaflakeIdKind::Image
+        && let Some(b) = RecipeRef::public_id(&o.identifier)
+    {
+        (base, words) = (b, o.words);
     }
     let found: Vec<&String> = names
         .iter()

@@ -1,4 +1,7 @@
-# Checks on every push and pull request (plan B67).
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Checks on every push and pull request (plan B67). The licence check (REUSE) and a sign-off (DCO) on every commit of a
+# pull request come from falkoss/starterpack, pinned by commit. Actions are pinned by commit, with the version as a
+# comment.
 # While the repository is private, the macOS job runs only by hand (workflow_dispatch): macOS minutes count tenfold
 # on private repositories. Once public, it runs on every push as well.
 name: CI
@@ -17,8 +20,8 @@ jobs:
     name: Flakes and guest scripts
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
-      - uses: cachix/install-nix-action@v31
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: cachix/install-nix-action@448cde739abec1eaf0646249e3d25bb8d9bc7702 # v31.11.2
         with:
           extra_nix_config: experimental-features = nix-command flakes
       - name: Root flake (QEMU package, guest module) – evaluate all systems
@@ -43,10 +46,9 @@ jobs:
     # The core drives macOS (Keychain, Virtualization through omaf-runner): built and tested on macOS
     runs-on: ${{ vars.MACOS_RUNNER || 'xcode-27' }}
     steps:
-      - uses: actions/checkout@v5
-      - uses: dtolnay/rust-toolchain@stable
-        with:
-          components: rustfmt, clippy
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Rust toolchain from rust-toolchain.toml
+        run: rustup toolchain install
       - name: Format
         run: cargo fmt --all --check
       - name: Clippy
@@ -60,15 +62,16 @@ jobs:
     # flakes job only evaluates. GitHub's ubuntu-latest is x86_64 – aarch64-linux is built in the lab VM.
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
-      - uses: cachix/install-nix-action@v31
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: cachix/install-nix-action@448cde739abec1eaf0646249e3d25bb8d9bc7702 # v31.11.2
         with:
           extra_nix_config: experimental-features = nix-command flakes
       - name: Package omaflake-gui (x86_64-linux)
         run: nix build --print-build-logs .#packages.x86_64-linux.omaflake-gui
       - name: Smoke test – omaf runs
         run: ./result/bin/omaf --version
-      - uses: dtolnay/rust-toolchain@stable
+      - name: Rust toolchain from rust-toolchain.toml
+        run: rustup toolchain install
       - name: Test (Linux host code paths)
         run: cargo test --locked
 
@@ -78,7 +81,7 @@ jobs:
     # macOS 27 SDK needed (Package.swift): GitHub's xcode-27 image (preview; macOS 27.0.1, Xcode 27.0 by default)
     runs-on: ${{ vars.MACOS_RUNNER || 'xcode-27' }}
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Xcode – the image's default; the macOS 27 SDK is needed (Package.swift)
         run: |
           xcodebuild -version
@@ -97,11 +100,26 @@ jobs:
       - name: Test
         run: swift test
       # The bundle carries the Rust `omaf` (the app's core, `omaf serve`)
-      - uses: dtolnay/rust-toolchain@stable
+      - name: Rust toolchain from rust-toolchain.toml
+        run: rustup toolchain install
       - name: App bundle (ad hoc)
         run: scripts/bundle-app.sh
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: omaflake-app-adhoc
           path: build/omaflake.app
           retention-days: 7
+
+  dependencies:
+    name: Dependencies (cargo deny)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: EmbarkStudios/cargo-deny-action@3c6349835b2b7b196a839186cb8b78e02f7b5f25 # v2.1.1
+        with:
+          command: check
+
+  licences:
+    uses: falkoss/starterpack/.github/workflows/reuse.yml@1e2fad7b6afb0f45f7d62d6a9472c97484ff4585
+  sign-off:
+    uses: falkoss/starterpack/.github/workflows/dco.yml@1e2fad7b6afb0f45f7d62d6a9472c97484ff4585

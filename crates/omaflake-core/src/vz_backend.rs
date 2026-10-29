@@ -20,7 +20,7 @@ use std::time::{Duration, Instant};
 
 use crate::agent_protocol::AgentState;
 use crate::backend::{StartOptions, VmBackend};
-use crate::error::{codes, Error, Result};
+use crate::error::{Error, Result, codes};
 use crate::image_store::Image;
 use crate::instance_store::InstanceStore;
 use crate::json;
@@ -55,20 +55,19 @@ impl VzBackend {
 
     /// omaf-runner from VM_RUNNER, config.json (`runner`), next to the running executable, or PATH.
     pub fn locate_runner(paths: &Paths) -> Result<String> {
-        if let Ok(env) = std::env::var("VM_RUNNER") {
-            if !env.is_empty() {
-                return Shell::which(&env);
-            }
+        if let Ok(env) = std::env::var("VM_RUNNER")
+            && !env.is_empty()
+        {
+            return Shell::which(&env);
         }
         if let Some(configured) = Settings::load(paths).runner {
             return Shell::which(&expand_tilde(&configured));
         }
-        if let Ok(exe) = std::env::current_exe() {
-            if let Some(found) =
+        if let Ok(exe) = std::env::current_exe()
+            && let Some(found) =
                 Self::runner_candidates(&resolve_symlinks(&exe)).into_iter().find(|c| is_executable_file(c))
-            {
-                return Ok(found.to_string_lossy().into_owned());
-            }
+        {
+            return Ok(found.to_string_lossy().into_owned());
         }
         Shell::which("omaf-runner")
     }
@@ -89,15 +88,14 @@ impl VzBackend {
         if let Some(profile_dir) = profile_dir {
             let profile = profile_dir.file_name().and_then(|n| n.to_str()).unwrap_or("");
             let target = profile_dir.parent();
-            if matches!(profile, "debug" | "release") && target.and_then(Path::file_name).is_some_and(|n| n == "target")
+            if matches!(profile, "debug" | "release")
+                && target.and_then(Path::file_name).is_some_and(|n| n == "target")
+                && let Some(repo) = target.and_then(Path::parent)
+                && repo.join("Package.swift").exists()
             {
-                if let Some(repo) = target.and_then(Path::parent) {
-                    if repo.join("Package.swift").exists() {
-                        let other = if profile == "debug" { "release" } else { "debug" };
-                        for p in [profile, other] {
-                            candidates.push(repo.join(".build").join(p).join("omaf-runner"));
-                        }
-                    }
+                let other = if profile == "debug" { "release" } else { "debug" };
+                for p in [profile, other] {
+                    candidates.push(repo.join(".build").join(p).join("omaf-runner"));
                 }
             }
         }
@@ -203,10 +201,10 @@ impl VzBackend {
             if spawn::reap_if_exited(child) {
                 return Err(vm_err!("omaf-runner exited during startup:\n{}", tail(&ip.runner_log(), 5)));
             }
-            if let Ok(reply) = RunnerClient::send("status", &ip.runner_socket(), Duration::from_secs(1)) {
-                if reply.get("state").map(String::as_str) == Some("running") {
-                    return Ok(child);
-                }
+            if let Ok(reply) = RunnerClient::send("status", &ip.runner_socket(), Duration::from_secs(1))
+                && reply.get("state").map(String::as_str) == Some("running")
+            {
+                return Ok(child);
             }
             std::thread::sleep(Duration::from_millis(300));
         }
@@ -319,11 +317,11 @@ impl VmBackend for VzBackend {
         );
         config.identity = Some(OmaflakeId::random_words());
         // Ephemeral instances get their clone at every start
-        if !config.ephemeral {
-            if let Err(e) = self.clone_image(&config) {
-                let _ = Disposal::delete(&[&ip.dir]);
-                return Err(e);
-            }
+        if !config.ephemeral
+            && let Err(e) = self.clone_image(&config)
+        {
+            let _ = Disposal::delete(&[&ip.dir]);
+            return Err(e);
         }
         self.store.save(&config)?;
         Ok(config)
@@ -390,11 +388,7 @@ impl VmBackend for VzBackend {
     }
 
     fn status(&self, c: &InstanceConfig) -> VmStatus {
-        if self.pid(c).is_none() {
-            VmStatus::Stopped
-        } else {
-            VmStatus::Running
-        }
+        if self.pid(c).is_none() { VmStatus::Stopped } else { VmStatus::Running }
     }
 
     fn reset(&self, c: &InstanceConfig) -> Result<()> {
@@ -429,14 +423,14 @@ impl VmBackend for VzBackend {
     fn wait_for_ssh(&self, c: &InstanceConfig, timeout: Duration) -> bool {
         let deadline = Instant::now() + timeout;
         while Instant::now() < deadline {
-            if let Some(host) = self.address(c) {
-                if Ports::ssh_banner(&host, 22, sockets::DEFAULT_TIMEOUT).is_some() {
-                    self.apply_host_name(c, &host);
-                    if c.clipboard_on() {
-                        self.start_clipboard_agent(c, &host);
-                    }
-                    return true;
+            if let Some(host) = self.address(c)
+                && Ports::ssh_banner(&host, 22, sockets::DEFAULT_TIMEOUT).is_some()
+            {
+                self.apply_host_name(c, &host);
+                if c.clipboard_on() {
+                    self.start_clipboard_agent(c, &host);
                 }
+                return true;
             }
             if self.pid(c).is_none() {
                 return false;
@@ -658,9 +652,11 @@ pub(crate) mod tests {
         let c = mac_config("m1", NetworkMode::Shared);
         let missing = vz.clone_image(&c).unwrap_err();
         assert_eq!(missing.code(), Some(codes::NOT_FOUND));
-        assert!(missing
-            .message()
-            .starts_with("Image missing: mac-minimal-abc-12345678 – rebuild it (omaf build mac-minimal)"));
+        assert!(
+            missing
+                .message()
+                .starts_with("Image missing: mac-minimal-abc-12345678 – rebuild it (omaf build mac-minimal)")
+        );
         mac_image(&p, &c.image);
         vz.clone_image(&c).unwrap();
         let vm = MacVmBundle::new(p.instance("m1").vm()).load_config().unwrap();

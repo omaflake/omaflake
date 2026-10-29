@@ -2,7 +2,7 @@
 //! The icon vocabulary of the views (docs/api.md §10.3) drawn with Lucide (ISC, see NOTICE): each name a glyph of
 //! the bundled Lucide font. An unknown name is drawn as nothing (the UI shows the label instead).
 
-use iced::widget::{text, Text};
+use iced::widget::{Text, text};
 use iced::{Color, Font};
 use lucide_icons::Icon;
 
@@ -114,8 +114,7 @@ mod tests {
     /// Every name of api.md §10.3's list has a glyph
     #[test]
     fn the_whole_vocabulary_is_mapped() {
-        let documented =
-            "vm image recipe activity nixos macos start-window start-headless stop terminal folder export \
+        let documented = "vm image recipe activity nixos macos start-window start-headless stop terminal folder export \
             import external hide upgrade reset trash build new-vm create cancel install refresh download pause apply \
             clean guide log doctor settings quit up add clipboard sound microphone camera ephemeral network-isolated \
             network-none upgradable outdated lab arch official lock lock-warning github url warning ok filter finished \
@@ -143,10 +142,10 @@ mod tests {
         match v {
             serde_json::Value::Object(m) => {
                 for (k, v) in m {
-                    if k == "icon" {
-                        if let Some(s) = v.as_str() {
-                            out.push(s.to_string());
-                        }
+                    if k == "icon"
+                        && let Some(s) = v.as_str()
+                    {
+                        out.push(s.to_string());
                     }
                     collect_icons(v, out);
                 }

@@ -4,11 +4,11 @@
 //! creates the macOS base (`macBase`, the app's `MacBaseView`).
 
 use serde::{Deserialize, Serialize};
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 
-use super::common::*;
-use super::text::{tf, Arg, Text};
 use super::Ctx;
+use super::common::*;
+use super::text::{Arg, Text, tf};
 use crate::api::types::{CliLinkDto, JobDto, JobKind, JobState, PrerequisiteDto, UpdateState};
 use crate::prerequisites::{PrerequisiteItem as I, PrerequisiteStatus as S, Prerequisites};
 
@@ -112,16 +112,30 @@ pub fn hint_on(p: &PrerequisiteDto, host: super::HostOs) -> Text {
     let linux = host == super::HostOs::Linux;
     Text::new(match p.item {
         I::Host if linux => "omaflake runs on Linux with x86_64 or aarch64.",
-        I::Kvm if p.detail.starts_with("no /dev/kvm") => "Turn on virtualization (Intel VT-x or AMD-V) in the firmware settings and load the kvm module; in a VM, nested virtualization. Until then VMs run with TCG, many times slower.",
-        I::Kvm if p.install.is_some() => "Add yourself to the group kvm, then log in again. Until then VMs run with TCG, many times slower.",
-        I::Kvm => "Add yourself to the group kvm in your NixOS configuration (users.users.<you>.extraGroups = [ \"kvm\" ];), rebuild, then log in again. Until then VMs run with TCG, many times slower.",
-        I::Flakes if linux => "Add “nix-command flakes” to experimental-features (NixOS: nix.settings.experimental-features; else /etc/nix/nix.conf).",
-        I::Qemu if linux && limited => "Works headless and in 2D – without 3D; a QEMU with virglrenderer (nixpkgs#qemu) adds it.",
-        I::Qemu if linux && p.detail.starts_with("UEFI firmware not found") => "No UEFI firmware for this QEMU: install nixpkgs' QEMU (it brings edk2), or your distribution's OVMF (x86_64) or AAVMF (aarch64) package.",
+        I::Kvm if p.detail.starts_with("no /dev/kvm") => {
+            "Turn on virtualization (Intel VT-x or AMD-V) in the firmware settings and load the kvm module; in a VM, nested virtualization. Until then VMs run with TCG, many times slower."
+        }
+        I::Kvm if p.install.is_some() => {
+            "Add yourself to the group kvm, then log in again. Until then VMs run with TCG, many times slower."
+        }
+        I::Kvm => {
+            "Add yourself to the group kvm in your NixOS configuration (users.users.<you>.extraGroups = [ \"kvm\" ];), rebuild, then log in again. Until then VMs run with TCG, many times slower."
+        }
+        I::Flakes if linux => {
+            "Add “nix-command flakes” to experimental-features (NixOS: nix.settings.experimental-features; else /etc/nix/nix.conf)."
+        }
+        I::Qemu if linux && limited => {
+            "Works headless and in 2D – without 3D; a QEMU with virglrenderer (nixpkgs#qemu) adds it."
+        }
+        I::Qemu if linux && p.detail.starts_with("UEFI firmware not found") => {
+            "No UEFI firmware for this QEMU: install nixpkgs' QEMU (it brings edk2), or your distribution's OVMF (x86_64) or AAVMF (aarch64) package."
+        }
         I::Qemu if linux => "Needed for NixOS guests: install QEMU, or enter the path to qemu-system-*.",
         I::Host if limited => "macOS 27 is needed for automatic macOS bases.",
         I::Host => "omaflake needs a Mac with Apple silicon.",
-        I::Nix if p.detail.starts_with(Prerequisites::NIX_NOT_MOUNTED) => "Nix is installed, but its volume is not mounted at /nix – usually after a restart without its mount settings. Mount it; NixOS images, the Linux builder and omaflake's QEMU are back then.",
+        I::Nix if p.detail.starts_with(Prerequisites::NIX_NOT_MOUNTED) => {
+            "Nix is installed, but its volume is not mounted at /nix – usually after a restart without its mount settings. Mount it; NixOS images, the Linux builder and omaflake's QEMU are back then."
+        }
         I::Nix => "Install Nix, or enter the path to the nix binary.",
         I::Flakes => {
             "Add “nix-command flakes” to experimental-features (nix-darwin: nix.settings.experimental-features)."
@@ -134,8 +148,12 @@ pub fn hint_on(p: &PrerequisiteDto, host: super::HostOs) -> Text {
         I::Qemu => "Needed for NixOS guests: install omaflake's QEMU, or enter a path.",
         I::Flake => "Choose the folder with your recipes (flake.nix).",
         I::SshKey => "Create a key – used for SSH into VMs, image builds and macOS bases.",
-        I::Look => "Install a look – how the guests look: colours, terminal, editors. omaflake's own and Catppuccin are recommended; more are in the Looks tab.",
-        I::Credential => "Create a credential – who you are in the guests: user, full name and a password, asked once. omaflake builds images and macOS bases with it by itself.",
+        I::Look => {
+            "Install a look – how the guests look: colours, terminal, editors. omaflake's own and Catppuccin are recommended; more are in the Looks tab."
+        }
+        I::Credential => {
+            "Create a credential – who you are in the guests: user, full name and a password, asked once. omaflake builds images and macOS bases with it by itself."
+        }
         I::Git => "Optional: without it, image names show “nogit” instead of the flake's revision.",
         I::Cli if limited => {
             "Another omaf comes first on your PATH – install this omaflake's, or remove the other one."
@@ -146,7 +164,9 @@ pub fn hint_on(p: &PrerequisiteDto, host: super::HostOs) -> Text {
         }
         I::FlakeEval => "Your recipes do not evaluate – see the message.",
         I::NixSpace | I::MacSpace => "Not enough free space – free some up first.",
-        I::Ipsw if p.hint == Prerequisites::IPSW_NEWER => "A newer macOS is available from Apple. Your bases and the IPSW you have keep working; download it for new bases with the newer macOS.",
+        I::Ipsw if p.hint == Prerequisites::IPSW_NEWER => {
+            "A newer macOS is available from Apple. Your bases and the IPSW you have keep working; download it for new bases with the newer macOS."
+        }
         I::Ipsw if limited => "Partly downloaded – continues where it stopped.",
         I::Ipsw => "Download macOS from Apple, or choose an IPSW file you already have.",
         I::MacBase if limited => "Unfinished – Create Base continues it; use the same password as before.",
@@ -229,9 +249,17 @@ fn cli_actions(ctx: &Ctx, p: &PrerequisiteDto, cli: Option<&CliLinkDto>) -> Vec<
     let mut actions = Vec::new();
     if let Some(target) = c.target.as_ref().filter(|_| p.status != S::Ok) {
         let text = if c.admin {
-            tf!("omaflake creates the link %@ to its omaf (%@), so omaf works in Terminal. A link that is there already is replaced. macOS asks for an administrator.", &c.link, target)
+            tf!(
+                "omaflake creates the link %@ to its omaf (%@), so omaf works in Terminal. A link that is there already is replaced. macOS asks for an administrator.",
+                &c.link,
+                target
+            )
         } else {
-            tf!("omaflake creates the link %@ to its omaf (%@), so omaf works in a terminal. A link that is there already is replaced.", &c.link, target)
+            tf!(
+                "omaflake creates the link %@ to its omaf (%@), so omaf works in a terminal. A link that is there already is replaced.",
+                &c.link,
+                target
+            )
         };
         let mut a = Action::call("installCli", Text::new("Install …"), Some("install"), "doctor.installCli", json!({}))
             .confirm(Confirm::new(Text::new("Install the omaf command?"), text).button("Install"))
@@ -484,9 +512,11 @@ pub(crate) fn page(ctx: &Ctx) -> DoctorPage {
         )),
         checking: ctx.checking,
         checked: report.map(|d| d.checked),
-        actions: vec![Action::call("check", Text::new("Check Again"), Some("refresh"), "doctor.check", json!({}))
-            .busy(ctx.checking)
-            .enabled_if(!ctx.checking, None)],
+        actions: vec![
+            Action::call("check", Text::new("Check Again"), Some("refresh"), "doctor.check", json!({}))
+                .busy(ctx.checking)
+                .enabled_if(!ctx.checking, None),
+        ],
         sections: {
             let mut sections = vec![
                 section("requirements", "Requirements", report.map(|d| &d.prerequisites)),
@@ -670,7 +700,9 @@ pub(crate) fn mac_base_page(ctx: &Ctx, p: &MacBaseParams) -> MacBasePage {
         .primary();
     MacBasePage {
         title: Text::new("Create macOS Base"),
-        intro: Text::new("Creates your macOS base from the IPSW: the guest user from your credential, automatic login, SSH with your keys from ~/.ssh. No manual steps and no password to type; a missing IPSW is downloaded first."),
+        intro: Text::new(
+            "Creates your macOS base from the IPSW: the guest user from your credential, automatic login, SSH with your keys from ~/.ssh. No manual steps and no password to type; a missing IPSW is downloaded first.",
+        ),
         base,
         ipsw: IpswLine {
             label: Text::new("macOS from Apple (IPSW)"),

@@ -14,6 +14,8 @@
 //! exactly as the message would have it. Names the string takes from the scope (`{path}`) become named args with the
 //! literal's span, so they resolve where the macro was called.
 
+#![forbid(unsafe_code)]
+
 use proc_macro::{Delimiter, Group, Ident, Literal, Punct, Spacing, Span, TokenStream, TokenTree};
 
 mod key;
@@ -86,10 +88,12 @@ pub fn keyed_error(input: TokenStream) -> TokenStream {
     // Named args given (`name = expr`): those names are not taken from the scope
     let mut named = Vec::new();
     for item in args.split(|t| is_punct(t, ',')) {
-        if let [TokenTree::Ident(name), TokenTree::Punct(eq), next, ..] = item {
-            if eq.as_char() == '=' && eq.spacing() == Spacing::Alone && !is_punct(next, '=') {
-                named.push(name.to_string());
-            }
+        if let [TokenTree::Ident(name), TokenTree::Punct(eq), next, ..] = item
+            && eq.as_char() == '='
+            && eq.spacing() == Spacing::Alone
+            && !is_punct(next, '=')
+        {
+            named.push(name.to_string());
         }
     }
 

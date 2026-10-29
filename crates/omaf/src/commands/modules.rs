@@ -3,13 +3,13 @@
 //! catalogs (or used from a local folder source). Installing a recipe brings what it needs; these install and remove
 //! one by hand.
 
+use omaflake_core::Settings;
 use omaflake_core::keymaps::KeymapStore;
 use omaflake_core::modules::ModuleStore;
 use omaflake_core::parts::PartKind;
 use omaflake_core::recipe_sources::{RecipeCatalog, RecipeSource, RecipeSourceKind, SourceClient};
-use omaflake_core::Settings;
 
-use crate::util::{pad, usage, Env, Outcome};
+use crate::util::{Env, Outcome, pad, usage};
 
 /// "<author>/<platform>/<name>" → a module's id, "<author>/<name>" → key bindings' (ids pass as they are)
 fn id_of(reference: &str) -> Option<String> {

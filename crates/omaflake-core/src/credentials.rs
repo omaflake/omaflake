@@ -9,7 +9,7 @@
 
 use serde::{Deserialize, Serialize};
 
-use crate::error::{codes, Result};
+use crate::error::{Result, codes};
 use crate::paths::{Paths, Settings};
 use crate::source_tokens::{TokenPlace, Tokens};
 use crate::vm_err;
@@ -426,10 +426,10 @@ impl Credentials {
         if !MacBaseInstaller::is_ready(dir) {
             return Err(vm_err!(codes::PREREQUISITE, "{} is not installed completely", dir.display()));
         }
-        if let Some(user) = MacBaseInstaller::user_of(dir, &self.paths.logs()) {
-            if user != login.user {
-                return Err(vm_err!("The base's user is {} – the credential \"{}\" has {}", user, c.name, login.user));
-            }
+        if let Some(user) = MacBaseInstaller::user_of(dir, &self.paths.logs())
+            && user != login.user
+        {
+            return Err(vm_err!("The base's user is {} – the credential \"{}\" has {}", user, c.name, login.user));
         }
         let record = BaseRecord { credential: c.id.clone(), credential_name: c.name.clone(), user: login.user };
         record.write(dir)?;
@@ -532,10 +532,11 @@ mod tests {
         c.set_default(&p2).unwrap();
         assert!(c.set_default("c-9").is_err());
         assert!(c.add(change("Work", "alex", Some("pw"))).is_ok()); // the name is free again
-                                                                    // Every credential names its own user – the host has nothing to do with them (plan B139)
-        assert!(c
-            .add(CredentialChange { name: Some("NoUser".into()), password: Some("pw".into()), ..Default::default() })
-            .is_err());
+        // Every credential names its own user – the host has nothing to do with them (plan B139)
+        assert!(
+            c.add(CredentialChange { name: Some("NoUser".into()), password: Some("pw".into()), ..Default::default() })
+                .is_err()
+        );
         c.remove(&p2).unwrap();
         let rest = c.list();
         assert_eq!(c.default_credential().map(|d| d.id), rest.first().map(|r| r.id.clone()));
@@ -572,15 +573,17 @@ mod tests {
         let usage = Usage::of(&c.paths, &work.id);
         assert_eq!(usage.bases, vec!["mac-base-1".to_string()]);
         let current = c.get(&work.id).unwrap();
-        assert!(usage
-            .check_change(&current, &CredentialChange { user: Some("bob".into()), ..Default::default() })
-            .is_err());
-        assert!(usage
-            .check_change(&current, &CredentialChange { password: Some("x".into()), ..Default::default() })
-            .is_err());
-        assert!(usage
-            .check_change(&current, &CredentialChange { name: Some("Job".into()), ..Default::default() })
-            .is_ok());
+        assert!(
+            usage.check_change(&current, &CredentialChange { user: Some("bob".into()), ..Default::default() }).is_err()
+        );
+        assert!(
+            usage
+                .check_change(&current, &CredentialChange { password: Some("x".into()), ..Default::default() })
+                .is_err()
+        );
+        assert!(
+            usage.check_change(&current, &CredentialChange { name: Some("Job".into()), ..Default::default() }).is_ok()
+        );
         assert!(usage.check_remove().is_err());
         assert!(Usage::of(&c.paths, &other.id).check_remove().is_ok());
         std::fs::set_permissions(&dir, std::fs::Permissions::from_mode(0o755)).unwrap();

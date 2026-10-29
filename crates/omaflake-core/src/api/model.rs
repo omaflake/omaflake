@@ -11,6 +11,7 @@ use std::path::{Path, PathBuf};
 use std::time::SystemTime;
 
 use super::types::*;
+use crate::Result;
 use crate::agent_protocol::AgentState;
 use crate::backend::Backends;
 use crate::file_format::UnreadableFile;
@@ -24,7 +25,6 @@ use crate::prerequisites::{Prerequisite, PrerequisiteItem, PrerequisiteStatus};
 use crate::qemu_runtime::QemuRuntime;
 use crate::recipe_sources::{CatalogRecipe, Installed, RecipeCatalog, RecipeLibrary, RecipeSource, Version};
 use crate::vz_backend::VzBackend;
-use crate::Result;
 
 // MARK: Recipes (AppModel.loadRecipes)
 
@@ -165,10 +165,10 @@ pub(crate) fn newest_change(folders: &[PathBuf]) -> SystemTime {
                 continue;
             }
             let Ok(meta) = std::fs::symlink_metadata(e.path()) else { continue };
-            if let Ok(m) = meta.modified() {
-                if m > *newest {
-                    *newest = m;
-                }
+            if let Ok(m) = meta.modified()
+                && m > *newest
+            {
+                *newest = m;
             }
             if meta.is_dir() {
                 walk(&e.path(), newest);
@@ -358,11 +358,7 @@ pub(crate) fn next_numbered(name: &str, taken: &HashSet<String>) -> String {
 /// The first free VM name for a recipe: its display name, then "-2", "-3", … (`AppModel.nextFreeName(for:)`)
 pub(crate) fn next_free_name(recipe: &str, defaults: Option<&RecipeDefaults>, taken: &HashSet<String>) -> String {
     let name = RecipeId::display_name(recipe, defaults);
-    if taken.contains(&name) {
-        next_numbered(&name, taken)
-    } else {
-        name
-    }
+    if taken.contains(&name) { next_numbered(&name, taken) } else { name }
 }
 
 // MARK: Doctor (AppModel.buildBlockers, startBlockers, doctorIssues)
@@ -889,8 +885,8 @@ mod tests {
     use super::*;
     use crate::image_store::ImageInfo;
     use crate::json::parse_date;
-    use crate::models::tests::{config, dev_defaults};
     use crate::models::NetworkMode;
+    use crate::models::tests::{config, dev_defaults};
     use crate::recipe_sources::RecipeSourceKind;
 
     fn image(recipe: &str, source: Option<&str>, name: &str, created: &str, store: &str) -> Image {
@@ -1174,7 +1170,7 @@ mod tests {
         let updates = recipe_updates(&recipes.installed, &sources, &catalogs, &hash);
         assert_eq!(updates.len(), 1);
         assert_eq!(updates[0].0, installed_id);
-        assert_eq!(updates[0].1 .0.version, "2");
+        assert_eq!(updates[0].1.0.version, "2");
         let s = suggested(&offers, &|_| true);
         assert_eq!(s.len(), 1);
         assert!(suggested(&offers, &|_| false).is_empty());

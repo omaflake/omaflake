@@ -21,15 +21,15 @@ use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
-use base64::engine::general_purpose::STANDARD as BASE64;
 use base64::Engine;
+use base64::engine::general_purpose::STANDARD as BASE64;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 
+use crate::Log;
 use crate::error::Result;
 use crate::file_format::write_atomic;
 use crate::json;
-use crate::Log;
 
 /// Swift `enum AgentProtocol` (constants and frame encoding)
 pub enum AgentProtocol {}
@@ -622,12 +622,11 @@ impl AgentLink {
             self.errors += 1; // unknown to this version; a newer agent only sends what the welcome enabled
             return;
         };
-        if matches!(message, AgentMessage::Hello | AgentMessage::Status | AgentMessage::Goodbye) {
-            if let Some(last) = self.last_accepted.get(&frame.type_) {
-                if now.duration_since(*last) < Self::MIN_INTERVAL {
-                    return;
-                }
-            }
+        if matches!(message, AgentMessage::Hello | AgentMessage::Status | AgentMessage::Goodbye)
+            && let Some(last) = self.last_accepted.get(&frame.type_)
+            && now.duration_since(*last) < Self::MIN_INTERVAL
+        {
+            return;
         }
         match message {
             AgentMessage::Hello => {

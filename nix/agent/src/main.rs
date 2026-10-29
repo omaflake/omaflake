@@ -11,7 +11,11 @@
 /// A file in the agent's runtime directory (/run/omaflake-agent, macOS /var/run/omaflake-agent)
 macro_rules! concat_runtime {
     ($name:literal) => {
-        if cfg!(target_os = "macos") { concat!("/var/run/omaflake-agent/", $name) } else { concat!("/run/omaflake-agent/", $name) }
+        if cfg!(target_os = "macos") {
+            concat!("/var/run/omaflake-agent/", $name)
+        } else {
+            concat!("/run/omaflake-agent/", $name)
+        }
     };
 }
 pub(crate) use concat_runtime;
@@ -151,7 +155,7 @@ impl Agent {
                 self.camera_start();
             }
         } else {
-            self.camera = None;   // off for this VM: the device stays black
+            self.camera = None; // off for this VM: the device stays black
         }
     }
 
@@ -160,7 +164,10 @@ impl Agent {
         match frame.kind {
             MSG_WELCOME => match serde_json::from_slice::<Welcome>(&frame.payload) {
                 Ok(w) if (PROTOCOL_MIN..=PROTOCOL_MAX).contains(&w.protocol) => self.welcome(w),
-                Ok(w) => log(&format!("the Mac asked for protocol {}, this agent speaks {PROTOCOL_MIN}–{PROTOCOL_MAX}", w.protocol)),
+                Ok(w) => log(&format!(
+                    "the Mac asked for protocol {}, this agent speaks {PROTOCOL_MIN}–{PROTOCOL_MAX}",
+                    w.protocol
+                )),
                 Err(e) => log(&format!("malformed welcome: {e}")),
             },
             MSG_CLIPBOARD if self.enabled("clipboard") => {
@@ -175,7 +182,7 @@ impl Agent {
             MSG_CAMERA_FRAME if self.enabled("camera") => {
                 let Some(cam) = self.camera.as_mut() else { return };
                 if !cam.active {
-                    return;   // late frame after the application closed the camera
+                    return; // late frame after the application closed the camera
                 }
                 if let Err(e) = cam.write_frame(&frame.payload) {
                     log(&format!("camera frame: {e}"));
@@ -216,8 +223,13 @@ impl Agent {
     /// One round: wait for input or the next due message, at most one second
     fn step(&mut self) {
         let now = Instant::now();
-        let due = if !self.connected { now + Duration::from_secs(1) }
-            else if self.welcomed { self.next_status } else { self.next_hello };
+        let due = if !self.connected {
+            now + Duration::from_secs(1)
+        } else if self.welcomed {
+            self.next_status
+        } else {
+            self.next_hello
+        };
         let timeout = due.saturating_duration_since(now).min(Duration::from_secs(1));
         // port, listener, camera, then the sessions
         let mut fds = vec![libc::pollfd { fd: self.port.as_raw_fd(), events: libc::POLLIN, revents: 0 }];
@@ -238,26 +250,25 @@ impl Agent {
             return; // EINTR (a signal) – the caller checks STOP
         }
 
-        if let Some(i) = camera_at {
-            if fds[i].revents & libc::POLLPRI != 0 {
-                if let Some(cam) = self.camera.as_mut() {
-                    match cam.readers() {
-                        Ok(now_active) if now_active != cam.active => {
-                            cam.active = now_active;
-                            if !now_active {
-                                cam.black();   // kept fresh from now on (`keep_fresh`, B130)
-                            }
-                            log(if now_active { "an application opened the camera" } else { "camera no longer in use" });
-                            if now_active {
-                                self.camera_start();
-                            } else {
-                                self.send(MSG_CAMERA_CONTROL, &serde_json::json!({ "action": "stop" }));
-                            }
-                        }
-                        Ok(_) => {}
-                        Err(e) => log(&format!("camera event: {e}")),
+        if let Some(i) = camera_at
+            && fds[i].revents & libc::POLLPRI != 0
+            && let Some(cam) = self.camera.as_mut()
+        {
+            match cam.readers() {
+                Ok(now_active) if now_active != cam.active => {
+                    cam.active = now_active;
+                    if !now_active {
+                        cam.black(); // kept fresh from now on (`keep_fresh`, B130)
+                    }
+                    log(if now_active { "an application opened the camera" } else { "camera no longer in use" });
+                    if now_active {
+                        self.camera_start();
+                    } else {
+                        self.send(MSG_CAMERA_CONTROL, &serde_json::json!({ "action": "stop" }));
                     }
                 }
+                Ok(_) => {}
+                Err(e) => log(&format!("camera event: {e}")),
             }
         }
         // Sessions: read what came, drop those that went away (from the back, so the indices stay valid). Only the

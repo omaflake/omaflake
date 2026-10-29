@@ -10,7 +10,7 @@ use std::collections::{HashMap, HashSet};
 use chrono::{DateTime, Utc};
 use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::{Line, Span};
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 
 use crate::icons::IconSet;
 use crate::text::{arr, b, bytes_text, date_text, duration_text, parse_date, s, t, tr, trf};
@@ -131,11 +131,7 @@ fn lamp(ctx: &Ctx, lamp: &Value) -> Span<'static> {
 
 pub(crate) fn icon(ctx: &Ctx, name: &str, style: Style) -> Vec<Span<'static>> {
     let g = ctx.icons.get(name);
-    if g.is_empty() {
-        vec![]
-    } else {
-        vec![Span::styled(g.to_string(), style), Span::raw(" ")]
-    }
+    if g.is_empty() { vec![] } else { vec![Span::styled(g.to_string(), style), Span::raw(" ")] }
 }
 
 /// A badge: its label where it has one (with its icon), else its icon – in its tone
@@ -286,11 +282,7 @@ pub fn gauge(fraction: f64, width: usize) -> String {
 }
 
 fn is_open(ctx: &Ctx, key: &str, by_default: bool) -> bool {
-    if by_default {
-        !ctx.collapsed.contains(key)
-    } else {
-        ctx.expanded.contains(key)
-    }
+    if by_default { !ctx.collapsed.contains(key) } else { ctx.expanded.contains(key) }
 }
 
 /// The first line of a row: lamp, kind, name, what follows the name, badges, tags
@@ -711,10 +703,10 @@ fn recipes(ctx: &Ctx, model: &Value, p: &mut Page) {
                 vec![row["action"].clone()],
             ));
         }
-        if let Some(all) = u.get("all") {
-            if let Some(bar) = button_bar(ctx, "updates:all", std::slice::from_ref(all)) {
-                p.items.push(bar);
-            }
+        if let Some(all) = u.get("all")
+            && let Some(bar) = button_bar(ctx, "updates:all", std::slice::from_ref(all))
+        {
+            p.items.push(bar);
         }
         p.items.push(Item::line("", secondary_line(ctx, t(&u["note"]), 3)));
         p.items.push(Item::blank());
@@ -917,10 +909,10 @@ fn build(ctx: &Ctx, model: &Value, p: &mut Page) {
         p.items.push(Item::line("", secondary_line(ctx, t(n), 2)));
     }
     if let Some(log) = model.get("log").filter(|l| l.is_object()) {
-        if let Some(full) = log.get("full") {
-            if let Some(bar) = button_bar(ctx, "build:log", std::slice::from_ref(full)) {
-                p.items.push(bar);
-            }
+        if let Some(full) = log.get("full")
+            && let Some(bar) = button_bar(ctx, "build:log", std::slice::from_ref(full))
+        {
+            p.items.push(bar);
         }
         p.log = LogBox::from_model(log);
     }
@@ -1063,10 +1055,10 @@ fn mac_base(ctx: &Ctx, model: &Value, p: &mut Page) {
     }
     // The IPSW is shown once, in its line above (it is no field); the log as the build page's
     if let Some(log) = model.get("log").filter(|l| l.is_object()) {
-        if let Some(full) = log.get("full") {
-            if let Some(bar) = button_bar(ctx, "macBase:log", std::slice::from_ref(full)) {
-                p.items.push(bar);
-            }
+        if let Some(full) = log.get("full")
+            && let Some(bar) = button_bar(ctx, "macBase:log", std::slice::from_ref(full))
+        {
+            p.items.push(bar);
         }
         p.log = LogBox::from_model(log);
     }
@@ -1504,10 +1496,10 @@ fn sources(ctx: &Ctx, model: &Value, p: &mut Page) {
             p.items.push(field(ctx, "source", f));
         }
     }
-    if let Some(bar) = button_bar(ctx, "source:add", std::slice::from_ref(&src["addAction"])) {
-        if src["addAction"].is_object() {
-            p.items.push(bar);
-        }
+    if let Some(bar) = button_bar(ctx, "source:add", std::slice::from_ref(&src["addAction"]))
+        && src["addAction"].is_object()
+    {
+        p.items.push(bar);
     }
     if let Some(f) = src.get("footer") {
         p.items.extend(help_item(ctx, t(f), 2));

@@ -261,8 +261,10 @@ mod tests {
     fn short_or_empty_data_is_refused() {
         let src = yuyv(WIDTH, HEIGHT);
         let short = &src[..src.len() - 1];
-        assert!(to_nv12(&Picture { format: PixelFormat::Yuyv, width: WIDTH, height: HEIGHT, stride: 0, data: short })
-            .is_none());
+        assert!(
+            to_nv12(&Picture { format: PixelFormat::Yuyv, width: WIDTH, height: HEIGHT, stride: 0, data: short })
+                .is_none()
+        );
         assert!(to_nv12(&Picture { format: PixelFormat::Nv12, width: 0, height: 0, stride: 0, data: &[] }).is_none());
         assert!(mjpeg_to_nv12(b"not a jpeg").is_none());
     }

@@ -7,7 +7,7 @@
 let
   omaflakeAgent = pkgs.callPackage ../agent/package.nix { };
   # omaflake's loading screen, a Plymouth script theme (plymouth/: the script, and the images and layout
-  # brand/generate.py writes)
+  # omaflake/brand's generate.py writes, copied by its copy.py)
   plymouthTheme = pkgs.runCommand "plymouth-theme-omaflake" { } ''
     dir=$out/share/plymouth/themes/omaflake
     mkdir -p $dir

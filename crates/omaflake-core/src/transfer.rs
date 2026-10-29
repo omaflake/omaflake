@@ -16,9 +16,10 @@
 use std::fs;
 use std::path::{Path, PathBuf};
 
+use crate::Log;
 use crate::backend::Backends;
 use crate::data_folder::DataFolder;
-use crate::error::{codes, IoContext, Result};
+use crate::error::{IoContext, Result, codes};
 use crate::file_format::write_atomic;
 use crate::image_store::ImageStore;
 use crate::instance_store::InstanceStore;
@@ -26,13 +27,12 @@ use crate::models::{GuestKind, InstanceConfig};
 use crate::omaflake_id::OmaflakeId;
 use crate::packages::{Manifest, Package, PackageKind};
 use crate::paths::Paths;
-use crate::platform::{standardize, Platform};
+use crate::platform::{Platform, standardize};
 use crate::recipe_sources::RecipeLibrary;
 use crate::shell::{RunOptions, Shell};
 use crate::sockets::Ports;
 use crate::trash::Disposal;
 use crate::vm_err;
-use crate::Log;
 
 #[derive(Debug, Clone)]
 pub struct Transfer {
@@ -328,10 +328,10 @@ impl Transfer {
         let mut notes: Vec<String> = Vec::new();
         // Taking back a VM that runs from this place: it stays registered until it is back
         let external = self.external_vm(path);
-        if let Some(external) = &external {
-            if store.load(external).is_ok_and(|e| DataFolder::is_running(&e, &self.paths)) {
-                return Err(vm_err!(codes::VM_RUNNING, "{external} is running – shut it down first"));
-            }
+        if let Some(external) = &external
+            && store.load(external).is_ok_and(|e| DataFolder::is_running(&e, &self.paths))
+        {
+            return Err(vm_err!(codes::VM_RUNNING, "{external} is running – shut it down first"));
         }
         let new_name = name.map(str::to_string).unwrap_or_else(|| c.name.clone());
         let new_identity = new_name != c.name;
@@ -409,10 +409,8 @@ impl Transfer {
             let _ = Disposal::delete(&[&partial]);
             return Err(e);
         }
-        if taking_back {
-            if let Some(external) = &external {
-                store.forget(external)?;
-            }
+        if taking_back && let Some(external) = &external {
+            store.forget(external)?;
         }
         notes.push(format!("VM {new_name} imported"));
         Ok(Imported { kind: PackageKind::Vm, names: vec![new_name], notes })
@@ -553,8 +551,8 @@ mod tests {
     use crate::image_store::ImageInfo;
     use crate::models::{NetworkMode, RecipeDefaults};
     use crate::packages::Manifest;
-    use crate::paths::tests::temp_paths;
     use crate::paths::Settings;
+    use crate::paths::tests::temp_paths;
     use std::os::unix::fs::PermissionsExt;
 
     fn quiet() -> &'static Log<'static> {

@@ -16,13 +16,13 @@
 use std::collections::BTreeMap;
 
 use serde::{Deserialize, Serialize};
-use serde_json::{json, Map, Value};
+use serde_json::{Map, Value, json};
 
+use super::Ctx;
 use super::common::*;
 use super::keys::{caps, key_caps, mode_title, ways};
-use super::text::{tf, Text};
-use super::Ctx;
-use crate::composition::{parse_key, Binding, Composition, Issue, PartRef, RecipeSpec};
+use super::text::{Text, tf};
+use crate::composition::{Binding, Composition, Issue, PartRef, RecipeSpec, parse_key};
 use crate::keymaps::{KeyEntry, Keymap, KeymapStore, Keys};
 use crate::models::GuestKind;
 use crate::modules::{Module, ModuleStore};
@@ -201,11 +201,7 @@ fn keys_of(v: &Value) -> Result<Vec<String>, ()> {
     match v {
         Value::Array(list) => {
             let keys: Vec<String> = list.iter().filter_map(Value::as_str).map(str::to_string).collect();
-            if !keys.is_empty() && keys.iter().all(|k| parse_key(k).is_some()) {
-                Ok(keys)
-            } else {
-                Err(())
-            }
+            if !keys.is_empty() && keys.iter().all(|k| parse_key(k).is_some()) { Ok(keys) } else { Err(()) }
         }
         Value::String(t) => parse_keys(t).ok_or(()),
         _ => Err(()),
@@ -320,11 +316,7 @@ pub(crate) fn page(ctx: &Ctx, p: &KeymapStudioParams) -> KeymapStudioPage {
                 .map(Module::reference)
                 .filter(|r| base.is_some_and(|b| b.keys.contains_key(r)))
                 .collect();
-            if named.is_empty() {
-                modules.iter().map(Module::reference).collect()
-            } else {
-                named
-            }
+            if named.is_empty() { modules.iter().map(Module::reference).collect() } else { named }
         }
     };
     let covered: Vec<String> = modules.iter().map(Module::reference).filter(|r| covered.contains(r)).collect();

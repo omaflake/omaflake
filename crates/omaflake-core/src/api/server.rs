@@ -13,7 +13,7 @@
 //! own thread, so a slow request never holds up a fast one. Shared state sits behind short-lived mutexes.
 
 use std::collections::{HashMap, HashSet};
-use std::panic::{catch_unwind, AssertUnwindSafe};
+use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::sync::atomic::{AtomicBool, AtomicU64, AtomicUsize, Ordering};
 use std::sync::{Arc, Condvar, Mutex, MutexGuard, RwLock};
 use std::time::{Duration, Instant, SystemTime};
@@ -22,12 +22,12 @@ use serde::Serialize;
 use serde_json::Value;
 
 use super::events::{ConnId, Events, Notify, Topic};
-use super::jobs::{panic_text, Job, Jobs};
+use super::jobs::{Job, Jobs, panic_text};
 use super::model::{self, Doctor, RecipeCache, Snapshot, View};
 use super::protocol::{self, Incoming, RpcError};
 use super::types::{JobDto, Via, VmEnded, VmReady};
 use crate::backend::{Backends, Readiness};
-use crate::error::{codes, Error};
+use crate::error::{Error, codes};
 use crate::instance_store::InstanceStore;
 use crate::models::{GuestKind, NetworkMode, VmStatus};
 use crate::paths::{Paths, Settings};
@@ -441,25 +441,27 @@ impl Server {
             f.running = true;
         }
         let s = self.clone();
-        std::thread::spawn(move || loop {
-            let paths = s.paths();
-            let defaults = lock(&s.inner.recipes).defaults.clone();
-            let expected = super::jobs::guarded(|| {
-                let flake = Settings::load(&paths).flake_path()?;
-                Ok(crate::image_store::ImageStore::new(paths.clone()).expected_store_paths(&defaults, &flake))
-            })
-            .unwrap_or_default();
-            let again = {
-                let mut f = lock(&s.inner.freshness);
-                f.expected = expected;
-                let again = f.again;
-                f.again = false;
-                f.running = again;
-                again
-            };
-            s.poke();
-            if !again {
-                return;
+        std::thread::spawn(move || {
+            loop {
+                let paths = s.paths();
+                let defaults = lock(&s.inner.recipes).defaults.clone();
+                let expected = super::jobs::guarded(|| {
+                    let flake = Settings::load(&paths).flake_path()?;
+                    Ok(crate::image_store::ImageStore::new(paths.clone()).expected_store_paths(&defaults, &flake))
+                })
+                .unwrap_or_default();
+                let again = {
+                    let mut f = lock(&s.inner.freshness);
+                    f.expected = expected;
+                    let again = f.again;
+                    f.again = false;
+                    f.running = again;
+                    again
+                };
+                s.poke();
+                if !again {
+                    return;
+                }
             }
         });
     }
@@ -577,11 +579,11 @@ impl Server {
                     if s.is_closing() {
                         return Ok(());
                     }
-                    if let Ok(c) = backends.store.load(&name) {
-                        if backends.backend_for(&c).is_ok_and(|b| b.status(&c) == VmStatus::Running) {
-                            running = Some(c);
-                            break;
-                        }
+                    if let Ok(c) = backends.store.load(&name)
+                        && backends.backend_for(&c).is_ok_and(|b| b.status(&c) == VmStatus::Running)
+                    {
+                        running = Some(c);
+                        break;
                     }
                 }
                 let Some(c) = running else { return Ok(()) };

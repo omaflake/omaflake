@@ -6,13 +6,13 @@
 //! without a terminal.
 
 use std::collections::{HashMap, HashSet, VecDeque};
-use std::sync::mpsc::Sender;
 use std::sync::Arc;
+use std::sync::mpsc::Sender;
 use std::time::Instant;
 
 use chrono::Utc;
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
-use serde_json::{json, Map, Value};
+use serde_json::{Map, Value, json};
 
 use crate::core::{Core, CoreError};
 use crate::icons::IconSet;
@@ -370,11 +370,11 @@ impl App {
     fn on_model(&mut self, page: &PageRef, model: &Value) {
         match page.page.as_str() {
             "home" => {
-                if self.home.is_none() {
-                    if let Some(first) = model.get("firstTab").and_then(Value::as_str) {
-                        self.tab = first.to_string();
-                        self.resubscribe();
-                    }
+                if self.home.is_none()
+                    && let Some(first) = model.get("firstTab").and_then(Value::as_str)
+                {
+                    self.tab = first.to_string();
+                    self.resubscribe();
                 }
                 self.home = Some(model.clone());
             }
@@ -1103,12 +1103,10 @@ impl App {
     fn submit(&mut self, mut p: Prompt) {
         let is_path = matches!(p.kind.as_str(), "folder" | "file" | "package");
         let value = if is_path { paths::normalize(&p.input) } else { p.input.clone() };
-        if is_path {
-            if let Err(e) = paths::fits(&p.kind, std::path::Path::new(&value)) {
-                p.error = Some(e);
-                self.modal = Some(Modal::Prompt(p));
-                return;
-            }
+        if is_path && let Err(e) = paths::fits(&p.kind, std::path::Path::new(&value)) {
+            p.error = Some(e);
+            self.modal = Some(Modal::Prompt(p));
+            return;
         }
         match p.target.clone() {
             Target::Field(f) => {

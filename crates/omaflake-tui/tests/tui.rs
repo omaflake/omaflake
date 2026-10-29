@@ -11,9 +11,9 @@ use omaflake_tui::app::{App, Command, Effect, Modal, Msg};
 use omaflake_tui::core::{Core, CoreError};
 use omaflake_tui::icons::IconSet;
 use omaflake_tui::theme::{ColorMode, Theme};
-use ratatui::backend::TestBackend;
 use ratatui::Terminal;
-use serde_json::{json, Value};
+use ratatui::backend::TestBackend;
+use serde_json::{Value, json};
 
 type Answerer = dyn Fn(&str, &Value) -> Value + Send + Sync;
 

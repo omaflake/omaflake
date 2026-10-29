@@ -58,11 +58,7 @@ pub fn normalize(input: &str) -> String {
     let p = expand(input.trim());
     let p = if p.is_relative() { std::env::current_dir().map(|d| d.join(&p)).unwrap_or(p) } else { p };
     let s = p.to_string_lossy().into_owned();
-    if s.len() > 1 {
-        s.trim_end_matches('/').to_string()
-    } else {
-        s
-    }
+    if s.len() > 1 { s.trim_end_matches('/').to_string() } else { s }
 }
 
 /// Whether the path fits the ask's kind before it is sent: a folder must be one, a file must be one, a package

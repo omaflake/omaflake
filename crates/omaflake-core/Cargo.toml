@@ -4,6 +4,7 @@ name = "omaflake-core"
 description = "omaflake's core: paths, stores, recipes, QEMU and macOS VM control (port of Sources/OmaflakeCore)"
 version.workspace = true
 edition.workspace = true
+rust-version.workspace = true
 license.workspace = true
 publish.workspace = true
 repository.workspace = true
@@ -21,22 +22,25 @@ base64.workspace = true
 libc.workspace = true
 ureq.workspace = true
 # MJPEG camera frames on a Linux host (host_bridge::convert): pure Rust, Zlib/MIT/Apache-2.0
-zune-jpeg = "0.5.15"
+zune-jpeg = "=0.5.15"
 
 # The login Keychain (recipe source tokens, RecipeSources.swift `SourceTokens`)
 [target.'cfg(target_os = "macos")'.dependencies]
 # "Copy password" asks Touch ID or the login password first (LocalAuthentication, credentials.rs; plan B137)
-objc2-local-authentication = { version = "0.3", default-features = false, features = ["std", "LAContext", "LAError", "block2"] }
-objc2-foundation = { version = "0.3", default-features = false, features = ["std", "NSString", "NSError"] }
-objc2 = "0.6"
-block2 = "0.6"
+objc2-local-authentication = { version = "=0.3.2", default-features = false, features = ["std", "LAContext", "LAError", "block2"] }
+objc2-foundation = { version = "=0.3.2", default-features = false, features = ["std", "NSString", "NSError"] }
+objc2 = "=0.6.5"
+block2 = "=0.6.2"
 security-framework.workspace = true
 
 # The Secret Service over D-Bus (recipe source tokens, source_tokens.rs): pure Rust (zbus, RustCrypto), MIT/Apache-2.0
 [target.'cfg(target_os = "linux")'.dependencies]
-secret-service = { version = "5.2.0", default-features = false, features = ["rt-async-io-crypto-rust"] }
+secret-service = { version = "=5.2.0", default-features = false, features = ["rt-async-io-crypto-rust"] }
 
 [dev-dependencies]
 tempfile.workspace = true
 # Every error and view text has German (src/translated.rs)
 omaflake-i18n.workspace = true
+
+[lints]
+workspace = true

@@ -52,11 +52,7 @@ impl Platform {
 
     /// The system of a file or recipe from before B114, which has none: everything then ran on a Mac with Apple silicon
     pub fn legacy_system(kind: GuestKind) -> &'static str {
-        if kind == GuestKind::Macos {
-            "aarch64-darwin"
-        } else {
-            "aarch64-linux"
-        }
+        if kind == GuestKind::Macos { "aarch64-darwin" } else { "aarch64-linux" }
     }
 
     /// A guest of `system` runs on this host
@@ -81,11 +77,7 @@ impl Platform {
     /// What runs here, for messages ("aarch64-linux, aarch64-darwin")
     pub fn host_description() -> String {
         let systems: Vec<&str> = GuestKind::ALL.iter().filter_map(|k| Self::host_system(*k)).collect();
-        if systems.is_empty() {
-            "no guests".into()
-        } else {
-            systems.join(", ")
-        }
+        if systems.is_empty() { "no guests".into() } else { systems.join(", ") }
     }
 }
 
@@ -101,11 +93,7 @@ fn passwd() -> Option<(String, String, String, String)> {
             return None;
         }
         let s = |p: *const libc::c_char| {
-            if p.is_null() {
-                String::new()
-            } else {
-                CStr::from_ptr(p).to_string_lossy().into_owned()
-            }
+            if p.is_null() { String::new() } else { CStr::from_ptr(p).to_string_lossy().into_owned() }
         };
         Some((s(pw.pw_name), s(pw.pw_gecos), s(pw.pw_dir), s(pw.pw_shell)))
     }

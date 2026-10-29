@@ -7,7 +7,7 @@ use std::path::Path;
 use std::process::{Command, Stdio};
 use std::time::{Duration, Instant};
 
-use crate::error::{os_text, Result};
+use crate::error::{Result, os_text};
 use crate::vm_err;
 
 /// A process ID (`pid_t`)
@@ -138,10 +138,12 @@ mod tests {
         }
         let text = std::fs::read_to_string(&log).unwrap();
         assert!(text.starts_with("started\n") && text.ends_with("y\n"));
-        assert!(spawn_detached("/nonexistent/omaflake", &[] as &[&str], &log, &[])
-            .unwrap_err()
-            .message()
-            .starts_with("Start of omaflake failed: "));
+        assert!(
+            spawn_detached("/nonexistent/omaflake", &[] as &[&str], &log, &[])
+                .unwrap_err()
+                .message()
+                .starts_with("Start of omaflake failed: ")
+        );
     }
 
     #[test]

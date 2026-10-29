@@ -1,0 +1,38 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Licence and copyright of files that cannot carry a header (REUSE specification 3.3). Source files name their own
+# licence in an SPDX header; everything else here is omaflake's (AGPL-3.0-or-later) unless listed below.
+version = 1
+
+[[annotations]]
+path = "**"
+precedence = "aggregate"
+SPDX-FileCopyrightText = "falkOSS – Falcon Lake Open Source Software gUG (haftungsbeschränkt) i. G. and the omaflake contributors"
+SPDX-License-Identifier = "AGPL-3.0-or-later"
+
+# Copies of the artwork from omaflake/brand – kept as they are, under its licence (brand/README.md).
+[[annotations]]
+path = ["brand/macos/**", "brand/png/**", "brand/svg/**", "docs/assets/**", "nix/modules/plymouth/*.png",
+  "nix/modules/plymouth/layout.script"]
+precedence = "override"
+SPDX-FileCopyrightText = "falkOSS – Falcon Lake Open Source Software gUG (haftungsbeschränkt) i. G."
+SPDX-License-Identifier = "CC-BY-ND-4.0"
+
+# omaflake's own QEMU patches modify QEMU and are GPL-2.0-or-later like QEMU (qemu/README.md, "License").
+[[annotations]]
+path = "qemu/patches/omaflake/**"
+precedence = "override"
+SPDX-FileCopyrightText = "the omaflake contributors"
+SPDX-License-Identifier = "GPL-2.0-or-later"
+
+# Patches taken from other projects, under the licence they state (their LICENSE and NOTICE files are next to them).
+[[annotations]]
+path = "qemu/patches/try-omarchy/**"
+precedence = "override"
+SPDX-FileCopyrightText = "2026 Try Omarchy contributors"
+SPDX-License-Identifier = "MIT"
+
+[[annotations]]
+path = "qemu/patches/startergo/**"
+precedence = "override"
+SPDX-FileCopyrightText = "startergo (https://github.com/startergo)"
+SPDX-License-Identifier = "MIT"

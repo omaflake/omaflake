@@ -32,21 +32,21 @@ use serde_json::Value;
 
 use crate::agent_protocol::AgentState;
 use crate::backend::Readiness;
-use crate::error::{codes, os_text, Error, IoContext, Result};
+use crate::error::{Error, IoContext, Result, codes, os_text};
 use crate::instance_store::InstanceStore;
 use crate::models::{
     DisplayMode, GlBackend, GuestKind, InstanceConfig, NetworkMode, QemuCapabilities, StopResult, VmStatus,
 };
 use crate::nix_gl;
 use crate::paths::{InstancePaths, Paths, Settings};
-use crate::platform::{is_executable_file, resolve_symlinks, Platform};
+use crate::platform::{Platform, is_executable_file, resolve_symlinks};
 use crate::prerequisites::Prerequisites;
 use crate::qemu_command::{Accel, Arch, QemuCommand, Target};
-use crate::qemu_host::{descriptor_dirs, host_accel, linux_audio, Firmware};
+use crate::qemu_host::{Firmware, descriptor_dirs, host_accel, linux_audio};
 use crate::qmp_client::QmpClient;
 use crate::shell::{RunOptions, Shell};
 use crate::sockets::{self, Ports};
-use crate::spawn::{live_pid, reap_if_exited, send_signal, spawn_detached, wait_for_exit, Pid};
+use crate::spawn::{Pid, live_pid, reap_if_exited, send_signal, spawn_detached, wait_for_exit};
 use crate::ssh_command::SshCommand;
 use crate::vm_err;
 use crate::vz_backend::VzBackend;
@@ -183,11 +183,7 @@ impl QemuRuntime {
     }
 
     pub fn status(&self, name: &str) -> VmStatus {
-        if self.pid(name).is_none() {
-            VmStatus::Stopped
-        } else {
-            VmStatus::Running
-        }
+        if self.pid(name).is_none() { VmStatus::Stopped } else { VmStatus::Running }
     }
 
     // MARK: Start
@@ -284,11 +280,11 @@ impl QemuRuntime {
             if reap_if_exited(child) {
                 return Err(vm_err!("QEMU exited during startup:\n{}", tail(&ip.qemu_log(), 15)));
             }
-            if let Ok(mut qmp) = QmpClient::connect(&ip.qmp_socket(), Duration::from_secs(1)) {
-                if qmp.status().is_ok() {
-                    self.start_bridge(&ip, config.clipboard_on(), config.camera_on());
-                    return Ok(self.pid(&config.name).unwrap_or(child));
-                }
+            if let Ok(mut qmp) = QmpClient::connect(&ip.qmp_socket(), Duration::from_secs(1))
+                && qmp.status().is_ok()
+            {
+                self.start_bridge(&ip, config.clipboard_on(), config.camera_on());
+                return Ok(self.pid(&config.name).unwrap_or(child));
             }
             std::thread::sleep(Duration::from_millis(200));
         }
@@ -514,11 +510,11 @@ pub(crate) fn prepare_efivars(efivars: &Path, template: &Path) -> Result<()> {
 }
 
 /// Last lines of a text file ("" when it cannot be read).
-/// The app icon QEMU's window shows in the Dock (brand/png/icon/omaflake-icon-512.png, made by brand/generate.py)
+/// The app icon QEMU's window shows in the Dock (brand/png/icon/omaflake-icon-512.png, a copy from omaflake/brand)
 pub(crate) const DOCK_ICON: &[u8] = include_bytes!("../../../brand/png/icon/omaflake-icon-512.png");
 
 /// What QEMU's 3D window shows until the guest draws: the first frame of the guests' boot splash
-/// (brand/png/loading/omaflake-loading.png, made by brand/generate.py; patch qemu-cocoa-loading-image)
+/// (brand/png/loading/omaflake-loading.png, a copy from omaflake/brand; patch qemu-cocoa-loading-image)
 pub(crate) const LOADING_IMAGE: &[u8] = include_bytes!("../../../brand/png/loading/omaflake-loading.png");
 
 /// Writes `data` (an embedded image) to `file` unless it is there already with these bytes; false when it cannot be

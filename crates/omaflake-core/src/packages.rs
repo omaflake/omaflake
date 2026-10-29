@@ -15,7 +15,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
 
 use crate::error::{IoContext, Result};
-use crate::file_format::{write_atomic, FileFormat, Step};
+use crate::file_format::{FileFormat, Step, write_atomic};
 use crate::models::GuestKind;
 use crate::platform::{is_writable, resolve_symlinks, standardize};
 

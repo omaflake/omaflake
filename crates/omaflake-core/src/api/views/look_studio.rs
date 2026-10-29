@@ -11,11 +11,11 @@
 //! `inactive_border`, `clock`, `prompt.<ok|error|directory>`, neovim, emacs ("<theme>:<variant>"), `macos.<setting>`.
 
 use serde::{Deserialize, Serialize};
-use serde_json::{json, Map, Value};
+use serde_json::{Map, Value, json};
 
-use super::common::*;
-use super::text::{tf, Text};
 use super::Ctx;
+use super::common::*;
+use super::text::{Text, tf};
 use crate::looks::{Look, LookStore};
 use crate::my_recipes::MyRecipes;
 
@@ -264,10 +264,10 @@ pub(crate) fn page(ctx: &Ctx, p: &LookStudioParams) -> LookStudioPage {
     };
     let field = |key: &str, label: Text, value: &str| {
         let mut f = Field::new(key, FieldKind::Color, label, json!(value)).value_param(key);
-        if let Some(t) = v.get(key).filter(|x| !x.is_null()) {
-            if valid_color(t).is_none() {
-                f.error = Some(Text::new("A colour is #rrggbb"));
-            }
+        if let Some(t) = v.get(key).filter(|x| !x.is_null())
+            && valid_color(t).is_none()
+        {
+            f.error = Some(Text::new("A colour is #rrggbb"));
         }
         f
     };
@@ -317,11 +317,7 @@ pub(crate) fn page(ctx: &Ctx, p: &LookStudioParams) -> LookStudioPage {
             Some(t) => {
                 let theme = t.get("theme").and_then(Value::as_str).unwrap_or_default();
                 let variant = t.get(variant_key(theme)).and_then(Value::as_str).unwrap_or_default();
-                if theme.is_empty() {
-                    String::new()
-                } else {
-                    format!("{theme}:{variant}")
-                }
+                if theme.is_empty() { String::new() } else { format!("{theme}:{variant}") }
             }
             None => String::new(),
         })
@@ -349,13 +345,21 @@ pub(crate) fn page(ctx: &Ctx, p: &LookStudioParams) -> LookStudioPage {
             LookSection {
                 id: "colors".into(),
                 title: Text::new("Colours"),
-                help: Text::new("The eight colours every program of the look is coloured from – bars, menus, the editors, the prompt."),
-                fields: COLORS.iter().zip(&colors).map(|((k, label), (_, c))| field(&format!("color.{k}"), Text::new(label), c)).collect(),
+                help: Text::new(
+                    "The eight colours every program of the look is coloured from – bars, menus, the editors, the prompt.",
+                ),
+                fields: COLORS
+                    .iter()
+                    .zip(&colors)
+                    .map(|((k, label), (_, c))| field(&format!("color.{k}"), Text::new(label), c))
+                    .collect(),
             },
             LookSection {
                 id: "terminal".into(),
                 title: Text::new("Terminal"),
-                help: Text::new("The terminal's sixteen colours: eight, and their bright ones – programs in the terminal colour their output with them."),
+                help: Text::new(
+                    "The terminal's sixteen colours: eight, and their bright ones – programs in the terminal colour their output with them.",
+                ),
                 fields: TERMINAL
                     .iter()
                     .enumerate()
@@ -370,11 +374,17 @@ pub(crate) fn page(ctx: &Ctx, p: &LookStudioParams) -> LookStudioPage {
             LookSection {
                 id: "desktop".into(),
                 title: Text::new("Desktop"),
-                help: Text::new("NixOS's desktop: the active window's border (one colour or a gradient of two), the others' border, the clock, the prompt."),
+                help: Text::new(
+                    "NixOS's desktop: the active window's border (one colour or a gradient of two), the others' border, the clock, the prompt.",
+                ),
                 fields: {
                     let mut f = vec![
                         field("border.0", Text::new("Active window"), &border[0]),
-                        field("border.1", Text::new("Active window, gradient to"), border.get(1).map(String::as_str).unwrap_or(&border[0])),
+                        field(
+                            "border.1",
+                            Text::new("Active window, gradient to"),
+                            border.get(1).map(String::as_str).unwrap_or(&border[0]),
+                        ),
                         field("inactive_border", Text::new("Other windows"), &inactive),
                         field("clock", Text::new("Clock"), &clock),
                     ];

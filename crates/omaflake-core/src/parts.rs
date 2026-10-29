@@ -14,8 +14,8 @@ use std::path::{Path, PathBuf};
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 
-use crate::error::{codes, IoContext, Result};
-use crate::file_format::{write_atomic, FileFormat, Step};
+use crate::error::{IoContext, Result, codes};
+use crate::file_format::{FileFormat, Step, write_atomic};
 use crate::models::GuestKind;
 use crate::paths::{Paths, Settings};
 use crate::recipe_sources::{CatalogFile, RecipeRef, RecipeSourceKind, SourceClient};
@@ -380,10 +380,10 @@ pub fn install_recipe_parts(
             wanted.push((PartKind::Keymap, r));
         }
     }
-    if let Some(r) = &spec.look {
-        if !here_looks.iter().any(|l| l.reference() == r.id && r.allows(&l.version)) {
-            wanted.push((PartKind::Look, r));
-        }
+    if let Some(r) = &spec.look
+        && !here_looks.iter().any(|l| l.reference() == r.id && r.allows(&l.version))
+    {
+        wanted.push((PartKind::Look, r));
     }
     let mut installed = Vec::new();
     let mut missing = Vec::new();

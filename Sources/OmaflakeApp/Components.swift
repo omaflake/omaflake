@@ -465,7 +465,7 @@ enum MarkdownBlock {
     }
 }
 
-/// omaflake's colours (brand/README.md, brand/generate.py)
+/// omaflake's colours (brand/tokens.toml; the artwork: omaflake/brand)
 /// The app's shorthands for the design tokens (brand/tokens.toml → BrandTokens.swift, plan B119)
 enum BrandStyle {
     static let red = BrandTokens.Palette.red

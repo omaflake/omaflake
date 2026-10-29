@@ -210,9 +210,7 @@ pub struct Recipes {
 
 #[derive(Debug, Subcommand)]
 pub enum RecipesCommand {
-    #[command(
-        about = "The recipes omaflake can build (installed and in local folders) and the state of their images."
-    )]
+    #[command(about = "The recipes omaflake can build (installed and in local folders) and the state of their images.")]
     List(RecipesList),
     #[command(
         about = "Each recipe's versions per line (source and author/kind/name), newest first, and the images built \
@@ -228,9 +226,7 @@ pub enum RecipesCommand {
                  made of; also updates it."
     )]
     Install(RecipesInstall),
-    #[command(
-        about = "What a recipe is made of: its modules, look, key bindings, keys, and what is wrong or missing."
-    )]
+    #[command(about = "What a recipe is made of: its modules, look, key bindings, keys, and what is wrong or missing.")]
     Show(RecipesShow),
     #[command(
         about = "Remove a version of a downloaded, imported or kept recipe, or with --all every version of its line.",

@@ -3,10 +3,10 @@
 //! `IconButton`, `ActionButton`, `FeatureChip`, `StatusLamp`, `DetailBox`, `InfoLine`, `ExpandableRow`,
 //! `ListSection`, `EmptyHint` and `CountBadge`.
 
-use iced::widget::{button, column, container, row, space, text, tooltip, Column};
+use iced::widget::{Column, button, column, container, row, space, text, tooltip};
 use iced::{Alignment, Color, Element, Length, Padding};
-use omaflake_core::api::views::common::{Action, Badge, Hint, InfoLine, Lamp, LampState, Tone};
 use omaflake_core::api::views::Text;
+use omaflake_core::api::views::common::{Action, Badge, Hint, InfoLine, Lamp, LampState, Tone};
 
 use crate::app::Message;
 use crate::icons::icon;
@@ -119,10 +119,10 @@ pub fn vertical_divider<'a>() -> El<'a> {
 
 /// What a button's tooltip says: why it is greyed out, its help, else its label
 pub fn help_of(a: &Action) -> String {
-    if !a.enabled {
-        if let Some(r) = &a.reason {
-            return s(r);
-        }
+    if !a.enabled
+        && let Some(r) = &a.reason
+    {
+        return s(r);
     }
     a.help.as_ref().map(s).unwrap_or_else(|| s(&a.label))
 }

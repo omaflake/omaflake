@@ -6,10 +6,10 @@
 use serde::Deserialize;
 use serde_json::json;
 
+use super::Ctx;
 use super::common::*;
 use super::credentials::{CredentialDetail, CredentialPage, CredentialRow, CredentialsPage};
-use super::text::{tf, Text};
-use super::Ctx;
+use super::text::{Text, tf};
 use crate::api::types::{LocaleDto, SettingsAnswer};
 
 fn keyboards_text(l: &LocaleDto) -> String {

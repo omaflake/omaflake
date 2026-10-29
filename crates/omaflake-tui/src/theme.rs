@@ -4,7 +4,7 @@
 //! (no-color.org) – then only bold, dim and reverse tell things apart. Colours with alpha are blended over the window
 //! colour, as the app draws them over its background.
 
-use omaflake_brand::{color, opacity, palette, Color as BrandColor};
+use omaflake_brand::{Color as BrandColor, color, opacity, palette};
 use ratatui::style::{Color, Modifier, Style};
 
 /// How many colours the terminal shows
@@ -80,7 +80,7 @@ fn tint(c: BrandColor, alpha: f32) -> [u8; 3] {
 pub fn nearest_256(rgb: [u8; 3]) -> u8 {
     const LEVELS: [u8; 6] = [0, 95, 135, 175, 215, 255];
     let level = |v: u8| -> usize {
-        LEVELS.iter().enumerate().min_by_key(|(_, &l)| (l as i32 - v as i32).abs()).map(|(i, _)| i).unwrap_or(0)
+        LEVELS.iter().enumerate().min_by_key(|&(_, &l)| (l as i32 - v as i32).abs()).map(|(i, _)| i).unwrap_or(0)
     };
     let (r, g, b) = (level(rgb[0]), level(rgb[1]), level(rgb[2]));
     let cube = [LEVELS[r], LEVELS[g], LEVELS[b]];
@@ -89,11 +89,7 @@ pub fn nearest_256(rgb: [u8; 3]) -> u8 {
     let grey_step = if avg < 8 { 0 } else { ((avg - 8) / 10).min(23) };
     let grey = 8 + 10 * grey_step as u8;
     let dist = |c: [u8; 3]| -> i32 { (0..3).map(|i| (c[i] as i32 - rgb[i] as i32).pow(2)).sum() };
-    if dist([grey; 3]) < dist(cube) {
-        232 + grey_step as u8
-    } else {
-        cube_index as u8
-    }
+    if dist([grey; 3]) < dist(cube) { 232 + grey_step as u8 } else { cube_index as u8 }
 }
 
 impl Theme {
@@ -148,11 +144,7 @@ impl Theme {
 
     /// Without colours, warnings and dangers are at least bold
     fn plain_emphasis(&self) -> Modifier {
-        if self.mode == ColorMode::None {
-            Modifier::BOLD
-        } else {
-            Modifier::empty()
-        }
+        if self.mode == ColorMode::None { Modifier::BOLD } else { Modifier::empty() }
     }
 
     pub fn accent(&self) -> Style {

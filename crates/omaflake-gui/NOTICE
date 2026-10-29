@@ -1,6 +1,6 @@
 omaflake's Linux app (crates/omaflake-gui) – third-party material it embeds
 
-Lucide icons (the icon font, bundled through the crate lucide-icons 1.61.0, MIT)
+Lucide icons (the icon font, bundled through the crate lucide-icons 1.57.0, MIT)
 https://lucide.dev – https://github.com/lucide-icons/lucide
 
 ISC License

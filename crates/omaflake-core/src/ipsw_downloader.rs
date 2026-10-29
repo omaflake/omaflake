@@ -18,7 +18,7 @@ use std::path::{Path, PathBuf};
 use std::time::Duration;
 
 use crate::cancellation::Cancellation;
-use crate::error::{codes, Error, IoContext, Result};
+use crate::error::{Error, IoContext, Result, codes};
 use crate::shell::{RunOptions, Shell};
 
 /// A macOS release as Apple offers it for this Mac (`omaf-runner latest`, VZMacOSRestoreImage.latestSupported).
@@ -411,11 +411,18 @@ mod tests {
                 s.lock().unwrap().push(range.map(|r| format!("bytes={r}-")));
                 let n = data.len();
                 let (head, body) = match (serve, range) {
-                    (Serve::Ranges { .. }, Some(start)) if start >= n => {
-                        (format!("HTTP/1.1 416 Range Not Satisfiable\r\nContent-Range: bytes */{n}\r\nContent-Length: 0\r\n"), &data[0..0])
-                    }
+                    (Serve::Ranges { .. }, Some(start)) if start >= n => (
+                        format!(
+                            "HTTP/1.1 416 Range Not Satisfiable\r\nContent-Range: bytes */{n}\r\nContent-Length: 0\r\n"
+                        ),
+                        &data[0..0],
+                    ),
                     (Serve::Ranges { .. }, Some(start)) => (
-                        format!("HTTP/1.1 206 Partial Content\r\nContent-Range: bytes {start}-{}/{n}\r\nContent-Length: {}\r\n", n - 1, n - start),
+                        format!(
+                            "HTTP/1.1 206 Partial Content\r\nContent-Range: bytes {start}-{}/{n}\r\nContent-Length: {}\r\n",
+                            n - 1,
+                            n - start
+                        ),
                         &data[start..],
                     ),
                     _ => (format!("HTTP/1.1 200 OK\r\nContent-Length: {n}\r\n"), &data[..]),

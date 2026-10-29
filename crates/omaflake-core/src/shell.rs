@@ -11,7 +11,7 @@ use std::path::{Path, PathBuf};
 use std::process::{Child, Command, ExitStatus, Stdio};
 
 use crate::cancellation::Cancellation;
-use crate::error::{os_text, Error, Result};
+use crate::error::{Error, Result, os_text};
 use crate::paths::{Paths, Settings};
 use crate::platform::{expand_tilde, home_dir, is_executable_file, user_name};
 use crate::spawn::Pid;
@@ -193,10 +193,10 @@ impl Shell {
         if name.starts_with('/') {
             return Ok(name.to_string());
         }
-        if name == "nix" {
-            if let Some(custom) = Settings::load(&Paths::standard()).nix {
-                return Ok(expand_tilde(&custom));
-            }
+        if name == "nix"
+            && let Some(custom) = Settings::load(&Paths::standard()).nix
+        {
+            return Ok(expand_tilde(&custom));
         }
         for d in Self::search_directories() {
             let path = PathBuf::from(&d).join(name);

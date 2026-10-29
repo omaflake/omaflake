@@ -13,7 +13,7 @@ use std::collections::BTreeMap;
 use std::path::PathBuf;
 
 use serde::Serialize;
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 
 use super::protocol::{self, RpcError};
 use super::types::*;
@@ -835,7 +835,7 @@ pub(crate) fn jobs() -> Vec<JobDto> {
 /// The page models (docs/api.md §10), in `testdata/api/views/`: every page from the views' test context
 /// (`views::tests::ctx`, built from the fixtures above), the `view.changed` event and what a client sends
 fn view_goldens() -> Vec<(&'static str, Value)> {
-    use super::views::{build, import, tests::ctx, PageRef};
+    use super::views::{PageRef, build, import, tests::ctx};
     let c = ctx();
     let page = |p: &str, params: Value| build(&c, &PageRef { page: p.into(), params }).unwrap();
     let mut failed = ctx();
@@ -1073,10 +1073,10 @@ fn every_shown_page_is_served() {
     fn shown(v: &Value, out: &mut Vec<String>) {
         match v {
             Value::Object(m) => {
-                if m.get("method").and_then(Value::as_str) == Some("ui.show") {
-                    if let Some(p) = m.get("params").and_then(|p| p.get("page")).and_then(Value::as_str) {
-                        out.push(p.to_string());
-                    }
+                if m.get("method").and_then(Value::as_str) == Some("ui.show")
+                    && let Some(p) = m.get("params").and_then(|p| p.get("page")).and_then(Value::as_str)
+                {
+                    out.push(p.to_string());
                 }
                 m.values().for_each(|x| shown(x, out));
             }

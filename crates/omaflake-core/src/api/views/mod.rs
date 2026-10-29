@@ -44,13 +44,13 @@ pub(crate) mod tests;
 use std::collections::{BTreeMap, HashSet};
 
 use chrono::{DateTime, Utc};
-use serde::de::DeserializeOwned;
 use serde::Serialize;
-use serde_json::{json, Value};
+use serde::de::DeserializeOwned;
+use serde_json::{Value, json};
 
 use super::model;
-use super::protocol::{params, RpcError};
-use super::server::{lock, Server};
+use super::protocol::{RpcError, params};
+use super::server::{Server, lock};
 use super::types::*;
 use crate::models::{GuestKind, RecipeId};
 use crate::paths::Paths;
@@ -101,11 +101,7 @@ pub enum HostOs {
 
 impl HostOs {
     pub fn this() -> HostOs {
-        if cfg!(target_os = "macos") {
-            HostOs::Macos
-        } else {
-            HostOs::Linux
-        }
+        if cfg!(target_os = "macos") { HostOs::Macos } else { HostOs::Linux }
     }
 }
 
@@ -237,11 +233,7 @@ impl Ctx {
             .find(|r| r.id == recipe)
             .map(|r| r.display_name.clone())
             .unwrap_or_else(|| RecipeId::name_of_id(recipe));
-        if taken.contains(&name) {
-            model::next_numbered(&name, &taken)
-        } else {
-            name
-        }
+        if taken.contains(&name) { model::next_numbered(&name, &taken) } else { name }
     }
 
     /// The instance store's rule for names, with its English reason
@@ -400,12 +392,12 @@ impl Server {
         let vms = view.vms();
         let mut images = view.images();
         for p in pages.iter().filter(|p| p.page == "image") {
-            if let Some(name) = p.params.get("name").and_then(Value::as_str) {
-                if let Some(i) = state.snap.images.values().flatten().find(|i| i.name == name) {
-                    let sized = view.image(i, true);
-                    if let Some(slot) = images.images.iter_mut().find(|x| x.name == name) {
-                        *slot = sized;
-                    }
+            if let Some(name) = p.params.get("name").and_then(Value::as_str)
+                && let Some(i) = state.snap.images.values().flatten().find(|i| i.name == name)
+            {
+                let sized = view.image(i, true);
+                if let Some(slot) = images.images.iter_mut().find(|x| x.name == name) {
+                    *slot = sized;
                 }
             }
         }

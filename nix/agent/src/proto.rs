@@ -71,7 +71,7 @@ impl Reassembler {
         let last = frame.flags & FLAG_MORE == 0;
         let slot = self.parts.entry(frame.kind).or_insert_with(|| Some(Vec::new()));
         match slot {
-            None => {}   // skipping a dropped message
+            None => {} // skipping a dropped message
             Some(buf) if buf.len() + frame.payload.len() > limit => {
                 *slot = None;
                 self.dropped += 1;

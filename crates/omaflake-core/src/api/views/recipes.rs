@@ -9,10 +9,10 @@ use std::collections::{BTreeMap, BTreeSet};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 
-use super::common::*;
-use super::text::{tf, Arg, Text};
-use super::vms::{kind_badge, unreadable};
 use super::Ctx;
+use super::common::*;
+use super::text::{Arg, Text, tf};
+use super::vms::{kind_badge, unreadable};
 use crate::api::types::{CatalogRecipeDto, RecipeDto, RecipePartsDto, VersionDto};
 use crate::composition::Issue;
 use crate::models::RecipeId;
@@ -292,7 +292,9 @@ fn tab(ctx: &Ctx, p: &RecipesParams, catalog: bool) -> RecipesPage {
     } else if all.is_empty() {
         Some(Hint::new(
             "recipe",
-            Text::new("No recipes here yet – install some from the catalog (Catalog → Recipes), or put one together in the Recipe Studio."),
+            Text::new(
+                "No recipes here yet – install some from the catalog (Catalog → Recipes), or put one together in the Recipe Studio.",
+            ),
             Tone::Normal,
         ))
     } else if rows.is_empty() {
@@ -524,11 +526,7 @@ fn defaults_text(r: &RecipeDto) -> Text {
     if r.ephemeral {
         on.push(Text::new("Ephemeral"));
     }
-    if on.is_empty() {
-        Text::verbatim("–")
-    } else {
-        Text::joined(on)
-    }
+    if on.is_empty() { Text::verbatim("–") } else { Text::joined(on) }
 }
 
 fn detail(ctx: &Ctx, r: &RecipeDto) -> RecipeDetail {
@@ -748,16 +746,18 @@ fn offered_row(ctx: &Ctx, r: &CatalogRecipeDto) -> OfferedRow {
         kind: kind_badge(r.kind),
         badges,
         tags: r.tags.clone(),
-        actions: vec![Action::call(
-            "install",
-            tf!("Install from %@", &source_name),
-            Some("install"),
-            "recipes.install",
-            json!({"id": r.id, "source": r.source}),
-        )
-        .enabled_if(!installing, None)
-        .busy(installing)
-        .primary()],
+        actions: vec![
+            Action::call(
+                "install",
+                tf!("Install from %@", &source_name),
+                Some("install"),
+                "recipes.install",
+                json!({"id": r.id, "source": r.source}),
+            )
+            .enabled_if(!installing, None)
+            .busy(installing)
+            .primary(),
+        ],
         detail: OfferedDetail {
             description: r.description.clone(),
             info,

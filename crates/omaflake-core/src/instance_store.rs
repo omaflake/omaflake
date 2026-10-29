@@ -8,15 +8,15 @@ use std::collections::HashSet;
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use crate::error::{codes, IoContext, Result};
-use crate::file_format::{write_atomic, UnreadableFile};
+use crate::error::{IoContext, Result, codes};
+use crate::file_format::{UnreadableFile, write_atomic};
 use crate::image_store::{Image, ImageStore};
 use crate::json;
 use crate::models::{InstanceConfig, RecipeDefaults};
 use crate::omaflake_id::OmaflakeId;
 use crate::packages::{Package, PackageKind};
 use crate::paths::{Paths, Settings};
-use crate::platform::{standardize, Platform};
+use crate::platform::{Platform, standardize};
 use crate::shell::{RunOptions, Shell};
 use crate::sockets::Ports;
 use crate::trash::Disposal;
@@ -102,10 +102,10 @@ impl InstanceStore {
             .map(|d| d.flatten().filter_map(|e| Package::name_of(Path::new(&e.file_name()), PackageKind::Vm)).collect())
             .unwrap_or_default();
         for url in self.paths.external_instances() {
-            if let Some(n) = Package::name_of(&url, PackageKind::Vm) {
-                if !names.contains(&n) {
-                    names.push(n);
-                }
+            if let Some(n) = Package::name_of(&url, PackageKind::Vm)
+                && !names.contains(&n)
+            {
+                names.push(n);
             }
         }
         names.sort();
@@ -335,8 +335,8 @@ impl InstanceStore {
 mod tests {
     use super::*;
     use crate::image_store::ImageInfo;
-    use crate::models::tests::config;
     use crate::models::GuestKind;
+    use crate::models::tests::config;
 
     #[test]
     fn other_architectures_do_not_run_here() {

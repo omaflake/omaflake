@@ -7,10 +7,10 @@ use std::collections::VecDeque;
 
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 
 use super::common::*;
-use super::text::{tf, Text};
+use super::text::{Text, tf};
 use crate::api::protocol::RpcError;
 use crate::api::types::*;
 use crate::models::RecipeId;
@@ -75,8 +75,10 @@ pub struct ActivityPage {
 
 pub fn page(entries: &[ActivityEntry], notifications: bool) -> ActivityPage {
     let mut head = ListHead::new("Activity", entries.len(), entries.len());
-    head.actions = vec![Action::call("clear", Text::new("Clear History"), Some("trash"), "activity.clear", json!({}))
-        .enabled_if(!entries.is_empty(), None)];
+    head.actions = vec![
+        Action::call("clear", Text::new("Clear History"), Some("trash"), "activity.clear", json!({}))
+            .enabled_if(!entries.is_empty(), None),
+    ];
     if entries.is_empty() {
         head.empty = Some(Hint::new("activity", Text::new("Nothing happened yet in this session."), Tone::Normal));
     }

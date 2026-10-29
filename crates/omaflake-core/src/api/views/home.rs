@@ -7,9 +7,9 @@
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 
-use super::common::*;
-use super::text::{tf, Text};
 use super::Ctx;
+use super::common::*;
+use super::text::{Text, tf};
 use crate::api::types::JobState;
 use crate::models::VmStatus;
 

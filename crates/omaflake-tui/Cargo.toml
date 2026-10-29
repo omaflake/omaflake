@@ -4,6 +4,7 @@ name = "omaflake-tui"
 description = "omaflake's terminal interface (omaf ui): a client of the core API's page models (docs/api.md §10)"
 version.workspace = true
 edition.workspace = true
+rust-version.workspace = true
 license.workspace = true
 publish.workspace = true
 repository.workspace = true
@@ -16,8 +17,11 @@ serde_json.workspace = true
 chrono.workspace = true
 libc.workspace = true
 # Only this crate draws a terminal interface (plan B121)
-ratatui = { version = "0.30.2", default-features = false, features = ["crossterm", "layout-cache"] }
-crossterm = "0.29.0"
+ratatui = { version = "=0.30.2", default-features = false, features = ["crossterm", "layout-cache"] }
+crossterm = "=0.29.0"
 
 [dev-dependencies]
 tempfile.workspace = true
+
+[lints]
+workspace = true

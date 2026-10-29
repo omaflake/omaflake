@@ -99,11 +99,11 @@ pub fn model(vms: Option<&VmsPage>, jobs: &[JobDto]) -> TrayModel {
 }
 
 #[cfg(target_os = "linux")]
-pub use linux::{stream, TrayHandle};
+pub use linux::{TrayHandle, stream};
 
 #[cfg(target_os = "linux")]
 mod linux {
-    use std::sync::{mpsc, Arc};
+    use std::sync::{Arc, mpsc};
 
     use iced::futures::channel::mpsc::Sender;
     use iced::futures::{SinkExt, Stream};

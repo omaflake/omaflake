@@ -76,7 +76,7 @@ pub use agent_protocol::{
 };
 pub use backend::{Backends, QemuBackend, Readiness, StartOptions, VmBackend};
 pub use build_progress::{BuildLog, BuildProgress, BuildProgressTracker};
-pub use builder_maintenance::{shell_quote, AdminShell, BuilderMaintenance};
+pub use builder_maintenance::{AdminShell, BuilderMaintenance, shell_quote};
 pub use cancellation::Cancellation;
 pub use data_folder::DataFolder;
 pub use file_format::{FileFormat, UnreadableFile};
@@ -84,7 +84,7 @@ pub use guest_choices::GuestChoices;
 pub use guest_settings::GuestSettings;
 pub use image_store::{Image, ImageInfo, ImageStore};
 pub use instance_store::InstanceStore;
-pub use ipsw_downloader::{free_space, gigabytes, IpswDownloader, KeepAwake, MacOsRelease};
+pub use ipsw_downloader::{IpswDownloader, KeepAwake, MacOsRelease, free_space, gigabytes};
 pub use mac_base_installer::MacBaseInstaller;
 pub use mac_image_builder::MacImageBuilder;
 pub use mac_vm::{DhcpLeases, MacAddress, MacVmBundle, MacVmConfig, RunnerClient};
@@ -98,13 +98,13 @@ pub use paths::{InstancePaths, Paths, Settings};
 pub use platform::Platform;
 pub use prerequisites::{Prerequisite, PrerequisiteItem, PrerequisiteStatus, Prerequisites};
 pub use qemu_command::QemuCommand;
-pub use qemu_runtime::{tail, FileLock, InstanceLock, QemuRuntime};
+pub use qemu_runtime::{FileLock, InstanceLock, QemuRuntime, tail};
 pub use qmp_client::QmpClient;
 pub use recipe_sources::{
     RecipeCatalog, RecipeLibrary, RecipeRef, RecipeSource, RecipeSourceKind, SourceClient, SourceTokens,
 };
 pub use shell::{RunOptions, Shell, ShellResult, StreamOptions};
-pub use sockets::{connect_unix, Ports};
+pub use sockets::{Ports, connect_unix};
 pub use spawn::Pid;
 pub use ssh_command::SshCommand;
 pub use transfer::Transfer;

@@ -5,8 +5,8 @@
 use std::fs::{File, OpenOptions};
 use std::io::{Read, Write};
 use std::os::fd::AsRawFd;
-use std::sync::atomic::{AtomicI32, Ordering};
 use std::sync::Mutex;
+use std::sync::atomic::{AtomicI32, Ordering};
 use std::thread::JoinHandle;
 
 use omaflake_core::{Error, Result};

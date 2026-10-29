@@ -7,7 +7,7 @@
 
 use serde::{Deserialize, Serialize};
 
-use crate::error::{codes, Result};
+use crate::error::{Result, codes};
 use crate::paths::{Paths, Settings};
 use crate::vm_err;
 

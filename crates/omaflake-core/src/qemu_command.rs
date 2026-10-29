@@ -116,11 +116,7 @@ impl Target {
 
     /// `-cpu`: the host's CPU with HVF/KVM, everything TCG can emulate otherwise
     pub fn cpu(&self) -> &'static str {
-        if self.accel.is_hardware() {
-            "host"
-        } else {
-            "max"
-        }
+        if self.accel.is_hardware() { "host" } else { "max" }
     }
 
     /// The GPU device: virtio-gpu on aarch64; on x86_64 virtio-vga, which also has the VGA modes the firmware and

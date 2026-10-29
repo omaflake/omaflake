@@ -11,11 +11,11 @@
 
 use std::path::Path;
 
-use serde::de::DeserializeOwned;
 use serde::Serialize;
+use serde::de::DeserializeOwned;
 use serde_json::{Map, Value};
 
-use crate::error::{codes, Error, Result};
+use crate::error::{Error, Result, codes};
 use crate::vm_err;
 
 /// A migration step: turns the JSON object of version n into version n + 1 (Swift `FileFormat.Step`)

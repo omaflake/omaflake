@@ -4,6 +4,7 @@ name = "omaflake-gui"
 description = "omaflake's Linux app (iced): a client of the core's presentation model (plan B119, B121)"
 version.workspace = true
 edition.workspace = true
+rust-version.workspace = true
 license.workspace = true
 publish.workspace = true
 repository.workspace = true
@@ -20,17 +21,20 @@ serde.workspace = true
 serde_json.workspace = true
 chrono.workspace = true
 libc.workspace = true
-iced = { version = "0.14.0", features = ["image", "tokio"] }
-rfd = "0.17.2"
-notify-rust = { version = "4.18.2", default-features = false, features = ["z-with-tokio"] }
-lucide-icons = "1.61.0"
+iced = { version = "=0.14.0", features = ["image", "tokio"] }
+rfd = "=0.17.2"
+notify-rust = { version = "=4.18.2", default-features = false, features = ["z-with-tokio"] }
+lucide-icons = "=1.57.0"
 # iced's own wgpu (same version): which Vulkan adapters there are, before the window opens (src/gpu.rs)
-wgpu = { version = "27.0.1", default-features = false, features = ["std"] }
+wgpu = { version = "=27.0.1", default-features = false, features = ["std"] }
 
 [target.'cfg(target_os = "linux")'.dependencies]
-wgpu = { version = "27.0.1", default-features = false, features = ["std", "vulkan"] }
-ksni = { version = "0.3.7", features = ["blocking"] }
-image = { version = "0.25", default-features = false, features = ["png"] }
+wgpu = { version = "=27.0.1", default-features = false, features = ["std", "vulkan"] }
+ksni = { version = "=0.3.6", features = ["blocking"] }
+image = { version = "=0.25.10", default-features = false, features = ["png"] }
 
 [dev-dependencies]
 tempfile.workspace = true
+
+[lints]
+workspace = true

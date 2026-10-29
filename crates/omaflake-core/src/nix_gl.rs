@@ -78,10 +78,10 @@ pub fn mesa_for(paths: &Paths, nix: &str, qemu: &Path) -> Result<PathBuf, String
     let store = store_path(qemu).ok_or_else(|| format!("{} is not in the Nix store", qemu.display()))?;
     let name = store.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
     let link = paths.cache().join("gl").join(&name);
-    if let Ok(target) = std::fs::canonicalize(&link) {
-        if is_mesa(&target) {
-            return Ok(target);
-        }
+    if let Ok(target) = std::fs::canonicalize(&link)
+        && is_mesa(&target)
+    {
+        return Ok(target);
     }
     let flake = profile_manifest().and_then(|m| profile_flake(&m, &store)).unwrap_or_else(|| "nixpkgs".into());
     if let Some(parent) = link.parent() {
@@ -96,11 +96,7 @@ pub fn mesa_for(paths: &Paths, nix: &str, qemu: &Path) -> Result<PathBuf, String
         return Err(format!("nix build {installable} failed: {last}"));
     }
     let mesa = result.stdout.lines().next().map(PathBuf::from).unwrap_or_default();
-    if is_mesa(&mesa) {
-        Ok(mesa)
-    } else {
-        Err(format!("{installable} has no GL driver ({})", mesa.display()))
-    }
+    if is_mesa(&mesa) { Ok(mesa) } else { Err(format!("{installable} has no GL driver ({})", mesa.display())) }
 }
 
 /// The user's Nix profile manifest: ~/.nix-profile, else $XDG_STATE_HOME/nix/profiles/profile

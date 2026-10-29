@@ -15,7 +15,7 @@ use std::path::{Path, PathBuf};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
-use crate::error::{codes, IoContext, Result};
+use crate::error::{IoContext, Result, codes};
 use crate::file_format::FileFormat;
 use crate::parts::{CatalogPart, PartKind, PartStore};
 use crate::paths::{Paths, Settings};
@@ -401,9 +401,11 @@ bright = ["#4c566a", "#bf616a", "#a3be8c", "#ebcb8b", "#81a1c1", "#b48ead", "#8f
         // Untrusted entries are refused: a path outside its folder, an unknown file, a wrong hash
         assert!(store.install("alice.look.nord", &catalog(entry("recipes/x", vec![file.clone()])), &client).is_err());
         let odd = CatalogFile { path: "run.sh".into(), size: 1, sha256: sha.clone() };
-        assert!(store
-            .install("alice.look.nord", &catalog(entry("looks/alice/nord", vec![file.clone(), odd])), &client)
-            .is_err());
+        assert!(
+            store
+                .install("alice.look.nord", &catalog(entry("looks/alice/nord", vec![file.clone(), odd])), &client)
+                .is_err()
+        );
         let wrong = CatalogFile { sha256: "00".repeat(32), ..file.clone() };
         assert!(store.install("alice.look.nord", &catalog(entry("looks/alice/nord", vec![wrong])), &client).is_err());
         assert!(store.installed().is_empty());

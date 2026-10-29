@@ -16,8 +16,8 @@ use std::path::{Path, PathBuf};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
-use crate::error::{codes, IoContext, Result};
-use crate::file_format::{write_atomic, FileFormat};
+use crate::error::{IoContext, Result, codes};
+use crate::file_format::{FileFormat, write_atomic};
 use crate::models::GuestKind;
 use crate::parts::{CatalogPart, PartKind, PartStore};
 use crate::paths::{Paths, Settings};

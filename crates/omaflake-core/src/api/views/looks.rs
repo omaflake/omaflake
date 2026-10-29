@@ -6,9 +6,9 @@
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 
-use super::common::*;
-use super::text::{tf, Text};
 use super::Ctx;
+use super::common::*;
+use super::text::{Text, tf};
 use crate::api::types::{LookDto, OfferedLookDto};
 use crate::looks::Swatches;
 
@@ -259,10 +259,11 @@ pub(crate) fn page(ctx: &Ctx, p: &super::recipes::RecipesParams) -> LooksPage {
         shown.iter().filter_map(|l| if let Look::Offered(l) = l { Some(offered_row(l)) } else { None }).collect();
     let mut head = ListHead::new("Looks", matched, all);
     head.browse = (all > 0).then_some(browse);
-    head.actions =
-        vec![Action::call("refresh", Text::new("Refresh"), Some("refresh"), "looks.list", json!({"fetch": true}))
+    head.actions = vec![
+        Action::call("refresh", Text::new("Refresh"), Some("refresh"), "looks.list", json!({"fetch": true}))
             .help(Text::new("Look into the sources for looks"))
-            .busy(ctx.fetching)];
+            .busy(ctx.fetching),
+    ];
     let installing = ctx.active_job(crate::api::types::JobKind::LookInstall).is_some();
     let shown = offered.iter().map(|r| (r.actions.as_slice(), r.badges.iter().any(|b| b.id == "official")));
     head.actions.extend(install_all("looks.installAll", shown, installing));

@@ -640,18 +640,17 @@ impl RecipeId {
         if ids.iter().any(|i| i == input) {
             return vec![input.to_string()];
         }
-        if let Some(o) = OmaflakeId::parse(input) {
-            if o.kind == OmaflakeIdKind::Recipe {
-                if let Some(base) = RecipeRef::public_id(&o.identifier) {
-                    let mut found: Vec<String> = ids
-                        .iter()
-                        .filter(|id| Self::base(id) == base && Self::words(id).is_some_and(|w| w.starts_with(&o.words)))
-                        .cloned()
-                        .collect();
-                    found.sort();
-                    return found;
-                }
-            }
+        if let Some(o) = OmaflakeId::parse(input)
+            && o.kind == OmaflakeIdKind::Recipe
+            && let Some(base) = RecipeRef::public_id(&o.identifier)
+        {
+            let mut found: Vec<String> = ids
+                .iter()
+                .filter(|id| Self::base(id) == base && Self::words(id).is_some_and(|w| w.starts_with(&o.words)))
+                .cloned()
+                .collect();
+            found.sort();
+            return found;
         }
         let wanted = Self::words(input);
         let hash_matches = |id: &str| wanted.map(|w| Self::words(id).is_some_and(|x| x.starts_with(w))).unwrap_or(true);
@@ -767,10 +766,10 @@ impl RecipeId {
         if found.is_empty() {
             return Err(vm_err!("Recipe \"{input}\" is not in your recipes"));
         }
-        if let Some(choose) = choose {
-            if let Some(picked) = choose(&found) {
-                return Ok(picked);
-            }
+        if let Some(choose) = choose
+            && let Some(picked) = choose(&found)
+        {
+            return Ok(picked);
         }
         // As short as the words tell them apart, per base
         let mut groups: HashMap<&str, Vec<String>> = HashMap::new();

@@ -7,9 +7,9 @@
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 
-use super::common::*;
-use super::text::{tf, Text};
 use super::Ctx;
+use super::common::*;
+use super::text::{Text, tf};
 use crate::api::types::CredentialDto;
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -393,10 +393,10 @@ pub(crate) fn base_credential_page(ctx: &Ctx, p: &BaseCredentialParams) -> Optio
         "The credential with the base's user and its password – the same user and password it was created with.",
     );
     let c = ctx.credentials.iter().find(|c| c.id == chosen);
-    if let (Some(c), Some(base_user)) = (c, &b.user) {
-        if &user_of(c) != base_user {
-            field.error = Some(tf!("The base's user is %@ – this credential has %@", base_user, user_of(c)));
-        }
+    if let (Some(c), Some(base_user)) = (c, &b.user)
+        && &user_of(c) != base_user
+    {
+        field.error = Some(tf!("The base's user is %@ – this credential has %@", base_user, user_of(c)));
     }
     let error =
         if ctx.credentials.is_empty() { Some(Text::new("Create a credential first")) } else { field.error.clone() };

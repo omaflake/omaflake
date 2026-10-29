@@ -13,7 +13,7 @@ use clap::error::ErrorKind;
 use clap::{CommandFactory, Parser};
 
 use crate::cli::Cli;
-use crate::util::{Failure, EX_USAGE};
+use crate::util::{EX_USAGE, Failure};
 
 fn main() {
     let cli = match Cli::try_parse() {

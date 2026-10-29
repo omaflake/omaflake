@@ -5,18 +5,18 @@
 use iced::widget::{
     button, center, column, container, image, mouse_area, opaque, row, scrollable, space, stack, text, text_input,
 };
-use iced::{window, Alignment, Color, Length, Padding, Size};
+use iced::{Alignment, Color, Length, Padding, Size, window};
+use omaflake_core::api::views::PageRef;
 use omaflake_core::api::views::common::LampState;
 use omaflake_core::api::views::home::HomePage;
-use omaflake_core::api::views::PageRef;
 use serde_json::json;
 
-use crate::app::{page_ref, App, Message, Modal, Model};
+use crate::app::{App, Message, Modal, Model, page_ref};
 use crate::icons::icon;
 use crate::pages;
 use crate::style::{self, icon_size, spacing, text_size};
 use crate::text::{s, show, tr};
-use crate::widgets::{self, action_icon, count_badge, El};
+use crate::widgets::{self, El, action_icon, count_badge};
 
 /// The sidebar's width (`MainView.sidebarWidth`)
 pub const SIDEBAR_WIDTH: f32 = 180.0;
@@ -177,10 +177,12 @@ impl App {
         };
         let mut c = column![].spacing(spacing::XXL);
         for g in &h.groups {
-            let mut items = column![text(s(&g.title).to_uppercase())
-                .size(text_size::CAPTION2)
-                .font(style::semibold())
-                .color(style::tertiary())]
+            let mut items = column![
+                text(s(&g.title).to_uppercase())
+                    .size(text_size::CAPTION2)
+                    .font(style::semibold())
+                    .color(style::tertiary())
+            ]
             .spacing(spacing::XS);
             for t in h.tabs.iter().filter(|t| t.group == g.id) {
                 let selected = t.id == self.tab;

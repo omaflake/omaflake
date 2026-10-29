@@ -48,7 +48,7 @@ pub fn run() {
     let stream = loop {
         match UnixStream::connect(SOCKET) {
             Ok(s) => break s,
-            Err(_) => std::thread::sleep(Duration::from_secs(2)),   // the system agent is not up yet
+            Err(_) => std::thread::sleep(Duration::from_secs(2)), // the system agent is not up yet
         }
     };
     log("connected to the omaflake agent");
@@ -65,7 +65,7 @@ pub fn run() {
             let n = match reader.read(&mut chunk) {
                 Ok(0) | Err(_) => {
                     log("the omaflake agent went away");
-                    std::process::exit(0);   // systemd starts this again
+                    std::process::exit(0); // systemd starts this again
                 }
                 Ok(n) => n,
             };
@@ -145,7 +145,7 @@ fn current_clipboard() -> Option<(&'static str, Vec<u8>)> {
 #[cfg(target_os = "macos")]
 fn write_clipboard(mime: &str, data: &[u8]) {
     if mime != clip::TEXT {
-        return;   // PNG into a macOS guest's pasteboard: OPEN
+        return; // PNG into a macOS guest's pasteboard: OPEN
     }
     if let Ok(mut child) = pb_command("pbcopy").stdin(Stdio::piped()).spawn() {
         if let Some(mut stdin) = child.stdin.take() {
@@ -160,19 +160,21 @@ mod pasteboard {
     use std::ffi::{c_char, c_long, c_void};
 
     #[link(name = "objc")]
-    extern "C" {
+    unsafe extern "C" {
         fn objc_getClass(name: *const c_char) -> *mut c_void;
         fn sel_registerName(name: *const c_char) -> *mut c_void;
         fn objc_msgSend();
     }
     #[link(name = "AppKit", kind = "framework")]
-    extern "C" {}
+    unsafe extern "C" {}
 
     /// NSPasteboard.generalPasteboard.changeCount – cheap enough to poll
     pub fn change_count() -> i64 {
         unsafe {
-            let send_id: extern "C" fn(*mut c_void, *mut c_void) -> *mut c_void = std::mem::transmute(objc_msgSend as *const ());
-            let send_long: extern "C" fn(*mut c_void, *mut c_void) -> c_long = std::mem::transmute(objc_msgSend as *const ());
+            let send_id: extern "C" fn(*mut c_void, *mut c_void) -> *mut c_void =
+                std::mem::transmute(objc_msgSend as *const ());
+            let send_long: extern "C" fn(*mut c_void, *mut c_void) -> c_long =
+                std::mem::transmute(objc_msgSend as *const ());
             let pb = send_id(objc_getClass(c"NSPasteboard".as_ptr()), sel_registerName(c"generalPasteboard".as_ptr()));
             if pb.is_null() {
                 return -1;

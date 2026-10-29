@@ -15,7 +15,7 @@ any work and keep them up to date.
 - **Language:** everything in this repository is English (code, comments, docs, UI, commits).
   Talk to the maintainer in German.
 - **Licence header:** every new own source file (Swift, Rust, Nix, shell, Python) starts with
-  `SPDX-License-Identifier: AGPL-3.0-or-later` (after a shebang or `swift-tools-version` line); recipes, modules, key
+  <!-- REUSE-IgnoreStart -->`SPDX-License-Identifier: AGPL-3.0-or-later`<!-- REUSE-IgnoreEnd --> (after a shebang or `swift-tools-version` line); recipes, modules, key
   bindings and looks are MIT and live in `omaflake/catalog`.
 - **Public from day one:** no personal data in tracked files – no names, initials, user names,
   home paths, SSH keys, hostnames. Personal settings belong in `nix/local/`.
@@ -37,7 +37,8 @@ any work and keep them up to date.
   parameters (`qemu-system-aarch64 -device help`) and Virtualization.framework API (SDK headers).
   Mark what can't be verified as `OPEN` in code/docs.
 - **After every change:** `swift build` and `swift test`; `cargo fmt --all --check`, `cargo clippy --all-targets` and
-  `cargo test`; after runner changes `scripts/sign-runner.sh`;
+  `cargo test` (the toolchain of `rust-toolchain.toml`); after a dependency change `scripts/check-age.py` (and
+  `--dir=nix/agent`) and `cargo deny check`; `reuse lint` (`nix run nixpkgs#reuse -- lint`) after adding files; after runner changes `scripts/sign-runner.sh`;
   after Nix changes `nix flake check`, `nix flake check "path:$PWD/nix"` and, with the recipes,
   `nix flake check "path:$PWD/nix" --override-input omaflake-catalog "path:$PWD/../catalog"`; after catalog changes
   `python3 tools/catalog.py --check` there. Commit only
@@ -49,10 +50,32 @@ any work and keep them up to date.
   `RecipeLibrary.recipeMinimum`, `RecipeCatalog.minimum`, the image flake) are raised only with a major release.
   **Before 1.0.0 backward compatibility does not matter** (the maintainer's decision, plan B141): a release may raise
   the minimum versions, drop old API params, formats and migrations without a transition – noted in the changelog.
+- **Commits are signed off** (`git commit -s`, DCO – CI checks pull requests); no CLA.
+- **Brand:** the artwork lives in `omaflake/brand` (`../brand`); `brand/`, `docs/assets/` and the Plymouth images here
+  are copies its `copy.py` writes – never edit them here.
 - **Changelog:** every user-visible change gets a line under `## [Unreleased]` in `docs/changelog.md` (on omaflake.dev)
   in the same commit; a release turns that section into `## [x.y.z] – date`, and its text is the release's notes.
 - **No secrets** in the repository (passwords, tokens, keys). Developer-local files (e.g. tokens for tooling)
   belong in `~/.omaflake/developer/`, which omaflake never touches.
+
+## falkOSS starterpack
+
+omaflake follows falkoss/starterpack (repositories, REUSE, DCO, CI calling its shared workflows pinned by commit,
+actions pinned by commit, docs on omaflake.dev through Actions, Rust 2024 with a pinned toolchain, exact dependency
+versions at least 14 days old, `cargo deny`). It deviates where it has a reason:
+
+- **Not the `--rust-app` shape:** a Swift menu bar app and `omaf-runner` (Virtualization.framework) beside the Rust
+  core; the API is JSON-RPC over a socket (`omaf serve`, docs/api.md), not REST/OpenAPI, and there is no web app.
+- **`unsafe_code` is not forbidden** workspace-wide: the core, `omaf`, the Linux app and the guest agent call the
+  system through libc (sockets, terminals, signals, video devices, the pasteboard); each `unsafe` has a SAFETY comment,
+  and the crates without system calls forbid it. `missing_debug_implementations` is not enabled.
+- **`rust-version` is 1.98**, below the pinned toolchain: the Nix packages build with nixpkgs' rustc.
+- **The changelog is `docs/changelog.md`**, not `CHANGELOG.md`, so omaflake.dev shows it; the release workflow takes
+  its notes from there.
+- **Younger dependencies** only as `scripts/check-age.py` lists them: security fixes, and versions the code needs
+  (with the date they are two weeks old – remove the entry then).
+- **Catalog and recipes are MIT** (templates to copy; other sources build on them).
+- **History before 2026-10-29 has no sign-offs**; it is public and stays as it is.
 
 ## Layout
 
@@ -73,8 +96,8 @@ scripts/                   bundle-app.sh, sign-runner.sh, bootprobe.sh, trim-tar
 qemu/                      QEMU build with virglrenderer + ANGLE, patches
 nix/modules/vm-guest.nix   guest module (root flake output nixosModules.vm-guest)
 docs/                      spec, plan, cli, app, macos-base, linux-builder
-brand/                     omaflake brand set (icons, favicon, banner, Sources/OmaflakeKit/Brand/BrandAssets.swift);
-                           edit brand/generate.py and brand/tokens.toml (design tokens: brand/tokens.py), not exports
+brand/                     design tokens (brand/tokens.toml → brand/tokens.py; also writes BrandAssets.swift) and copies
+                           of the artwork from omaflake/brand (../brand, its copy.py) – never edit the copies here
 nix/                       image flake: builds images from the recipes of the sources with their modules (input
                            omaflake-catalog), the platforms (NixOS, macOS), the omaflake agent, Linux builder host;
                            use as path:, shipped in the app

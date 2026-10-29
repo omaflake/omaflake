@@ -4,7 +4,7 @@
 
 use iced::font::Weight as IcedWeight;
 use iced::widget::{button, container, pick_list, progress_bar, scrollable, text_input, toggler};
-use iced::{border, Background, Border, Color, Font, Shadow, Theme, Vector};
+use iced::{Background, Border, Color, Font, Shadow, Theme, Vector, border};
 use omaflake_brand as brand;
 use omaflake_core::api::views::common::{LampState, Tone};
 

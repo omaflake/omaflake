@@ -15,12 +15,12 @@ use omaflake_core::api::client::Client;
 use omaflake_core::api::service::socket_path;
 use omaflake_core::api::types::{BuildResult, JobState};
 use omaflake_core::error::codes;
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 
 use super::service;
 use crate::cli;
 use crate::tty::Interrupts;
-use crate::util::{choose_recipe, folder_path, local_date, pad, shortest_argument, usage, Env, Outcome};
+use crate::util::{Env, Outcome, choose_recipe, folder_path, local_date, pad, shortest_argument, usage};
 
 /// Header of `omaf recipes`
 pub fn recipes_header() -> String {
@@ -175,10 +175,11 @@ fn build_in_service(
         }
     };
     let ended = service::follow(client, &job, &mut print)?;
-    if a.verbose && ended.hidden_lines > 0 {
-        if let Some(file) = &ended.log_file {
-            eprintln!("({} routine lines are only in {file})", ended.hidden_lines);
-        }
+    if a.verbose
+        && ended.hidden_lines > 0
+        && let Some(file) = &ended.log_file
+    {
+        eprintln!("({} routine lines are only in {file})", ended.hidden_lines);
     }
     match ended.state {
         JobState::Finished => {

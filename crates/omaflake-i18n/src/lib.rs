@@ -9,6 +9,8 @@
 //! The language: `OMAFLAKE_LANGUAGE` (`en`, `de`), else the locale's (`LC_ALL`, `LC_MESSAGES`, `LANG` – the first that
 //! is set); English when there is no table for it.
 
+#![forbid(unsafe_code)]
+
 mod de;
 
 /// A language omaflake's Rust interfaces speak

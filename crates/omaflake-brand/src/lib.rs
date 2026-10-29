@@ -4,6 +4,8 @@
 //! `src/tokens.rs` (and the app's `BrandTokens.swift`). Plain values, no UI toolkit: with iced, e.g.
 //! `iced::Color::from_rgba(r, g, b, a)` from [`Color::rgba`] and `iced::font::Weight` from [`Weight`].
 
+#![forbid(unsafe_code)]
+
 // Generated with its own layout; `cargo fmt` leaves it as it is
 #[rustfmt::skip]
 mod tokens;

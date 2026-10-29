@@ -13,12 +13,19 @@ silicon) and on Linux hosts ([Linux](linux.md)). Recipes are not here: they live
 ## Build and test
 
 ```sh
+cargo fmt --all --check            # format (Rust 2024 style)
+cargo clippy --all-targets         # lints
 cargo test                         # the Rust workspace (also on Linux)
 swift build                        # the macOS app and runner (Mac only)
 swift test                         # unit tests
 scripts/sign-runner.sh             # after changes to omaf-runner (Virtualization.framework entitlement)
 scripts/bundle-app.sh              # build/omaflake.app
 ```
+
+The Rust toolchain is pinned in `rust-toolchain.toml` (rustup picks it up). Dependencies have exact versions, each
+the newest that is at least 14 days old: after changing `Cargo.lock`, run `scripts/check-age.py` (and
+`scripts/check-age.py --dir=nix/agent` for the guest agent); `cargo deny check` (CI) checks advisories, licences and
+sources.
 
 After changes to Nix:
 
@@ -35,8 +42,12 @@ To build images from recipes you are working on, add your checkout of omaflake/c
 
 ## Rules
 
+- **Sign off every commit** (`git commit -s`): with it you confirm the
+  [Developer Certificate of Origin](https://developercertificate.org). There is no CLA; CI checks the sign-offs of a
+  pull request.
 - **English** in code, comments, documentation, UI and commits.
-- **Licence header:** every new source file starts with `SPDX-License-Identifier: AGPL-3.0-or-later`.
+- **Licence header:** every new source file starts with <!-- REUSE-IgnoreStart -->`SPDX-License-Identifier: AGPL-3.0-or-later`<!-- REUSE-IgnoreEnd -->;
+  files that cannot carry a header are listed in `REUSE.toml` ([REUSE](https://reuse.software), checked in CI).
 - **No personal data** in tracked files – no names, user names, home paths, keys, host names.
 - **No secrets** in the repository.
 - **Verified before claimed:** check Nix options, QEMU parameters and Virtualization.framework API; mark what cannot

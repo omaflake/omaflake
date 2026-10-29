@@ -9,7 +9,7 @@ use std::time::Duration;
 use omaflake_core::api::service::{is_running, socket_path};
 use omaflake_core::{Error, Paths};
 use omaflake_tui::core::Connection;
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 
 use crate::cli::Status;
 use crate::commands::{service, ui};
@@ -139,11 +139,7 @@ fn look(conn: &Connection) -> Result<Summary, String> {
 }
 
 fn render(s: &Summary, waybar: bool) -> String {
-    if waybar {
-        s.waybar().to_string()
-    } else {
-        s.line()
-    }
+    if waybar { s.waybar().to_string() } else { s.line() }
 }
 
 pub fn run(a: &Status) -> Outcome {

@@ -6,13 +6,13 @@
 //! picture (`convert`). Where the frames come from is a `FrameSource`: a V4L2 camera (`v4l2`, Linux) or the test
 //! pattern (`--camera-test-pattern`, as the Mac's).
 
-use std::sync::mpsc::{self, Receiver, RecvTimeoutError, Sender};
 use std::sync::Arc;
+use std::sync::mpsc::{self, Receiver, RecvTimeoutError, Sender};
 use std::time::{Duration, Instant};
 
+use crate::Log;
 use crate::agent_protocol::{AgentMessage, AgentProtocol, AgentSender, CameraRequest};
 use crate::host_bridge::convert::{FRAME_BYTES, HEIGHT, WIDTH};
-use crate::Log;
 
 /// Without a credit for this long while frames are waiting, the guest stopped reading: the camera goes off
 pub const CREDIT_TIMEOUT: Duration = Duration::from_secs(2);

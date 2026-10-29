@@ -24,9 +24,9 @@ pub fn avoid_software_vulkan() -> bool {
     if !prefer_gl(&types) {
         return false;
     }
-    // SAFETY (edition 2024 would require `unsafe`): called at the start of main, before iced, tokio or any other
-    // thread runs, so nothing reads the environment concurrently
-    std::env::set_var("WGPU_BACKEND", "gl");
+    // SAFETY: called at the start of main, before iced, tokio or any other thread runs, so nothing reads the
+    // environment concurrently
+    unsafe { std::env::set_var("WGPU_BACKEND", "gl") };
     true
 }
 

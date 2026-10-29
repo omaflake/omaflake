@@ -26,9 +26,9 @@ use std::time::{Duration, Instant};
 use serde_json::Value;
 
 use super::protocol;
-use super::server::{lock, Server};
+use super::server::{Server, lock};
 use super::stdio::{self, Writer};
-use crate::error::{codes, Error};
+use crate::error::{Error, codes};
 use crate::paths::Paths;
 use crate::qemu_runtime::FileLock;
 use crate::sockets::MAX_SOCKET_PATH;
@@ -305,10 +305,11 @@ mod tests {
     fn wait_until(c: &Client, method: &str, pick: impl Fn(&Value) -> bool) -> Option<Value> {
         let end = Instant::now() + Duration::from_secs(5);
         while Instant::now() < end {
-            if let Some((m, p)) = c.next_event(Duration::from_millis(100)) {
-                if m == method && pick(&p) {
-                    return Some(p);
-                }
+            if let Some((m, p)) = c.next_event(Duration::from_millis(100))
+                && m == method
+                && pick(&p)
+            {
+                return Some(p);
             }
         }
         None

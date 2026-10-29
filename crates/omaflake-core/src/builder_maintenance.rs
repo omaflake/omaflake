@@ -8,7 +8,7 @@
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use crate::error::{codes, Error, IoContext, Result};
+use crate::error::{Error, IoContext, Result, codes};
 use crate::json;
 use crate::paths::{Paths, Settings};
 use crate::platform::is_executable_file;

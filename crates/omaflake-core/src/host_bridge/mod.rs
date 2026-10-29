@@ -19,9 +19,9 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
+use crate::Log;
 use crate::agent_protocol::{AgentLink, LinkEnd};
 use crate::sockets::connect_unix;
-use crate::Log;
 use camera::{CameraBridge, FrameSource};
 use clipboard::{ClipboardBackend, ClipboardBridge};
 
@@ -184,10 +184,10 @@ mod tests {
             loop {
                 while let Some(frame) = self.decoder.next_frame() {
                     let f: AgentFrame = frame;
-                    if f.type_ == message as u16 {
-                        if let Some(whole) = self.parts.push(&f, 64 << 20) {
-                            return whole;
-                        }
+                    if f.type_ == message as u16
+                        && let Some(whole) = self.parts.push(&f, 64 << 20)
+                    {
+                        return whole;
                     }
                 }
                 assert!(Instant::now() < deadline, "no {message:?} from the host");

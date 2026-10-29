@@ -18,10 +18,10 @@ use std::path::Path;
 
 use serde::{Deserialize, Serialize, Serializer};
 
-use crate::builder_maintenance::{shell_quote, BuilderMaintenance, NixVolume};
+use crate::builder_maintenance::{BuilderMaintenance, NixVolume, shell_quote};
 use crate::cli_link::{CliCheck, CliLink};
 use crate::image_store::ImageStore;
-use crate::ipsw_downloader::{free_space, gigabytes, IpswDownloader, MacOsRelease};
+use crate::ipsw_downloader::{IpswDownloader, MacOsRelease, free_space, gigabytes};
 use crate::mac_base_installer::MacBaseInstaller;
 use crate::mac_image_builder::MacImageBuilder;
 use crate::models::{GuestKind, RecipeId};
@@ -30,7 +30,7 @@ use crate::platform::{expand_tilde, home_dir, is_executable_file, kernel_release
 use crate::qemu_host::KvmState;
 use crate::qemu_runtime::QemuRuntime;
 use crate::shell::{RunOptions, Shell};
-use crate::sockets::{Ports, DEFAULT_TIMEOUT};
+use crate::sockets::{DEFAULT_TIMEOUT, Ports};
 
 /// Swift `Prerequisite.Item`; serialized as Swift's raw value (camelCase: "nixDarwin", "linuxBuilder", …)
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -217,11 +217,7 @@ pub struct Prerequisites {
 
 /// `ok ? a : b` for the many status choices
 fn status(ok: bool, otherwise: PrerequisiteStatus) -> PrerequisiteStatus {
-    if ok {
-        PrerequisiteStatus::Ok
-    } else {
-        otherwise
-    }
+    if ok { PrerequisiteStatus::Ok } else { otherwise }
 }
 
 /// Names in a folder (sorted), empty when it cannot be read
@@ -839,39 +835,39 @@ impl Prerequisites {
                 None,
             );
         }
-        if let Some(base) = &base {
-            if let Some(user) = MacBaseInstaller::user_of(base, &self.paths.logs()) {
-                // The macOS recipes' guest user (macUser) must be the base's: builds log in as it, nix-darwin
-                // configures it
-                let expected: BTreeSet<String> = ImageStore::new(self.paths.clone())
-                    .recipe_defaults()
-                    .into_values()
-                    .filter(|d| d.kind == GuestKind::Macos)
-                    .filter_map(|d| d.user)
-                    .collect();
-                let name = last_component(base);
-                if let Some(other) = expected.iter().find(|u| **u != user) {
-                    let mut p = Prerequisite::new(
-                        PrerequisiteItem::MacBase,
-                        PrerequisiteStatus::Limited,
-                        &format!("{name} ({user})"),
-                        &format!("The base's user {user} differs from the recipes' macUser {other} – make them match"),
-                        None,
-                    );
-                    p.expected_user = Some(other.clone());
-                    p.base_user = Some(user);
-                    return p;
-                }
+        if let Some(base) = &base
+            && let Some(user) = MacBaseInstaller::user_of(base, &self.paths.logs())
+        {
+            // The macOS recipes' guest user (macUser) must be the base's: builds log in as it, nix-darwin
+            // configures it
+            let expected: BTreeSet<String> = ImageStore::new(self.paths.clone())
+                .recipe_defaults()
+                .into_values()
+                .filter(|d| d.kind == GuestKind::Macos)
+                .filter_map(|d| d.user)
+                .collect();
+            let name = last_component(base);
+            if let Some(other) = expected.iter().find(|u| **u != user) {
                 let mut p = Prerequisite::new(
                     PrerequisiteItem::MacBase,
-                    PrerequisiteStatus::Ok,
+                    PrerequisiteStatus::Limited,
                     &format!("{name} ({user})"),
-                    "",
+                    &format!("The base's user {user} differs from the recipes' macUser {other} – make them match"),
                     None,
                 );
+                p.expected_user = Some(other.clone());
                 p.base_user = Some(user);
                 return p;
             }
+            let mut p = Prerequisite::new(
+                PrerequisiteItem::MacBase,
+                PrerequisiteStatus::Ok,
+                &format!("{name} ({user})"),
+                "",
+                None,
+            );
+            p.base_user = Some(user);
+            return p;
         }
         Prerequisite::new(
             PrerequisiteItem::MacBase,

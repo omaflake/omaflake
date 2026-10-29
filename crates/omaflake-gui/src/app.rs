@@ -8,11 +8,11 @@ use std::path::PathBuf;
 use std::time::{Duration, Instant};
 
 use iced::widget::image;
-use iced::{window, Size, Subscription, Task};
+use iced::{Size, Subscription, Task, window};
 use omaflake_core::api::types::JobDto;
 use omaflake_core::api::views::activity::ActivityPage;
 use omaflake_core::api::views::build::{BuildPage, LogRef};
-use omaflake_core::api::views::common::{set_param, Action, Ask, AskKind, Confirm, Field, Then};
+use omaflake_core::api::views::common::{Action, Ask, AskKind, Confirm, Field, Then, set_param};
 use omaflake_core::api::views::credentials::{CredentialPage, CredentialsPage};
 use omaflake_core::api::views::doctor::{DoctorPage, MacBasePage};
 use omaflake_core::api::views::home::HomePage;
@@ -23,7 +23,7 @@ use omaflake_core::api::views::recipes::RecipesPage;
 use omaflake_core::api::views::settings::SettingsPage;
 use omaflake_core::api::views::vms::{VmPage, VmsPage};
 use omaflake_core::api::views::{PageRef, Text};
-use serde_json::{json, Map, Value};
+use serde_json::{Map, Value, json};
 
 use crate::backend::{self, CallError, Handle};
 use crate::prefs::Prefs;
@@ -489,10 +489,11 @@ impl App {
         if self.prefs.tray && !pages.contains(&all_vms) {
             pages.push(all_vms);
         }
-        if let Some(p) = self.current() {
-            if p.page != "guide" && !pages.contains(&p) {
-                pages.push(p);
-            }
+        if let Some(p) = self.current()
+            && p.page != "guide"
+            && !pages.contains(&p)
+        {
+            pages.push(p);
         }
         pages
     }
@@ -620,10 +621,10 @@ impl App {
             Message::SetFilter { page, group, value } => {
                 let mut f = self.filters.get(&page).cloned().unwrap_or_else(|| json!({}));
                 // A new search starts on the first page (plan B148)
-                if group == "search" {
-                    if let Some(m) = f.as_object_mut() {
-                        m.remove("page");
-                    }
+                if group == "search"
+                    && let Some(m) = f.as_object_mut()
+                {
+                    m.remove("page");
                 }
                 if value.is_null() || value == json!(false) || value == json!("") {
                     if let Some(m) = f.as_object_mut() {
@@ -966,11 +967,11 @@ impl App {
         match page {
             "home" => {
                 if !self.tab_chosen {
-                    if let Some(Model::Home(h)) = self.models.get(&page_ref("home", json!({})).key()) {
-                        if h.first_tab != self.tab {
-                            self.tab = h.first_tab.clone();
-                            tasks.push(self.resubscribe());
-                        }
+                    if let Some(Model::Home(h)) = self.models.get(&page_ref("home", json!({})).key())
+                        && h.first_tab != self.tab
+                    {
+                        self.tab = h.first_tab.clone();
+                        tasks.push(self.resubscribe());
                     }
                     self.tab_chosen = true;
                 }
@@ -979,10 +980,10 @@ impl App {
             "vms" => self.update_tray(),
             "recipes" | "modules" | "looks" => tasks.push(self.refresh_catalogs_once()),
             "settings" => {
-                if let Some(Model::Settings(s)) = self.current().as_ref().and_then(|p| self.model(p)) {
-                    if let Some(f) = s.general.fields.iter().find(|f| f.id == "notifications") {
-                        self.notifications = f.value.as_bool().unwrap_or(true);
-                    }
+                if let Some(Model::Settings(s)) = self.current().as_ref().and_then(|p| self.model(p))
+                    && let Some(f) = s.general.fields.iter().find(|f| f.id == "notifications")
+                {
+                    self.notifications = f.value.as_bool().unwrap_or(true);
                 }
             }
             _ => {}
@@ -990,11 +991,11 @@ impl App {
         // Logs the page shows (build, macOS base): what `jobs.log` keeps from `from` on, then the `job.log` events
         let log =
             self.current().as_ref().and_then(|p| self.model(p)).and_then(Model::log).map(|l| (l.job.clone(), l.from));
-        if let Some((id, from)) = log {
-            if !self.logs.contains_key(&id) {
-                self.logs.insert(id.clone(), Log::default());
-                tasks.push(self.call("jobs.log", json!({"id": id, "from": from}), Purpose::Log(id)));
-            }
+        if let Some((id, from)) = log
+            && !self.logs.contains_key(&id)
+        {
+            self.logs.insert(id.clone(), Log::default());
+            tasks.push(self.call("jobs.log", json!({"id": id, "from": from}), Purpose::Log(id)));
         }
         Task::batch(tasks)
     }
@@ -1213,11 +1214,7 @@ impl App {
                         Err(e) => refused.push(format!("{v}: {}", e.message)),
                     }
                 }
-                if ok.is_empty() && !refused.is_empty() {
-                    Err(refused.join("\n"))
-                } else {
-                    Ok(ok)
-                }
+                if ok.is_empty() && !refused.is_empty() { Err(refused.join("\n")) } else { Ok(ok) }
             },
             Message::Checked,
         )

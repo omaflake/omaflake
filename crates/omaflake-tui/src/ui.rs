@@ -2,15 +2,15 @@
 //! Drawing: the header with the tabs and home's actions, the page's title and tools, its items (and a job's log),
 //! the selected item's actions, the status line, and the modals (questions, asks, menus, the filter, help).
 
+use ratatui::Frame;
 use ratatui::layout::{Constraint, Layout, Rect};
 use ratatui::style::{Modifier, Style};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, Borders, Clear, Paragraph, Wrap};
-use ratatui::Frame;
 use serde_json::Value;
 
-use crate::app::{App, Modal, Target, RESERVED};
-use crate::model::{self, button, Page};
+use crate::app::{App, Modal, RESERVED, Target};
+use crate::model::{self, Page, button};
 use crate::text::{arr, b, s, t, tr, trf};
 use crate::theme::Tone;
 
@@ -301,11 +301,7 @@ fn draw_modal(f: &mut Frame, app: &App, page: &Page, area: Rect) {
                 let id = s(g, "id");
                 let now = values.get(id).cloned().unwrap_or(Value::Null);
                 let shown = if s(g, "kind") == "toggle" {
-                    if now.as_bool().unwrap_or(false) {
-                        "[x]".to_string()
-                    } else {
-                        "[ ]".to_string()
-                    }
+                    if now.as_bool().unwrap_or(false) { "[x]".to_string() } else { "[ ]".to_string() }
                 } else {
                     arr(g, "options").iter().find(|o| o["value"] == now).map(|o| t(&o["label"])).unwrap_or_default()
                 };
@@ -440,21 +436,21 @@ fn help_lines(app: &App, page: &Page) -> Vec<Line<'static>> {
             lines.push(k(&l.to_string(), &t(&a["label"])));
         }
     }
-    if let Some(item) = app.selected_index(page).and_then(|i| page.items.get(i)) {
-        if !item.actions.is_empty() {
-            lines.push(Line::raw(""));
-            lines.push(Line::from(Span::styled(format!(" {}", tr("This row")), th.title())));
-            for (n, a) in item.actions.iter().enumerate() {
-                let key = if n < 9 { format!("{}", n + 1) } else { "a".into() };
-                let mut spans = vec![Span::styled(format!(" {key:<16}"), th.key())];
-                spans.extend(button(&ctx, a));
-                if !b(a, "enabled") {
-                    if let Some(r) = a.get("reason") {
-                        spans.push(Span::styled(format!(" – {}", t(r)), th.secondary()));
-                    }
-                }
-                lines.push(Line::from(spans));
+    if let Some(item) = app.selected_index(page).and_then(|i| page.items.get(i))
+        && !item.actions.is_empty()
+    {
+        lines.push(Line::raw(""));
+        lines.push(Line::from(Span::styled(format!(" {}", tr("This row")), th.title())));
+        for (n, a) in item.actions.iter().enumerate() {
+            let key = if n < 9 { format!("{}", n + 1) } else { "a".into() };
+            let mut spans = vec![Span::styled(format!(" {key:<16}"), th.key())];
+            spans.extend(button(&ctx, a));
+            if !b(a, "enabled")
+                && let Some(r) = a.get("reason")
+            {
+                spans.push(Span::styled(format!(" – {}", t(r)), th.secondary()));
             }
+            lines.push(Line::from(spans));
         }
     }
     lines

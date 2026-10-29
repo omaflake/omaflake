@@ -27,14 +27,14 @@ use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
 use sha2::{Digest, Sha256};
 
-use crate::error::{codes, Error, IoContext, Result};
-use crate::file_format::{write_atomic, FileFormat, Step, UnreadableFile};
+use crate::error::{Error, IoContext, Result, codes};
+use crate::file_format::{FileFormat, Step, UnreadableFile, write_atomic};
 use crate::image_store::ImageStore;
 use crate::models::{GuestKind, RecipeDefaults, RecipeId};
 use crate::omaflake_id::OmaflakeId;
 use crate::packages::{Manifest, Package, PackageKind};
 use crate::paths::{Paths, Settings};
-use crate::platform::{abbreviate_tilde, expand_tilde, standardize, Platform};
+use crate::platform::{Platform, abbreviate_tilde, expand_tilde, standardize};
 use crate::trash::Disposal;
 use crate::vm_err;
 
@@ -163,10 +163,11 @@ impl RecipeSource {
                 None,
             ));
         }
-        if let Some((owner, repo)) = text.split_once('/') {
-            if Self::github_name(owner) && Self::github_name(repo) {
-                return Ok(RecipeSource::new(RecipeSourceKind::Github, text, None, private, None));
-            }
+        if let Some((owner, repo)) = text.split_once('/')
+            && Self::github_name(owner)
+            && Self::github_name(repo)
+        {
+            return Ok(RecipeSource::new(RecipeSourceKind::Github, text, None, private, None));
         }
         let invalid = || vm_err!("Only HTTPS addresses, GitHub repositories and folders can be recipe sources");
         if text.chars().any(|c| c.is_whitespace() || c.is_control()) {
@@ -211,10 +212,10 @@ impl RecipeSource {
         if !Self::github_name(owner) || !Self::github_name(repo) {
             return None;
         }
-        if let Some(b) = branch {
-            if b.is_empty() || b.contains(['?', '#']) {
-                return None;
-            }
+        if let Some(b) = branch
+            && (b.is_empty() || b.contains(['?', '#']))
+        {
+            return None;
         }
         Some((owner, repo, branch))
     }
@@ -266,11 +267,7 @@ fn parent_path(path: &str) -> String {
         Some(i) => &trimmed[..i],
         None => "",
     };
-    if parent.is_empty() {
-        "/".into()
-    } else {
-        parent.to_string()
-    }
+    if parent.is_empty() { "/".into() } else { parent.to_string() }
 }
 
 /// "%20" → " " (invalid sequences stay as they are)
@@ -672,7 +669,7 @@ impl SourceClient {
                             codes::AUTH,
                             "The token has no access to {} – give it this repository with Contents: Read-only",
                             self.source.location
-                        ))
+                        ));
                     }
                 }
                 let repo = serde_json::from_slice::<Value>(&data).ok();
@@ -1502,21 +1499,21 @@ impl RecipeLibrary {
             // The parts it uses, as `Composition` finds them – a missing one stays missing (the build page says so)
             if let Ok(spec) = crate::composition::RecipeSpec::read(&entry.folder) {
                 for r in &spec.modules {
-                    if let Some(m) = modules.iter().find(|m| m.platform == spec.platform && m.reference() == r.id) {
-                        if r.allows(&m.version) {
-                            add_folder(
-                                format!("{tree}/modules/{}/{}/{}", m.author, kind.as_str(), m.name),
-                                &m.folder,
-                                &mut files,
-                            );
-                        }
+                    if let Some(m) = modules.iter().find(|m| m.platform == spec.platform && m.reference() == r.id)
+                        && r.allows(&m.version)
+                    {
+                        add_folder(
+                            format!("{tree}/modules/{}/{}/{}", m.author, kind.as_str(), m.name),
+                            &m.folder,
+                            &mut files,
+                        );
                     }
                 }
                 for r in &spec.keymaps {
-                    if let Some(k) = keymaps.iter().find(|k| k.reference() == r.id) {
-                        if r.allows(&k.version) {
-                            add_folder(format!("{tree}/keymaps/{}/{}", k.author, k.name), &k.folder, &mut files);
-                        }
+                    if let Some(k) = keymaps.iter().find(|k| k.reference() == r.id)
+                        && r.allows(&k.version)
+                    {
+                        add_folder(format!("{tree}/keymaps/{}/{}", k.author, k.name), &k.folder, &mut files);
                     }
                 }
             }
@@ -1859,9 +1856,17 @@ mod tests {
         // a local folder with another minimal, its modules and key bindings
         let local_root = paths.root.join("local");
         let local = local_root.join("recipes/omaflake/nixos/minimal");
-        put(&local, "recipe.toml", &format!("{V2}modules = [\"omaflake/shell\", {{ id = \"omaflake/old\", min = \"2.0.0\" }}]\nkeymaps = [\"omaflake/default\"]\n"));
+        put(
+            &local,
+            "recipe.toml",
+            &format!(
+                "{V2}modules = [\"omaflake/shell\", {{ id = \"omaflake/old\", min = \"2.0.0\" }}]\nkeymaps = [\"omaflake/default\"]\n"
+            ),
+        );
         let module = |name: &str| {
-            format!("\"$schema\" = \"https://omaflake.dev/schema/module/v2.json\"\nversion = \"1.0.0\"\ntitle = \"{name}\"\n")
+            format!(
+                "\"$schema\" = \"https://omaflake.dev/schema/module/v2.json\"\nversion = \"1.0.0\"\ntitle = \"{name}\"\n"
+            )
         };
         put(&local_root, "modules/omaflake/nixos/shell/module.toml", &module("shell"));
         put(&local_root, "modules/omaflake/nixos/shell/default.nix", "{ ... }: { }");
@@ -2044,7 +2049,7 @@ mod tests {
         assert!(lib.versions(&Settings::load(&p))[&line][0].is_newest);
         assert!(!p.recipes().join(&v2).exists());
         assert!(lib.remove(&v1).is_err()); // kept for its image
-                                           // with keeping, an older version stays
+        // with keeping, an older version stays
         s.keep_recipe_versions = Some(true);
         s.save(&p).unwrap();
         recipe(&src, "{ v = 4; }");
@@ -2269,10 +2274,9 @@ mod tests {
         let v6 = br#"{"$schema":"https://omaflake.dev/schema/catalog/v6.json","source":{"name":"x"},"recipes":[]}"#;
         assert_eq!(RecipeCatalog::decode(v6).unwrap_err().code(), Some(codes::NEWER_FILE));
         let foreign = br#"{"$schema":"https://omaflake.dev/schema/image/v1.json","source":{"name":"x"},"recipes":[]}"#;
-        assert!(RecipeCatalog::decode(foreign)
-            .unwrap_err()
-            .message()
-            .starts_with("Not a recipe catalog (catalog.json): "));
+        assert!(
+            RecipeCatalog::decode(foreign).unwrap_err().message().starts_with("Not a recipe catalog (catalog.json): ")
+        );
         assert_eq!(RecipeCatalog::decode(b"[").unwrap_err().message(), "Not a recipe catalog (catalog.json): not JSON");
     }
 

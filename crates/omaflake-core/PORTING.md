@@ -24,7 +24,7 @@ packages F1–F5 fill in the bodies **in parallel** – the signatures are the c
    `cargo build`, `cargo test`, `cargo clippy --all-targets` must stay green (warnings from other packages' `todo!`
    are fine). Dependencies are fixed in the workspace `Cargo.toml`; a package needing another crate says so in its
    report instead of adding it (one shared file).
-6. SPDX header `// SPDX-License-Identifier: AGPL-3.0-or-later` as the first line of every new Rust file (`word_list.rs`
+6. SPDX header <!-- REUSE-IgnoreStart -->`// SPDX-License-Identifier: AGPL-3.0-or-later`<!-- REUSE-IgnoreEnd --> as the first line of every new Rust file (`word_list.rs`
    is MIT like its BIP-39 source and the Swift file it ports). English everywhere. No personal data. Never delete
    files – move them to `_to_delete/`. Mark what cannot be verified as `OPEN`.
 

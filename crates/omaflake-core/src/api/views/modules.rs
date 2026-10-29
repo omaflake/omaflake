@@ -5,11 +5,11 @@
 
 use serde_json::json;
 
+use super::Ctx;
 use super::common::*;
 use super::looks::{LookDetail, LookRow, LooksPage};
 use super::recipes::RecipesParams;
-use super::text::{tf, Text};
-use super::Ctx;
+use super::text::{Text, tf};
 use crate::api::types::PartDto;
 use crate::models::GuestKind;
 
@@ -248,10 +248,11 @@ fn tab(ctx: &Ctx, kind: &str, f: &FilterParams) -> LooksPage {
     let offered: Vec<LookRow> = shown.iter().filter(|(h, _)| !*h).map(|(_, p)| offered_row(p)).collect();
     let mut head = ListHead::new(if keymaps { "Key Bindings" } else { "Modules" }, matched, all);
     head.browse = (all > 0).then_some(browse);
-    head.actions =
-        vec![Action::call("refresh", Text::new("Refresh"), Some("refresh"), "modules.list", json!({"fetch": true}))
+    head.actions = vec![
+        Action::call("refresh", Text::new("Refresh"), Some("refresh"), "modules.list", json!({"fetch": true}))
             .help(Text::new("Look into the sources for modules and key bindings"))
-            .busy(ctx.fetching)];
+            .busy(ctx.fetching),
+    ];
     let installing = ctx.active_job(crate::api::types::JobKind::ModuleInstall).is_some();
     let shown = offered.iter().map(|r| (r.actions.as_slice(), r.badges.iter().any(|b| b.id == "official")));
     head.actions.extend(install_all("modules.installAll", shown, installing));

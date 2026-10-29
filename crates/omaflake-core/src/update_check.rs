@@ -13,7 +13,7 @@ use serde::{Deserialize, Serialize};
 
 use std::time::Duration;
 
-use crate::error::{codes, Result};
+use crate::error::{Result, codes};
 use crate::vm_err;
 
 /// The feed (Swift `UpdateFeed`)

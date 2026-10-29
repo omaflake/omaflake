@@ -146,10 +146,10 @@ impl GuestSettings {
                 return tz.to_string();
             }
         }
-        if let Ok(target) = std::fs::read_link("/etc/localtime") {
-            if let Some(zone) = Self::zone_of_link(&target) {
-                return zone;
-            }
+        if let Ok(target) = std::fs::read_link("/etc/localtime")
+            && let Some(zone) = Self::zone_of_link(&target)
+        {
+            return zone;
         }
         "GMT".into()
     }
@@ -234,11 +234,7 @@ impl GuestSettings {
         }
         let locale = Self::mac_locale();
         let lang = locale.split('_').next().unwrap_or("en");
-        if lang == "en" {
-            "us".into()
-        } else {
-            lang.to_string()
-        }
+        if lang == "en" { "us".into() } else { lang.to_string() }
     }
 
     /// The "KeyboardLayout Name" of each selected input source (macOS: HIToolbox `AppleSelectedInputSources`; Linux:
@@ -393,15 +389,11 @@ impl ImageStore {
             recipes = nix.contains("omaflake-catalog");
         }
         let mut args = Self::omaflake_checkout_arguments(flake);
-        if guest {
-            if let Ok(dir) = GuestSettings::write(&self.paths, choice) {
-                args.extend(["--override-input".into(), "omaflake-guest".into(), format!("path:{}", dir.display())]);
-            }
+        if guest && let Ok(dir) = GuestSettings::write(&self.paths, choice) {
+            args.extend(["--override-input".into(), "omaflake-guest".into(), format!("path:{}", dir.display())]);
         }
-        if recipes {
-            if let Ok(dir) = RecipeLibrary::new(self.paths.clone()).stage(&Settings::load(&self.paths)) {
-                args.extend(["--override-input".into(), "omaflake-catalog".into(), format!("path:{}", dir.display())]);
-            }
+        if recipes && let Ok(dir) = RecipeLibrary::new(self.paths.clone()).stage(&Settings::load(&self.paths)) {
+            args.extend(["--override-input".into(), "omaflake-catalog".into(), format!("path:{}", dir.display())]);
         }
         if args.is_empty() {
             return args;

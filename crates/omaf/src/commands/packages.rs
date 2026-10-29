@@ -5,7 +5,7 @@ use std::path::Path;
 
 use omaflake_core::{Error, Package, PackageKind, RecipeId, RecipeLibrary, Settings, Transfer, VmStatus};
 
-use crate::util::{folder_path, Env, Outcome};
+use crate::util::{Env, Outcome, folder_path};
 
 fn print_line(line: &str) {
     println!("{line}");
@@ -85,10 +85,10 @@ pub fn external_add(path: &str) -> Outcome {
 pub fn external_remove(name: &str) -> Outcome {
     let env = Env::new();
     let backends = env.backends()?;
-    if let Ok(c) = backends.store.load(name) {
-        if backends.backend_for(&c)?.status(&c) != VmStatus::Stopped {
-            return Err(Error::new(format!("\"{name}\" is running – first run: omaf stop {name}")).into());
-        }
+    if let Ok(c) = backends.store.load(name)
+        && backends.backend_for(&c)?.status(&c) != VmStatus::Stopped
+    {
+        return Err(Error::new(format!("\"{name}\" is running – first run: omaf stop {name}")).into());
     }
     backends.store.forget(name)?;
     println!("{name} is no longer listed; its package stays at its place.");

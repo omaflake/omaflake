@@ -1,0 +1,7 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# The Rust toolchain for development and CI (rustup reads it; `rustup toolchain install` in CI). The Nix packages
+# build with nixpkgs' rustc instead – Cargo.toml's rust-version is the oldest that works.
+[toolchain]
+channel = "1.99.1"
+components = ["rustfmt", "clippy"]
+profile = "minimal"

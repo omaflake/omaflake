@@ -13,16 +13,16 @@ use std::io::Write;
 use std::os::unix::process::CommandExt;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
-use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::{Duration, Instant};
 
 use omaflake_core::api::client::Client;
-use omaflake_core::api::service::{self, is_newer, socket_path, Options};
+use omaflake_core::api::service::{self, Options, is_newer, socket_path};
 use omaflake_core::api::types::JobDto;
 use omaflake_core::platform::home_dir;
 use omaflake_core::{Error, Paths, Result};
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 
 use crate::cli::{Serve, ServiceCommand};
 use crate::tty::Interrupts;
@@ -188,11 +188,7 @@ fn start(paths: &Paths) -> Result<()> {
 }
 
 fn log_hint(paths: &Paths) -> PathBuf {
-    if agent_usable() && cfg!(target_os = "macos") {
-        launchd_log()
-    } else {
-        paths.logs().join("service.log")
-    }
+    if agent_usable() && cfg!(target_os = "macos") { launchd_log() } else { paths.logs().join("service.log") }
 }
 
 /// This omaf (the agent and a service started on demand run it)

@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
 # Builds omaflake's QEMU (virglrenderer, libepoxy, ANGLE from nixpkgs) and fills the binary cache, so users do not
 # compile it (spec §11.8, plan B67). By hand, on version tags, and weekly (nixpkgs moves).
 # Cache: Cachix (secret CACHIX_AUTH_TOKEN, variable CACHIX_CACHE) or an S3-compatible bucket (secrets NIX_SIGNING_KEY,
@@ -21,13 +22,13 @@ jobs:
     runs-on: macos-latest
     timeout-minutes: 120
     steps:
-      - uses: actions/checkout@v5
-      - uses: cachix/install-nix-action@v31
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: cachix/install-nix-action@448cde739abec1eaf0646249e3d25bb8d9bc7702 # v31.11.2
         with:
           extra_nix_config: experimental-features = nix-command flakes
       - name: Cachix
         if: ${{ vars.CACHIX_CACHE != '' }}
-        uses: cachix/cachix-action@v16
+        uses: cachix/cachix-action@38b082610b782e7e93e209c35fd730d399dee866 # v17
         with:
           name: ${{ vars.CACHIX_CACHE }}
           authToken: ${{ secrets.CACHIX_AUTH_TOKEN }}

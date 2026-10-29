@@ -10,7 +10,7 @@ use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 
 use omaflake_i18n::Language;
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 
 #[path = "../../../omaflake-macros/src/key.rs"]
 #[allow(dead_code)]
@@ -48,7 +48,7 @@ fn manifest() -> PathBuf {
 
 /// The pages of `c` with the params the tests use
 fn pages(c: &crate::api::views::Ctx, from: &str, keys: &mut BTreeMap<String, String>) {
-    use crate::api::views::{build, PageRef};
+    use crate::api::views::{PageRef, build};
     let pages = [
         ("home", json!({})),
         ("vms", json!({})),
@@ -123,7 +123,7 @@ fn every_check(host: crate::api::views::HostOs) -> Vec<crate::api::types::Prereq
 
 #[test]
 fn every_view_text_has_german() {
-    use crate::api::views::{tests::ctx, HostOs};
+    use crate::api::views::{HostOs, tests::ctx};
     let mut keys = BTreeMap::new();
     let dir = manifest().join("testdata/api/views");
     for entry in std::fs::read_dir(&dir).unwrap().flatten() {

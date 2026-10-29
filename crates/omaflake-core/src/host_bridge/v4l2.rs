@@ -14,7 +14,7 @@ use std::os::fd::RawFd;
 use std::time::Duration;
 
 use crate::host_bridge::camera::FrameSource;
-use crate::host_bridge::convert::{to_nv12, Picture, PixelFormat, HEIGHT, WIDTH};
+use crate::host_bridge::convert::{HEIGHT, Picture, PixelFormat, WIDTH, to_nv12};
 
 const BUF_TYPE_VIDEO_CAPTURE: u32 = 1;
 const MEMORY_MMAP: u32 = 1;

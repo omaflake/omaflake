@@ -21,9 +21,9 @@ use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use serde::{Deserialize, Serialize};
 
-use crate::error::{codes, IoContext, Result};
+use crate::error::{IoContext, Result, codes};
 use crate::file_format::{FileFormat, Step};
-use crate::ipsw_downloader::{free_space, gigabytes, IpswDownloader, KeepAwake, MacOsRelease};
+use crate::ipsw_downloader::{IpswDownloader, KeepAwake, MacOsRelease, free_space, gigabytes};
 use crate::mac_image_builder::BuildVm;
 use crate::mac_vm::{DhcpLeases, MacVmBundle, RunnerClient};
 use crate::paths::Paths;
@@ -189,24 +189,24 @@ impl MacBaseInstaller {
         let received =
             fs::metadata(IpswDownloader::resume_file_for(release, &self.paths.ipsw())).map(|m| m.len() as i64);
         let needed = (release.bytes.unwrap_or(27_000_000_000) - received.unwrap_or(0)).max(0) + reserve;
-        if let Some(free) = free_space(&self.paths.root) {
-            if free < needed {
-                return Err(if reserve >= Prerequisites::MAC_SPACE_NEEDED {
-                    vm_err!(
-                        codes::PREREQUISITE,
-                        "Not enough space: {} free, about {} needed (IPSW, installation, image)",
-                        gigabytes(free),
-                        gigabytes(needed)
-                    )
-                } else {
-                    vm_err!(
-                        codes::PREREQUISITE,
-                        "Not enough space for the download: {} free, about {} needed",
-                        gigabytes(free),
-                        gigabytes(needed)
-                    )
-                });
-            }
+        if let Some(free) = free_space(&self.paths.root)
+            && free < needed
+        {
+            return Err(if reserve >= Prerequisites::MAC_SPACE_NEEDED {
+                vm_err!(
+                    codes::PREREQUISITE,
+                    "Not enough space: {} free, about {} needed (IPSW, installation, image)",
+                    gigabytes(free),
+                    gigabytes(needed)
+                )
+            } else {
+                vm_err!(
+                    codes::PREREQUISITE,
+                    "Not enough space for the download: {} free, about {} needed",
+                    gigabytes(free),
+                    gigabytes(needed)
+                )
+            });
         }
         let downloader = IpswDownloader::new(release.clone(), &self.paths.ipsw());
         started(&downloader);
@@ -215,10 +215,10 @@ impl MacBaseInstaller {
         KeepAwake::during("Downloading macOS", || {
             downloader.run(&|done, total| {
                 progress(done, total);
-                if total > 0 {
-                    if let Some(pct) = last.next(done * 100 / total) {
-                        log(&format!("Download: {pct} %"));
-                    }
+                if total > 0
+                    && let Some(pct) = last.next(done * 100 / total)
+                {
+                    log(&format!("Download: {pct} %"));
                 }
             })
         })
@@ -433,10 +433,10 @@ impl MacBaseInstaller {
                 .spawn()
                 .map_err(|e| vm_err!("Cannot run {}: {}", self.vz.runner, crate::error::os_text(&e)))?;
             // Dropping stdin (after the password) closes it
-            if let Some(mut stdin) = child.stdin.take() {
-                if provisioning {
-                    let _ = stdin.write_all(format!("{password}\n").as_bytes());
-                }
+            if let Some(mut stdin) = child.stdin.take()
+                && provisioning
+            {
+                let _ = stdin.write_all(format!("{password}\n").as_bytes());
             }
             Ok(child)
         };
@@ -457,10 +457,10 @@ impl MacBaseInstaller {
                 if !matches!(p.try_wait(), Ok(None)) {
                     return Err(vm_err!("omaf-runner exited:\n{}", tail(&log_file, 3)));
                 }
-                if let Some(a) = DhcpLeases::ip(&mac) {
-                    if Ports::ssh_banner(&a, 22, sockets::DEFAULT_TIMEOUT).is_some() {
-                        return Ok(Some(a));
-                    }
+                if let Some(a) = DhcpLeases::ip(&mac)
+                    && Ports::ssh_banner(&a, 22, sockets::DEFAULT_TIMEOUT).is_some()
+                {
+                    return Ok(Some(a));
                 }
                 std::thread::sleep(Duration::from_secs(3));
             }
@@ -761,9 +761,9 @@ mod tests {
 
     #[test]
     fn public_keys_are_ssh_keys() {
-        assert!(MacBaseInstaller::default_public_keys()
-            .iter()
-            .all(|k| k.starts_with("ssh-") || k.starts_with("ecdsa-")));
+        assert!(
+            MacBaseInstaller::default_public_keys().iter().all(|k| k.starts_with("ssh-") || k.starts_with("ecdsa-"))
+        );
     }
 
     #[test]

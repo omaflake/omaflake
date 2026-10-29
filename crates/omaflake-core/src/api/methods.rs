@@ -9,13 +9,13 @@ use std::sync::atomic::Ordering;
 use std::time::Duration;
 
 use serde::Deserialize;
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 
 use super::events::Topic;
 use super::jobs::{JobCtx, JobSpec};
 use super::model::{self, catalog_dto, source_dto};
-use super::protocol::{params, params_map, RpcError};
-use super::server::{lock, Answer, Reply, Server};
+use super::protocol::{RpcError, params, params_map};
+use super::server::{Answer, Reply, Server, lock};
 use super::types::*;
 use crate::backend::{Readiness, StartOptions};
 use crate::build_progress::BuildLog;
@@ -23,7 +23,7 @@ use crate::builder_maintenance::{AdminShell, BuilderMaintenance, NixVolume};
 use crate::cli_link::CliLink;
 use crate::credentials::{CredentialChange, Credentials};
 use crate::data_folder::DataFolder;
-use crate::error::{codes, Error};
+use crate::error::{Error, codes};
 use crate::guest_choices::GuestChoices;
 use crate::guest_settings::{BuildChoice, GuestSettings};
 use crate::image_store::ImageStore;
@@ -36,7 +36,7 @@ use crate::packages::{Package, PackageKind};
 use crate::paths::{Paths, Settings};
 use crate::platform::{self, Platform};
 use crate::prerequisites::{PrerequisiteStatus, Prerequisites};
-use crate::qemu_runtime::{tail, InstanceLock, QemuRuntime};
+use crate::qemu_runtime::{InstanceLock, QemuRuntime, tail};
 use crate::recipe_sources::{RecipeLibrary, RecipeSource, SourceClient, SourceTokens};
 use crate::transfer::{Conflict, Transfer};
 use crate::update_check::UpdateCheck;
@@ -382,12 +382,12 @@ impl Server {
     // MARK: Session
 
     fn initialize(&self, p: InitializeParams) -> Reply {
-        if let Some(v) = p.api_version {
-            if v != API_VERSION {
-                return Err(RpcError::invalid_params(format!(
-                    "API version {v} is not served – this omaf speaks version {API_VERSION}"
-                )));
-            }
+        if let Some(v) = p.api_version
+            && v != API_VERSION
+        {
+            return Err(RpcError::invalid_params(format!(
+                "API version {v} is not served – this omaf speaks version {API_VERSION}"
+            )));
         }
         {
             let mut s = lock(&self.conn.session);
@@ -531,10 +531,10 @@ impl Server {
         }
         // This computer's keyboard (plan B141): the physical one, preset for new locales; null: as the system says
         if let Some(v) = text("hostKeyboard")? {
-            if let Some(k) = &v {
-                if !GuestChoices::KEYBOARDS.iter().any(|(code, _)| code == k) {
-                    return Err(RpcError::invalid_params(format!("hostKeyboard: no keyboard \"{k}\"")));
-                }
+            if let Some(k) = &v
+                && !GuestChoices::KEYBOARDS.iter().any(|(code, _)| code == k)
+            {
+                return Err(RpcError::invalid_params(format!("hostKeyboard: no keyboard \"{k}\"")));
             }
             s.host_keyboard = v;
         }
@@ -647,11 +647,12 @@ impl Server {
         let settings = recipe_defaults(&p.settings);
         let kind = settings.kind;
         let mut start = p.start;
-        if start && kind == GuestKind::Macos {
-            if let Some(reason) = self.mac_limit()? {
-                self.events().warning(format!("{}: {reason}", p.name));
-                start = false;
-            }
+        if start
+            && kind == GuestKind::Macos
+            && let Some(reason) = self.mac_limit()?
+        {
+            self.events().warning(format!("{}: {reason}", p.name));
+            start = false;
         }
         let gl = kind == GuestKind::Nixos && self.qemu_gl();
         // No lock yet: the instance folder (and its lock file) is created by `create`
@@ -662,11 +663,11 @@ impl Server {
                 return Err(vm_err!("{} is a {} image, the settings are for {}", image.name, image.kind(), kind));
             }
             let mut c = backend.create(&p.name, image.recipe(), &image, &settings)?;
-            if settings.share {
-                if let Some(share) = &p.share_path {
-                    c.share_path = Some(share.clone());
-                    backends.store.save(&c)?;
-                }
+            if settings.share
+                && let Some(share) = &p.share_path
+            {
+                c.share_path = Some(share.clone());
+                backends.store.save(&c)?;
             }
             if start {
                 let _lock = InstanceLock::new(&paths.instance(&p.name))?;
@@ -698,14 +699,14 @@ impl Server {
                 )));
             }
         }
-        if let Some(d) = lock(&self.inner.doctor).as_ref() {
-            if let Some(b) = model::start_blockers(kind, &d.prerequisites).first() {
-                return Err(RpcError::from(crate::vm_err!(
-                    codes::PREREQUISITE,
-                    "{} is missing – see the Doctor",
-                    model::requirement_title(b.item)
-                )));
-            }
+        if let Some(d) = lock(&self.inner.doctor).as_ref()
+            && let Some(b) = model::start_blockers(kind, &d.prerequisites).first()
+        {
+            return Err(RpcError::from(crate::vm_err!(
+                codes::PREREQUISITE,
+                "{} is missing – see the Doctor",
+                model::requirement_title(b.item)
+            )));
         }
         let display = match p.display.as_deref() {
             None | Some("auto") => None,
@@ -713,7 +714,7 @@ impl Server {
             Some("window") => Some(DisplayMode::Window),
             Some("gpu") => Some(DisplayMode::Gpu),
             Some(other) => {
-                return Err(RpcError::invalid_params(format!("display \"{other}\": auto, none, window or gpu")))
+                return Err(RpcError::invalid_params(format!("display \"{other}\": auto, none, window or gpu")));
             }
         };
         let gl = match p.gl.as_deref() {
@@ -750,11 +751,7 @@ impl Server {
             if backend.status(&c) != VmStatus::Stopped {
                 return Err(vm_err!(codes::VM_RUNNING, "running – stop it first"));
             }
-            if remove {
-                backend.remove(&c)
-            } else {
-                backend.reset(&c)
-            }
+            if remove { backend.remove(&c) } else { backend.reset(&c) }
         })?;
         self.check_doctor_later();
         Ok(Answer::Value(Value::Null))
@@ -779,7 +776,7 @@ impl Server {
                         return Err(RpcError::from(crate::vm_err!(
                             "{} uses the newest image of its recipe already",
                             p.name
-                        )))
+                        )));
                     }
                 }
             }

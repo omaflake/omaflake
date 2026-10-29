@@ -3,13 +3,13 @@
 //! server in this process when the service cannot be reached. Both answer the same methods; their events come
 //! through one channel.
 
-use std::sync::mpsc::{self, Receiver, Sender};
 use std::sync::Arc;
+use std::sync::mpsc::{self, Receiver, Sender};
 use std::time::Duration;
 
 use omaflake_core::api::client::Client;
 use omaflake_core::api::{RpcError, Server};
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 
 /// A refused or failed request: the core's message – in the TUI's language when it has a key (`data.text`) – and its
 /// stable kind (api.md §3)
@@ -81,10 +81,10 @@ pub fn from_client(client: Client, via: &str) -> Connection {
     let reader = client.clone();
     std::thread::spawn(move || {
         while reader.is_open() {
-            if let Some(event) = reader.next_event(Duration::from_millis(500)) {
-                if tx.send(event).is_err() {
-                    return;
-                }
+            if let Some(event) = reader.next_event(Duration::from_millis(500))
+                && tx.send(event).is_err()
+            {
+                return;
             }
         }
     });

@@ -5,10 +5,10 @@
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 
-use super::common::*;
-use super::text::{tf, Text};
-use super::vms::{kind_badge, recipe_name};
 use super::Ctx;
+use super::common::*;
+use super::text::{Text, tf};
+use super::vms::{kind_badge, recipe_name};
 use crate::api::types::{BuildResult, JobDto, JobProgress, JobState};
 use crate::models::GuestKind;
 

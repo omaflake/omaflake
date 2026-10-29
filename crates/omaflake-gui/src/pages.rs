@@ -5,7 +5,7 @@
 
 use std::fmt;
 
-use iced::widget::{button, column, container, pick_list, progress_bar, row, space, text, text_input, toggler, Column};
+use iced::widget::{Column, button, column, container, pick_list, progress_bar, row, space, text, text_input, toggler};
 use iced::{Alignment, Color, Length};
 use omaflake_core::api::views::activity::ActivityPage;
 use omaflake_core::api::views::build::{BuildPage, LogRef, Outcome};
@@ -23,15 +23,15 @@ use omaflake_core::api::views::settings::{SettingsPage, SettingsSection, Sources
 use omaflake_core::api::views::vms::{VmRowView, VmsPage};
 use omaflake_core::api::views::{PageRef, Text};
 use omaflake_core::prerequisites::PrerequisiteStatus;
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 
 use crate::app::{App, Message, Model};
 use crate::icons::icon;
 use crate::style::{self, spacing, text_size};
-use crate::text::{date_time, duration, s, tr, trf, I18nArg};
+use crate::text::{I18nArg, date_time, duration, s, tr, trf};
 use crate::widgets::{
-    self, action_button, action_icon, badge, caption, chip, detail_box, divider, expandable, hint, info_line, kind,
-    lamp, primary_button, secondary, section_title, wrap, El,
+    self, El, action_button, action_icon, badge, caption, chip, detail_box, divider, expandable, hint, info_line, kind,
+    lamp, primary_button, secondary, section_title, wrap,
 };
 
 /// While a page's model has not come yet
@@ -386,11 +386,12 @@ fn job_row<'a>(app: &'a App, j: &'a BuildJobRow) -> El<'a> {
     } else {
         icon(state, text_size::CALLOUT, color).into()
     };
-    let mut info =
-        column![row![text(j.name.clone()).size(text_size::BODY).font(style::medium()), secondary(s(&j.title))]
+    let mut info = column![
+        row![text(j.name.clone()).size(text_size::BODY).font(style::medium()), secondary(s(&j.title))]
             .spacing(spacing::M)
-            .align_y(Alignment::Center)]
-        .spacing(spacing::XS);
+            .align_y(Alignment::Center)
+    ]
+    .spacing(spacing::XS);
     if let Some(f) = j.fraction {
         let mut line = row![progress_bar(0.0..=1.0, f as f32).girth(4).style(style::progress(style::ACCENT))]
             .spacing(spacing::L)
@@ -848,11 +849,7 @@ fn page_actions<'a>(app: &'a App, page: &str, actions: &'a [Action]) -> El<'a> {
 
 /// An action as a button: the primary one filled, the others framed
 fn button_of<'a>(a: &Action, form: Option<&str>, pulse: bool) -> El<'a> {
-    if a.primary {
-        primary_button(a, form, pulse)
-    } else {
-        action_button(a, form, pulse)
-    }
+    if a.primary { primary_button(a, form, pulse) } else { action_button(a, form, pulse) }
 }
 
 /// The Credentials page (plan B137): what they are, a card with one line per credential and its actions, "New
@@ -1079,12 +1076,14 @@ fn studio<'a>(app: &'a App, page: &str, st: &'a RecipeStudioPage) -> El<'a> {
         keymaps = keymaps.push(secondary(s(e)));
     }
     for r in &km.rows {
-        let mut line = row![column![
-            text(r.title.clone()).size(text_size::CALLOUT).font(style::semibold()),
-            caption(s(&r.subtitle)).color(style::SECONDARY)
+        let mut line = row![
+            column![
+                text(r.title.clone()).size(text_size::CALLOUT).font(style::semibold()),
+                caption(s(&r.subtitle)).color(style::SECONDARY)
+            ]
+            .spacing(spacing::XXS)
+            .width(Length::Fill),
         ]
-        .spacing(spacing::XXS)
-        .width(Length::Fill),]
         .spacing(spacing::S)
         .align_y(Alignment::Center);
         for (icon_name, a) in [("up", &r.up), ("chevron-down", &r.down)] {
@@ -1345,16 +1344,16 @@ fn key_editor<'a>(app: &'a App, page: &str, e: &'a omaflake_core::api::views::ke
             now = now.push(caption(tr("or")).color(style::tertiary()));
         }
         now = now.push(widgets::key_caps(k));
-        if e.caps.len() > 1 {
-            if let Some(r) = e.remove.get(i) {
-                now = now.push(widgets::icon_button(
-                    "minus",
-                    s(&r.label),
-                    widgets::message_of(r, None),
-                    style::SECONDARY,
-                    false,
-                ));
-            }
+        if e.caps.len() > 1
+            && let Some(r) = e.remove.get(i)
+        {
+            now = now.push(widgets::icon_button(
+                "minus",
+                s(&r.label),
+                widgets::message_of(r, None),
+                style::SECONDARY,
+                false,
+            ));
         }
     }
     let own = row![caption(tr("The module's own:")).color(style::SECONDARY), widgets::key_alternatives(&e.own_caps)]
@@ -1559,12 +1558,14 @@ fn log_section<'a>(app: &'a App, l: &'a LogRef) -> El<'a> {
 
 fn outcome<'a>(app: &'a App, o: &'a Outcome) -> El<'a> {
     let color = style::tone(o.tone);
-    let mut c = column![row![
-        icon(&o.icon, text_size::HEADLINE, color),
-        text(s(&o.title)).size(text_size::HEADLINE).font(style::bold())
+    let mut c = column![
+        row![
+            icon(&o.icon, text_size::HEADLINE, color),
+            text(s(&o.title)).size(text_size::HEADLINE).font(style::bold())
+        ]
+        .spacing(spacing::L)
+        .align_y(Alignment::Center)
     ]
-    .spacing(spacing::L)
-    .align_y(Alignment::Center)]
     .spacing(spacing::M);
     if let Some(d) = &o.detail {
         c = c.push(caption(s(d)).color(style::SECONDARY));
@@ -1706,10 +1707,10 @@ fn mac_base<'a>(app: &'a App, page: &str, m: &'a MacBasePage) -> El<'a> {
     if let Some(h) = &m.base {
         c = c.push(container(hint(h, app.pulse)).width(Length::Fill).style(style::card));
     }
-    let mut ipsw =
-        column![row![container(secondary(s(&m.ipsw.label))).width(Length::Fill), caption(s(&m.ipsw.text)),]
-            .spacing(spacing::L)]
-        .spacing(spacing::M);
+    let mut ipsw = column![
+        row![container(secondary(s(&m.ipsw.label))).width(Length::Fill), caption(s(&m.ipsw.text)),].spacing(spacing::L)
+    ]
+    .spacing(spacing::M);
     if let Some(d) = &m.ipsw.download {
         ipsw = ipsw.push(download(d));
     }

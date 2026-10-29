@@ -15,7 +15,7 @@ use serde_json::Value;
 
 use super::events::Notify;
 use super::protocol;
-use super::server::{lock, Server};
+use super::server::{Server, lock};
 use crate::paths::Paths;
 
 /// How long the end waits for requests still running (their answers go out if they make it)

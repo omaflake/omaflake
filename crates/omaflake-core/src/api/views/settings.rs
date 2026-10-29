@@ -4,11 +4,11 @@
 //! at login, the UI's language) stays in that UI.
 
 use serde::{Deserialize, Serialize};
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 
-use super::common::*;
-use super::text::{tf, Arg, Text};
 use super::Ctx;
+use super::common::*;
+use super::text::{Arg, Text, tf};
 use crate::api::types::{SettingsAnswer, SourceDto};
 use crate::recipe_sources::RecipeSourceKind;
 

@@ -14,14 +14,14 @@ use omaflake_core::guest_choices::GuestChoices;
 use omaflake_core::platform::is_executable_file;
 use omaflake_core::qemu_command::Accel;
 use omaflake_core::{
-    json, AgentState, DataFolder, DisplayMode, Error, GlBackend, GuestKind, GuestSettings, InstanceConfig,
-    InstanceLock, Lengths, MacOsRelease, NetworkMode, OmaflakeId, Paths, Prerequisite, PrerequisiteStatus,
-    Prerequisites, RecipeId, RecipeLibrary, StartOptions, VmBackend, VmStatus,
+    AgentState, DataFolder, DisplayMode, Error, GlBackend, GuestKind, GuestSettings, InstanceConfig, InstanceLock,
+    Lengths, MacOsRelease, NetworkMode, OmaflakeId, Paths, Prerequisite, PrerequisiteStatus, Prerequisites, RecipeId,
+    RecipeLibrary, StartOptions, VmBackend, VmStatus, json,
 };
 
 use crate::cli;
 use crate::util::{
-    choose_recipe, folder_path, gib, local_date, pad, resolve_image, sudo, usage, Env, Failure, Outcome,
+    Env, Failure, Outcome, choose_recipe, folder_path, gib, local_date, pad, resolve_image, sudo, usage,
 };
 
 fn running(name: &str) -> Error {
@@ -939,10 +939,6 @@ mod tests {
     }
 
     fn older_note(state: &AgentState) -> &'static str {
-        if state.agent_is_older() {
-            " (older than this omaflake – rebuild the image)"
-        } else {
-            ""
-        }
+        if state.agent_is_older() { " (older than this omaflake – rebuild the image)" } else { "" }
     }
 }

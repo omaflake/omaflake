@@ -3,7 +3,7 @@
 //! errors. Nothing here knows about omaflake – the dispatcher (server.rs) does.
 
 use serde::de::DeserializeOwned;
-use serde_json::{json, Map, Value};
+use serde_json::{Map, Value, json};
 
 use crate::error::codes;
 

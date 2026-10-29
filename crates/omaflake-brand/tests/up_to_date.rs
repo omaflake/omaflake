@@ -2,7 +2,7 @@
 //! The generated `src/tokens.rs` matches `brand/tokens.toml`: every token there is in [`ALL`] with the same value,
 //! and nothing else is. Fails after a token change without `python3 brand/tokens.py`.
 
-use omaflake_brand::{Token, Weight, ALL};
+use omaflake_brand::{ALL, Token, Weight};
 use std::collections::BTreeMap;
 use toml::{Table, Value};
 

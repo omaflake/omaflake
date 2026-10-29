@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
 # Release on a version tag (v0.2.0 …): builds the app, signs it with the Developer ID and notarizes it when the
 # secrets exist, and drafts a GitHub release with the zip and its SHA-256 (plan B67, spec §11.4/§11.8).
 # Secrets (M12): DEVELOPER_ID_P12 (base64), DEVELOPER_ID_P12_PASSWORD, SIGN_IDENTITY ("Developer ID Application: …"),
@@ -19,7 +20,7 @@ jobs:
       HAS_CERT: ${{ secrets.DEVELOPER_ID_P12 != '' }}
       HAS_NOTARY: ${{ secrets.NOTARY_KEY_P8 != '' }}
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Xcode – the image's default; the macOS 27 SDK is needed (Package.swift)
         run: |
           xcodebuild -version
@@ -49,7 +50,8 @@ jobs:
           security set-key-partition-list -S apple-tool:,apple: -s -k "$pw" "$kc"
           security list-keychains -d user -s "$kc"
       # The bundle carries the Rust `omaf` (scripts/bundle-app.sh: cargo build --release -p omaf)
-      - uses: dtolnay/rust-toolchain@stable
+      - name: Rust toolchain from rust-toolchain.toml
+        run: rustup toolchain install
       - name: Build and sign
         env:
           SIGN_IDENTITY: ${{ secrets.SIGN_IDENTITY }}
