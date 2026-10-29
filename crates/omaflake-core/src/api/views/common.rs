@@ -848,6 +848,42 @@ pub fn install_all<'a>(
     })
 }
 
+/// "Update All": every update of the tab ({id, source} each, on every page), as one call of `method` (its install-all)
+pub fn update_all(method: &str, items: Vec<serde_json::Value>, busy: bool) -> Option<Action> {
+    (!items.is_empty()).then(|| {
+        Action::call("updateAll", Text::new("Update All"), Some("download"), method, json!({"items": items}))
+            .help(tf!("Update all %lld", items.len()))
+            .enabled_if(!busy, None)
+    })
+}
+
+/// Parts here that cannot be read and no source offers anew; before the sources were looked into, a way to do it –
+/// one of them may have a version this omaflake reads
+pub fn unreadable_hints<'a>(
+    items: impl IntoIterator<Item = &'a (String, String)>,
+    fetched: bool,
+    refresh: &Action,
+) -> Vec<Hint> {
+    items
+        .into_iter()
+        .map(|(id, e)| {
+            let hint = Hint::new("warning", tf!("%@ cannot be read: %@", id, e), Tone::Warning);
+            if fetched {
+                hint
+            } else {
+                let mut look = refresh.clone();
+                look.label = Text::new("Look for an Update");
+                hint.action(look)
+            }
+        })
+        .collect()
+}
+
+/// The lamp of a part here that cannot be read: its source's version replaces it
+pub fn broken_lamp() -> Lamp {
+    Lamp::new(LampState::Attention, "Cannot be read – Update replaces it with its source's version")
+}
+
 /// "Nothing matches the filter." with a way back
 pub fn filtered_out(page: &str) -> Hint {
     Hint::new("filter", Text::new("Nothing matches the filter."), Tone::Normal).action(Action::call(

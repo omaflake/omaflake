@@ -42,6 +42,9 @@ fn badges(p: &PartDto) -> Vec<Badge> {
 
 fn info(p: &PartDto) -> Vec<InfoLine> {
     let mut info = vec![InfoLine::new("About", Text::verbatim(&p.description))];
+    if let Some(why) = &p.broken {
+        info.insert(0, InfoLine::new("Cannot be read", Text::verbatim(why)));
+    }
     if !p.provides.is_empty() {
         info.push(InfoLine::new("Provides", Text::verbatim(p.provides.join(", "))));
     }
@@ -127,6 +130,10 @@ fn row(p: &PartDto) -> LookRow {
         );
     }
     actions.push(remove);
+    // One that cannot be read can only be updated or removed
+    if p.broken.is_some() {
+        actions.retain(|a| a.id == "update" || a.id == "remove");
+    }
     let mut lines = info(p);
     lines.push(InfoLine::new(
         "Used by",
@@ -135,7 +142,9 @@ fn row(p: &PartDto) -> LookRow {
     LookRow {
         id: p.id.clone(),
         name: p.title.clone(),
-        lamp: if used == 0 {
+        lamp: if p.broken.is_some() {
+            broken_lamp()
+        } else if used == 0 {
             Lamp::new(LampState::Off, "No recipe here is made of it")
         } else {
             Lamp::new(LampState::On, "Recipes here are made of it")
@@ -246,6 +255,13 @@ fn tab(ctx: &Ctx, kind: &str, f: &FilterParams) -> LooksPage {
     let installing = ctx.active_job(crate::api::types::JobKind::ModuleInstall).is_some();
     let shown = offered.iter().map(|r| (r.actions.as_slice(), r.badges.iter().any(|b| b.id == "official")));
     head.actions.extend(install_all("modules.installAll", shown, installing));
+    let updates = a
+        .parts
+        .iter()
+        .filter(|p| p.kind == kind && p.update)
+        .map(|p| json!({"id": p.id, "source": p.source}))
+        .collect();
+    head.actions.extend(update_all("modules.installAll", updates, installing));
     if keymaps {
         head.actions.push(
             Action::show("new", Text::new("New Key Bindings …"), Some("add"), "keymapStudio", json!({}))
@@ -267,6 +283,12 @@ fn tab(ctx: &Ctx, kind: &str, f: &FilterParams) -> LooksPage {
         )
         })
     };
+    // Only this tab's: a key binding set's ids have ".keymap."
+    let unreadable = unreadable_hints(
+        a.unreadable.iter().filter(|(id, _)| id.contains(".keymap.") == keymaps),
+        a.fetched,
+        &head.actions[0],
+    );
     LooksPage {
         head,
         catalogs_loaded: a.fetched,
@@ -275,11 +297,7 @@ fn tab(ctx: &Ctx, kind: &str, f: &FilterParams) -> LooksPage {
         offered_title: (!offered.is_empty()).then(|| Text::new("In your sources")),
         rows,
         offered,
-        unreadable: a
-            .unreadable
-            .iter()
-            .map(|(id, e)| Hint::new("warning", tf!("%@ cannot be read: %@", id, e), Tone::Warning))
-            .collect(),
+        unreadable,
         footer: Text::new(if keymaps {
             "Key bindings give the modules' actions their keys – a recipe names one or two sets, a later one wins. Each module works without any: it has its own keys."
         } else {

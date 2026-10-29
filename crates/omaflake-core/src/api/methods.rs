@@ -1284,7 +1284,7 @@ impl Server {
         let paths = self.paths();
         let settings = Settings::load(&paths);
         let store = crate::looks::LookStore::new(paths.clone());
-        let (looks, unreadable) = store.list_with_errors(&settings);
+        let (looks, mut unreadable) = store.list_with_errors(&settings);
         let default = store.default_look(&settings).map(|l| l.id);
         let installed = store.installed();
         let sources = settings.recipe_sources();
@@ -1315,6 +1315,7 @@ impl Server {
                 installed: installed.contains_key(&l.id),
                 update: l.hash.is_some() && offered_hash(l).is_some_and(|h| Some(h) != l.hash),
                 is_default: default.as_deref() == Some(l.id.as_str()),
+                broken: None,
                 images: images
                     .iter()
                     .filter(|i| i.info.look.as_deref() == Some(l.id.as_str()))
@@ -1324,6 +1325,44 @@ impl Server {
                 id: l.id.clone(),
             })
             .collect();
+        let mut dtos = dtos;
+        // Installed but unreadable: an update when a source offers it (as for modules)
+        unreadable.retain(|(id, why)| {
+            if !installed.contains_key(id) {
+                return true;
+            }
+            for s in sources.iter().filter(|s| s.is_enabled()) {
+                let Some(l) = c.catalogs.get(&s.id()).and_then(|cat| cat.looks.iter().find(|l| &l.id == id)) else {
+                    continue;
+                };
+                dtos.push(LookDto {
+                    reference: format!("{}/{}", l.author, l.name),
+                    author: l.author.clone(),
+                    name: l.name.clone(),
+                    title: l.title.clone(),
+                    description: l.description_in(language).to_string(),
+                    tags: l.tags.clone().unwrap_or_default(),
+                    appearance: l.appearance.clone(),
+                    plain: l.plain,
+                    swatches: l.swatches.clone(),
+                    source_name: s.display_name(),
+                    official: l.author == "omaflake" && s.is_official(),
+                    installed: true,
+                    update: true,
+                    is_default: default.as_deref() == Some(l.id.as_str()),
+                    broken: Some(why.clone()),
+                    images: images
+                        .iter()
+                        .filter(|i| i.info.look.as_deref() == Some(l.id.as_str()))
+                        .map(|i| i.name.clone())
+                        .collect(),
+                    source: s.id(),
+                    id: l.id.clone(),
+                });
+                return false;
+            }
+            true
+        });
         let mut offered = Vec::new();
         for s in sources.iter().filter(|s| s.is_enabled()) {
             let Some(cat) = c.catalogs.get(&s.id()) else { continue };
@@ -1412,6 +1451,7 @@ impl Server {
                 official: official(&m.source, &m.author),
                 installed: installed_modules.contains_key(&m.id),
                 update: m.hash.is_some() && hash.is_some_and(|h| Some(h) != m.hash.as_ref()),
+                broken: None,
                 recipes: users("module", &m.reference(), Some(m.platform)),
             });
         }
@@ -1437,9 +1477,81 @@ impl Server {
                 official: official(&k.source, &k.author),
                 installed: installed_keymaps.contains_key(&k.id),
                 update: k.hash.is_some() && hash.is_some_and(|h| Some(h) != k.hash.as_ref()),
+                broken: None,
                 recipes: users("keymap", &k.reference(), None),
             });
         }
+        let offered_module = |m: &crate::modules::CatalogModule, s: &RecipeSource| PartDto {
+            id: m.id.clone(),
+            reference: m.reference(),
+            kind: "module".into(),
+            platform: Some(m.platform),
+            title: m.title.clone(),
+            description: m.description_in(language).to_string(),
+            version: m.version.clone(),
+            tags: m.tags.clone(),
+            provides: m.provides.clone(),
+            needs: m.needs.clone(),
+            enhances: m.enhances.clone(),
+            keys: BTreeMap::new(),
+            unfree: m.unfree,
+            source: s.id(),
+            source_name: s.display_name(),
+            official: m.author == "omaflake" && s.is_official(),
+            installed: false,
+            update: false,
+            broken: None,
+            recipes: vec![],
+        };
+        let offered_keymap = |k: &crate::keymaps::CatalogKeymap, s: &RecipeSource| PartDto {
+            id: k.id.clone(),
+            reference: format!("{}/{}", k.author, k.name),
+            kind: "keymap".into(),
+            platform: None,
+            title: k.title.clone(),
+            description: k.description_in(language).to_string(),
+            version: k.version.clone(),
+            tags: vec![],
+            provides: vec![],
+            needs: vec![],
+            enhances: vec![],
+            keys: keys_of(&k.keys),
+            unfree: false,
+            source: s.id(),
+            source_name: s.display_name(),
+            official: k.author == "omaflake" && s.is_official(),
+            installed: false,
+            update: false,
+            broken: None,
+            recipes: vec![],
+        };
+        // Installed but unreadable – an older format, say (a module v1 after 0.7.0): when a source offers it, it is
+        // here as an update – the source's entry, installing it replaces the old one – instead of only a warning
+        unreadable.retain(|(id, why)| {
+            if !installed_modules.contains_key(id) && !installed_keymaps.contains_key(id) {
+                return true;
+            }
+            for s in sources.iter().filter(|s| s.is_enabled()) {
+                let Some(cat) = c.catalogs.get(&s.id()) else { continue };
+                let mut part = if let Some(m) = cat.modules.iter().find(|m| &m.id == id) {
+                    let mut part = offered_module(m, s);
+                    part.recipes = users("module", &m.reference(), Some(m.platform));
+                    part
+                } else if let Some(k) = cat.keymaps.iter().find(|k| &k.id == id) {
+                    let mut part = offered_keymap(k, s);
+                    part.recipes = users("keymap", &part.reference, None);
+                    part
+                } else {
+                    continue;
+                };
+                part.installed = true;
+                part.update = true;
+                part.broken = Some(why.clone());
+                parts.push(part);
+                return false;
+            }
+            true
+        });
         let mut offered: Vec<PartDto> = Vec::new();
         for s in &sources {
             let Some(cat) = c.catalogs.get(&s.id()) else { continue };
@@ -1447,53 +1559,13 @@ impl Server {
                 if parts.iter().chain(offered.iter()).any(|p| p.id == m.id) {
                     continue;
                 }
-                offered.push(PartDto {
-                    id: m.id.clone(),
-                    reference: m.reference(),
-                    kind: "module".into(),
-                    platform: Some(m.platform),
-                    title: m.title.clone(),
-                    description: m.description_in(language).to_string(),
-                    version: m.version.clone(),
-                    tags: m.tags.clone(),
-                    provides: m.provides.clone(),
-                    needs: m.needs.clone(),
-                    enhances: m.enhances.clone(),
-                    keys: BTreeMap::new(),
-                    unfree: m.unfree,
-                    source: s.id(),
-                    source_name: s.display_name(),
-                    official: m.author == "omaflake" && s.is_official(),
-                    installed: false,
-                    update: false,
-                    recipes: vec![],
-                });
+                offered.push(offered_module(m, s));
             }
             for k in &cat.keymaps {
                 if parts.iter().chain(offered.iter()).any(|p| p.id == k.id) {
                     continue;
                 }
-                offered.push(PartDto {
-                    id: k.id.clone(),
-                    reference: format!("{}/{}", k.author, k.name),
-                    kind: "keymap".into(),
-                    platform: None,
-                    title: k.title.clone(),
-                    description: k.description_in(language).to_string(),
-                    version: k.version.clone(),
-                    tags: vec![],
-                    provides: vec![],
-                    needs: vec![],
-                    enhances: vec![],
-                    keys: keys_of(&k.keys),
-                    unfree: false,
-                    source: s.id(),
-                    source_name: s.display_name(),
-                    official: k.author == "omaflake" && s.is_official(),
-                    installed: false,
-                    update: false,
-                    recipes: vec![],
-                });
+                offered.push(offered_keymap(k, s));
             }
         }
         ModulesAnswer { parts, offered, unreadable, fetched: c.fetched }

@@ -47,6 +47,7 @@ pub(crate) fn looks_fixture() -> crate::api::types::LooksAnswer {
             installed,
             update: false,
             is_default: default,
+            broken: None,
             images,
         };
     LooksAnswer {
@@ -103,6 +104,7 @@ pub(crate) fn modules_fixture() -> crate::api::types::ModulesAnswer {
         official: true,
         installed: true,
         update: false,
+        broken: None,
         recipes: vec![],
     };
     crate::api::types::ModulesAnswer {
@@ -2055,4 +2057,45 @@ fn modules_tab_profiles_and_the_recipe_studio() {
     let none = get(&c, "recipeStudio", json!({"values": {"name": "x"}}));
     assert_eq!(action(&none["actions"], "save")["reason"]["key"], "Choose at least one module");
     assert_eq!(none["recipe"]["empty"]["key"], "Add modules from the catalog – a desktop, a terminal, an editor …");
+}
+
+/// A module here that cannot be read (an older format) but its source offers: a row with a warning lamp that only
+/// updates or goes, "Update All"; the warnings left are each tab's own, and before the sources were looked into they
+/// offer to look (plan B156)
+#[test]
+fn unreadable_parts_are_updates() {
+    let mut c = ctx();
+    let mut shell = c.modules.parts[0].clone();
+    shell.id = "omaflake.macos.shell".into();
+    shell.reference = "omaflake/shell".into();
+    shell.platform = Some(GuestKind::Macos);
+    shell.title = "Terminal tools".into();
+    shell.update = true;
+    shell.broken = Some("module.toml has version 1 – too old for this omaflake".into());
+    c.modules.parts.push(shell);
+    c.modules.unreadable = vec![
+        ("zoe.macos.old".into(), "module.toml has version 1".into()),
+        ("zoe.keymap.old".into(), "keymap.toml has version 1".into()),
+    ];
+    let page = get(&c, "modules", json!({}));
+    let row = page["rows"].as_array().unwrap().iter().find(|r| r["id"] == "omaflake.macos.shell").unwrap();
+    assert_eq!(row["lamp"]["state"], "attention");
+    let ids =
+        |v: &Value| v.as_array().unwrap().iter().map(|a| a["id"].as_str().unwrap().to_string()).collect::<Vec<_>>();
+    assert_eq!(ids(&row["actions"]), ["update"]);
+    assert_eq!(ids(&row["detail"]["actions"]), ["update", "remove"]);
+    assert_eq!(row["detail"]["info"][0]["value"]["text"], "module.toml has version 1 – too old for this omaflake");
+    let all = page["actions"].as_array().unwrap().iter().find(|a| a["id"] == "updateAll").unwrap();
+    let items = all["params"]["items"].as_array().unwrap();
+    assert!(items.iter().any(|i| i["id"] == "omaflake.macos.shell"));
+    // Each tab its own warnings
+    let warn = |p: &Value| p["unreadable"].as_array().unwrap().len();
+    assert_eq!(warn(&page), 1);
+    assert_eq!(warn(&get(&c, "keymaps", json!({}))), 1);
+    // Fetched: no way to look; not yet: "Look for an Update"
+    assert!(page["unreadable"][0]["action"].is_null());
+    c.modules.fetched = false;
+    let unfetched = get(&c, "modules", json!({}));
+    assert_eq!(unfetched["unreadable"][0]["action"]["method"], "modules.list");
+    assert_eq!(unfetched["unreadable"][0]["action"]["params"]["fetch"], true);
 }

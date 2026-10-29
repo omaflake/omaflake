@@ -128,7 +128,8 @@ fn row(l: &LookDto) -> LookRow {
         "lookStudio",
         json!({"id": l.id}),
     );
-    let mut actions = vec![make_default.clone(), studio.clone()];
+    // One that cannot be read can only be updated or removed
+    let mut actions = if l.broken.is_some() { vec![] } else { vec![make_default.clone(), studio.clone()] };
     if l.update {
         actions.push(
             Action::call(
@@ -159,7 +160,9 @@ fn row(l: &LookDto) -> LookRow {
     LookRow {
         id: l.id.clone(),
         name: l.title.clone(),
-        lamp: if used == 0 {
+        lamp: if l.broken.is_some() {
+            broken_lamp()
+        } else if used == 0 {
             Lamp::new(LampState::Off, "No image is built with this look")
         } else {
             Lamp::new(LampState::On, "Images are built with it")
@@ -167,7 +170,13 @@ fn row(l: &LookDto) -> LookRow {
         subtitle: Text::joined(vec![Text::verbatim(&l.reference), appearance(&l.appearance, l.plain), usage]),
         badges,
         swatches: Some(strip(&l.swatches)),
-        actions: if l.is_default { vec![studio] } else { vec![studio, make_default] },
+        actions: if l.broken.is_some() {
+            actions.iter().filter(|a| a.id == "update").cloned().collect()
+        } else if l.is_default {
+            vec![studio]
+        } else {
+            vec![studio, make_default]
+        },
         detail: LookDetail {
             info: vec![
                 InfoLine::new("About", Text::verbatim(&l.description)),
@@ -177,7 +186,10 @@ fn row(l: &LookDto) -> LookRow {
                     if used_by.is_empty() { Text::new("no image") } else { Text::verbatim(&used_by) },
                 )
                 .full(&used_by),
-            ],
+            ]
+            .into_iter()
+            .chain(l.broken.as_ref().map(|why| InfoLine::new("Cannot be read", Text::verbatim(why))))
+            .collect(),
             actions,
         },
     }
@@ -254,6 +266,8 @@ pub(crate) fn page(ctx: &Ctx, p: &super::recipes::RecipesParams) -> LooksPage {
     let installing = ctx.active_job(crate::api::types::JobKind::LookInstall).is_some();
     let shown = offered.iter().map(|r| (r.actions.as_slice(), r.badges.iter().any(|b| b.id == "official")));
     head.actions.extend(install_all("looks.installAll", shown, installing));
+    let updates = a.looks.iter().filter(|l| l.update).map(|l| json!({"id": l.id, "source": l.source})).collect();
+    head.actions.extend(update_all("looks.installAll", updates, installing));
     head.actions.push(
         Action::show("new", Text::new("New Look …"), Some("add"), "lookStudio", json!({}))
             .help(Text::new("A look of your own, in the look studio")),
@@ -279,6 +293,7 @@ pub(crate) fn page(ctx: &Ctx, p: &super::recipes::RecipesParams) -> LooksPage {
             )
         })
     };
+    let unreadable = unreadable_hints(&a.unreadable, a.fetched, &head.actions[0]);
     LooksPage {
         head,
         catalogs_loaded: a.fetched,
@@ -287,11 +302,7 @@ pub(crate) fn page(ctx: &Ctx, p: &super::recipes::RecipesParams) -> LooksPage {
         offered_title: (!offered.is_empty()).then(|| Text::new("In your sources")),
         rows,
         offered,
-        unreadable: a
-            .unreadable
-            .iter()
-            .map(|(id, e)| Hint::new("warning", tf!("%@ cannot be read: %@", id, e), Tone::Warning))
-            .collect(),
+        unreadable,
         footer: Text::new(
             "A look is how a guest looks – colours, the terminal's palette, the editors' theme, the desktop's borders. It is data, not code: omaflake's image flake turns it into each program's configuration. New images get the default look unless the build page chooses another; a changed look makes its images outdated.",
         ),

@@ -1333,6 +1333,21 @@ other), then fixed:
 - **OPEN:** the look studio cannot go back from a border gradient to one colour in the macOS app; the Nix clean-up's
   activity line is English in German too (as the builder's).
 
+**B156 (2026-10-29): modules, key bindings and looks too old to read can be updated.** After the update to 0.7.1 the
+maintainer's twelve macOS modules (1.0.0, module.toml v1 – installed before 0.7.0, whose catalog v5 has them as 1.0.1
+in v2) showed only "cannot be read: module.toml has version 1 – too old for this omaflake", on the Modules tab and,
+mixed in, on the Key Bindings tab; a part that cannot be read did not count as here, so neither its update nor
+"Install All" reached it (only Refresh, then Install on page 2 or 3). Now (`modules_answer`, `looks_answer`): a part
+in the data folder that cannot be read, which an enabled source's catalog has, is a row here – the catalog's entry,
+`update` set, `broken` (new in `PartDto` and `LookDto`) saying why – with a warning lamp, only Update and Remove, and
+"Cannot be read" in its details; the head has **Update All** (`modules.installAll` / `looks.installAll` with every
+update of the tab, on every page). What stays unreadable shows on its own tab only (a key binding set's id has
+`.keymap.`), and before the sources were looked into it offers "Look for an Update" (Refresh). The views still never
+fetch on their own. **Checked:** `unreadable_parts_are_updates`, the golden files, `cargo test`, `swift test`; a copy
+of the maintainer's data folder with a development `omaf serve`: after Refresh the twelve macOS modules were rows with
+"update", Update All installed all twelve (1.0.1), no warning left. Recipes: their own updates already were rows of the
+Recipes tab; recipe v1 is not read since 0.6.0 (unchanged). **OPEN:** clicked in the apps.
+
 **B155 (2026-10-28): a loading screen while a NixOS guest boots.** The window was black until Hyprland drew. The guest
 module (`nix/modules/vm-guest.nix`, option `vm.bootSplash.enable`, default on, every NixOS image) now shows Plymouth's
 `spinner` theme with omaflake's white mark (`nix/modules/omaflake-splash.png`, written by brand/generate.py; replaced

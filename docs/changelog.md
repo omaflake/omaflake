@@ -13,6 +13,12 @@ are collected under *Unreleased*. Releases: [GitHub](https://github.com/omaflake
 
 ## [Unreleased]
 
+### Fixed
+
+- Modules, key bindings and looks installed in a format this omaflake no longer reads (the macOS modules installed
+  before 0.7.0, say) can be updated: after Refresh they are rows with Update, and **Update All** updates every one at
+  once – instead of only a warning. The Key Bindings tab no longer shows the modules' warnings.
+
 ## [0.7.1] – 2026-10-29
 
 NixOS VMs no longer start in a black window: omaflake's loading screen shows from the window's first frame until the

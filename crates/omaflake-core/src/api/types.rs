@@ -775,6 +775,9 @@ pub struct LookDto {
     /// Its source offers a newer version
     pub update: bool,
     pub is_default: bool,
+    /// Installed but cannot be read (why); then the rest is its source's entry, and `update` replaces it
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub broken: Option<String>,
     /// The images built with it
     pub images: Vec<String>,
 }
@@ -813,6 +816,10 @@ pub struct PartDto {
     pub installed: bool,
     /// Its source offers a newer version
     pub update: bool,
+    /// Installed but cannot be read (why – an older format, say); then the rest is its source's entry, and `update`
+    /// replaces it
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub broken: Option<String>,
     /// The recipes here made of it (their names)
     pub recipes: Vec<String>,
 }

@@ -45,6 +45,31 @@
           }
         ]
       }
+    },
+    {
+      "enabled": true,
+      "help": {
+        "args": [
+          1
+        ],
+        "key": "Update all %lld",
+        "text": "Update all 1"
+      },
+      "icon": "download",
+      "id": "updateAll",
+      "label": {
+        "key": "Update All",
+        "text": "Update All"
+      },
+      "method": "modules.installAll",
+      "params": {
+        "items": [
+          {
+            "id": "omaflake.nixos.hyprland",
+            "source": "github:omaflake/recipes@main"
+          }
+        ]
+      }
     }
   ],
   "browse": {
