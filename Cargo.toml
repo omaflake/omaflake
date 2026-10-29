@@ -8,6 +8,14 @@ members = ["crates/omaflake-core", "crates/omaf", "crates/omaflake-brand", "crat
     "crates/omaflake-i18n", "crates/omaflake-macros"]
 exclude = ["nix/agent"]
 
+# Keep target/ small: line tables are enough for backtraces; dependencies get no debug info.
+# scripts/trim-target.sh removes what interrupted builds leave behind.
+[profile.dev]
+debug = "line-tables-only"
+
+[profile.dev.package."*"]
+debug = false
+
 [workspace.package]
 version = "0.7.2"
 edition = "2021"

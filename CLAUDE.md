@@ -69,7 +69,7 @@ Sources/OmaflakeKit/       Core/ + API/: client of `omaf serve` and the API's ty
 Sources/omaf-runner/       macOS guests on Virtualization.framework (needs entitlement)
 Sources/OmaflakeApp/       SwiftUI menu bar app – a client of `omaf serve`, presentation only
 App/                       Info.plist, runner entitlements
-scripts/                   bundle-app.sh, sign-runner.sh, bootprobe.sh
+scripts/                   bundle-app.sh, sign-runner.sh, bootprobe.sh, trim-target.sh (leftovers of interrupted builds)
 qemu/                      QEMU build with virglrenderer + ANGLE, patches
 nix/modules/vm-guest.nix   guest module (root flake output nixosModules.vm-guest)
 docs/                      spec, plan, cli, app, macos-base, linux-builder
