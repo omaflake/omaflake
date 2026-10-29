@@ -13,6 +13,11 @@ are collected under *Unreleased*. Releases: [GitHub](https://github.com/omaflake
 
 ## [Unreleased]
 
+## [0.7.2] – 2026-10-29
+
+Modules, key bindings and looks installed before 0.7.0 that this version can no longer read are updated from the app
+now: Refresh in their catalog tab, then **Update All**.
+
 ### Fixed
 
 - Modules, key bindings and looks installed in a format this omaflake no longer reads (the macOS modules installed

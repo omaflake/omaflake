@@ -503,6 +503,10 @@ for `omaf ui` and the Linux app and German error messages everywhere (B125), the
 for `omaf new -r` when its recipe line names another computer's folder; click tests of B119/B121 (macOS app, Linux app on a real desktop). Then M12 once the Developer ID
 is there.
 
+**Release 0.7.2 (2026-10-29):** B156 – modules, key binding sets and looks in the data folder that this omaflake cannot
+read (installed before 0.7.0) are rows with Update when a source offers them, and Update All updates every one; the
+Key Bindings tab shows only its own warnings. Unsigned, for the maintainer to try first – OPEN until then.
+
 **Release 0.7.1 (2026-10-29):** B155 – NixOS guests show omaflake's loading screen from the window's first frame (QEMU
 patches `qemu-virgl-2d-flush` and `qemu-cocoa-loading-image`, patchset 6; omaflake's own Plymouth theme;
 `plymouth.ignore-serial-consoles`), no wait in the firmware or the boot menu – the desktop at about 11 s instead of
