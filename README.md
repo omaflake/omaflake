@@ -131,6 +131,17 @@ Details: [docs/cli.md](docs/cli.md), [docs/macos-base.md](docs/macos-base.md).
 | [qemu/README.md](qemu/README.md) | QEMU build with virglrenderer |
 | [brand/README.md](brand/README.md) | design tokens and the copies of the artwork; the brand kit itself is [omaflake/brand](https://github.com/omaflake/brand) |
 
+## The name
+
+```
+OMAkase + FLAKE → omaflake
+```
+
+*Omakase* is Japanese for "I'll leave it to you": at a sushi bar, the chef chooses. Omarchy, the opinionated Arch
+Linux setup, took its name from it, and omaflake follows – a recipe chooses a whole system for you, ready to use. A
+*flake* is Nix's unit of reproducible code: it pins exactly what goes into a system, so the result is the same every
+time. Together: the chef's choice, reproducible.
+
 ## License
 
 omaflake is free software: you can redistribute it and/or modify it under the terms of the **GNU Affero General
