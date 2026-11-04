@@ -13,6 +13,28 @@ are collected under *Unreleased*. Releases: [GitHub](https://github.com/omaflake
 
 ## [Unreleased]
 
+### Added
+
+- `omaf new <name> --image <image>` creates a VM from that image. An image imported from another computer works this
+  way, and with `-r <its recipe's name>` too, when no recipe here has that name: the VM gets standard values.
+- The Doctor tells an omaflake QEMU from before 0.7.1 (without the loading screen) and offers **Update …**
+  (`nix profile upgrade qemu`).
+- The Modules and Key Bindings tabs find a module or key binding set whose files are not what was installed (changed
+  by hand, or mixed up by the parallel installs of 0.6.0) and mark it *changed*, with **Reinstall**; Update All
+  includes it.
+
+### Changed
+
+- The look studio's gradient of the active window's border is a switch: off goes back to one colour (the macOS app's
+  colour picker could not).
+- With `VM_FLAKE` set, `omaf build` builds in the terminal instead of in a running omaflake service, which would have
+  built with config.json's flake.
+
+### Fixed
+
+- `omaf ui`: the keys (`?`) scroll in a small terminal – arrows, j/k, Page Up/Down, Home and End.
+- The activity lines of the Nix Store and Linux builder clean-ups are translated (they were English in German too).
+
 ## [0.7.2] – 2026-10-29
 
 Modules, key bindings and looks installed before 0.7.0 that this version can no longer read are updated from the app

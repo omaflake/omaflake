@@ -467,7 +467,7 @@ mod tests {
     fn gpu_mode() {
         let mut cmd = QemuCommand::new("/fw.fd", ip(), None, DisplayMode::Gpu);
         cmd.gl = GlBackend::Es;
-        cmd.capabilities = QemuCapabilities { gl: true, guest_owner: false };
+        cmd.capabilities = QemuCapabilities { gl: true, guest_owner: false, loading_image: true };
         let a = cmd.arguments(&default_config());
         assert_eq!(values(&a, "-display"), ["cocoa,gl=es,zoom-to-fit=on"]);
         assert!(has(&a, "-device", "virtio-gpu-gl-pci,addr=0x5"));
@@ -477,7 +477,7 @@ mod tests {
     #[test]
     fn share_with_guest_owner_patch() {
         let mut cmd = QemuCommand::new("/fw.fd", ip(), Some("/vm/share/t1".into()), DisplayMode::None);
-        cmd.capabilities = QemuCapabilities { gl: true, guest_owner: true };
+        cmd.capabilities = QemuCapabilities { gl: true, guest_owner: true, loading_image: true };
         assert_eq!(
             values(&cmd.arguments(&default_config()), "-fsdev"),
             ["local,id=fs0,path=/vm/share/t1,security_model=none,guest_owner_uid=1000,guest_owner_gid=100"]
@@ -492,7 +492,7 @@ mod tests {
         let k = QemuCommand::initial_resolution_for((2560.0, 1440.0), 2.0);
         assert_eq!(k, (3840, 2160));
         let mut cmd = QemuCommand::new("/fw.fd", ip(), None, DisplayMode::Gpu);
-        cmd.capabilities = QemuCapabilities { gl: true, guest_owner: false };
+        cmd.capabilities = QemuCapabilities { gl: true, guest_owner: false, loading_image: true };
         cmd.initial_resolution = Some(k);
         assert!(has(&cmd.arguments(&default_config()), "-device", "virtio-gpu-gl-pci,xres=3840,yres=2160,addr=0x5"));
     }
@@ -633,7 +633,7 @@ mod tests {
         ];
         assert_eq!(headless, expected_head);
         let mut cmd = QemuCommand::new("/fw.fd", ip(), None, DisplayMode::Gpu);
-        cmd.capabilities = QemuCapabilities { gl: true, guest_owner: false };
+        cmd.capabilities = QemuCapabilities { gl: true, guest_owner: false, loading_image: true };
         let gpu = cmd.arguments(&default_config());
         let window: Vec<&str> = vec![
             "-device",
@@ -655,7 +655,7 @@ mod tests {
     fn linux(arch: Arch, accel: Accel, display: DisplayMode) -> QemuCommand {
         let mut cmd = QemuCommand::new("/fw.fd", ip(), Some("/vm/share/t1".into()), display);
         cmd.target = Target::linux(arch, accel, Some("pipewire"));
-        cmd.capabilities = QemuCapabilities { gl: true, guest_owner: false };
+        cmd.capabilities = QemuCapabilities { gl: true, guest_owner: false, loading_image: true };
         cmd
     }
 

@@ -220,6 +220,52 @@ impl PartStore {
         }))
     }
 
+    /// The content hash of a part's folder as the catalog computes it (tools/catalog.py `content_hash`): SHA-256 over
+    /// `<path>` NUL `<file's SHA-256, hex>` LF of every file, sorted by path component (Python's path order),
+    /// `.DS_Store` left out. None when the folder cannot be read.
+    pub fn folder_hash(folder: &Path) -> Option<String> {
+        use sha2::{Digest, Sha256};
+        fn walk(dir: &Path, rel: &str, out: &mut Vec<(String, PathBuf)>) -> std::io::Result<()> {
+            for e in fs::read_dir(dir)? {
+                let e = e?;
+                let name = e.file_name().to_string_lossy().into_owned();
+                let path = e.path();
+                let r = if rel.is_empty() { name.clone() } else { format!("{rel}/{name}") };
+                let t = e.file_type()?;
+                if t.is_dir() {
+                    walk(&path, &r, out)?;
+                } else if name != ".DS_Store" {
+                    out.push((r, path));
+                }
+            }
+            Ok(())
+        }
+        let mut files = Vec::new();
+        walk(folder, "", &mut files).ok()?;
+        files.sort_by(|a, b| a.0.split('/').cmp(b.0.split('/')));
+        let mut text = String::new();
+        for (rel, path) in files {
+            let data = fs::read(path).ok()?;
+            text.push_str(&format!("{rel}\0{}\n", hex::encode(Sha256::digest(&data))));
+        }
+        Some(hex::encode(Sha256::digest(text.as_bytes())))
+    }
+
+    /// The installed parts whose files are not what was installed any more – changed by hand, or mixed up by the
+    /// parallel installs of 0.6.0 (plan B143): their ids
+    pub fn changed(&self) -> std::collections::BTreeSet<String> {
+        self.installed()
+            .into_iter()
+            .filter(|(id, part)| {
+                self.folder(id)
+                    .filter(|f| f.is_dir())
+                    .and_then(|f| Self::folder_hash(&f))
+                    .is_some_and(|h| h != part.hash)
+            })
+            .map(|(id, _)| id)
+            .collect()
+    }
+
     /// The parts of this kind under a local source's folder: (id, folder)
     pub fn local_folders(&self, root: &Path) -> Vec<(String, PathBuf)> {
         let dirs = |u: &Path| -> Vec<String> {
@@ -533,6 +579,15 @@ mod tests {
             let theirs = fs::read(in_catalog.join("default.nix")).unwrap();
             assert_eq!(fs::read(folder.join("default.nix")).unwrap(), theirs, "{id} holds another module's files");
         }
+        // Each folder hashes to the catalog's hash (tools/catalog.py's formula); a changed file, an extra file or a
+        // missing one is found
+        assert!(modules.changed().is_empty(), "{:?}", modules.changed());
+        let mut ids = installed.keys();
+        let (a, b, c) = (ids.next().unwrap(), ids.next().unwrap(), ids.next().unwrap());
+        fs::write(modules.folder(a).unwrap().join("default.nix"), "{ }\n").unwrap();
+        fs::write(modules.folder(b).unwrap().join("extra.nix"), "{ }\n").unwrap();
+        fs::write(modules.folder(c).unwrap().join(".DS_Store"), "").unwrap();
+        assert_eq!(modules.changed().into_iter().collect::<Vec<_>>(), [a.clone(), b.clone()]);
     }
 
     #[test]

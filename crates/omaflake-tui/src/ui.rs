@@ -52,7 +52,7 @@ pub fn draw(f: &mut Frame, app: &mut App) {
     draw_footer(f, app, &page, footer);
     draw_status(f, app, status);
     if app.modal.is_some() {
-        draw_modal(f, app, &page, area);
+        app.help_max_top = draw_modal(f, app, &page, area);
     }
 }
 
@@ -251,14 +251,15 @@ fn centered(area: Rect, w: u16, h: u16) -> Rect {
     Rect { x: area.x + (area.width - w) / 2, y: area.y + (area.height - h) / 2, width: w, height: h }
 }
 
-fn draw_modal(f: &mut Frame, app: &App, page: &Page, area: Rect) {
+/// Returns how many lines the help may leave out at its top (0 for the other modals)
+fn draw_modal(f: &mut Frame, app: &App, page: &Page, area: Rect) -> usize {
     let th = app.theme;
     let ctx = app.ctx();
-    let Some(modal) = &app.modal else { return };
+    let Some(modal) = &app.modal else { return 0 };
     // The lines of the selected entry (first, last) – kept in view when the modal is taller than the terminal
     let mut focus = None;
     let (title, lines): (String, Vec<Line<'static>>) = match modal {
-        Modal::Help => (tr("Keys"), help_lines(app, page)),
+        Modal::Help { .. } => (tr("Keys"), help_lines(app, page)),
         Modal::Menu { actions, index } => {
             let mut lines = Vec::new();
             for (n, a) in actions.iter().enumerate() {
@@ -373,7 +374,15 @@ fn draw_modal(f: &mut Frame, app: &App, page: &Page, area: Rect) {
     let width = 72u16;
     let heights: Vec<u16> = lines.iter().map(|l| (l.width() as u16 / (width - 4)) + 1).collect();
     let r = centered(area, width, heights.iter().sum::<u16>() + 2);
-    let (skip, more_below) = modal_scroll(&heights, r.height.saturating_sub(2), focus);
+    let room = r.height.saturating_sub(2);
+    let mut help_max_top = 0;
+    let (skip, more_below) = if let Modal::Help { top } = modal {
+        help_max_top = max_top(&heights, room);
+        let skip = (*top).min(help_max_top);
+        (skip, heights[skip..].iter().sum::<u16>() > room)
+    } else {
+        modal_scroll(&heights, room, focus)
+    };
     f.render_widget(Clear, r);
     let mut block = Block::new()
         .borders(Borders::ALL)
@@ -391,6 +400,12 @@ fn draw_modal(f: &mut Frame, app: &App, page: &Page, area: Rect) {
     }
     let shown: Vec<Line<'static>> = lines.into_iter().skip(skip).collect();
     f.render_widget(Paragraph::new(shown).wrap(Wrap { trim: false }).block(block), r);
+    help_max_top
+}
+
+/// The fewest lines left out at the top so that the rest fits into `room` rows
+fn max_top(heights: &[u16], room: u16) -> usize {
+    (0..heights.len()).find(|&s| heights[s..].iter().sum::<u16>() <= room).unwrap_or(heights.len().saturating_sub(1))
 }
 
 /// The lines a modal leaves out at its top so that the `focus` lines (first, last) fit into `room` rows, and whether

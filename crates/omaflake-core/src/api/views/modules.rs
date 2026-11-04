@@ -26,7 +26,12 @@ fn badges(p: &PartDto) -> Vec<Badge> {
     if p.official {
         out.push(Badge::new("official", "official", Text::new("By omaflake, from its catalog"), Tone::Accent));
     }
-    if p.update {
+    if p.changed {
+        out.push(
+            Badge::new("changed", "warning", Text::new("Its files are not what was installed"), Tone::Warning)
+                .label(Text::new("changed")),
+        );
+    } else if p.update {
         out.push(
             Badge::new("update", "update", Text::new("Its source has a newer version"), Tone::Warning)
                 .label(Text::new("update")),
@@ -42,6 +47,15 @@ fn badges(p: &PartDto) -> Vec<Badge> {
 
 fn info(p: &PartDto) -> Vec<InfoLine> {
     let mut info = vec![InfoLine::new("About", Text::verbatim(&p.description))];
+    if p.changed {
+        info.insert(
+            0,
+            InfoLine::new(
+                "Changed",
+                Text::new("Its files differ from what was installed – changed by hand, or mixed up by an install"),
+            ),
+        );
+    }
     if let Some(why) = &p.broken {
         info.insert(0, InfoLine::new("Cannot be read", Text::verbatim(why)));
     }
@@ -74,12 +88,16 @@ fn row(p: &PartDto) -> LookRow {
         actions.push(
             Action::call(
                 "update",
-                Text::new("Update"),
+                Text::new(if p.changed { "Reinstall" } else { "Update" }),
                 Some("download"),
                 "modules.install",
                 json!({"id": p.id, "source": p.source}),
             )
-            .help(Text::new("Installs the newer version; images made with it are outdated then")),
+            .help(Text::new(if p.changed {
+                "Installs it again from its source, as the catalog has it"
+            } else {
+                "Installs the newer version; images made with it are outdated then"
+            })),
         );
     }
     let mut remove =

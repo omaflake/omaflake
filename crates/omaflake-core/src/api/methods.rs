@@ -1403,6 +1403,8 @@ impl Server {
         unreadable.extend(more);
         let installed_modules = crate::modules::ModuleStore::new(paths.clone()).installed();
         let installed_keymaps = crate::keymaps::KeymapStore::new(paths.clone()).installed();
+        let changed_modules = crate::parts::PartStore::new(paths.clone(), crate::parts::PartKind::Module).changed();
+        let changed_keymaps = crate::parts::PartStore::new(paths.clone(), crate::parts::PartKind::Keymap).changed();
         // The recipes here made of each (by their names), from what the recipe list read
         let recipes = self.recipes().unwrap_or_default();
         let users = |kind: &str, reference: &str, platform: Option<GuestKind>| -> Vec<String> {
@@ -1447,8 +1449,11 @@ impl Server {
                 source_name: source_name(&m.source),
                 official: official(&m.source, &m.author),
                 installed: installed_modules.contains_key(&m.id),
-                update: m.hash.is_some() && hash.is_some_and(|h| Some(h) != m.hash.as_ref()),
+                update: hash.is_some_and(|h| {
+                    changed_modules.contains(&m.id) || (m.hash.is_some() && Some(h) != m.hash.as_ref())
+                }),
                 broken: None,
+                changed: changed_modules.contains(&m.id),
                 recipes: users("module", &m.reference(), Some(m.platform)),
             });
         }
@@ -1473,8 +1478,11 @@ impl Server {
                 source_name: source_name(&k.source),
                 official: official(&k.source, &k.author),
                 installed: installed_keymaps.contains_key(&k.id),
-                update: k.hash.is_some() && hash.is_some_and(|h| Some(h) != k.hash.as_ref()),
+                update: hash.is_some_and(|h| {
+                    changed_keymaps.contains(&k.id) || (k.hash.is_some() && Some(h) != k.hash.as_ref())
+                }),
                 broken: None,
+                changed: changed_keymaps.contains(&k.id),
                 recipes: users("keymap", &k.reference(), None),
             });
         }
@@ -1498,6 +1506,7 @@ impl Server {
             installed: false,
             update: false,
             broken: None,
+            changed: false,
             recipes: vec![],
         };
         let offered_keymap = |k: &crate::keymaps::CatalogKeymap, s: &RecipeSource| PartDto {
@@ -1520,6 +1529,7 @@ impl Server {
             installed: false,
             update: false,
             broken: None,
+            changed: false,
             recipes: vec![],
         };
         // Installed but unreadable – an older format, say (a module v1 after 0.7.0): when a source offers it, it is

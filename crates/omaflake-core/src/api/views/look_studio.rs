@@ -297,6 +297,14 @@ pub(crate) fn page(ctx: &Ctx, p: &LookStudioParams) -> LookStudioPage {
     if border.is_empty() {
         border.push(colors[6].1.clone());
     }
+    // A gradient is a switch (a colour picker cannot choose "none" – the macOS app's could not go back to one colour):
+    // off keeps the first colour, on without a second starts from the urgent colour (omaflake's red–cyan)
+    let gradient = v.get("border.gradient").and_then(Value::as_bool).unwrap_or(border.len() > 1);
+    if !gradient {
+        border.truncate(1);
+    } else if border.len() == 1 {
+        border.push(colors[7].1.clone());
+    }
     let inactive = color(&["desktop", "inactive_border"], "inactive_border");
     let clock = color(&["desktop", "clock"], "clock");
     let prompt: Vec<(String, Option<String>)> = ["ok", "error", "directory"]
@@ -380,14 +388,21 @@ pub(crate) fn page(ctx: &Ctx, p: &LookStudioParams) -> LookStudioPage {
                 fields: {
                     let mut f = vec![
                         field("border.0", Text::new("Active window"), &border[0]),
-                        field(
-                            "border.1",
-                            Text::new("Active window, gradient to"),
-                            border.get(1).map(String::as_str).unwrap_or(&border[0]),
-                        ),
+                        Field::new(
+                            "border.gradient",
+                            FieldKind::Toggle,
+                            Text::new("Active window as a gradient"),
+                            json!(gradient),
+                        )
+                        .value_param("border.gradient"),
+                    ];
+                    if let Some(to) = border.get(1) {
+                        f.push(field("border.1", Text::new("Active window, gradient to"), to));
+                    }
+                    f.extend([
                         field("inactive_border", Text::new("Other windows"), &inactive),
                         field("clock", Text::new("Clock"), &clock),
-                    ];
+                    ]);
                     for (k, c) in &prompt {
                         let label = match k.as_str() {
                             "ok" => "Prompt – it worked",

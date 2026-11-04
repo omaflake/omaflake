@@ -135,6 +135,8 @@
 "Add “nix-command flakes” to experimental-features (nix-darwin: nix.settings.experimental-features)." = "„nix-command flakes“ zu experimental-features hinzufügen (nix-darwin: nix.settings.experimental-features).";
 "Set up nix-darwin – it provides the Linux builder for NixOS images." = "nix-darwin einrichten – es stellt den Linux-Builder für NixOS-Vorlagen bereit.";
 "Enable nix.linux-builder in your nix-darwin configuration (see the guide)." = "nix.linux-builder in deiner nix-darwin-Konfiguration aktivieren (siehe Anleitung).";
+"An older omaflake QEMU: NixOS VMs start without the loading screen – update it (builds QEMU, about ten minutes)." = "Ein älteres QEMU von omaflake: NixOS-VMs starten ohne Ladebildschirm – aktualisiere es (baut QEMU, etwa zehn Minuten).";
+"Update …" = "Aktualisieren …";
 "Works headless and in 2D – without 3D and without automatic window resolution; omaflake's QEMU adds both." = "Funktioniert ohne Fenster und in 2D – ohne 3D und ohne automatische Fensterauflösung; das QEMU von omaflake bringt beides.";
 "Needed for NixOS guests: install omaflake's QEMU, or enter a path." = "Für NixOS-Gäste nötig: das QEMU von omaflake installieren oder einen Pfad angeben.";
 "Choose the folder with your recipes (flake.nix)." = "Den Ordner mit deinen Rezepten (flake.nix) auswählen.";
@@ -1096,6 +1098,12 @@
 "each program's own colours" = "die eigenen Farben jedes Programms";
 "Its source has a newer version" = "Seine Quelle hat eine neuere Version";
 "update" = "Update";
+"Its files are not what was installed" = "Seine Dateien sind nicht mehr die installierten";
+"changed" = "geändert";
+"Reinstall" = "Neu installieren";
+"Installs it again from its source, as the catalog has it" = "Installiert es noch einmal aus seiner Quelle, so wie der Katalog es hat";
+"Changed" = "Geändert";
+"Its files differ from what was installed – changed by hand, or mixed up by an install" = "Seine Dateien weichen von den installierten ab – von Hand geändert oder bei einer Installation vertauscht";
 "Installs the newer version; images built with this look are outdated then" = "Installiert die neuere Version; mit diesem Look gebaute Vorlagen sind dann veraltet";
 "No look yet – images are built with one. Install omaflake's own and Catppuccin to start." = "Noch kein Look – Vorlagen werden mit einem gebaut. Installiere zum Start omaflakes eigenen und Catppuccin.";
 "Looking into the sources …" = "Schaue in die Quellen …";
@@ -1447,6 +1455,9 @@
 "Removes what nothing uses from the Nix Store (nix-collect-garbage)" = "Entfernt aus dem Nix Store, was nichts mehr braucht (nix-collect-garbage)";
 "Removes everything in the Nix Store that nothing uses any more – mostly what earlier builds left. Your images, VMs and Nix profiles stay. The next build may take longer, as parts are built or downloaded again." = "Entfernt alles aus dem Nix Store, was nichts mehr braucht – meist Reste früherer Builds. Deine Vorlagen, VMs und Nix-Profile bleiben. Der nächste Build kann länger dauern, weil Teile neu gebaut oder geladen werden.";
 "Nix Store cleaned up" = "Nix Store aufgeräumt";
+"Nix Store: %@ → %@" = "Nix Store: %1$@ → %2$@";
+"Nix Store: %@ freed" = "Nix Store: %@ freigegeben";
+"Linux builder: %@ → %@ free" = "Linux-Builder: %1$@ → %2$@ frei";
 "Nix Store: %@" = "Nix Store: %@";
 "Clean up the Nix Store" = "Nix Store aufräumen";
 "Workshop, Catalog and Profiles – everything in one window" = "Werkstatt, Katalog und Profile – alles in einem Fenster";
@@ -1500,6 +1511,7 @@
 "NixOS's desktop: the active window's border (one colour or a gradient of two), the others' border, the clock, the prompt." = "Der Desktop von NixOS: der Rahmen des aktiven Fensters (eine Farbe oder ein Verlauf aus zwei), der der anderen, die Uhr, der Prompt.";
 "Active window" = "Aktives Fenster";
 "Active window, gradient to" = "Aktives Fenster, Verlauf zu";
+"Active window as a gradient" = "Aktives Fenster als Verlauf";
 "Other windows" = "Andere Fenster";
 "Clock" = "Uhr";
 "Prompt – it worked" = "Prompt – hat geklappt";

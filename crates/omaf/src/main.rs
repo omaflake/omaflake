@@ -145,6 +145,15 @@ mod tests {
     }
 
     #[test]
+    fn new_from_an_image() {
+        let Cli { command: cli::Command::New(n) } = parse(&["new", "a", "--image", "research-1"]).unwrap() else {
+            panic!()
+        };
+        assert_eq!((n.image.as_deref(), n.recipe.as_deref()), (Some("research-1"), None));
+        assert!(parse(&["new", "a", "--image", "x", "-r", "dev"]).is_err(), "an image or a recipe, not both");
+    }
+
+    #[test]
     fn call_and_serve() {
         let Cli { command: cli::Command::Call(c) } = parse(&["call", "vm.list", "{}"]).unwrap() else { panic!() };
         assert_eq!((c.method.as_str(), c.params.as_deref()), ("vm.list", Some("{}")));

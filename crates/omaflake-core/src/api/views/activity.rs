@@ -94,6 +94,28 @@ fn name_of(id: &str) -> String {
     RecipeId::name_of_id(id)
 }
 
+/// A clean-up's message (`nix_clean_up_summary`, `cleanup_summary` – English, as a job's result keeps it) as a text
+/// the UIs translate: "Nix Store: 40 GB → 20 GB", "Nix Store: 12 store paths deleted, 1.5 GiB freed", "Linux builder:
+/// 40G → 52G free"; anything else as it is
+fn clean_up_text(message: Option<&str>, fallback: &'static str) -> Text {
+    let Some(m) = message.filter(|m| !m.is_empty()) else { return Text::new(fallback) };
+    if m == fallback {
+        return Text::new(fallback);
+    }
+    if let Some(rest) = m.strip_prefix("Nix Store: ") {
+        if let Some((a, b)) = rest.split_once(" → ") {
+            return tf!("Nix Store: %@ → %@", a, b);
+        }
+        if let Some(freed) = rest.split_once(", ").and_then(|(_, f)| f.strip_suffix(" freed")) {
+            return tf!("Nix Store: %@ freed", freed);
+        }
+    }
+    if let Some((a, b)) = m.strip_prefix("Linux builder: ").and_then(|r| r.strip_suffix(" free")?.split_once(" → ")) {
+        return tf!("Linux builder: %@ → %@ free", a, b);
+    }
+    Text::verbatim(m)
+}
+
 /// What a job that ended says (`AppModel.finished`) – the core sends no `message` for it (api.md §6)
 pub fn job_ended(job: &JobDto) -> Option<(Level, Text, Option<Notification>)> {
     let name = job.recipe.as_deref().map(name_of).unwrap_or_else(|| job.title.clone());
@@ -147,12 +169,12 @@ pub fn job_ended(job: &JobDto) -> Option<(Level, Text, Option<Notification>)> {
         }
         (K::NixCleanUp, S::Finished) => {
             let message = result(()).get("message").and_then(Value::as_str).map(str::to_string);
-            (Level::Info, message.map(Text::verbatim).unwrap_or_else(|| Text::new("Nix Store cleaned up")), None)
+            (Level::Info, clean_up_text(message.as_deref(), "Nix Store cleaned up"), None)
         }
         (K::NixCleanUp, S::Failed) => (Level::Error, tf!("Nix Store: %@", error), None),
         (K::BuilderCleanUp, S::Finished) => {
             let message = result(()).get("message").and_then(Value::as_str).map(str::to_string);
-            (Level::Info, message.map(Text::verbatim).unwrap_or_else(|| Text::new("Linux builder cleaned up")), None)
+            (Level::Info, clean_up_text(message.as_deref(), "Linux builder cleaned up"), None)
         }
         (K::CliInstall, S::Finished) => {
             let r = result(());
@@ -382,5 +404,28 @@ mod tests {
         assert!(list[0].id > list[1].id);
         log.clear();
         assert!(log.list().is_empty());
+    }
+
+    /// The clean-ups' messages are translatable texts, not English verbatim (plan B154)
+    #[test]
+    fn clean_up_messages_are_translated() {
+        use crate::api::methods::{cleanup_summary, nix_clean_up_summary};
+        let key = |t: Text| serde_json::to_value(t).unwrap();
+        let t = key(clean_up_text(Some(&nix_clean_up_summary("", Some(40_000_000_000), Some(20_000_000_000))), "x"));
+        assert_eq!(t["key"], "Nix Store: %@ → %@");
+        let t = key(clean_up_text(
+            Some(&nix_clean_up_summary("12 store paths deleted, 1.50 GiB freed\n", None, None)),
+            "Nix Store cleaned up",
+        ));
+        assert_eq!((t["key"].as_str(), &t["args"]), (Some("Nix Store: %@ freed"), &serde_json::json!(["1.50 GiB"])));
+        let t = key(clean_up_text(Some(&nix_clean_up_summary("", None, None)), "Nix Store cleaned up"));
+        assert_eq!(t["key"], "Nix Store cleaned up");
+        let df = "/dev/vda 100G 60G 40G 60% /\n/dev/vda 100G 48G 52G 48% /\n";
+        let t = key(clean_up_text(Some(&cleanup_summary(df)), "Linux builder cleaned up"));
+        assert_eq!(
+            (t["key"].as_str(), &t["args"]),
+            (Some("Linux builder: %@ → %@ free"), &serde_json::json!(["40G", "52G"]))
+        );
+        assert_eq!(key(clean_up_text(None, "Linux builder cleaned up"))["key"], "Linux builder cleaned up");
     }
 }

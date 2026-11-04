@@ -256,8 +256,14 @@ pub fn build(a: &cli::Build) -> Outcome {
         mac = Some((builder, base, user, login.password));
     }
     // With the core service running, the build is its job: the app and other clients see it, it waits in the same
-    // queue (plan B120); this command follows its log
-    if let Some((client, _)) = service::connect(&socket_path(&env.paths)) {
+    // queue (plan B120); this command follows its log. Not with VM_FLAKE: the service – started by the app or another
+    // terminal – does not have this terminal's environment and would build with config.json's flake
+    let mut service = service::connect(&socket_path(&env.paths));
+    if service.is_some() && std::env::var("VM_FLAKE").is_ok_and(|v| !v.is_empty()) {
+        eprintln!("VM_FLAKE is set: building here, not in the omaflake service (it builds with config.json's flake)");
+        service = None;
+    }
+    if let Some((client, _)) = service {
         // The service takes the base's credential itself
         let base = mac.as_ref().map(|(_, b, _, _)| b.to_string_lossy().into_owned());
         return build_in_service(&client, &env, &recipe, &choice, base, a);

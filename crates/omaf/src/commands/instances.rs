@@ -15,8 +15,8 @@ use omaflake_core::platform::is_executable_file;
 use omaflake_core::qemu_command::Accel;
 use omaflake_core::{
     AgentState, DataFolder, DisplayMode, Error, GlBackend, GuestKind, GuestSettings, InstanceConfig, InstanceLock,
-    Lengths, MacOsRelease, NetworkMode, OmaflakeId, Paths, Prerequisite, PrerequisiteStatus, Prerequisites, RecipeId,
-    RecipeLibrary, StartOptions, VmBackend, VmStatus, json,
+    Lengths, MacOsRelease, NetworkMode, OmaflakeId, Paths, Prerequisite, PrerequisiteStatus, Prerequisites,
+    RecipeDefaults, RecipeId, RecipeLibrary, StartOptions, VmBackend, VmStatus, json,
 };
 
 use crate::cli;
@@ -82,22 +82,64 @@ pub fn images_list() -> Outcome {
 // MARK: - Instances
 
 pub fn new(a: &cli::New) -> Outcome {
-    let Some(input) = a.recipe.as_ref().or(a.flavor.as_ref()) else {
-        return Err(usage(&["new"], "Missing expected argument '--recipe <recipe>'"));
-    };
     let env = Env::new();
     let backends = env.backends()?;
     let defaults = env.images().recipe_defaults();
-    let chooser = |ids: &[String]| choose_recipe(&env, ids);
-    // A name: the newest version of its line that has an image, else its newest (plan B111)
     let images = env.images();
-    let has_image = |id: &str| images.current(id).is_some();
-    let recipe = RecipeId::resolve_newest_in(input, &defaults, &env.recipe_places(), &has_image, Some(&chooser))?;
-    let mut settings = defaults[&recipe].clone();
-    let backend = backends.backend(settings.kind)?;
-    let Some(image) = env.images().current(&recipe) else {
-        return Err(Error::new(format!("No image for \"{recipe}\" yet – first run: omaf build {recipe}")).into());
+    let (recipe, image, mut settings) = if let Some(input) = &a.image {
+        let image = images.image(&resolve_image(input, &env)?)?;
+        let recipe = image.recipe().to_string();
+        let settings = defaults.get(&recipe).cloned().unwrap_or_else(|| imported_defaults(image.kind()));
+        (recipe, image, settings)
+    } else {
+        let Some(input) = a.recipe.as_ref().or(a.flavor.as_ref()) else {
+            return Err(usage(&["new"], "Missing expected argument '--recipe <recipe>' or '--image <image>'"));
+        };
+        let chooser = |ids: &[String]| choose_recipe(&env, ids);
+        // A name: the newest version of its line that has an image, else its newest (plan B111)
+        let has_image = |id: &str| images.current(id).is_some();
+        match RecipeId::resolve_newest_in(input, &defaults, &env.recipe_places(), &has_image, Some(&chooser)) {
+            Ok(recipe) => {
+                let Some(image) = images.current(&recipe) else {
+                    return Err(
+                        Error::new(format!("No image for \"{recipe}\" yet – first run: omaf build {recipe}")).into()
+                    );
+                };
+                let settings = defaults[&recipe].clone();
+                (recipe, image, settings)
+            }
+            // An image imported from another computer: its recipe (line) is not one of this computer's
+            Err(e) => {
+                let imported: Vec<_> = images
+                    .list()
+                    .into_iter()
+                    .filter(|i| !defaults.contains_key(i.recipe()) && names_recipe(input, i.recipe()))
+                    .collect();
+                let mut lines: Vec<String> = imported.iter().map(|i| i.info.recipe.clone()).collect();
+                lines.sort();
+                lines.dedup();
+                let [recipe] = lines.as_slice() else {
+                    if lines.len() > 1 {
+                        return Err(Error::new(format!(
+                            "{input} names several imported images' recipes – choose one with --image (omaf images)"
+                        ))
+                        .into());
+                    }
+                    return Err(e.into());
+                };
+                // Its current image – an imported one has no current link: the newest
+                let newest = imported.into_iter().filter(|i| i.recipe() == recipe).max_by_key(|i| i.info.created);
+                let Some(image) = images.current(recipe).or(newest) else { return Err(e.into()) };
+                eprintln!(
+                    "Note: {} is an imported image; its recipe is not here – the VM gets omaflake's standard values.",
+                    image.name
+                );
+                let settings = imported_defaults(image.kind());
+                (recipe.clone(), image, settings)
+            }
+        }
     };
+    let backend = backends.backend(settings.kind)?;
     if let Some(v) = cli::inverted(a.ephemeral, a.no_ephemeral) {
         settings.ephemeral = v;
     }
@@ -144,7 +186,8 @@ pub fn new(a: &cli::New) -> Outcome {
     if let Some(disk) = a.disk {
         settings.disk_gb = disk;
     }
-    if settings.cpus < needs.0 || settings.memory_gb < needs.1 {
+    // Only a recipe here says what it needs (an imported image's values are standard ones)
+    if defaults.contains_key(&recipe) && (settings.cpus < needs.0 || settings.memory_gb < needs.1) {
         eprintln!(
             "Note: the recipe needs at least {} CPU cores and {} GB RAM – this VM gets {} and {} GB.",
             needs.0, needs.1, settings.cpus, settings.memory_gb
@@ -172,6 +215,24 @@ pub fn new(a: &cli::New) -> Outcome {
     }
     println!("{}", created_line(&c));
     Ok(())
+}
+
+/// A VM's values for an image whose recipe is not here (imported from another computer) – the New VM page's for a
+/// recipe that is gone
+fn imported_defaults(kind: GuestKind) -> RecipeDefaults {
+    RecipeDefaults::new(kind, None, 4, 8, 64, NetworkMode::Shared, false, false, None)
+}
+
+/// Whether `input` ("name", "kind/name", "author/kind/name") names the recipe of `id` ("author.kind.name@words")
+fn names_recipe(input: &str, id: &str) -> bool {
+    let Some(p) = RecipeId::parts(id) else { return false };
+    let parts: Vec<&str> = input.split('/').collect();
+    match parts.as_slice() {
+        [name] => *name == p.name,
+        [kind, name] => *kind == p.kind.as_str() && *name == p.name,
+        [author, kind, name] => *author == p.author && *kind == p.kind.as_str() && *name == p.name,
+        _ => false,
+    }
 }
 
 /// "Instance <name> created (image <image>, SSH port <port>[, ephemeral])."
@@ -783,7 +844,22 @@ pub fn builder_clean_up() -> Outcome {
 mod tests {
     use super::*;
     use omaflake_core::agent_protocol::{AgentAddress, AgentDisk, AgentMemory, ProtocolRange};
-    use omaflake_core::{AgentHello, AgentStatus, PrerequisiteItem, RecipeDefaults};
+    use omaflake_core::{AgentHello, AgentStatus, PrerequisiteItem};
+
+    /// `omaf new -r` finds an imported image's recipe by its name, kind/name or author/kind/name
+    #[test]
+    fn a_name_names_an_imported_recipe() {
+        let id = "walx.nixos.research@abcd-efgh";
+        for input in ["research", "nixos/research", "walx/nixos/research"] {
+            assert!(names_recipe(input, id), "{input}");
+        }
+        for input in ["dev", "macos/research", "omaflake/nixos/research", "a/b/c/d", ""] {
+            assert!(!names_recipe(input, id), "{input}");
+        }
+        assert!(!names_recipe("research", "not-an-id"));
+        let d = imported_defaults(GuestKind::Nixos);
+        assert_eq!((d.cpus, d.memory_gb, d.disk_gb, d.share, d.ephemeral), (4, 8, 64, false, false));
+    }
 
     fn config(name: &str, kind: GuestKind) -> InstanceConfig {
         let mut d = RecipeDefaults::new(

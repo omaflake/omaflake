@@ -121,8 +121,9 @@ SSH (no window):
 Found there and fixed since: the Linux package brings the image flake (`<prefix>/share/omaflake/nix`, B131 – 0.3.1
 needed `omaf config --flake 'github:omaflake/omaflake/v0.3.1?dir=nix'`); a forced TCG start says
 "(OMAFLAKE_ACCEL=tcg)" instead of blaming /dev/kvm; the CLI's help speaks of "this computer", not "the Mac".
-Still OPEN: environment variables such as `VM_FLAKE` do not reach the core service – a build the service runs (once
-the app or `omaf ui` started it) uses config.json's flake; whether a keyring that is still locked (automatic login)
+Since then: with `VM_FLAKE` set, `omaf build` builds in the terminal instead of in a running core service, which
+has the environment it was started with and would use config.json's flake (`omaf config --flake` is what the app and
+the service use). Still OPEN: whether a keyring that is still locked (automatic login)
 gets unlocked within omaflake's 60 s – the dialog appeared, but the first try fell back to `tokens.json`.
 
 Checked at the desktop as well: the Linux app (window, pages, tray icon); a private source's token in the unlocked

@@ -175,6 +175,9 @@ pub struct QemuCapabilities {
     pub gl: bool,
     /// 9p option `guest_owner_uid/gid` (patch qemu-9p-guest-owner, plan B18)
     pub guest_owner: bool,
+    /// The loading image of patch qemu-cocoa-loading-image (`OMAFLAKE_LOADING_IMAGE`, patchset 6, plan B155) – an
+    /// omaflake QEMU without it is older than 0.7.1
+    pub loading_image: bool,
 }
 
 /// Runtime defaults of a recipe (its recipe.toml), as `nix eval --json .#lib.recipeDefaults` gives them.

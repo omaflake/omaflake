@@ -142,6 +142,9 @@ pub fn hint_on(p: &PrerequisiteDto, host: super::HostOs) -> Text {
         }
         I::NixDarwin => "Set up nix-darwin – it provides the Linux builder for NixOS images.",
         I::LinuxBuilder => "Enable nix.linux-builder in your nix-darwin configuration (see the guide).",
+        I::Qemu if limited && p.detail.contains(Prerequisites::QEMU_OLD_PATCHSET) => {
+            "An older omaflake QEMU: NixOS VMs start without the loading screen – update it (builds QEMU, about ten minutes)."
+        }
         I::Qemu if limited => {
             "Works headless and in 2D – without 3D and without automatic window resolution; omaflake's QEMU adds both."
         }
@@ -367,8 +370,14 @@ fn item(ctx: &Ctx, p: &PrerequisiteDto) -> DoctorItem {
         );
     } else if let Some(command) = &p.install {
         actions.push(
-            Action::call("install", Text::new("Install …"), Some("install"), "ui.terminal", json!({"line": command}))
-                .help(Text::verbatim(command)),
+            Action::call(
+                "install",
+                Text::new(if command == Prerequisites::UPGRADE_QEMU { "Update …" } else { "Install …" }),
+                Some(if command == Prerequisites::UPGRADE_QEMU { "update" } else { "install" }),
+                "ui.terminal",
+                json!({"line": command}),
+            )
+            .help(Text::verbatim(command)),
         );
     }
     if builder_actions {

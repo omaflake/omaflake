@@ -247,6 +247,10 @@ impl Prerequisites {
     pub const INSTALL_NIX_DARWIN: &'static str = "omaf builder setup";
     /// omaflake's patched QEMU from the flake (spec §11.2)
     pub const INSTALL_QEMU: &'static str = "nix profile install github:omaflake/omaflake#qemu";
+    /// Updates an installed omaflake QEMU (the profile element is named after the flake output)
+    pub const UPGRADE_QEMU: &'static str = "nix profile upgrade qemu";
+    /// The Doctor's detail for an omaflake QEMU older than patchset 6 (plan B155)
+    pub const QEMU_OLD_PATCHSET: &'static str = "older patchset";
     pub const INSTALL_SSH_KEY: &'static str = "ssh-keygen -t ed25519";
     pub const INSTALL_GIT: &'static str = "xcode-select --install";
     /// Linux hosts (plan B124): nixpkgs' QEMU (with virglrenderer, GTK and QEMU's edk2 firmware), git, Nix's
@@ -554,7 +558,18 @@ impl Prerequisites {
                 Some(Self::INSTALL_QEMU.into()),
             );
         };
-        let gl = rt.capabilities().gl;
+        let caps = rt.capabilities();
+        let gl = caps.gl;
+        // omaflake's QEMU from before 0.7.1 (patchset < 6): 3D, but no loading screen (plan B155)
+        if gl && !caps.loading_image {
+            return Prerequisite::new(
+                PrerequisiteItem::Qemu,
+                PrerequisiteStatus::Limited,
+                &format!("{} (3D, {})", rt.qemu, Self::QEMU_OLD_PATCHSET),
+                "An older omaflake QEMU: NixOS VMs start without the loading screen – update it (builds QEMU, about ten minutes)",
+                Some(Self::UPGRADE_QEMU.into()),
+            );
+        }
         Prerequisite::new(
             PrerequisiteItem::Qemu,
             status(gl, PrerequisiteStatus::Limited),

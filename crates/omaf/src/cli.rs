@@ -600,6 +600,13 @@ pub struct New {
     pub name: String,
     #[arg(short, long, value_name = "recipe", help = "Recipe: its name, or <kind>/<name> (e.g. macos/minimal)")]
     pub recipe: Option<String>,
+    #[arg(
+        long,
+        value_name = "image",
+        conflicts_with_all = ["recipe", "flavor"],
+        help = "From this image instead of a recipe's current one (also one imported from another computer)"
+    )]
+    pub image: Option<String>,
     /// --flavor / -f: the name before the rename (plan B92), not shown in the help
     #[arg(short = 'f', long = "flavor", value_name = "flavor", hide = true)]
     pub flavor: Option<String>,

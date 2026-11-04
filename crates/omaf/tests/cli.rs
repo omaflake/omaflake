@@ -54,7 +54,7 @@ fn usage_errors_exit_64() {
     assert_eq!(out.status.code(), Some(64));
     assert_eq!(
         text(&out.stderr),
-        "Error: Missing expected argument '--recipe <recipe>'\nUsage: omaf new [OPTIONS] <name>\n  See 'omaf new \
+        "Error: Missing expected argument '--recipe <recipe>' or '--image <image>'\nUsage: omaf new [OPTIONS] <name>\n  See 'omaf new \
          --help' for more information.\n"
     );
 }

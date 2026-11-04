@@ -509,6 +509,31 @@ fn the_action_menu_scrolls_to_its_selection_in_a_small_terminal() {
 }
 
 #[test]
+fn the_help_scrolls_in_a_small_terminal() {
+    let mut h = Harness::new(none);
+    h.model("vms", json!({}), fixture("vms"));
+    h.key(KeyCode::Char('?'));
+    // 14 rows: the keys do not fit – the top is shown, more below
+    let s = h.screen_sized(100, 14);
+    assert!(s.contains("j/k") && s.contains(" ↓ ") && !s.contains(" ↑ ") && !s.contains(" ↑↓ "), "{s}");
+    // End: the last lines, more above; a further j stays at the end
+    h.key(KeyCode::End);
+    let end = h.screen_sized(100, 14);
+    assert!(!end.contains("j/k") && end.contains(" ↑ "), "{end}");
+    h.key(KeyCode::Char('j'));
+    assert_eq!(h.screen_sized(100, 14), end);
+    // One up: still scrolled; Home: the top again
+    h.key(KeyCode::Char('k'));
+    assert!(h.screen_sized(100, 14).contains(" ↑↓ "));
+    h.key(KeyCode::Home);
+    assert!(h.screen_sized(100, 14).contains("j/k"));
+    assert!(matches!(h.app.modal, Some(Modal::Help { top: 0 })));
+    // Any other key closes it
+    h.key(KeyCode::Esc);
+    assert!(h.app.modal.is_none());
+}
+
+#[test]
 fn export_asks_a_folder_with_completion() {
     let dir = tempfile::tempdir().unwrap();
     std::fs::create_dir(dir.path().join("exports")).unwrap();

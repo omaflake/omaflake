@@ -604,14 +604,14 @@
         },
         {
           "enabled": true,
-          "id": "border.1",
-          "kind": "color",
+          "id": "border.gradient",
+          "kind": "toggle",
           "label": {
-            "key": "Active window, gradient to",
-            "text": "Active window, gradient to"
+            "key": "Active window as a gradient",
+            "text": "Active window as a gradient"
           },
-          "value": "#3fd0e0",
-          "valueParam": "border.1"
+          "value": false,
+          "valueParam": "border.gradient"
         },
         {
           "enabled": true,

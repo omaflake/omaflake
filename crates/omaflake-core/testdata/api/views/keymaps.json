@@ -20,6 +20,31 @@
     {
       "enabled": true,
       "help": {
+        "args": [
+          1
+        ],
+        "key": "Update all %lld",
+        "text": "Update all 1"
+      },
+      "icon": "download",
+      "id": "updateAll",
+      "label": {
+        "key": "Update All",
+        "text": "Update All"
+      },
+      "method": "modules.installAll",
+      "params": {
+        "items": [
+          {
+            "id": "omaflake.keymap.default",
+            "source": "github:omaflake/recipes@main"
+          }
+        ]
+      }
+    },
+    {
+      "enabled": true,
+      "help": {
         "key": "Key bindings of your own, in the key binding studio",
         "text": "Key bindings of your own, in the key binding studio"
       },
@@ -111,6 +136,24 @@
               "id": "omaflake.keymap.default"
             }
           }
+        },
+        {
+          "enabled": true,
+          "help": {
+            "key": "Installs it again from its source, as the catalog has it",
+            "text": "Installs it again from its source, as the catalog has it"
+          },
+          "icon": "download",
+          "id": "update",
+          "label": {
+            "key": "Reinstall",
+            "text": "Reinstall"
+          },
+          "method": "modules.install",
+          "params": {
+            "id": "omaflake.keymap.default",
+            "source": "github:omaflake/recipes@main"
+          }
         }
       ],
       "badges": [
@@ -122,6 +165,19 @@
           "icon": "official",
           "id": "official",
           "tone": "accent"
+        },
+        {
+          "help": {
+            "key": "Its files are not what was installed",
+            "text": "Its files are not what was installed"
+          },
+          "icon": "warning",
+          "id": "changed",
+          "label": {
+            "key": "changed",
+            "text": "changed"
+          },
+          "tone": "warning"
         }
       ],
       "detail": {
@@ -140,6 +196,24 @@
               "params": {
                 "id": "omaflake.keymap.default"
               }
+            }
+          },
+          {
+            "enabled": true,
+            "help": {
+              "key": "Installs it again from its source, as the catalog has it",
+              "text": "Installs it again from its source, as the catalog has it"
+            },
+            "icon": "download",
+            "id": "update",
+            "label": {
+              "key": "Reinstall",
+              "text": "Reinstall"
+            },
+            "method": "modules.install",
+            "params": {
+              "id": "omaflake.keymap.default",
+              "source": "github:omaflake/recipes@main"
             }
           },
           {
@@ -176,6 +250,16 @@
           }
         ],
         "info": [
+          {
+            "label": {
+              "key": "Changed",
+              "text": "Changed"
+            },
+            "value": {
+              "key": "Its files differ from what was installed – changed by hand, or mixed up by an install",
+              "text": "Its files differ from what was installed – changed by hand, or mixed up by an install"
+            }
+          },
           {
             "label": {
               "key": "About",

@@ -486,7 +486,38 @@ Lume (trycua) only after a license review (OPEN).
 
 ---
 
-## 8. Next steps (as of 2026-10-24)
+## 8. Next steps (as of 2026-11-04)
+
+**Next (2026-11-04, after release 0.7.3):** nothing left to build without the Developer ID – the smaller items of
+2026-10-24 (B125) are done, B158 closed the remaining OPEN items, and the 2 s of black between Plymouth and Hyprland
+are accepted for now (maintainer, 2026-11-04: the loading screen is fine on macOS). Left: **testing** – the
+maintainer tries 0.7.0–0.7.3 (clicks in the apps; a VM's loading screen and keys) and the OPEN items that need a
+running guest or a real Linux desktop (docs/linux.md) – and **M12** once the Developer ID is there. GitHub Pages of omaflake and website already publish
+through Actions (checked 2026-11-04: `build_type` workflow, domains omaflake.dev and omaflake.app).
+
+**B158 (2026-11-04): OPEN items without a Developer ID.**
+- *Doctor and an older omaflake QEMU (B155):* `QemuCapabilities.loading_image` – the binary holds
+  `OMAFLAKE_LOADING_IMAGE` (patch qemu-cocoa-loading-image, patchset 6); with 3D but without it the QEMU line is
+  limited, "(3D, older patchset)", with **Update …** (`nix profile upgrade qemu`, the profile element is named `qemu`).
+  Checked: test `doctor_offers_an_update_of_an_older_omaflake_qemu`; the installed QEMU of 0.7.1 holds the marker.
+- *`omaf ui`'s help scrolls (B132):* `Modal::Help { top }`, arrows/j/k/Page/Home/End/g/G, the most it can leave out
+  comes from the last draw (`App::help_max_top`). Test `the_help_scrolls_in_a_small_terminal` (100 × 14).
+- *Changed parts (B143):* `PartStore::folder_hash` – tools/catalog.py's `content_hash` (path NUL sha256-hex LF, sorted
+  by path component, without `.DS_Store`) – and `PartStore::changed`; `modules.list` marks `changed` (badge, info
+  line, **Reinstall**, in Update All when a source offers the part). Checked against the real catalog (every freshly
+  installed module hashes to its catalog hash; a changed and an extra file are found) and, read-only, against the
+  maintainer's data folder: 24 modules, 1 key binding set, 4 looks – none changed.
+- *Look studio (B150):* the gradient is a switch (`border.gradient`) – off keeps one colour and hides the second field,
+  on without a second colour starts from the urgent one. The macOS colour picker could not choose "none".
+- *Clean-up lines:* the Nix Store's and the Linux builder's results become translated texts in the activity
+  (`clean_up_text`).
+- *`VM_FLAKE` and the service (docs/linux.md):* `omaf build` with `VM_FLAKE` builds in the terminal, not in a running
+  service (which has the environment it was started with).
+- *An imported image for `omaf new` (B124):* `omaf new --image <image>`; `-r <name>` falls back to an image whose
+  recipe is not here (its newest – an import has no current link), with standard values (4 cores, 8 GB, 64 GB, shared –
+  the New VM page's for a recipe that is gone). Checked end to end in a temporary data folder: `-r research` and
+  `--image image:other/nixos/research:milk` create VMs from an image whose recipe source is another computer's folder.
+
 
 **State 0.3.0 (2026-10-24):** the core is Rust (B117) and serves every interface through one service per user (B120)
 and a presentation model (B121): the SwiftUI app (menu bar, window or both), the Linux app (iced) and `omaf ui`
@@ -520,7 +551,7 @@ Key Bindings tab shows only its own warnings. Unsigned, for the maintainer to tr
 patches `qemu-virgl-2d-flush` and `qemu-cocoa-loading-image`, patchset 6; omaflake's own Plymouth theme;
 `plymouth.ignore-serial-consoles`), no wait in the firmware or the boot menu – the desktop at about 11 s instead of
 about 20 s of black. The Doctor does not see an older omaflake QEMU (it checks 3D only): the changelog tells users to
-run `nix profile upgrade qemu` – OPEN: a Doctor check of the patchset. Open: the 2 s of black between Plymouth and
+run `nix profile upgrade qemu` – the Doctor checks the patchset since B158. Open: the 2 s of black between Plymouth and
 Hyprland. Unsigned, for the maintainer to try first – OPEN until then.
 
 **Release 0.7.0 (2026-10-28):** B146–B154 – the IPSW after a macOS update and its download (B146); key bindings with
@@ -614,7 +645,7 @@ line (help or reason); taller than the terminal, the menu was cut at its bottom 
 selected but not seen (found over RDP on the mini PC; `1`–`9` reach only the first nine). `ui.rs`: a modal leaves out
 lines at its top until the selected entry fits (`modal_scroll`, for the action menu and a field's choices), and its
 frame shows `↑`/`↓` where lines are left out. Test `the_action_menu_scrolls_to_its_selection_in_a_small_terminal`
-(100 × 14). The help (`?`) gets the arrows but does not scroll yet (OPEN).
+(100 × 14). The help (`?`) scrolls since B158.
 
 **B133 (2026-10-25): Zellij in the neovim line by itself, with keys that leave Neovim alone.** `nix/home/neovim.nix`:
 WezTerm's `default_prog` is `zellij attach --create main` (as the macOS research recipe's wezterm.lua), the zsh alias
@@ -1012,7 +1043,7 @@ read-modify-write could lose entries the same way. Fixed: a work folder per inst
 have), the swap into the part's folder and `.installed.json` under a lock; `parts::tests::parallel_installs_keep_each_
 part_in_its_folder` installs four recipes' parts in parallel and compares every module with the catalog (fails 3 of 3
 runs with the old work folder). Data folders installed with 0.6.0 must reinstall their modules (remove them in the
-Modules tab, or move `<data>/modules/` aside – OPEN: a check that finds a module whose files differ from its manifest hash).
+Modules tab, or move `<data>/modules/` aside – the Modules tab finds a module whose files differ from its manifest hash since B158).
 Asked with it and done: the Modules tab drew the dashed frame of a plain look before every module (its rows are the
 looks' shape: `swatches` is optional now, absent for modules); "Create macOS Base …" twice without a base in the
 SwiftUI app (the button only without `empty`, as the TUI and iced did); the base being created as a job row in the
@@ -1343,8 +1374,8 @@ other), then fixed:
 - `omaf ui`: a field's help with the help switch on; "↩" for keys that go back to the start mode; chips with their
   count; the catalog tabs recipeCatalog and keymaps fetch their catalogs; icons `down`, `chevron-*`, `update` (also in
   the macOS app, with `arch`). The macOS key editor's "after" switches name staying and going back by their labels.
-- **OPEN:** the look studio cannot go back from a border gradient to one colour in the macOS app; the Nix clean-up's
-  activity line is English in German too (as the builder's).
+- Since B158: the look studio's gradient is a switch (back to one colour in the macOS app too); the Nix clean-up's and
+  the builder's activity lines are translated.
 
 **B156 (2026-10-29): modules, key bindings and looks too old to read can be updated.** After the update to 0.7.1 the
 maintainer's twelve macOS modules (1.0.0, module.toml v1 – installed before 0.7.0, whose catalog v5 has them as 1.0.1
@@ -1448,7 +1479,7 @@ Plymouth's screen was not seen there either (OPEN: whether Plymouth draws throug
     checkout, frames every 0.6 s):* the loading image from the first frame (0.4 s, while the window is still
     640×480), the theme with its bar and drifting flakes from about 4 s – the hand-over shows no jump –, black from
     8.8 s, Hyprland at about 11 s (before: 13 s). The firmware's screen never shows.
-  - **OPEN:** the 2 s between Plymouth's end and Hyprland's first frame (getty's auto-login, zsh, Hyprland's start)
+  - **Accepted for now** (maintainer, 2026-11-04 – the loading screen is fine on macOS): the 2 s between Plymouth's end and Hyprland's first frame (getty's auto-login, zsh, Hyprland's start)
     stay black – `plymouth quit --retain-splash` does not help while Hyprland is not yet DRM master; Hyprland would
     have to take over from Plymouth (as GDM does).
 

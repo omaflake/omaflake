@@ -820,6 +820,10 @@ pub struct PartDto {
     /// replaces it
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub broken: Option<String>,
+    /// Installed, but its files are not what was installed (changed by hand, or mixed up by an install); `update` then
+    /// installs it again
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub changed: bool,
     /// The recipes here made of it (their names)
     pub recipes: Vec<String>,
 }

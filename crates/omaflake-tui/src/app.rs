@@ -122,11 +122,28 @@ pub struct Prompt {
 #[derive(Debug, Clone)]
 pub enum Modal {
     Prompt(Prompt),
-    Confirm { flow: Flow, input: Option<String> },
-    Choice { field: Value, index: usize },
-    Menu { actions: Vec<Value>, index: usize },
-    Filter { page: String, groups: Vec<Value>, values: Map<String, Value>, index: usize },
-    Help,
+    Confirm {
+        flow: Flow,
+        input: Option<String>,
+    },
+    Choice {
+        field: Value,
+        index: usize,
+    },
+    Menu {
+        actions: Vec<Value>,
+        index: usize,
+    },
+    Filter {
+        page: String,
+        groups: Vec<Value>,
+        values: Map<String, Value>,
+        index: usize,
+    },
+    /// The keys; `top` = the lines left out at its top (scrolled with the arrows, plan B132)
+    Help {
+        top: usize,
+    },
 }
 
 /// What an answer is for
@@ -177,6 +194,8 @@ pub struct App {
     pub page_height: usize,
     /// How many lines each item took when drawn last (clicks)
     pub item_heights: Vec<usize>,
+    /// The most lines the help can leave out at its top when drawn last (0: it fits)
+    pub help_max_top: usize,
 }
 
 impl App {
@@ -213,6 +232,7 @@ impl App {
             tick: 0,
             page_height: 20,
             item_heights: vec![],
+            help_max_top: 0,
         }
     }
 
@@ -861,7 +881,7 @@ impl App {
                 Some(quit) => self.run_action(&quit),
                 None => self.quit = true,
             },
-            KeyCode::Char('?') => self.modal = Some(Modal::Help),
+            KeyCode::Char('?') => self.modal = Some(Modal::Help { top: 0 }),
             KeyCode::Char('/') => match &page.filter {
                 Some(f) => {
                     let mut values = Map::new();
@@ -963,7 +983,23 @@ impl App {
     fn modal_key(&mut self, key: KeyEvent) {
         let Some(modal) = self.modal.take() else { return };
         match modal {
-            Modal::Help => {}
+            // The help scrolls with the arrows, j/k, the page keys, Home and End; any other key closes it
+            Modal::Help { top } => {
+                let max = self.help_max_top;
+                let top = top.min(max);
+                let to = match key.code {
+                    KeyCode::Down | KeyCode::Char('j') => Some((top + 1).min(max)),
+                    KeyCode::Up | KeyCode::Char('k') => Some(top.saturating_sub(1)),
+                    KeyCode::PageDown | KeyCode::Char(' ') => Some((top + 10).min(max)),
+                    KeyCode::PageUp => Some(top.saturating_sub(10)),
+                    KeyCode::Home | KeyCode::Char('g') => Some(0),
+                    KeyCode::End | KeyCode::Char('G') => Some(max),
+                    _ => None,
+                };
+                if let Some(top) = to {
+                    self.modal = Some(Modal::Help { top });
+                }
+            }
             Modal::Menu { actions, index } => match key.code {
                 KeyCode::Esc => {}
                 KeyCode::Down | KeyCode::Char('j') => {

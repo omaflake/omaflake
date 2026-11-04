@@ -192,10 +192,11 @@ impl QemuRuntime {
     /// "guest_owner_uid" in the binary.
     pub fn capabilities(&self) -> QemuCapabilities {
         let binary = std::fs::read(&self.qemu).unwrap_or_default();
-        let needle = b"guest_owner_uid";
+        let contains = |needle: &[u8]| binary.windows(needle.len()).any(|w| w == needle);
         QemuCapabilities {
             gl: Self::has_gl(&self.qemu),
-            guest_owner: binary.windows(needle.len()).any(|w| w == needle),
+            guest_owner: contains(b"guest_owner_uid"),
+            loading_image: contains(b"OMAFLAKE_LOADING_IMAGE"),
         }
     }
 
@@ -814,13 +815,37 @@ mod tests {
         let (_t, p) = temp_paths();
         let with = fake_qemu(&p.root, true, true);
         let caps = QemuRuntime::new(p.clone(), &with.to_string_lossy(), "/fw.fd").capabilities();
-        assert_eq!(caps, QemuCapabilities { gl: true, guest_owner: true });
+        assert_eq!(caps, QemuCapabilities { gl: true, guest_owner: true, loading_image: false });
         let (_t, p) = temp_paths();
         let without = fake_qemu(&p.root, false, true);
         let caps = QemuRuntime::new(p.clone(), &without.to_string_lossy(), "/fw.fd").capabilities();
-        assert_eq!(caps, QemuCapabilities { gl: true, guest_owner: false });
+        assert_eq!(caps, QemuCapabilities { gl: true, guest_owner: false, loading_image: false });
         let caps = QemuRuntime::new(p.clone(), "/nonexistent/qemu", "/fw.fd").capabilities();
         assert_eq!(caps, QemuCapabilities::default());
+    }
+
+    /// The Doctor tells an omaflake QEMU from before patchset 6 (no loading image) and offers its update (plan B155)
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn doctor_offers_an_update_of_an_older_omaflake_qemu() {
+        if std::env::var("VM_QEMU").is_ok() {
+            return; // the environment wins over config.json
+        }
+        let (_t, p) = temp_paths();
+        let qemu = fake_qemu(&p.root, true, true);
+        Settings { qemu: Some(qemu.to_string_lossy().into_owned()), ..Default::default() }.save(&p).unwrap();
+        let old = Prerequisites::new(p.clone()).qemu();
+        assert_eq!(old.status, crate::prerequisites::PrerequisiteStatus::Limited);
+        assert!(old.detail.ends_with("(3D, older patchset)"), "{}", old.detail);
+        assert_eq!(old.install.as_deref(), Some("nix profile upgrade qemu"));
+
+        let mut text = std::fs::read_to_string(&qemu).unwrap();
+        text.push_str("# OMAFLAKE_LOADING_IMAGE\n");
+        std::fs::write(&qemu, text).unwrap();
+        assert!(QemuRuntime::new(p.clone(), &qemu.to_string_lossy(), "/fw.fd").capabilities().loading_image);
+        let current = Prerequisites::new(p).qemu();
+        assert_eq!((current.status, current.install), (crate::prerequisites::PrerequisiteStatus::Ok, None));
+        assert!(current.detail.ends_with(" (3D)"), "{}", current.detail);
     }
 
     /// A pid file of a process that is not QEMU (this test) counts as stopped (PID reuse)

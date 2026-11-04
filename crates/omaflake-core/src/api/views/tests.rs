@@ -105,6 +105,7 @@ pub(crate) fn modules_fixture() -> crate::api::types::ModulesAnswer {
         installed: true,
         update: false,
         broken: None,
+        changed: false,
         recipes: vec![],
     };
     crate::api::types::ModulesAnswer {
@@ -120,6 +121,8 @@ pub(crate) fn modules_fixture() -> crate::api::types::ModulesAnswer {
             PartDto {
                 reference: "omaflake/default".into(),
                 keys: BTreeMap::from([("omaflake/hyprland terminal".to_string(), "Super+Return".to_string())]),
+                update: true,
+                changed: true,
                 ..part("omaflake.keymap.default", "keymap", "omaflake")
             },
         ],
@@ -1350,6 +1353,21 @@ fn look_studio_colours_preview_and_contrast() {
     assert_eq!(look["neovim"], json!({"theme": "rose-pine", "variant": "moon"}));
     assert_eq!(look["desktop"]["border"], json!(["#3fd0e0", "#ff00ff"]));
     assert_eq!(look["macos"], json!({"wallpaper": "black"}));
+    // The gradient is a switch: off goes back to one colour (and hides the second), on starts from the urgent colour
+    let desktop = |page: &Value| page["sections"][2]["fields"].as_array().unwrap().clone();
+    let ids = |page: &Value| desktop(page).iter().map(|f| f["id"].as_str().unwrap().to_string()).collect::<Vec<_>>();
+    let mut off = values.clone();
+    off["border.gradient"] = json!(false);
+    let page = get(&c, "lookStudio", json!({"values": off}));
+    assert_eq!(action(&page["actions"], "save")["params"]["look"]["desktop"]["border"], json!(["#3fd0e0"]));
+    assert!(!ids(&page).contains(&"border.1".to_string()), "{:?}", ids(&page));
+    assert_eq!(desktop(&page)[1]["value"], false);
+    let one = get(&c, "lookStudio", json!({"values": {"name": "dusk"}}));
+    assert_eq!(ids(&one)[..2], ["border.0", "border.gradient"]);
+    let on = get(&c, "lookStudio", json!({"values": {"name": "dusk", "border.gradient": true}}));
+    let border = &action(&on["actions"], "save")["params"]["look"]["desktop"]["border"];
+    assert_eq!(border.as_array().unwrap().len(), 2);
+    assert_eq!(ids(&on)[2], "border.1");
     // A colour that is not one: said at the field, Save waits; plain: no colours at all
     let page = get(&c, "lookStudio", json!({"values": {"name": "dusk", "color.accent": "teal"}}));
     assert!(page["sections"][0]["fields"][6]["error"].is_object());
