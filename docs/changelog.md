@@ -13,6 +13,12 @@ are collected under *Unreleased*. Releases: [GitHub](https://github.com/omaflake
 
 ## [Unreleased]
 
+## [0.7.3] – 2026-11-04
+
+Small things that were still open: the Doctor offers to update an omaflake QEMU from before 0.7.1, the Modules and
+Key Bindings tabs find parts whose files were changed, `omaf new` takes an image (also one imported from another
+computer), and `omaf ui`'s keys scroll.
+
 ### Added
 
 - `omaf new <name> --image <image>` creates a VM from that image. An image imported from another computer works this

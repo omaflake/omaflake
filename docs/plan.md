@@ -495,6 +495,11 @@ maintainer tries 0.7.0–0.7.3 (clicks in the apps; a VM's loading screen and ke
 running guest or a real Linux desktop (docs/linux.md) – and **M12** once the Developer ID is there. GitHub Pages of omaflake and website already publish
 through Actions (checked 2026-11-04: `build_type` workflow, domains omaflake.dev and omaflake.app).
 
+**Release 0.7.3 (2026-11-04):** B158 – the Doctor's check of an older omaflake QEMU, changed modules and key binding
+sets with Reinstall, `omaf new --image` and imported images for `-r`, `omaf ui`'s help scrolling, the look studio's
+gradient switch, translated clean-up lines, `VM_FLAKE` builds in the terminal. Unsigned, for the maintainer to try
+first – OPEN until then.
+
 **B158 (2026-11-04): OPEN items without a Developer ID.**
 - *Doctor and an older omaflake QEMU (B155):* `QemuCapabilities.loading_image` – the binary holds
   `OMAFLAKE_LOADING_IMAGE` (patch qemu-cocoa-loading-image, patchset 6); with 3D but without it the QEMU line is
