@@ -465,7 +465,50 @@ impl ImageStore {
         if !flake.starts_with('/') {
             return flake.to_string();
         }
-        if Path::new(flake).join(".git").exists() { flake.to_string() } else { format!("path:{flake}") }
+        if Path::new(flake).join(".git").exists() { flake.to_string() } else { Self::path_ref(flake) }
+    }
+
+    /// `path:` flake reference of an absolute folder. Nix parses it as a URL, so a space (as in "My Shared Files", the
+    /// folder a macOS guest sees its host's share in) or a `#` would break it: every byte outside RFC 3986's
+    /// unreserved, sub-delims, `:`, `@` and `/` is percent-encoded (plan B159). A plain path needs no encoding – Nix
+    /// takes it as it is.
+    pub fn path_ref(folder: &str) -> String {
+        let mut encoded = String::with_capacity(folder.len() + 5);
+        encoded.push_str("path:");
+        for byte in folder.bytes() {
+            if byte.is_ascii_alphanumeric() || b"-._~!$&'()*+,;=:@/".contains(&byte) {
+                encoded.push(byte as char);
+            } else {
+                encoded.push_str(&format!("%{byte:02X}"));
+            }
+        }
+        encoded
+    }
+
+    /// The folder of a `path:` reference (`path_ref` reversed), or the string as it is without the prefix
+    pub fn path_of(reference: &str) -> String {
+        let Some(rest) = reference.strip_prefix("path:") else { return reference.to_string() };
+        let bytes = rest.as_bytes();
+        let mut decoded = Vec::with_capacity(bytes.len());
+        let mut i = 0;
+        while i < bytes.len() {
+            let hex = (bytes[i] == b'%')
+                .then(|| bytes.get(i + 1..i + 3))
+                .flatten()
+                .and_then(|h| std::str::from_utf8(h).ok())
+                .and_then(|h| u8::from_str_radix(h, 16).ok());
+            match hex {
+                Some(byte) => {
+                    decoded.push(byte);
+                    i += 3;
+                }
+                None => {
+                    decoded.push(bytes[i]);
+                    i += 1;
+                }
+            }
+        }
+        String::from_utf8(decoded).unwrap_or_else(|_| rest.to_string())
     }
 
     /// "omaflake.nixos.minimal" + a store path → "omaflake.nixos.minimal@cedar-mango-lift-…" (12 words, plan B111; the
@@ -492,7 +535,7 @@ impl ImageStore {
     /// Short git hash of the folder's repository, "-dirty" with uncommitted changes in that folder, "nogit" without
     /// git (never /usr/bin/git without developer tools: `Prerequisites::locate_git`)
     pub(crate) fn git_rev(&self, folder: &str) -> String {
-        let dir = PathBuf::from(folder.strip_prefix("path:").unwrap_or(folder));
+        let dir = PathBuf::from(Self::path_of(folder));
         // Never /usr/bin/git without developer tools: it would ask to install them (Prerequisites::locate_git)
         let Some(git) = Prerequisites::locate_git() else { return "nogit".into() };
         let opts = RunOptions { cwd: Some(&dir), ..Default::default() };
@@ -735,6 +778,23 @@ mod tests {
         assert_eq!(ImageStore::flake_ref(&dir), dir);
         assert_eq!(ImageStore::flake_ref("github:omaflake/omaflake"), "github:omaflake/omaflake");
         assert_eq!(ImageStore::flake_ref("path:/x"), "path:/x");
+    }
+
+    #[test]
+    fn path_ref_encodes_what_a_url_cannot_hold() {
+        let folder = "/Volumes/My Shared Files/a#b?c%d/Grüße";
+        let reference = ImageStore::path_ref(folder);
+        assert_eq!(reference, "path:/Volumes/My%20Shared%20Files/a%23b%3Fc%25d/Gr%C3%BC%C3%9Fe");
+        assert_eq!(ImageStore::path_ref("/Users/x/omaflake/nix"), "path:/Users/x/omaflake/nix");
+        assert_eq!(ImageStore::path_of(&reference), folder);
+        assert_eq!(ImageStore::path_of("/plain/My Folder"), "/plain/My Folder");
+        assert_eq!(ImageStore::path_of("path:/x%2"), "/x%2");
+        let (_t, p) = temp_paths();
+        let spaced = p.root.join("My Shared Files");
+        fs::create_dir_all(&spaced).unwrap();
+        let spaced = spaced.to_string_lossy().into_owned();
+        assert_eq!(ImageStore::flake_ref(&spaced), ImageStore::path_ref(&spaced));
+        assert!(!ImageStore::flake_ref(&spaced).contains(' '));
     }
 
     #[test]

@@ -390,10 +390,18 @@ impl ImageStore {
         }
         let mut args = Self::omaflake_checkout_arguments(flake);
         if guest && let Ok(dir) = GuestSettings::write(&self.paths, choice) {
-            args.extend(["--override-input".into(), "omaflake-guest".into(), format!("path:{}", dir.display())]);
+            args.extend([
+                "--override-input".into(),
+                "omaflake-guest".into(),
+                ImageStore::path_ref(&dir.to_string_lossy()),
+            ]);
         }
         if recipes && let Ok(dir) = RecipeLibrary::new(self.paths.clone()).stage(&Settings::load(&self.paths)) {
-            args.extend(["--override-input".into(), "omaflake-catalog".into(), format!("path:{}", dir.display())]);
+            args.extend([
+                "--override-input".into(),
+                "omaflake-catalog".into(),
+                ImageStore::path_ref(&dir.to_string_lossy()),
+            ]);
         }
         if args.is_empty() {
             return args;
@@ -408,7 +416,8 @@ impl ImageStore {
     /// git repository is passed as a plain path – Nix takes the tracked files with their changes, not `target/` or
     /// other build output –, else as `path:`. Any other flake (the app's bundled copy) keeps its locked default.
     pub fn omaflake_checkout_arguments(flake: &str) -> Vec<String> {
-        let flake = flake.strip_prefix("path:").unwrap_or(flake);
+        let flake = ImageStore::path_of(flake);
+        let flake = flake.as_str();
         if !flake.starts_with('/') {
             return Vec::new();
         }
@@ -421,7 +430,7 @@ impl ImageStore {
         let reference = if checkout.join(".git").exists() {
             checkout.display().to_string()
         } else {
-            format!("path:{}", checkout.display())
+            ImageStore::path_ref(&checkout.to_string_lossy())
         };
         vec!["--override-input".into(), "omaflake".into(), reference]
     }

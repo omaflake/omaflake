@@ -13,6 +13,12 @@ are collected under *Unreleased*. Releases: [GitHub](https://github.com/omaflake
 
 ## [Unreleased]
 
+### Fixed
+
+- An image flake, a recipe source or the data folder in a folder whose path has a space (such as an external disk or
+  a macOS guest's "My Shared Files") no longer stops the Doctor and the builds: `path:` references for Nix are
+  percent-encoded.
+
 ## [0.7.3] – 2026-11-04
 
 Small things that were still open: the Doctor offers to update an omaflake QEMU from before 0.7.1, the Modules and

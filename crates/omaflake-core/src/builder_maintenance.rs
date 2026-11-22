@@ -9,6 +9,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 use crate::error::{Error, IoContext, Result, codes};
+use crate::image_store::ImageStore;
 use crate::json;
 use crate::paths::{Paths, Settings};
 use crate::platform::is_executable_file;
@@ -62,7 +63,7 @@ impl BuilderMaintenance {
         let settings = Settings::load(&self.paths);
         let flake = settings.flake_path()?;
         let nix = Prerequisites::locate_nix(&settings).ok_or_else(|| vm_err!(codes::PREREQUISITE, "nix not found"))?;
-        let target = format!("path:{flake}#darwinConfigurations.{host}.system");
+        let target = format!("{}#darwinConfigurations.{host}.system", ImageStore::path_ref(&flake));
         let args = [
             "build",
             "--no-link",

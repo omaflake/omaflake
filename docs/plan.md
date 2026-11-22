@@ -495,6 +495,15 @@ maintainer tries 0.7.0–0.7.3 (clicks in the apps; a VM's loading screen and ke
 running guest or a real Linux desktop (docs/linux.md) – and **M12** once the Developer ID is there. GitHub Pages of omaflake and website already publish
 through Actions (checked 2026-11-04: `build_type` workflow, domains omaflake.dev and omaflake.app).
 
+**B159 (2026-11-22): `path:` references with a space.** Nix parses a `path:` flake reference as a URL: with the
+image flake in a macOS guest's share (`/Volumes/My Shared Files/…`) the Doctor's `flakeEval` failed ("getting status of
+…/path:/Volumes/My Shared Files/…") and so would every build. `ImageStore::path_ref` percent-encodes every byte outside
+RFC 3986's unreserved, sub-delims, `:`, `@` and `/`; `path_of` reverses it. Used for `flake_ref`, the `omaflake-guest`
+and `omaflake-catalog` overrides, the checkout's `omaflake` input and the builder host's `darwinConfigurations`
+reference; a plain path (a checkout with its own git repository) needs no encoding. Checked: test
+`path_ref_encodes_what_a_url_cannot_hold`; `omaf doctor` in a macOS guest with the checkout in the share – flakeEval ✓
+(7 recipes). The Linux builder's build (`builder_maintenance`) is not run there (no hypervisor in the guest) – OPEN.
+
 **Release 0.7.3 (2026-11-04):** B158 – the Doctor's check of an older omaflake QEMU, changed modules and key binding
 sets with Reinstall, `omaf new --image` and imported images for `-r`, `omaf ui`'s help scrolling, the look studio's
 gradient switch, translated clean-up lines, `VM_FLAKE` builds in the terminal. Unsigned, for the maintainer to try
