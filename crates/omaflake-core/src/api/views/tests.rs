@@ -148,6 +148,7 @@ pub(crate) fn modules_fixture() -> crate::api::types::ModulesAnswer {
 pub(crate) fn ctx() -> Ctx {
     let answer = fx::settings_answer();
     Ctx {
+        diagnostics: Default::default(),
         language: None,
         paths: Paths::new("/data", None),
         vms: vec![fx::vm_full(), fx::vm_mac()],
@@ -243,6 +244,92 @@ pub(crate) fn ctx() -> Ctx {
     }
 }
 
+/// The views' context with diagnoses (plan B162): "research" (NixOS) finished with every kind of status, "work"
+/// (macOS, running here) with SSH refused – `mac` picks which VM's page the tests look at
+pub(crate) fn diagnosis_ctx() -> Ctx {
+    use crate::api::views::diagnostics::DiagnosisRecord;
+    use crate::diagnostics::{CheckResult as R, CheckStatus as S};
+    let mut c = ctx();
+    let mut job = c.jobs[0].clone();
+    job.id = "j9".into();
+    job.kind = JobKind::Diagnostics;
+    job.title = "Diagnosis of research".into();
+    job.recipe = None;
+    job.guest_kind = None;
+    job.progress = None;
+    job.state = JobState::Finished;
+    job.log_file = Some("/data/logs/diagnostics-research-20261122-101500.log".into());
+    job.hidden_lines = 0;
+    c.jobs.push(job);
+    let mut r =
+        DiagnosisRecord::new(Some("4242@1".into()), "/data/logs/diagnostics-research-20261122-101500.log".into());
+    r.job = "j9".into();
+    r.finished = Some(crate::json::parse_date("2026-11-22T10:15:30Z").unwrap());
+    for x in [
+        R::new("agent", S::Pass, "0.4.0 · NixOS 26.05 · round trip 3 ms"),
+        R::new("ssh", S::Pass, "omaflake's key is accepted"),
+        R::new("clipboard", S::Pass, crate::diagnostics::PASS_BOTH_WAYS),
+        R::new("share", S::Fail, "the guest does not see this computer's file"),
+        R::new("network", S::Pass, "1 address(es) · DNS yes · internet yes"),
+        R::new("sound", S::Confirm, "played 440 Hz on the default output"),
+        R::new("microphone", S::Skipped, crate::diagnostics::SKIP_MICROPHONE),
+        R::new("camera", S::Skipped, crate::diagnostics::SKIP_CAMERA),
+        R::new("midi", S::Skipped, crate::diagnostics::SKIP_MIDI),
+        R::new("disk", S::Pass, "20.0 GB of 64.0 GB free"),
+    ] {
+        r.set(&x);
+    }
+    c.diagnostics.insert("research".into(), r);
+    // "work" runs here, with an address, and refused omaflake's key
+    let work = c.vms.iter_mut().find(|v| v.name == "work").unwrap();
+    work.status = VmStatus::Running;
+    work.busy = false;
+    work.address = Some("192.168.64.7".into());
+    let mut w = DiagnosisRecord::new(Some("77@1".into()), "/data/logs/diagnostics-work-20261122-101600.log".into());
+    w.set(&R::new("agent", S::Fail, "no word from the guest's agent – macOS guests start it over SSH (see SSH); images built before 0.7.4 have none"));
+    w.set(&R::new("ssh", S::Fail, "alex@192.168.64.7: Permission denied (publickey)."));
+    w.set(&R::new("clipboard", S::Running, ""));
+    c.diagnostics.insert("work".into(), w);
+    c
+}
+
+#[test]
+fn diagnosis_page_rows_and_actions() {
+    let c = diagnosis_ctx();
+    let p = get(&c, "diagnostics", json!({"name": "research"}));
+    assert_eq!(p["state"], "finished");
+    let ids: Vec<&str> = p["checks"].as_array().unwrap().iter().map(|x| x["id"].as_str().unwrap()).collect();
+    assert_eq!(ids, crate::diagnostics::CHECKS);
+    let sound = &p["checks"][5];
+    assert_eq!(sound["status"], "confirm");
+    assert_eq!(super::tests::ids(&sound["actions"]), ["heard", "notHeard"]);
+    assert_eq!(sound["actions"][0]["params"], json!({"name": "research", "check": "sound", "ok": true}));
+    assert_eq!(p["checks"][6]["detail"]["key"], "The microphone is off for this VM", "own words translated");
+    assert!(p["checks"][3]["hint"]["key"].as_str().unwrap().starts_with("The share folder is"));
+    assert_eq!(super::tests::ids(&p["actions"]), ["run", "copy", "reveal"]);
+    assert_eq!(p["actions"][0]["label"]["key"], "Run Again");
+    assert_eq!(p["actions"][0]["primary"], true);
+    assert_eq!(p["log"]["job"], "j9");
+    // macOS: SSH refused – the way to add omaflake's key, with the user's own key
+    let m = get(&c, "diagnostics", json!({"name": "work"}));
+    assert_eq!(m["state"], "failed", "its job is gone");
+    let ssh = &m["checks"][1];
+    let add = action(&ssh["actions"], "addKey");
+    assert_eq!(add["method"], "ui.terminal");
+    assert_eq!(
+        add["params"]["line"],
+        "ssh -p 22 alex@192.168.64.7 'mkdir -p ~/.ssh && cat >> ~/.ssh/authorized_keys' < '/data/ssh/id_ed25519.pub'"
+    );
+    assert_eq!(m["checks"][2]["status"], "running");
+    // A stopped VM: nothing to run
+    let mut stopped = c.clone();
+    stopped.vms[0].status = VmStatus::Stopped;
+    let s = get(&stopped, "diagnostics", json!({"name": "research"}));
+    assert_eq!(s["state"], "idle");
+    assert_eq!(s["actions"][0]["enabled"], false);
+    assert_eq!(s["checks"][0]["status"], "pending");
+}
+
 fn get(ctx: &Ctx, page: &str, params: Value) -> Value {
     build(ctx, &PageRef { page: page.into(), params }).unwrap()
 }
@@ -271,8 +358,12 @@ fn vm_rows_say_what_the_app_said() {
     assert_eq!(research["subtitle"]["text"], "dev (velvet) · Work · omaflake · 4 CPU · 8 GB · SSH 2201");
     let badges: Vec<&str> = research["badges"].as_array().unwrap().iter().map(|b| b["id"].as_str().unwrap()).collect();
     assert_eq!(badges, ["external", "clipboard", "sound", "upgradable"]);
-    // Running: its keys, share folder, terminal, stop
-    assert_eq!(ids(&research["actions"]), ["keys", "showShare", "terminal", "stop"]);
+    // Running: its keys, share folder, terminal, its diagnosis (plan B162), stop
+    assert_eq!(ids(&research["actions"]), ["keys", "showShare", "terminal", "diagnose", "stop"]);
+    assert_eq!(
+        action(&research["actions"], "diagnose")["params"],
+        json!({"page": "diagnostics", "params": {"name": "research"}})
+    );
     assert_eq!(action(&research["actions"], "terminal")["then"], "terminal");
     assert_eq!(action(&research["actions"], "showShare")["then"], "reveal");
     // Its details while it runs: everything that changes it waits for the shutdown

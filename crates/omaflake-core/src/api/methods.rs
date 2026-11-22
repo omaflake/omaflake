@@ -193,6 +193,9 @@ impl Server {
             "vms.nextName" => self.vms_next_name(params(p)?),
             "vms.forget" => self.vms_forget(&params::<Name>(p)?.name),
             "vms.useExternal" => self.vms_use_external(params(p)?),
+            "diagnostics.run" => self.diagnostics_run(&params::<Name>(p)?.name),
+            "diagnostics.confirm" => self.diagnostics_confirm(params(p)?),
+            "diagnostics.copy" => self.diagnostics_copy(&params::<Name>(p)?.name),
             "vms.limits" => {
                 let state = self.state().map_err(err)?;
                 Answer::of(Limits { mac_max: VzBackend::MAX_RUNNING, mac_running: state.snap.running_macs() })

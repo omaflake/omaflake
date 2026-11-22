@@ -54,6 +54,12 @@ pub const MSG_MIDI_PONG: u16 = 0x0504; // guest → Mac, the ping's payload unch
 pub const MAX_MIDI_MESSAGE: usize = 64 * 1024;
 pub const MAX_MIDI_PING: usize = 64;
 
+// Diagnosis (0x06xx, plan B162): one check per request, one answer of the same id within 15 s (diagnose.rs)
+pub const MSG_DIAGNOSE_REQUEST: u16 = 0x0600; // Mac → guest, JSON {"id": u32, "check", "args"?}
+pub const MSG_DIAGNOSE_ANSWER: u16 = 0x0601; // guest → Mac, JSON {"id", "check", "status", "detail", "data"?}
+/// Largest diagnosis request: texts of at most 64 KiB plus their JSON escaping fit one chunk
+pub const MAX_DIAGNOSE_REQUEST: usize = CHUNK;
+
 /// A message as frames: one frame, or chunks of CHUNK bytes with MORE on all but the last
 pub fn encode_message(kind: u16, payload: &[u8]) -> Vec<u8> {
     if payload.len() <= CHUNK {

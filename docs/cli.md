@@ -65,6 +65,7 @@ git-ignored settings (`nix/local/`); flake URLs are used as given. Recipes come 
 | `omaf ssh <name> [-- command]` | `ssh <user>@127.0.0.1 -p <port>` (key from ssh-agent) |
 | `omaf wait <name>` | wait until sshd sends its banner (without logging in) |
 | `omaf agent <name> [--wait 60] [--json]` | what the VM's omaflake agent reports: version, OS, load, memory, disk, addresses, users (NixOS guests; spec §11.9) |
+| `omaf diagnose <name>` | the running VM's diagnosis (plan B162): agent, SSH, clipboard, share folder, network, sound, microphone, camera, MIDI, disk – one line per check (`✓` pass, `✗` fail, `?` only you can tell, `–` skipped), then the log's path (`<data>/logs/diagnostics-<vm>-<time>.log`); exit 1 when a check failed. Runs in this process, as `omaf call diagnostics.run` |
 | `omaf log <name> [-n 40] [-f] [--qemu]` | serial console or QEMU log |
 | `omaf recipes [--all] [--all-systems] [--long] [--check]` | recipes with their defaults, architectures and current image; lab (development) recipes only in developer mode or with `--all` (marked ⚗); `--long` adds each description; `--check` evaluates each recipe and marks images it has outgrown |
 | `omaf doctor` | checks what this computer brings (spec §11.2) – on a Linux host: Linux on x86_64/aarch64, KVM (`/dev/kvm` usable – else limited: TCG, with the fix), Nix, flakes, QEMU with version, 3D and UEFI firmware, image flake, SSH key, git, the `omaf` command, then recipes evaluate and space in the Nix store (no nix-darwin, Linux builder or macOS items; docs/linux.md). On a Mac: macOS/Apple silicon, Nix, flakes, nix-darwin, Linux builder, QEMU (3D or not), image flake, SSH key, git, the `omaf` command on your PATH (`cli`, optional: ok when it is this omaflake's – the same file or `--version` –, on Linux also one from the Nix store; limited when another one comes first or omaflake's link is not on the PATH; the line under it is the command that installs it); then the preflight for NixOS (builder answers, recipes evaluate, space in the Nix store) and macOS (IPSW, base, space); prints hints and the official install command; exit code 1 if something required is missing |
@@ -182,6 +183,13 @@ with `#custom-omaflake.running`, `.building`, `.failed`.
   the clipboard helper; `omaflake-agent-start`, log `/tmp/omaflake-agent.log` in the guest). `omaf-runner ctl
   <run/runner.sock> midi` lists what a macOS VM gets; agent.json keeps how many endpoints the guest made and the round
   trip host → agent → host of a ping once a second (`midi.roundTripMs`).
+- **Diagnosis (plan B162, every guest kind):** `omaf diagnose <name>` (and the app's "Diagnose …") checks a running
+  VM's features; the guest's half through the agent, relayed by whatever holds the agent link – omaf-runner's control
+  socket for macOS guests, the bridge's `<run>/bridge.sock` for NixOS guests (`omaf-runner bridge` / `omaf bridge
+  --control <socket>`: one JSON object per line each way, `{"command": "status" | "diagnose" | "midi", "check"?,
+  "args"?}`). macOS guests get the agent over SSH always now (not only with MIDI), and that start ends with a check
+  that the helpers run: a start that did not take is tried again at the next look and logged once per VM run, with
+  ssh's stderr, in the instance's runner.log and the activity list.
 - **Builds and the service (plan B120):** when the core service runs, `omaf build` runs as its job – the app and
   other clients see it, it waits in the same queue as theirs, and an already running build of the recipe is followed
   instead of started twice; the command prints its log (routine lines left out; `--verbose` names the log file that

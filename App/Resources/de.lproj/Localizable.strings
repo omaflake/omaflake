@@ -1621,3 +1621,54 @@
 "no key yet" = "noch kein Schlüssel";
 "half-done Nix install" = "halbe Nix-Installation";
 "no /dev/kvm – VMs run with TCG (slow)" = "kein /dev/kvm – VMs laufen mit TCG (langsam)";
+
+/* Diagnosis of a VM (plan B162) */
+"“%@” is not running – start it first" = "„%@“ läuft nicht – starte sie zuerst";
+"A device may have failed in the guest – the detail names it." = "Im Gast ist vielleicht ein Gerät gescheitert – das Detail nennt es.";
+"A short tone played in the guest – did you hear it?" = "Im Gast lief ein kurzer Ton – hast du ihn gehört?";
+"Add omaflake's Key …" = "omaflakes Schlüssel hinzufügen …";
+"Appends omaflake's public key to the guest's authorized_keys – ssh asks for your own key's passphrase or the guest's password" = "Hängt omaflakes öffentlichen Schlüssel an die authorized_keys des Gasts an – ssh fragt nach der Passphrase deines eigenen Schlüssels oder dem Passwort des Gasts";
+"Check the VM's network setting and this computer's connection." = "Prüfe die Netzwerkeinstellung der VM und die Verbindung dieses Computers.";
+"Checks what this VM's features do – the guest's half through its omaflake agent, this computer's half here. A switch that is off skips its check; sound and the microphone ask you." = "Prüft, was die Funktionen dieser VM tun – die Hälfte des Gasts über seinen omaflake-Agenten, die Hälfte dieses Computers hier. Ein ausgeschalteter Schalter überspringt seine Prüfung; Ton und Mikrofon fragen dich.";
+"Clipboard is off for this VM" = "Die Zwischenablage ist für diese VM aus";
+"Copy Log" = "Protokoll kopieren";
+"Diagnose …" = "Diagnose …";
+"Diagnosis" = "Diagnose";
+"Hardly anything came in – say something while it records, then Run Again." = "Kaum etwas kam an – sag etwas, während aufgenommen wird, dann „Erneut ausführen“.";
+"Heard It" = "Gehört";
+"Little space left: remove files in the guest, or create the VM again with a bigger disk." = "Wenig Platz frei: Lösche Dateien im Gast oder lege die VM mit einer größeren Festplatte neu an.";
+"MIDI is off for this VM" = "MIDI ist für diese VM aus";
+"No diagnosis yet" = "Noch keine Diagnose";
+"No network for this VM" = "Kein Netzwerk für diese VM";
+"Not Heard" = "Nicht gehört";
+"Not checked – no word from the guest's agent" = "Nicht geprüft – keine Meldung vom Agenten des Gasts";
+"Puts the diagnosis and its log on this computer's clipboard" = "Legt die Diagnose und ihr Protokoll in die Zwischenablage dieses Computers";
+"Run Again" = "Erneut ausführen";
+"SSH reaches the guest through its forwarded port – is the guest still starting?" = "SSH erreicht den Gast über seinen weitergeleiteten Port – startet der Gast noch?";
+"Show Log File" = "Protokolldatei zeigen";
+"Sound is off for this VM" = "Ton ist für diese VM aus";
+"Start the VM first" = "Starte zuerst die VM";
+"Start “%@” first – the diagnosis checks a running VM." = "Starte zuerst „%@“ – die Diagnose prüft eine laufende VM.";
+"The agent carries the clipboard – check the agent first." = "Der Agent trägt die Zwischenablage – prüfe zuerst den Agenten.";
+"The camera is off for this VM" = "Die Kamera ist für diese VM aus";
+"The camera reaches NixOS guests as a loopback device – the detail says what is missing." = "Die Kamera erreicht NixOS-Gäste als Loopback-Gerät – das Detail sagt, was fehlt.";
+"The guest found no input device, or recording failed – the detail says why." = "Der Gast fand kein Eingabegerät, oder die Aufnahme scheiterte – das Detail sagt, warum.";
+"The guest found no output device, or playing failed – the detail says why." = "Der Gast fand kein Ausgabegerät, oder das Abspielen scheiterte – das Detail sagt, warum.";
+"The guest's agent has no diagnosis – an image built before it" = "Der Agent des Gasts hat keine Diagnose – ein Image von vor ihr";
+"The microphone is off for this VM" = "Das Mikrofon ist für diese VM aus";
+"The omaflake agent starts with the guest. Images built before the diagnosis lack it: rebuild the image, then upgrade the VM." = "Der omaflake-Agent startet mit dem Gast. Images von vor der Diagnose fehlt sie: Baue das Image neu und aktualisiere dann die VM.";
+"The share folder is /Volumes/My Shared Files in macOS guests, /mnt/share in NixOS guests." = "Der Freigabeordner ist in macOS-Gästen /Volumes/My Shared Files, in NixOS-Gästen /mnt/share.";
+"The share folder is off for this VM" = "Der Freigabeordner ist für diese VM aus";
+"both ways" = "in beide Richtungen";
+"macOS guests start the omaflake agent over SSH – check SSH. Images built before the diagnosis lack it: rebuild the image, then upgrade the VM." = "macOS-Gäste starten den omaflake-Agenten über SSH – prüfe SSH. Images von vor der Diagnose fehlt sie: Baue das Image neu und aktualisiere dann die VM.";
+"macOS guests: the clipboard helper is started over SSH – check SSH first." = "macOS-Gäste: Der Zwischenablage-Helfer wird über SSH gestartet – prüfe zuerst SSH.";
+"omaflake's key is not in the guest's authorized_keys (images before 0.7.4) – Add omaflake's Key … appends it with your own key; then the clipboard helper and the agent start." = "omaflakes Schlüssel steht nicht in den authorized_keys des Gasts (Images vor 0.7.4) – „omaflakes Schlüssel hinzufügen …“ hängt ihn mit deinem eigenen Schlüssel an; dann starten der Zwischenablage-Helfer und der Agent.";
+"%@: nothing failed" = "%@: nichts fehlgeschlagen";
+"%@: %@ failed" = "%@: %@ fehlgeschlagen";
+"The guest helpers of “%@” did not start (clipboard, agent) – Diagnose … tells why: %@" = "Die Gast-Helfer von „%@“ sind nicht gestartet (Zwischenablage, Agent) – „Diagnose …“ sagt, warum: %@";
+
+/* The diagnosis page's own texts in the macOS app (plan B162) */
+"Running …" = "Läuft …";
+"Finished" = "Fertig";
+"Failed %@" = "Fehlgeschlagen %@";
+"Not run yet" = "Noch nicht ausgeführt";

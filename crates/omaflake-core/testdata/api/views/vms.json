@@ -216,6 +216,22 @@
           "then": "terminal"
         },
         {
+          "enabled": true,
+          "icon": "diagnose",
+          "id": "diagnose",
+          "label": {
+            "key": "Diagnose …",
+            "text": "Diagnose …"
+          },
+          "method": "ui.show",
+          "params": {
+            "page": "diagnostics",
+            "params": {
+              "name": "research"
+            }
+          }
+        },
+        {
           "destructive": true,
           "enabled": true,
           "icon": "stop",

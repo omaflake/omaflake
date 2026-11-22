@@ -117,12 +117,14 @@ in
     '';
 
     # Clipboard with the Mac (text, PNG): the agent's session part in the user's Wayland session, talking to the
-    # system agent (plan B106; replaces clipboard-agent.py). Inactive without the port or a Wayland compositor.
+    # system agent (plan B106; replaces clipboard-agent.py). Inactive without the port or a Wayland compositor. It also
+    # runs the diagnosis checks that need the user's desktop: clipboard, sound, microphone, share (plan B162).
     systemd.user.services.omaflake-agent-session = {
       description = "Clipboard with the Mac (omaflake agent, session part)";
       wantedBy = [ "default.target" ];
       unitConfig.ConditionPathExists = "/dev/virtio-ports/org.omaflake.agent";
-      path = [ pkgs.wl-clipboard pkgs.coreutils ];
+      # pw-play/pw-record: the diagnosis' sound and microphone checks run here, in the user's session (plan B162)
+      path = [ pkgs.wl-clipboard pkgs.coreutils pkgs.pipewire ];
       # Wait for the compositor's socket, then run; restart if the session or the agent goes away
       script = ''
         until wl=$(ls "$XDG_RUNTIME_DIR" 2>/dev/null | grep -m1 '^wayland-[0-9]*$'); do sleep 2; done

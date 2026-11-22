@@ -9,6 +9,7 @@
 
 pub mod camera;
 pub mod clipboard;
+pub mod control;
 pub mod convert;
 pub mod midi;
 #[cfg(target_os = "linux")]
@@ -44,6 +45,8 @@ pub struct BridgeOptions {
     pub midi: bool,
     /// The VM's name: the host's sequencer client for its own pair is "omaflake <name>"
     pub vm_name: String,
+    /// The control socket (`--control`, plan B162): the core's diagnosis and MIDI state go through it
+    pub control: Option<PathBuf>,
 }
 
 /// The Mac side's host name in the welcome, as Bridge.swift sends it
@@ -105,7 +108,18 @@ pub fn run(options: &BridgeOptions) -> Result<LinkEnd, String> {
             None
         }
     };
-    Bridge::new(stream, &options.agent_state, clipboard, camera, midi, log).map(|b| b.run())
+    let bridge = Bridge::new(stream, &options.agent_state, clipboard, camera, midi, log.clone())?;
+    if let Some(path) = &options.control
+        && let Err(why) = control::serve(path, bridge.control(), log.clone())
+    {
+        log(&format!("control: unavailable – {why}"));
+    }
+    let end = bridge.run();
+    if let Some(path) = &options.control {
+        // The socket file goes with the process (no user content)
+        let _ = std::fs::remove_file(path);
+    }
+    Ok(end)
 }
 
 /// Connects to QEMU's socket, retrying every 0.5 s until `wait` ran out; reads then wait forever (a connect timeout
@@ -127,6 +141,7 @@ pub fn connect(path: &Path, wait: Duration) -> Result<UnixStream, String> {
 /// One agent connection with the features it serves
 pub struct Bridge {
     link: AgentLink,
+    midi: Option<Arc<dyn MidiHost>>,
 }
 
 impl Bridge {
@@ -140,7 +155,8 @@ impl Bridge {
         midi: Option<Arc<dyn MidiHost>>,
         log: Arc<Log<'static>>,
     ) -> Result<Bridge, String> {
-        let mut allowed: HashSet<String> = HashSet::from(["status".to_string()]);
+        // The diagnosis always (plan B162): the core asks through the control socket
+        let mut allowed: HashSet<String> = HashSet::from(["status".to_string(), "diagnose".to_string()]);
         if clipboard.is_some() {
             allowed.insert("clipboard".into());
         }
@@ -195,10 +211,15 @@ impl Bridge {
         if let Some(c) = camera {
             link.on_camera = Some(Box::new(move |request| c.request(request)));
         }
-        if let Some(m) = midi {
+        if let Some(m) = midi.clone() {
             link.on_midi = Some(Box::new(move |records| m.deliver(records)));
         }
-        Ok(Bridge { link })
+        Ok(Bridge { link, midi })
+    }
+
+    /// What the control socket answers from (plan B162)
+    pub fn control(&self) -> control::Control {
+        control::Control { relay: self.link.diagnoses(), sender: self.link.sender(), midi: self.midi.clone() }
     }
 
     /// Reads the agent until the VM closes the port (`Closed`) or the guest spent its error budget (`Abandoned`)
@@ -291,7 +312,7 @@ mod tests {
         let (mut guest, t, state, _dir) = start(None, None);
         guest.send(AgentMessage::Hello, hello(&["status", "clipboard", "camera"]));
         let welcome = guest.json(AgentMessage::Welcome);
-        // clipboard and camera are off for this VM: only status is enabled
+        // clipboard and camera are off for this VM: only status is enabled (and the diagnosis, which it did not offer)
         assert_eq!(welcome["features"], serde_json::json!(["status"]));
         assert_eq!((welcome["protocol"].as_u64(), welcome["host"].as_str()), (Some(1), Some(HOST)));
         assert_eq!(welcome["statusInterval"].as_u64(), Some(STATUS_INTERVAL as u64));

@@ -22,6 +22,7 @@ struct PageView: View {
             case .keymapStudio(let p)?: KeymapStudioView(page: p, ref: ref, model: model)
             case .lookStudio(let p)?: LookStudioView(page: p, ref: ref, model: model)
             case .doctor(let p)?: DoctorView(page: p, model: model)
+            case .diagnostics(let p)?: DiagnosticsView(page: p, model: model)
             case .macBase(let p)?: MacBaseView(page: p, ref: ref, model: model)
             case .settings(let p)?: SettingsView(page: p, ref: ref, model: model)
             case .error(let e)?:
@@ -555,6 +556,107 @@ struct RequirementRow: View {
                 .padding(.horizontal, BrandTokens.Spacing.xl).padding(.vertical, BrandTokens.Spacing.m)
                 .background(.quaternary.opacity(0.4), in: RoundedRectangle(cornerRadius: BrandStyle.radius, style: .continuous))
                 .padding(.leading, 26)
+            }
+        }
+    }
+}
+
+// MARK: - Diagnosis
+
+/// A running VM's diagnosis (plan B162): what it is and when it ran, the page's actions (Run Again, Copy Log, Show Log
+/// File), one row per check in the Doctor's style – its status, title, what was found, the hint and the check's own
+/// actions (Heard It / Not Heard, Add omaflake's Key …) – and the job's log below, as the build page has it
+struct DiagnosticsView: View {
+    let page: DiagnosticsPage
+    let model: AppModel
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: BrandTokens.Spacing.xl) {
+            HStack(alignment: .firstTextBaseline, spacing: BrandTokens.Spacing.l) {
+                VStack(alignment: .leading, spacing: BrandTokens.Spacing.xxs) {
+                    if let subtitle = page.subtitle {
+                        Text(verbatim: model.t(subtitle)).font(.headline)
+                    }
+                    HStack(spacing: BrandTokens.Spacing.m) {
+                        if page.state == .running { ProgressView().controlSize(.small) }
+                        Text(verbatim: stateText).font(.caption).foregroundStyle(page.state == .failed ? AnyShapeStyle(BrandTokens.Colors.warning) : AnyShapeStyle(.secondary))
+                    }
+                }
+                Spacer()
+                ForEach(page.actions) { ActionPlainButton(action: $0, model: model, isDefault: $0.primary) }
+            }
+            if let intro = page.intro { HelpNote(intro, model: model) }
+            VStack(alignment: .leading, spacing: BrandTokens.Spacing.l) {
+                ForEach(page.checks) { DiagnosisRow(check: $0, model: model) }
+            }
+            .padding(BrandTokens.Spacing.cardPadding)
+            .background(BrandStyle.card, in: RoundedRectangle(cornerRadius: BrandTokens.Radius.toast))
+            JobLogView(log: page.log, model: model, minHeight: 160)
+        }
+        .padding(BrandStyle.margin)
+    }
+
+    /// Where the diagnosis stands, with the time of the last run
+    private var stateText: String {
+        let when = page.checked.map { $0.formatted(date: .abbreviated, time: .shortened) }
+        switch page.state {
+        case .running: return String(localized: "Running …")
+        case .finished: return when.map { String(localized: "Checked \($0)") } ?? String(localized: "Finished")
+        case .failed: return when.map { String(localized: "Failed \($0)") } ?? String(localized: "Failed")
+        default: return when.map { String(localized: "Checked \($0)") } ?? String(localized: "Not run yet")
+        }
+    }
+}
+
+/// One check of the diagnosis: status, title and detail on one line, the hint and the check's actions below
+struct DiagnosisRow: View {
+    let check: DiagnosticsPage.Check
+    let model: AppModel
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: BrandTokens.Spacing.m) {
+            HStack(alignment: .firstTextBaseline, spacing: BrandTokens.Spacing.l) {
+                StatusSymbol(status: check.status).frame(width: 16)
+                if let icon = Icons.symbol(check.icon)?.main {
+                    Image(systemName: icon).foregroundStyle(.secondary).frame(width: 16)
+                }
+                Text(verbatim: model.t(check.title)).lineLimit(1).layoutPriority(1)
+                Spacer(minLength: 12)
+                if let detail = check.detail {
+                    let d = model.t(detail)
+                    Text(verbatim: d).font(.system(.caption, design: .monospaced)).foregroundStyle(.secondary)
+                        .lineLimit(1).truncationMode(.middle).help(d).textSelection(.enabled)
+                }
+            }
+            if check.hint != nil || !check.actions.isEmpty {
+                HStack(alignment: .center, spacing: BrandTokens.Spacing.l) {
+                    if let hint = check.hint {
+                        Text(verbatim: model.t(hint)).font(.caption).foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    Spacer(minLength: 12)
+                    ForEach(check.actions) { ActionPlainButton(action: $0, model: model, isDefault: $0.primary) }
+                }
+                .controlSize(.small)
+                .padding(.horizontal, BrandTokens.Spacing.xl).padding(.vertical, BrandTokens.Spacing.m)
+                .background(.quaternary.opacity(0.4), in: RoundedRectangle(cornerRadius: BrandStyle.radius, style: .continuous))
+                .padding(.leading, 26)
+            }
+        }
+    }
+
+    /// pass ✓ green, fail ✗ red, confirm ? orange, skipped – grey, running a spinner, pending nothing yet
+    struct StatusSymbol: View {
+        let status: DiagnosticsPage.Status
+
+        var body: some View {
+            switch status {
+            case .pass: Image(systemName: "checkmark.circle.fill").foregroundStyle(BrandTokens.Colors.success)
+            case .fail: Image(systemName: "xmark.circle.fill").foregroundStyle(.red)
+            case .confirm: Image(systemName: "questionmark.circle.fill").foregroundStyle(BrandTokens.Colors.warning)
+            case .skipped: Image(systemName: "minus.circle").foregroundStyle(.secondary)
+            case .running: ProgressView().controlSize(.mini)
+            case .pending, .unknown: Color.clear.frame(width: 14, height: 14)
             }
         }
     }

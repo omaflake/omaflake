@@ -93,6 +93,8 @@ struct Clipboard {
     /// VM → the runner process that got its clipboard agent (a restarted VM gets it again)
     started: HashMap<String, Pid>,
     pending: HashSet<String>,
+    /// VM → the runner process whose failed helper start was logged already (once per VM run)
+    logged: HashMap<String, Pid>,
 }
 
 #[derive(Default)]
@@ -126,6 +128,8 @@ pub(crate) struct Inner {
     /// The last model sent per connection and subscribed page (`view.changed` only when it changes)
     pub views_last: Mutex<HashMap<(ConnId, String), Value>>,
     clipboard: Mutex<Clipboard>,
+    /// VM → its newest diagnosis (plan B162; the page shows it while it belongs to the VM's current run)
+    pub diagnostics: Mutex<HashMap<String, super::views::diagnostics::DiagnosisRecord>>,
     watch: Mutex<Watch>,
     wake: Condvar,
     /// The first `initialize` ran (it migrates older layouts once)
@@ -227,6 +231,7 @@ impl Server {
                 update: Mutex::default(),
                 views_last: Mutex::default(),
                 clipboard: Mutex::default(),
+                diagnostics: Mutex::default(),
                 watch: Mutex::default(),
                 wake: Condvar::new(),
                 migrated: AtomicBool::new(false),
@@ -608,17 +613,16 @@ impl Server {
         });
     }
 
-    /// macOS guests get their clipboard agent over SSH once they answer (darwin-guest.nix) – checked at every look,
-    /// so it also comes after a server restart or a first attempt that found no SSH yet (plan B64); remembered per
-    /// runner process: a restarted VM gets it again
+    /// macOS guests get their helpers over SSH once they answer (darwin-guest.nix): the clipboard helper when the
+    /// clipboard is on, the omaflake agent always (MIDI, the diagnosis – plan B162). Checked at every look, so they also
+    /// come after a server restart or a first attempt that found no SSH yet (plan B64); remembered per runner process:
+    /// a restarted VM gets them again. A start that fails (ssh refused omaflake's key, the helpers did not run) is
+    /// tried again at the next look and logged once per VM run – with ssh's stderr – in the instance's runner.log and
+    /// the activity list.
     fn ensure_clipboard_agents(&self, snap: &Snapshot) {
         for row in &snap.rows {
             let c = &row.config;
-            if c.kind != GuestKind::Macos
-                || row.status != VmStatus::Running
-                || !(c.clipboard_on() || c.midi_on())
-                || c.network == NetworkMode::None
-            {
+            if c.kind != GuestKind::Macos || row.status != VmStatus::Running || c.network == NetworkMode::None {
                 continue;
             }
             let name = c.name.clone();
@@ -631,29 +635,62 @@ impl Server {
             };
             let s = self.clone();
             std::thread::spawn(move || {
-                let started = super::jobs::guarded(|| {
+                let outcome = super::jobs::guarded(|| {
                     let backends = Backends::new(s.paths())?;
                     let vz = backends.vz()?;
                     let c = vz.store.load(&name)?;
                     let Some(pid) = vz.pid(&c) else { return Ok(None) };
                     if Some(pid) == known {
-                        return Ok(Some(pid));
+                        return Ok(Some((pid, Ok(()))));
                     }
                     let Some(host) = vz.address(&c) else { return Ok(None) };
                     if Ports::ssh_banner(&host, 22, Duration::from_secs(3)).is_none() {
                         return Ok(None);
                     }
-                    Ok(vz.start_clipboard_agent(&c, &host).then_some(pid))
+                    let started = vz.start_guest_helpers(&c, &host);
+                    if let Err(why) = &started {
+                        s.log_helper_failure(&c, pid, why);
+                    }
+                    Ok(Some((pid, started)))
                 })
                 .ok()
                 .flatten();
                 let mut cb = lock(&s.inner.clipboard);
-                if let Some(pid) = started {
+                if let Some((pid, Ok(()))) = outcome {
                     cb.started.insert(name.clone(), pid);
                 }
                 cb.pending.remove(&name);
             });
         }
+    }
+
+    /// A failed helper start, once per VM run: a line in the instance's runner.log and the activity list
+    fn log_helper_failure(&self, c: &crate::models::InstanceConfig, pid: Pid, why: &str) {
+        {
+            let mut cb = lock(&self.inner.clipboard);
+            if cb.logged.get(&c.name) == Some(&pid) {
+                return;
+            }
+            cb.logged.insert(c.name.clone(), pid);
+        }
+        let file = self.paths().instance(&c.name).runner_log();
+        if let Ok(mut f) = std::fs::OpenOptions::new().append(true).open(&file) {
+            use std::io::Write;
+            let _ = writeln!(
+                f,
+                "{} omaflake: the guest helpers (clipboard, agent) did not start over SSH: {why}",
+                crate::json::iso8601::format(&crate::json::now())
+            );
+        }
+        self.events().record(
+            super::types::Level::Warning,
+            super::views::text::tf!(
+                "The guest helpers of “%@” did not start (clipboard, agent) – Diagnose … tells why: %@",
+                &c.name,
+                why
+            ),
+            None,
+        );
     }
 
     // MARK: Watcher (api.md §6)

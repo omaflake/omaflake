@@ -42,7 +42,15 @@ public enum AgentProtocol {
         case midiStatus = 0x0502      // guest → Mac: {"endpoints": n, "failed": [names]}
         case midiPing = 0x0503        // Mac → guest: at most `maxMIDIPing` bytes, answered at once
         case midiPong = 0x0504        // guest → Mac: the ping's payload unchanged
+        case diagnoseRequest = 0x0600 // Mac → guest: {"id", "check", "args"?}, one check of the diagnosis (plan B162)
+        case diagnoseAnswer = 0x0601  // guest → Mac: {"id", "check", "status", "detail", "data"?}
     }
+
+    /// Diagnosis (plan B162): the agent answers a request within this time; an answer is at most this large
+    public static let diagnoseTimeout: TimeInterval = 15
+    public static let maxDiagnoseMessage = 1024 * 1024
+    /// The statuses an answer may carry
+    public static let diagnoseStatuses: Set<String> = ["pass", "fail", "confirm", "skipped"]
 
     /// MIDI: one data message at most (never chunked), a ping's payload at most
     public static let maxMIDIMessage = 64 * 1024
@@ -518,6 +526,29 @@ enum Untrusted {
     }
 
     static func number(_ d: Double) -> Double? { d.isFinite && d >= 0 && d < 1e15 ? d : nil }
+
+    /// Free-form JSON from the guest (a diagnosis answer's `data`): at most 8 levels deep, 256 entries per list or
+    /// object, strings without control characters (newlines and tabs stay) and at most 64 Ki characters, finite
+    /// numbers; anything else becomes null. It is shown and compared, never run or used as a path.
+    static func json(_ value: Any, depth: Int = 0) -> Any {
+        guard depth < 8 else { return NSNull() }
+        switch value {
+        case let s as String:
+            let kept = s.unicodeScalars.filter { $0 == "\n" || $0 == "\t" || !CharacterSet.controlCharacters.contains($0) }
+            return String(String.UnicodeScalarView(kept.prefix(65536)))
+        case let n as NSNumber:
+            if CFGetTypeID(n) == CFBooleanGetTypeID() { return n }
+            return n.doubleValue.isFinite ? n : NSNull()
+        case let a as [Any]:
+            return a.prefix(256).map { json($0, depth: depth + 1) }
+        case let o as [String: Any]:
+            var out: [String: Any] = [:]
+            for (k, v) in o.sorted(by: { $0.key < $1.key }).prefix(256) { out[text(k)] = json(v, depth: depth + 1) }
+            return out
+        default:
+            return NSNull()
+        }
+    }
 }
 
 // MARK: State
@@ -599,6 +630,20 @@ public final class AgentLink: @unchecked Sendable {
     private var lastAccepted: [UInt16: Date] = [:]
     private var clipboardTimes: [Date] = []
     private let writeLock = NSLock()
+    /// Diagnosis (plan B162): one request at a time (the agent handles them one by one), the open one by its id,
+    /// and what the welcome enabled as the other threads see it
+    private let diagnoseLock = NSLock()
+    private let sharedLock = NSLock()
+    private var pending: [UInt32: Pending] = [:]
+    private var nextId: UInt32 = 0
+    private var welcomed: Set<String>?
+
+    final class Pending: @unchecked Sendable {
+        let check: String
+        let done = DispatchSemaphore(value: 0)
+        var answer: [String: Any]?
+        init(check: String) { self.check = check }
+    }
 
     /// Features the Mac side allows for this VM (its switches); the welcome enables those the agent offers too
     let allowed: Set<String>
@@ -636,7 +681,8 @@ public final class AgentLink: @unchecked Sendable {
         self.stateFile = stateFile
         self.host = host
         self.statusInterval = statusInterval
-        self.allowed = allowed.union(["status"])
+        // The diagnosis is always allowed: it only asks the guest (spec §11.9, plan B162)
+        self.allowed = allowed.union(["status", "diagnose"])
         self.log = log
     }
 
@@ -786,7 +832,12 @@ public final class AgentLink: @unchecked Sendable {
             state.midi = midi
             // kept with the next status; no file write per pong
             return
-        case .welcome, .cameraFrame, .cameraStatus, .midiEndpoints, .midiPing:
+        case .diagnoseAnswer:
+            guard enabled.contains("diagnose") else { return }
+            guard let payload = parts.push(frame, limit: AgentProtocol.maxDiagnoseMessage) else { return }
+            guard let answer = Self.diagnosis(payload), complete(answer) else { errors += 1; return }
+            return   // no state change to keep
+        case .welcome, .cameraFrame, .cameraStatus, .midiEndpoints, .midiPing, .diagnoseRequest:
             errors += 1   // the Mac's messages, never the guest's
             return
         }
@@ -799,6 +850,7 @@ public final class AgentLink: @unchecked Sendable {
         let offered = Set(state.hello?.features ?? ["status"])
         enabled = allowed.intersection(offered).union(["status"])
         state.features = enabled.sorted()
+        sharedLock.withLock { welcomed = enabled }
         let w = AgentWelcome(protocol: version, features: enabled.sorted(), statusInterval: statusInterval, host: host)
         guard let json = try? JSONEncoder().encode(w) else { return }
         send(.welcome, payload: json)
@@ -812,6 +864,84 @@ public final class AgentLink: @unchecked Sendable {
               let b64 = obj["data"], let data = Data(base64Encoded: b64), data.count <= AgentProtocol.maxClipboard
         else { return nil }
         return (mime, data)
+    }
+
+    // MARK: Diagnosis (plan B162)
+
+    /// What the welcome enabled, nil before the first welcome; thread-safe
+    public var features: Set<String>? { sharedLock.withLock { welcomed } }
+
+    /// Asks the guest's agent one check of the diagnosis (`0x0600`) and waits for its answer (`0x0601` with the same
+    /// id) – the answer as the guest sent it, checked (`{id, check, status, detail, data?}`), or `{"error": …}`.
+    /// Blocking, from any thread but the link's own; other traffic goes on meanwhile. One request at a time: a second
+    /// caller waits for the first, within its own timeout.
+    public func diagnose(check: String, args: [String: Any]? = nil,
+                         timeout: TimeInterval = AgentProtocol.diagnoseTimeout) -> [String: Any] {
+        let deadline = Date().addingTimeInterval(timeout)
+        guard !check.isEmpty, check.count <= 64,
+              check.unicodeScalars.allSatisfy({ CharacterSet.lowercaseLetters.contains($0) && $0.isASCII
+                  || ("0"..."9").contains($0) || $0 == "-" })
+        else { return ["error": "not a check name: \(Untrusted.text(check))"] }
+        guard let features else { return ["error": "the guest's agent has not said hello yet"] }
+        guard features.contains("diagnose") else {
+            return ["error": "the guest's agent does not offer the diagnosis (an older image: rebuild it)"]
+        }
+        var request: [String: Any] = ["check": check]
+        if let args {
+            guard JSONSerialization.isValidJSONObject(args) else { return ["error": "the check's args are not JSON"] }
+            request["args"] = args
+        }
+        guard diagnoseLock.lock(before: deadline) else {
+            return ["error": "no answer from the guest's agent within \(Int(timeout)) s (another check was running)"]
+        }
+        defer { diagnoseLock.unlock() }
+        let waiting = Pending(check: check)
+        let id: UInt32 = sharedLock.withLock {
+            nextId &+= 1
+            pending[nextId] = waiting
+            return nextId
+        }
+        defer { _ = sharedLock.withLock { pending.removeValue(forKey: id) } }
+        request["id"] = id
+        guard let json = try? JSONSerialization.data(withJSONObject: request),
+              json.count <= AgentProtocol.maxPayload else { return ["error": "the check's args are too large"] }
+        guard send(.diagnoseRequest, payload: json) else { return ["error": "the guest's agent port is closed"] }
+        guard waiting.done.wait(timeout: .now() + max(0, deadline.timeIntervalSinceNow)) == .success,
+              let answer = sharedLock.withLock({ waiting.answer }) else {
+            return ["error": "no answer from the guest's agent within \(Int(timeout)) s"]
+        }
+        return answer
+    }
+
+    /// A diagnosis answer from the guest, checked: a JSON object with a u32 `id`, a `check`, a known `status`, a
+    /// text `detail` (cleaned, cut) and free-form `data` (`Untrusted.json`); nil if it is malformed
+    static func diagnosis(_ payload: Data) -> [String: Any]? {
+        guard payload.count <= AgentProtocol.maxDiagnoseMessage,
+              let obj = (try? JSONSerialization.jsonObject(with: payload)) as? [String: Any],
+              let idNumber = obj["id"] as? NSNumber, CFGetTypeID(idNumber) != CFBooleanGetTypeID(),
+              let id = UInt32(exactly: idNumber.doubleValue),
+              let check = obj["check"] as? String,
+              let status = obj["status"] as? String, AgentProtocol.diagnoseStatuses.contains(status)
+        else { return nil }
+        guard obj["detail"] == nil || obj["detail"] is String else { return nil }
+        var answer: [String: Any] = ["id": id, "check": Untrusted.text(check), "status": status,
+                                     "detail": Untrusted.text(obj["detail"] as? String ?? "")]
+        if let data = obj["data"], !(data is NSNull) { answer["data"] = Untrusted.json(data) }
+        return answer
+    }
+
+    /// Hands an answer to the request waiting for it. An id nobody waits for (an answer after its timeout) is
+    /// dropped quietly; false only for an answer to the open id that names another check
+    func complete(_ answer: [String: Any]) -> Bool {
+        guard let id = answer["id"] as? UInt32 else { return false }
+        return sharedLock.withLock {
+            guard let waiting = pending[id] else { return true }
+            guard answer["check"] as? String == waiting.check else { return false }
+            pending[id] = nil
+            waiting.answer = answer
+            waiting.done.signal()
+            return true
+        }
     }
 
     func persist() {

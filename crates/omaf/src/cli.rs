@@ -115,6 +115,10 @@ pub enum Command {
     Wait(Wait),
     #[command(about = "Show what the VM's omaflake agent reports (NixOS guests): hello and status.")]
     Agent(Agent),
+    #[command(
+        about = "Check a running VM's features (agent, SSH, clipboard, share folder, network, sound, …) and write a log."
+    )]
+    Diagnose(Diagnose),
     #[command(about = "Show the instance's serial console.")]
     Log(Log),
     #[command(about = "Show/set settings in ~/.omaflake/config.json.")]
@@ -181,6 +185,8 @@ pub struct Bridge {
     pub midi: bool,
     #[arg(long, value_name = "name", help = "The VM's name, for its MIDI ports (\"omaflake <name>\")")]
     pub vm_name: Option<String>,
+    #[arg(long, value_name = "socket", help = "Control socket: status, the VM's diagnosis, MIDI state")]
+    pub control: Option<std::path::PathBuf>,
 }
 
 #[derive(Debug, Args)]
@@ -789,6 +795,12 @@ pub struct Wait {
     pub name: String,
     #[arg(long, value_name = "timeout", default_value_t = 300.0, help = "Seconds")]
     pub timeout: f64,
+}
+
+#[derive(Debug, Args)]
+pub struct Diagnose {
+    #[arg(value_name = "name")]
+    pub name: String,
 }
 
 #[derive(Debug, Args)]

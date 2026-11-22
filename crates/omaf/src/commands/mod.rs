@@ -105,6 +105,7 @@ pub fn run(command: Command) -> Outcome {
         Command::Ssh(a) => instances::ssh(&a),
         Command::Wait(a) => instances::wait(&a),
         Command::Agent(a) => instances::agent(&a),
+        Command::Diagnose(a) => diagnose(&a),
         Command::Log(a) => instances::log(&a),
         Command::Config(a) => instances::config(&a),
         Command::Doctor(a) => instances::doctor(&a),
@@ -122,6 +123,46 @@ pub fn run(command: Command) -> Outcome {
     }
 }
 
+/// `omaf diagnose <name>` (plan B162): the core's diagnosis in this process – each check's line as it is done, then
+/// where the log is; exit 1 when a check failed
+fn diagnose(a: &Diagnose) -> Outcome {
+    use omaflake_core::api::Server;
+    use serde_json::{Value, json};
+    let notify = std::sync::Arc::new(|method: &str, params: Value| {
+        if method != "job.log" {
+            return;
+        }
+        for line in params["lines"].as_array().into_iter().flatten().filter_map(Value::as_str) {
+            // The checks' lines (`✓ Clipboard: both ways`), not their details
+            if ["✓ ", "✗ ", "? ", "– "].iter().any(|m| line.starts_with(m)) {
+                println!("{line}");
+            }
+        }
+    });
+    let server = Server::new(omaflake_core::paths::Paths::standard(), notify);
+    server
+        .call(
+            "initialize",
+            json!({"client": "omaf diagnose", "clientVersion": omaflake_core::VERSION, "apiVersion": 1}),
+        )
+        .map_err(omaflake_core::Error::from)?;
+    server.call("events.subscribe", json!({"topics": ["jobs"]})).map_err(omaflake_core::Error::from)?;
+    let job = server.call_and_wait("diagnostics.run", json!({"name": a.name}));
+    // The last lines go out with the job's end; give the event pump a moment
+    std::thread::sleep(std::time::Duration::from_millis(400));
+    server.close(std::time::Duration::from_secs(5));
+    let job = job.map_err(omaflake_core::Error::from)?;
+    if job["state"] != "finished" {
+        let why = job["error"].as_str().unwrap_or("the diagnosis did not finish");
+        return Err(Error::new(why.to_string()).into());
+    }
+    if let Some(file) = job["result"]["file"].as_str() {
+        println!("Log: {file}");
+    }
+    let failed = job["result"]["checks"].as_array().is_some_and(|c| c.iter().any(|x| x["status"] == "fail"));
+    if failed { Err(crate::util::Failure::Exit(1)) } else { Ok(()) }
+}
+
 /// `omaf bridge` (hidden; plan B126): runs until the VM closes its agent port
 fn bridge(a: &Bridge) -> Outcome {
     let options = omaflake_core::host_bridge::BridgeOptions {
@@ -132,6 +173,7 @@ fn bridge(a: &Bridge) -> Outcome {
         camera_test_pattern: a.camera_test_pattern,
         midi: a.midi,
         vm_name: a.vm_name.clone().unwrap_or_default(),
+        control: a.control.clone(),
     };
     match omaflake_core::host_bridge::run(&options) {
         Ok(end) => {

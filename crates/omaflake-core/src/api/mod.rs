@@ -20,6 +20,7 @@
 pub mod client;
 #[cfg(test)]
 mod contract;
+mod diagnostics;
 pub mod events;
 mod jobs;
 mod methods;

@@ -627,6 +627,9 @@ fn bridge_arguments(
         ip.agent_socket().to_string_lossy().into_owned(),
         "--agent-state".into(),
         ip.agent_state().to_string_lossy().into_owned(),
+        // The control socket on both hosts (plan B162): the core's diagnosis reaches the agent through it
+        "--control".into(),
+        ip.bridge_socket().to_string_lossy().into_owned(),
     ];
     if clipboard {
         args.push("--clipboard".into());
@@ -661,7 +664,16 @@ mod tests {
         let ip = paths.instance("t1");
         let ip_agent = ip.agent_socket().to_string_lossy().into_owned();
         let ip_state = ip.agent_state().to_string_lossy().into_owned();
-        let head = vec!["bridge".to_string(), "--agent".into(), ip_agent, "--agent-state".into(), ip_state];
+        let ip_control = ip.bridge_socket().to_string_lossy().into_owned();
+        let head = vec![
+            "bridge".to_string(),
+            "--agent".into(),
+            ip_agent,
+            "--agent-state".into(),
+            ip_state,
+            "--control".into(),
+            ip_control,
+        ];
         assert_eq!(
             bridge_arguments(&ip, true, false, false, true, None),
             head,

@@ -568,6 +568,7 @@ pub fn page(ctx: &Ctx, name: &str, model: &Value) -> Page {
         }
         "build" => build(ctx, model, &mut p),
         "doctor" => doctor(ctx, model, &mut p),
+        "diagnostics" => diagnostics(ctx, model, &mut p),
         "macBase" => mac_base(ctx, model, &mut p),
         "newVm" => new_vm(ctx, model, &mut p),
         "settings" => settings(ctx, model, &mut p),
@@ -1010,6 +1011,67 @@ fn doctor(ctx: &Ctx, model: &Value, p: &mut Page) {
             item.open = open;
             p.items.push(item);
         }
+    }
+}
+
+/// A VM's diagnosis (plan B162): one row per check – its mark, title, what was found, the hint and actions below
+/// while it failed or waits for the user – then the run's log
+fn diagnostics(ctx: &Ctx, model: &Value, p: &mut Page) {
+    let th = ctx.theme;
+    p.tools = arr(model, "actions").to_vec();
+    if let Some(sub) = model.get("subtitle") {
+        p.items.push(Item::line("", secondary_line(ctx, t(sub), 2)));
+    }
+    p.items.extend(help_item(ctx, t(&model["intro"]), 2));
+    let mut checked = vec![Span::raw("  ")];
+    if s(model, "state") == "running" {
+        checked.push(Span::styled(format!("{} ", spinner(ctx.tick)), th.accent()));
+    }
+    if let Some(c) = model.get("checked").and_then(Value::as_str) {
+        checked.push(Span::styled(date_text(c), th.secondary()));
+    }
+    p.items.push(Item::line("", Line::from(checked)));
+    p.items.push(Item::blank());
+    for it in arr(model, "checks") {
+        let key = format!("diagnostics:{}", s(it, "id"));
+        let (symbol, tone) = match s(it, "status") {
+            "pass" => (ctx.icons.get("ok"), Tone::Success),
+            "fail" => (ctx.icons.get("failed"), Tone::Danger),
+            "confirm" => ("?", Tone::Warning),
+            "skipped" => ("–", Tone::Normal),
+            _ => ("·", Tone::Normal),
+        };
+        let mut spans = vec![Span::raw(" ")];
+        if s(it, "status") == "running" {
+            spans.push(Span::styled(spinner(ctx.tick), th.accent()));
+        } else {
+            spans.push(Span::styled(symbol, th.tone(tone)));
+        }
+        spans.push(Span::raw(" "));
+        spans.extend(icon(ctx, s(it, "icon"), th.secondary()));
+        spans.push(Span::styled(t(&it["title"]), th.text()));
+        if let Some(d) = it.get("detail") {
+            spans.push(Span::styled(format!("  {}", t(d)), th.secondary()));
+        }
+        let mut lines = vec![Line::from(spans)];
+        if let Some(h) = it.get("hint") {
+            lines.push(toned_line(ctx, t(h), tone, 4));
+        }
+        let acts = arr(it, "actions");
+        if !acts.is_empty() {
+            let mut spans = vec![Span::raw("    ")];
+            for (i, a) in acts.iter().enumerate() {
+                if i > 0 {
+                    spans.push(Span::styled("  ·  ", th.border()));
+                }
+                spans.extend(button(ctx, a));
+            }
+            lines.push(Line::from(spans));
+        }
+        p.items.push(Item::row(key, lines, acts.to_vec()));
+    }
+    if let Some(log) = model.get("log").filter(|l| l.is_object()) {
+        p.log = LogBox::from_model(log);
     }
 }
 

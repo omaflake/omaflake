@@ -11,6 +11,7 @@ use omaflake_core::api::views::activity::ActivityPage;
 use omaflake_core::api::views::build::{BuildPage, LogRef, Outcome};
 use omaflake_core::api::views::common::{Action, Blockers, Field, FieldKind, Filter, FilterKind, Hint, ListHead, Tone};
 use omaflake_core::api::views::credentials::{CredentialPage, CredentialRow, CredentialsPage};
+use omaflake_core::api::views::diagnostics::{DiagnosisState, DiagnosticsCheck, DiagnosticsPage};
 use omaflake_core::api::views::doctor::{DoctorItem, DoctorPage, Download, MacBasePage};
 use omaflake_core::api::views::images::{BuildJobRow, ImageRowView, ImagesPage};
 use omaflake_core::api::views::keymap_studio::KeymapStudioPage;
@@ -22,6 +23,7 @@ use omaflake_core::api::views::recipes::{OfferedRow, RecipeRowView, RecipesPage}
 use omaflake_core::api::views::settings::{SettingsPage, SettingsSection, SourcesPage};
 use omaflake_core::api::views::vms::{VmRowView, VmsPage};
 use omaflake_core::api::views::{PageRef, Text};
+use omaflake_core::diagnostics::CheckStatus;
 use omaflake_core::prerequisites::PrerequisiteStatus;
 use serde_json::{Value, json};
 
@@ -711,6 +713,7 @@ pub fn page<'a>(app: &'a App, p: &PageRef, m: &'a Model) -> El<'a> {
         Model::Credentials(c) => credentials(app, &p.page, c),
         Model::Credential(c) => credential(app, &p.page, c),
         Model::Doctor(d) => doctor(app, d),
+        Model::Diagnostics(d) => diagnostics(app, &p.page, d),
         Model::MacBase(m) => mac_base(app, &p.page, m),
         Model::Settings(st) => settings(app, &p.page, st),
         Model::Vm(v) => detail_page(vm_row(app, &v.row)),
@@ -1695,6 +1698,60 @@ fn doctor_item<'a>(app: &'a App, section: &str, i: &'a DoctorItem) -> El<'a> {
     expandable(key, open, head.into(), detail)
 }
 
+/// A VM's diagnosis (plan B162): the Doctor's style – one row per check with its mark, what was found, the hint and the
+/// actions while it failed or waits for the user; the run's log below
+fn diagnostics<'a>(app: &'a App, page: &str, d: &'a DiagnosticsPage) -> El<'a> {
+    let mut head = row![
+        column![secondary(s(&d.subtitle)), widgets::help_note(s(&d.intro))].spacing(spacing::S).width(Length::Fill)
+    ]
+    .spacing(spacing::L)
+    .align_y(Alignment::Center);
+    if d.state == DiagnosisState::Running {
+        head = head.push(widgets::working(app.pulse));
+    }
+    for a in &d.actions {
+        head = head.push(action_button(a, Some(page), app.pulse));
+    }
+    let mut c = column![head].spacing(spacing::XXL);
+    if let Some(t) = d.checked {
+        c = c.push(secondary(trf("Checked %@", &[date_time(t).into()])));
+    }
+    let rows = Column::with_children(d.checks.iter().map(|x| diagnostics_check(app, page, x)));
+    c = c.push(container(rows.padding([spacing::XS, 0.0])).width(Length::Fill).style(style::card));
+    if let Some(l) = &d.log {
+        c = c.push(log_section(app, l));
+    }
+    c.into()
+}
+
+fn diagnostics_check<'a>(app: &'a App, page: &str, x: &'a DiagnosticsCheck) -> El<'a> {
+    let (glyph, color) = match x.status {
+        CheckStatus::Pass => ("ok", style::SUCCESS),
+        CheckStatus::Fail => ("failed", style::RED),
+        CheckStatus::Confirm => ("help", style::WARNING),
+        CheckStatus::Skipped => ("minus", style::SECONDARY),
+        CheckStatus::Pending | CheckStatus::Running => (x.icon.as_str(), style::SECONDARY),
+    };
+    let mut head =
+        row![icon(glyph, text_size::BODY, color), text(s(&x.title)).size(text_size::BODY).width(Length::Fill)]
+            .spacing(spacing::L)
+            .align_y(Alignment::Center);
+    if x.status == CheckStatus::Running {
+        head = head.push(widgets::working(app.pulse));
+    }
+    let mut c = column![head].spacing(spacing::XS);
+    if let Some(d) = &x.detail {
+        c = c.push(caption(s(d)).color(style::SECONDARY).wrapping(text::Wrapping::WordOrGlyph));
+    }
+    if let Some(h) = &x.hint {
+        c = c.push(caption(s(h)).color(color));
+    }
+    if !x.actions.is_empty() {
+        c = c.push(wrap(x.actions.iter().map(|a| action_button(a, Some(page), app.pulse)).collect()));
+    }
+    container(c).padding([7.0, spacing::XL]).into()
+}
+
 fn download<'a>(d: &'a Download) -> El<'a> {
     let f = if d.of > 0 { d.done as f32 / d.of as f32 } else { 0.0 };
     column![progress_bar(0.0..=1.0, f).girth(4).style(style::progress(style::ACCENT)), secondary(s(&d.text))]
@@ -2098,6 +2155,7 @@ pub mod tests {
             "newVm" => "newVm",
             "build" => "build",
             "doctor" => "doctor",
+            "diagnostics" => "diagnostics",
             "macBase" => "macBase",
             "settings" => "settings",
             "activity" => "activity",

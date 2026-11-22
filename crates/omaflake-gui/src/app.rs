@@ -40,6 +40,8 @@ pub enum Model {
     NewVm(Box<NewVmPage>),
     Build(Box<BuildPage>),
     Doctor(Box<DoctorPage>),
+    /// A VM's diagnosis (plan B162)
+    Diagnostics(Box<omaflake_core::api::views::diagnostics::DiagnosticsPage>),
     MacBase(Box<MacBasePage>),
     Settings(Box<SettingsPage>),
     /// Credentials (plan B137)
@@ -103,6 +105,7 @@ pub fn decode(page: &str, v: Value) -> Model {
         "newVm" => de(v, Model::NewVm),
         "build" => de(v, Model::Build),
         "doctor" => de(v, Model::Doctor),
+        "diagnostics" => de(v, Model::Diagnostics),
         "macBase" => de(v, Model::MacBase),
         "settings" => de(v, Model::Settings),
         "credentials" => de(v, Model::Credentials),
@@ -146,6 +149,7 @@ impl Model {
             Model::NewVm(p) => &p.title,
             Model::Build(p) => &p.title,
             Model::Doctor(p) => &p.title,
+            Model::Diagnostics(p) => &p.title,
             Model::MacBase(p) => &p.title,
             Model::Settings(p) => &p.title,
             Model::Credentials(p) => &p.title,
@@ -161,10 +165,11 @@ impl Model {
         })
     }
 
-    /// The job log the page shows (build, macOS base)
+    /// The job log the page shows (build, macOS base, a diagnosis)
     pub fn log(&self) -> Option<&LogRef> {
         match self {
             Model::Build(b) => b.log.as_ref(),
+            Model::Diagnostics(d) => d.log.as_ref(),
             Model::MacBase(m) => m.log.as_ref(),
             _ => None,
         }

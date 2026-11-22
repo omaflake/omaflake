@@ -51,6 +51,7 @@ pub fn lucide(name: &str) -> Option<Icon> {
         "guide" => Icon::BookMarked,
         "log" => Icon::ScrollText,
         "doctor" => Icon::Stethoscope,
+        "diagnose" => Icon::HeartPulse,
         "settings" => Icon::Settings,
         "key" => Icon::KeyRound,
         "workshop" => Icon::Wrench,

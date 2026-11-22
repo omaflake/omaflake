@@ -161,24 +161,41 @@ public enum DHCPLeases {
     }
 }
 
-/// Controls a running omaf-runner via its Unix socket (one JSON line out, one back).
+/// Controls a running omaf-runner via its Unix socket (one JSON line out, one back; `ControlServer`).
 public enum RunnerClient {
-    public static let commands = ["status", "stop", "kill", "show", "midi"]
+    /// What `omaf-runner run`'s control socket answers
+    public static let commands = ["status", "stop", "kill", "show", "midi", "diagnose"]
+    /// What `omaf-runner bridge --control` answers
+    public static let bridgeCommands = ["status", "diagnose", "midi"]
 
+    /// A command without fields; the answer's values as text (a value that is not a string: its JSON)
     @discardableResult
     public static func send(_ command: String, socket: URL, timeout: TimeInterval = 5) throws -> [String: String] {
+        try request(["command": command], socket: socket, timeout: timeout).mapValues { value in
+            if let s = value as? String { return s }
+            if JSONSerialization.isValidJSONObject([value]), let d = try? JSONSerialization.data(withJSONObject: [value]) {
+                return String(String(decoding: d, as: UTF8.self).dropFirst().dropLast())
+            }
+            return "\(value)"
+        }
+    }
+
+    /// One request – `{"command": …}` with the command's fields, e.g. `{"command": "diagnose", "check": "info"}` –
+    /// and its answer as JSON. `timeout`: how long to wait for the answer (a diagnosis takes up to 15 s)
+    public static func request(_ object: [String: Any], socket: URL, timeout: TimeInterval = 5) throws -> [String: Any] {
         let fd = try connectUnix(socket.path, timeout: timeout)
         defer { close(fd) }
-        let line = try JSONSerialization.data(withJSONObject: ["command": command]) + Data("\n".utf8)
+        let line = try JSONSerialization.data(withJSONObject: object) + Data("\n".utf8)
         _ = line.withUnsafeBytes { write(fd, $0.baseAddress, $0.count) }
         var data = Data()
         var buf = [UInt8](repeating: 0, count: 4096)
         while !data.contains(UInt8(ascii: "\n")) {
             let n = read(fd, &buf, buf.count)
+            if n < 0 && errno == EINTR { continue }
             if n <= 0 { break }
             data.append(contentsOf: buf[0..<n])
         }
-        guard let obj = try? JSONSerialization.jsonObject(with: data) as? [String: String] else {
+        guard let obj = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any] else {
             throw VMError("Invalid response from omaf-runner: \(String(decoding: data, as: UTF8.self))")
         }
         return obj

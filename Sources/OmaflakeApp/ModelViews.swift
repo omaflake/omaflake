@@ -46,6 +46,7 @@ enum Icons {
         case "guide": ("book", nil)
         case "log": ("doc.text", nil)
         case "doctor": ("stethoscope", nil)
+        case "diagnose": ("waveform.path.ecg", nil)
         case "settings": ("gearshape", nil)
         case "key": ("key", nil)
         case "workshop": ("wrench.and.screwdriver", nil)

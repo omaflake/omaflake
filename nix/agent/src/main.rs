@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 //! omaflake agent (guest side): one process per guest, talking to omaflake on the Mac over the virtio port
 //! org.omaflake.agent (spec §11.9): hello and periodic status, the clipboard (for the user's Wayland session, through
-//! `omaflake-agent session`), the Mac's camera as /dev/video42 and the Mac's MIDI endpoints (CoreMIDI on macOS, the
-//! ALSA sequencer on Linux – midi.rs, midi_alsa.rs).
+//! `omaflake-agent session`), the Mac's camera as /dev/video42, the Mac's MIDI endpoints (CoreMIDI on macOS, the
+//! ALSA sequencer on Linux – midi.rs, midi_alsa.rs) and the guest's half of the VM diagnosis (diagnose.rs).
 //!
 //! The port reports POLLHUP while nothing listens on the Mac's end. Each time the Mac side connects, the agent
 //! says hello (again every few seconds until a welcome comes back), then sends its status at the interval the
@@ -24,6 +24,7 @@ pub(crate) use concat_runtime;
 mod b64;
 mod camera;
 mod clip;
+mod diagnose;
 mod midi;
 #[cfg(any(not(target_os = "macos"), test))]
 mod midi1;
@@ -39,13 +40,15 @@ use camera::Camera;
 use midi::Midi;
 use proto::*;
 use serde::Deserialize;
+use std::collections::VecDeque;
 use std::fs::{File, OpenOptions};
 use std::io::{ErrorKind, Read, Write};
 use std::os::fd::AsRawFd;
 use std::os::unix::fs::{OpenOptionsExt, PermissionsExt};
 use std::os::unix::net::{UnixListener, UnixStream};
-use std::sync::Mutex;
+use std::sync::atomic::AtomicUsize;
 use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
 #[cfg(target_os = "linux")]
@@ -103,11 +106,11 @@ struct Welcome {
     host: Option<String>,
 }
 
-/// What this agent offers in its hello; the Mac enables a subset in its welcome
 /// What this agent offers in its hello; the Mac enables a subset in its welcome. macOS guests keep their clipboard
-/// helper until the agent's pasteboard is checked in a guest (PNG: OPEN, spec §11.9), so the agent there offers MIDI only
+/// helper until the agent's pasteboard is checked in a guest (PNG: OPEN, spec §11.9), so the agent there offers MIDI
+/// and the diagnosis only. The diagnosis is offered always, on every guest kind (plan B162)
 fn offered(midi: bool) -> Vec<&'static str> {
-    let mut f = vec!["status"];
+    let mut f = vec!["status", "diagnose"];
     if cfg!(target_os = "linux") {
         f.push("clipboard");
         if std::path::Path::new(camera::DEVICE).exists() {
@@ -118,6 +121,14 @@ fn offered(midi: bool) -> Vec<&'static str> {
         f.push("midi");
     }
     f
+}
+
+/// The diagnosis check that runs now (one at a time, spec §11.9)
+enum Running {
+    /// On a worker thread, which answers the Mac itself; the counter goes up when it is done
+    Worker(Arc<AtomicUsize>),
+    /// Handed to the newest session process; answered `fail` by the agent after SESSION_WAIT
+    Session { req: diagnose::Request, deadline: Instant },
 }
 
 /// A session process (the clipboard of a user's Wayland session) connected over SOCKET
@@ -143,6 +154,15 @@ struct Agent {
     camera: Option<Camera>,
     /// The guest's MIDI endpoints for the Mac's (None: no MIDI here – see midi.rs)
     midi: Option<Midi>,
+    /// The Mac's last camera status ("status", "detail"), for the diagnosis
+    camera_status: Option<(String, String)>,
+    /// Why there is no MIDI here (Midi::new failed), for the diagnosis
+    midi_error: Option<String>,
+    /// MIDI endpoints mirrored from the Mac's list and the names that failed, as last reported to the Mac
+    midi_state: (usize, Vec<String>),
+    /// Diagnosis requests waiting for the one that runs
+    diag_queue: VecDeque<diagnose::Request>,
+    diag_running: Option<Running>,
     /// One read buffer for the agent's life: the Linux virtio port gives at most one 4 KiB buffer per read, so a
     /// camera frame takes ~340 reads – a fresh zeroed buffer each time cost more than the frames themselves
     chunk: Vec<u8>,
@@ -219,6 +239,164 @@ impl Agent {
         let (count, failed) = m.sync(&list);
         log(&format!("MIDI: {count} endpoints from the Mac{}", if failed.is_empty() { "" } else { " (some failed)" }));
         self.send(MSG_MIDI_STATUS, &serde_json::json!({ "endpoints": count, "failed": failed }));
+        self.midi_state = (count, failed);
+    }
+
+    fn send_answer(&mut self, answer: &diagnose::Answer) {
+        self.send_raw(&encode_message(MSG_DIAGNOSE_ANSWER, &diagnose::encode(answer)));
+    }
+
+    /// A diagnosis request from the Mac: queued, and started when nothing else runs
+    fn diagnose_request(&mut self, payload: &[u8]) {
+        match diagnose::parse_request(payload) {
+            Ok(req) if self.diag_queue.len() >= diagnose::MAX_QUEUE => {
+                let busy = diagnose::Outcome::new(diagnose::Status::Fail, "Too many diagnosis requests at once");
+                self.send_answer(&busy.answer(&req));
+            }
+            Ok(req) => {
+                self.diag_queue.push_back(req);
+                self.diagnose_tick();
+            }
+            Err(Some(id)) => self.send_answer(&diagnose::malformed(id)),
+            Err(None) => log("malformed diagnosis request"),
+        }
+    }
+
+    /// The running check: done or overdue? Then the next one from the queue
+    fn diagnose_tick(&mut self) {
+        match &self.diag_running {
+            Some(Running::Worker(done)) if done.load(Ordering::SeqCst) > 0 => self.diag_running = None,
+            Some(Running::Session { req, deadline }) if Instant::now() >= *deadline => {
+                let answer = diagnose::session_silent(req);
+                self.diag_running = None;
+                self.send_answer(&answer);
+            }
+            _ => {}
+        }
+        while self.diag_running.is_none()
+            && let Some(req) = self.diag_queue.pop_front()
+        {
+            self.diagnose_start(req);
+        }
+    }
+
+    fn diagnose_start(&mut self, req: diagnose::Request) {
+        if !diagnose::known(&req.check) {
+            return self.send_answer(&diagnose::unknown(&req));
+        }
+        match diagnose::place(&req.check) {
+            diagnose::Place::Agent => {
+                let answer = self.diagnose_here(&req);
+                self.send_answer(&answer);
+            }
+            diagnose::Place::Worker => self.diagnose_worker(req),
+            diagnose::Place::Session { fallback } => {
+                let bytes = encode_message(MSG_DIAGNOSE_REQUEST, &serde_json::to_vec(&req).expect("serializable"));
+                // The newest session: the user who logged in last
+                if let Some(s) = self.sessions.last_mut()
+                    && s.stream.write_all(&bytes).is_ok()
+                {
+                    self.diag_running =
+                        Some(Running::Session { req, deadline: Instant::now() + diagnose::SESSION_WAIT });
+                } else if fallback {
+                    self.diagnose_worker(req);
+                } else {
+                    self.send_answer(&diagnose::no_session(&req));
+                }
+            }
+        }
+    }
+
+    fn diagnose_worker(&mut self, req: diagnose::Request) {
+        let done = Arc::new(AtomicUsize::new(0));
+        self.diag_running = Some(Running::Worker(done.clone()));
+        let ctx = diagnose::Context { sessions: self.sessions.len() };
+        std::thread::spawn(move || {
+            #[cfg(target_os = "macos")]
+            let clipboard: Option<&dyn diagnose::Clipboard> = Some(&session::PlainClipboard);
+            #[cfg(not(target_os = "macos"))]
+            let clipboard: Option<&dyn diagnose::Clipboard> = None;
+            let answer = diagnose::run(&req, ctx, clipboard);
+            write_port(&encode_message(MSG_DIAGNOSE_ANSWER, &diagnose::encode(&answer)));
+            done.fetch_add(1, Ordering::SeqCst);
+        });
+    }
+
+    /// The checks answered from the agent's own state
+    fn diagnose_here(&self, req: &diagnose::Request) -> diagnose::Answer {
+        use diagnose::{Outcome, Status};
+        let outcome = match req.check.as_str() {
+            "camera" => self.diagnose_camera(),
+            "midi" if !self.enabled("midi") => Outcome::new(Status::Skipped, "MIDI is off for this VM"),
+            "midi" if self.midi.is_none() => Outcome::new(
+                Status::Fail,
+                format!(
+                    "MIDI is on, but the guest's MIDI system is unavailable: {}",
+                    self.midi_error.as_deref().unwrap_or("?")
+                ),
+            ),
+            "midi" => {
+                let (count, failed) = &self.midi_state;
+                let data = serde_json::json!({ "endpoints": count, "failed": failed });
+                if failed.is_empty() {
+                    Outcome::new(Status::Pass, format!("{count} MIDI endpoints from the Mac in the guest")).with(data)
+                } else {
+                    let detail = format!("{} MIDI endpoints could not be made: {}", failed.len(), failed.join(", "));
+                    Outcome::new(Status::Fail, detail).with(data)
+                }
+            }
+            _ => return diagnose::unknown(req),
+        };
+        outcome.answer(req)
+    }
+
+    #[cfg(target_os = "macos")]
+    fn diagnose_camera(&self) -> diagnose::Outcome {
+        diagnose::Outcome::new(diagnose::Status::Skipped, "The camera in macOS guests comes after M12")
+    }
+
+    /// NixOS: the loopback device, whether the agent feeds it, and the Mac's last camera status
+    #[cfg(not(target_os = "macos"))]
+    fn diagnose_camera(&self) -> diagnose::Outcome {
+        use diagnose::{Outcome, Status};
+        if !std::path::Path::new(camera::DEVICE).exists() {
+            return Outcome::new(
+                Status::Fail,
+                format!("The camera device {} is missing (v4l2loopback)", camera::DEVICE),
+            );
+        }
+        if !self.enabled("camera") {
+            return Outcome::new(Status::Skipped, "The camera is off for this VM");
+        }
+        let mac = self.camera_status.as_ref();
+        let data = serde_json::json!({
+            "device": camera::DEVICE,
+            "open": self.camera.is_some(),
+            "inUse": self.camera.as_ref().is_some_and(|c| c.active),
+            "macStatus": mac.map(|(s, _)| s),
+            "macDetail": mac.map(|(_, d)| d),
+        });
+        let outcome = match (self.camera.is_some(), mac) {
+            (false, _) => Outcome::new(Status::Fail, format!("The agent could not open {}", camera::DEVICE)),
+            (true, Some((s, d))) if s == "unavailable" => Outcome::new(
+                Status::Fail,
+                format!(
+                    "The Mac's camera is unavailable{}",
+                    if d.is_empty() { String::new() } else { format!(": {d}") }
+                ),
+            ),
+            (true, Some((s, _))) => {
+                Outcome::new(Status::Pass, format!("{} is ready; the Mac's camera: {s}", camera::DEVICE))
+            }
+            (true, None) => Outcome::new(
+                Status::Pass,
+                format!(
+                    "{} is ready; no camera status from the Mac yet (it comes when an app opens the camera)",
+                    camera::DEVICE
+                ),
+            ),
+        };
+        outcome.with(data)
     }
 
     /// A message from the Mac
@@ -254,6 +432,10 @@ impl Agent {
             }
             MSG_CAMERA_STATUS if self.enabled("camera") => {
                 log(&format!("Mac camera: {}", String::from_utf8_lossy(&frame.payload)));
+                if let Ok(v) = serde_json::from_slice::<serde_json::Value>(&frame.payload) {
+                    let text = |k: &str| midi::clean(v.get(k).and_then(|x| x.as_str()).unwrap_or(""));
+                    self.camera_status = Some((text("status"), text("detail")));
+                }
             }
             MSG_MIDI_ENDPOINTS if self.enabled("midi") => self.midi_endpoints(&frame.payload),
             MSG_MIDI_DATA if self.enabled("midi") => {
@@ -270,6 +452,10 @@ impl Agent {
             MSG_MIDI_PING if self.enabled("midi") && frame.payload.len() <= MAX_MIDI_PING => {
                 self.send_raw(&encode(MSG_MIDI_PONG, 0, &frame.payload));
             }
+            MSG_DIAGNOSE_REQUEST if self.enabled("diagnose") => {
+                let Some(payload) = self.parts.push(frame, MAX_DIAGNOSE_REQUEST) else { return };
+                self.diagnose_request(&payload);
+            }
             // Unknown types, or a feature the Mac did not enable: skipped
             other => log(&format!("ignored message type {other:#06x}")),
         }
@@ -277,6 +463,9 @@ impl Agent {
 
     /// A message from a session process (its user's clipboard) – passed on only if the Mac enabled the clipboard
     fn handle_session(&mut self, i: usize, frame: Frame) {
+        if frame.kind == MSG_DIAGNOSE_ANSWER {
+            return self.diagnose_session_answer(&frame.payload);
+        }
         if frame.kind != MSG_CLIPBOARD {
             return;
         }
@@ -284,6 +473,20 @@ impl Agent {
         if self.enabled("clipboard") && clip::decode(&payload).is_some() {
             let bytes = encode_message(MSG_CLIPBOARD, &payload);
             self.send_raw(&bytes);
+        }
+    }
+
+    /// A session's answer to the check handed to it: passed on to the Mac (re-encoded, only for the running check)
+    fn diagnose_session_answer(&mut self, payload: &[u8]) {
+        let Some(Running::Session { req, .. }) = &self.diag_running else { return };
+        match serde_json::from_slice::<diagnose::Answer>(payload) {
+            Ok(mut a) if a.id == req.id => {
+                a.check = req.check.clone();
+                self.diag_running = None;
+                self.send_answer(&a);
+                self.diagnose_tick();
+            }
+            _ => log("a session sent a diagnosis answer nobody asked for"),
         }
     }
 
@@ -307,7 +510,10 @@ impl Agent {
         } else {
             self.next_hello
         };
-        let timeout = due.saturating_duration_since(now).min(Duration::from_secs(1));
+        let mut timeout = due.saturating_duration_since(now).min(Duration::from_secs(1));
+        if !self.diag_queue.is_empty() {
+            timeout = timeout.min(Duration::from_millis(50)); // the next check starts as soon as the running one is done
+        }
         // port, listener, camera, then the sessions
         let mut fds = vec![libc::pollfd { fd: self.port.as_raw_fd(), events: libc::POLLIN, revents: 0 }];
         let listener_at = self.listener.as_ref().map(|l| {
@@ -386,6 +592,12 @@ impl Agent {
             if let Some(m) = self.midi.as_mut() {
                 m.clear(); // the Mac's list comes again with the next welcome
             }
+            self.midi_state = (0, vec![]);
+            // Checks for a Mac side that is gone are dropped; a worker that still runs finishes on its own
+            self.diag_queue.clear();
+            if matches!(self.diag_running, Some(Running::Session { .. })) {
+                self.diag_running = None;
+            }
             self.decoder = Decoder::default();
             self.parts = Reassembler::default();
             // POLLHUP returns at once – wait a little before looking again
@@ -419,6 +631,7 @@ impl Agent {
         if let Some(cam) = self.camera.as_mut() {
             cam.keep_fresh(now);
         }
+        self.diagnose_tick();
     }
 }
 
@@ -487,11 +700,12 @@ fn main() {
         Ok(out) => *PORT_OUT.lock().unwrap_or_else(|e| e.into_inner()) = Some(out),
         Err(e) => return log(&format!("{path}: {e}")),
     }
-    let midi = match Midi::new(midi_out) {
-        Ok(m) => Some(m),
+    // Without MIDI the agent still runs: status and the diagnosis go on (macOS guests too)
+    let (midi, midi_error) = match Midi::new(midi_out) {
+        Ok(m) => (Some(m), None),
         Err(e) => {
             log(&format!("no MIDI: {e}"));
-            None
+            (None, Some(e))
         }
     };
     let now = Instant::now();
@@ -509,6 +723,11 @@ fn main() {
         listener: listen(),
         sessions: vec![],
         camera: None,
+        camera_status: None,
+        midi_error,
+        midi_state: (0, vec![]),
+        diag_queue: VecDeque::new(),
+        diag_running: None,
         chunk: vec![0u8; 1 << 20],
     };
     log(&format!("version {}, protocol {PROTOCOL_MIN}–{PROTOCOL_MAX}, port {path}", env!("CARGO_PKG_VERSION")));

@@ -20,6 +20,7 @@ pub mod activity;
 pub mod build;
 pub mod common;
 pub mod credentials;
+pub mod diagnostics;
 pub mod doctor;
 pub mod home;
 pub mod images;
@@ -59,7 +60,7 @@ pub use activity::ActivityEntry;
 pub use text::{Arg, Text};
 
 /// Every page `views.get` knows
-pub const PAGES: [&str; 29] = [
+pub const PAGES: [&str; 30] = [
     "home",
     "vms",
     "vm",
@@ -89,6 +90,7 @@ pub const PAGES: [&str; 29] = [
     "sources",
     "recipeCatalog",
     "keymaps",
+    "diagnostics",
 ];
 
 /// The computer the core runs on (`initialize`'s `host`): texts that name the Mac, Finder or the Keychain have a
@@ -164,6 +166,8 @@ pub(crate) struct Ctx {
     pub guides: Option<std::path::PathBuf>,
     /// The UI's language ("de"): texts of modules and recipes in it where they have it
     pub language: Option<String>,
+    /// VM → its newest diagnosis in its current run (plan B162)
+    pub diagnostics: BTreeMap<String, diagnostics::DiagnosisRecord>,
 }
 
 impl Ctx {
@@ -307,6 +311,12 @@ pub(crate) fn build(ctx: &Ctx, page: &PageRef) -> Result<Value, RpcError> {
         }
         "build" => to_value(build::page(ctx, &page_params(p)?)),
         "doctor" => to_value(doctor::page(ctx)),
+        "diagnostics" => {
+            let p: diagnostics::DiagnosticsParams = page_params(p)?;
+            to_value(diagnostics::page(ctx, &p).ok_or_else(|| {
+                RpcError::from(crate::vm_err!(crate::error::codes::NOT_FOUND, "Instance \"{}\" does not exist", p.name))
+            })?)
+        }
         "macBase" => to_value(doctor::mac_base_page(ctx, &page_params(p)?)),
         "credentials" => to_value(credentials::page(ctx)),
         "looks" => to_value(looks::page(ctx, &page_params(p)?)),
@@ -462,6 +472,7 @@ impl Server {
             host_full_name: crate::platform::full_user_name(),
             host: HostOs::this(),
             guides: crate::paths::Settings::bundled_guides(),
+            diagnostics: self.diagnoses_current(&state.paths),
         })
     }
 
@@ -478,6 +489,7 @@ impl Server {
         if page.page == "doctor" || page.page == "macBase" {
             self.check_doctor_if_never();
         }
+        self.diagnose_if_none(std::slice::from_ref(page));
         let client_version = lock(&self.conn.session).client_version.clone();
         build(&self.views_ctx(self.language(), client_version, std::slice::from_ref(page))?, page)
     }
@@ -506,6 +518,7 @@ impl Server {
         if pages.iter().any(|p| p.page == "doctor" || p.page == "macBase") {
             self.check_doctor_if_never();
         }
+        self.diagnose_if_none(&pages);
         let conn = self.conn.id;
         // A page that stays subscribed with the same params is sent again only when it changes; new ones come at once
         let keep: HashSet<String> = pages.iter().map(PageRef::key).collect();

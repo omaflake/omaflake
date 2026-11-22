@@ -112,7 +112,13 @@ final class RunController: NSObject, NSApplicationDelegate, NSWindowDelegate, VZ
             vm.delegate = self
             if request.window { showWindow() }
             if let socket = request.socket {
-                server = try ControlServer(path: socket) { [weak self] cmd in self?.handle(cmd) ?? ["error": "terminated"] }
+                // The handler runs on the main queue (ControlServer's default); a diagnosis answers from a thread later
+                server = try ControlServer(path: socket) { [weak self] request, reply in
+                    MainActor.assumeIsolated {
+                        guard let self else { reply(["error": "terminated"]); return }
+                        self.handle(request, reply: reply)
+                    }
+                }
             }
             if let pidFile = request.pidFile {
                 try "\(getpid())\n".write(to: pidFile, atomically: true, encoding: .utf8)
@@ -177,6 +183,16 @@ final class RunController: NSObject, NSApplicationDelegate, NSWindowDelegate, VZ
         return false
     }
 
+    /// A control request (`ControlServer`): the commands of `RunnerClient.commands`
+    func handle(_ request: ControlMessage, reply: @escaping ControlServer.Reply) {
+        let command = request.object["command"] as? String ?? ""
+        if command == "diagnose" {
+            ControlServer.diagnose(agent, request, reply: reply)
+        } else {
+            reply(handle(command))
+        }
+    }
+
     func handle(_ command: String) -> [String: String] {
         switch command {
         case "status":
@@ -203,7 +219,7 @@ final class RunController: NSObject, NSApplicationDelegate, NSWindowDelegate, VZ
             guard let midi else { return ["error": "this VM runs without MIDI (omaf set <name> --midi, then restart)"] }
             return midi.describe()
         default:
-            return ["error": "Unknown command \(command); available: \(RunnerClient.commands.joined(separator: ", "))"]
+            return ControlServer.unknown(command, available: RunnerClient.commands)
         }
     }
 
@@ -221,67 +237,5 @@ final class RunController: NSObject, NSApplicationDelegate, NSWindowDelegate, VZ
         server?.close()
         if let pidFile = request.pidFile { try? FileManager.default.removeItem(at: pidFile) }
         exit(code)
-    }
-}
-
-/// Unix socket with line-delimited JSON: {"command":"status"} → {"state":"running",…} (counterpart: OmaflakeCore.RunnerClient).
-@MainActor
-final class ControlServer {
-    private let path: URL
-    private let fd: Int32
-    private let source: DispatchSourceRead
-
-    init(path: URL, handler: @escaping @MainActor (String) -> [String: String]) throws {
-        self.path = path
-        unlink(path.path)   // leftover from an earlier run (socket file, no user content)
-        let listener = socket(AF_UNIX, SOCK_STREAM, 0)
-        guard listener >= 0 else { throw VMError("socket() failed") }
-        var addr = sockaddr_un()
-        addr.sun_family = sa_family_t(AF_UNIX)
-        let bytes = Array(path.path.utf8)
-        guard bytes.count < MemoryLayout.size(ofValue: addr.sun_path) else {
-            throw VMError("Socket path too long (max. 103 bytes): \(path.path)")
-        }
-        withUnsafeMutableBytes(of: &addr.sun_path) { raw in
-            raw.copyBytes(from: bytes)
-            raw[bytes.count] = 0
-        }
-        addr.sun_len = UInt8(MemoryLayout<sockaddr_un>.size)
-        let rc = withUnsafePointer(to: &addr) {
-            $0.withMemoryRebound(to: sockaddr.self, capacity: 1) { bind(listener, $0, socklen_t(MemoryLayout<sockaddr_un>.size)) }
-        }
-        guard rc == 0, listen(listener, 8) == 0 else {
-            Darwin.close(listener)
-            throw VMError("Socket \(path.path) not usable: \(String(cString: strerror(errno)))")
-        }
-        fd = listener
-        source = DispatchSource.makeReadSource(fileDescriptor: listener, queue: .main)
-        source.setEventHandler {
-            MainActor.assumeIsolated {
-                let client = accept(listener, nil, nil)
-                guard client >= 0 else { return }
-                defer { Darwin.close(client) }
-                var tv = timeval(tv_sec: 2, tv_usec: 0)
-                setsockopt(client, SOL_SOCKET, SO_RCVTIMEO, &tv, socklen_t(MemoryLayout<timeval>.size))
-                var data = Data()
-                var buf = [UInt8](repeating: 0, count: 1024)
-                while !data.contains(UInt8(ascii: "\n")) && data.count < 65536 {
-                    let n = read(client, &buf, buf.count)
-                    if n <= 0 { break }
-                    data.append(contentsOf: buf[0..<n])
-                }
-                let obj = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any]
-                let reply = handler(obj?["command"] as? String ?? "")
-                let out = ((try? JSONSerialization.data(withJSONObject: reply)) ?? Data("{}".utf8)) + Data("\n".utf8)
-                _ = out.withUnsafeBytes { write(client, $0.baseAddress, $0.count) }
-            }
-        }
-        source.resume()
-    }
-
-    func close() {
-        source.cancel()
-        Darwin.close(fd)
-        unlink(path.path)
     }
 }

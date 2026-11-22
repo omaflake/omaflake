@@ -282,6 +282,11 @@ impl InstancePaths {
     pub fn bridge_log(&self) -> PathBuf {
         self.run.join("bridge.log")
     }
+    /// The QEMU bridge's control socket (`omaf-runner bridge` / `omaf bridge --control`, plan B162): the diagnosis
+    /// relayed to the agent, the host's MIDI state
+    pub fn bridge_socket(&self) -> PathBuf {
+        self.run.join("bridge.sock")
+    }
     // omaflake agent (spec §11.9): the port's socket and what the agent last reported (AgentState)
     pub fn agent_socket(&self) -> PathBuf {
         self.run.join("agent.sock")

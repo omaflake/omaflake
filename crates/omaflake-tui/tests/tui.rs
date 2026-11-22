@@ -179,7 +179,8 @@ fn draws_the_vms_tab() {
         "1 ⌨ Keys …",
         "2 ▤ Show Share Folder",
         "3 ›_ Open Terminal with SSH",
-        "4 ■ Shut down",
+        "4 ⚕ Diagnose …",
+        "5 ■ Shut down",
     ] {
         assert!(s.contains(want), "missing {want:?} in\n{s}");
     }
@@ -192,7 +193,7 @@ fn draws_the_vms_tab() {
         "omaflake.nixos.dev@cedar-mango-lift",
         "newer image available",
         "Runs from",
-        // the detail actions; with the MIDI switch (plan B161) Export is the row's tenth action – menu `a`, no digit
+        // the detail actions; with the MIDI switch (plan B161) and Diagnose (B162) Export is the row's eleventh action – menu `a`, no digit
         "⇧ Export …",
         "Remove …",
     ] {

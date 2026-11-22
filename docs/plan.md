@@ -502,6 +502,15 @@ maintainer tries 0.7.0–0.7.3 (clicks in the apps; a VM's loading screen and ke
 running guest or a real Linux desktop (docs/linux.md) – and **M12** once the Developer ID is there. GitHub Pages of omaflake and website already publish
 through Actions (checked 2026-11-04: `build_type` workflow, domains omaflake.dev and omaflake.app).
 
+**B164 (2026-11-22, found, not built): a VM's resources cannot be changed.** `omaf set` and the VM's details change
+sound, microphone, clipboard, camera, MIDI and the window, but not CPU cores, memory or the disk size – a VM keeps what
+it was created with (the maintainer's development VM: 4 cores, 8 GB, 75 GB, too small for builds). Cores and memory
+are a line in the instance's config (VZ and QEMU read them at start); a larger disk needs the image grown and the
+guest's file system too (macOS: APFS behind the Recovery container – OPEN how; NixOS: the overlay and the root file
+system). Meanwhile: build output on the VM's own disk – `scripts/bundle-app.sh` and `scripts/sign-runner.sh` take
+`SWIFT_SCRATCH_PATH` and `CARGO_TARGET_DIR` (2026-11-22): on the shared folder (VirtioFS) linking the core's test binary
+alone took over 40 minutes.
+
 **B163 (2026-11-22): the German keyboard in macOS guests.** The maintainer chose German with the German keyboard and
 got "˛" for @ in a macOS guest: `darwin-guest.nix` mapped XKB `de` to "German – Standard" (German-DIN-2137, −18133,
 BM24/B46 took it as macOS' default), whose keys differ from the Mac's classic "German" (@ = Option+L, as base.nix
@@ -509,7 +518,23 @@ assumes; every other country already had its classic layout). Now `de` → "Germ
 like French 1, British 2, Italian 4; the name checked in macOS 27's AppleKeyboardLayouts-L.dat). OPEN: checked in a
 guest built with it.
 
-**B162 (2026-11-22, idea of the maintainer – noted, not built): diagnostics for a VM's features, from the UI.**
+**B162 (2026-11-22, built for 0.7.4 – maintainer: "the complete diagnosis apparatus"): diagnostics for a VM's
+features, from the UI.** Built as drafted below, with the contract in spec §11.9 ("Diagnosis") and api.md
+(`diagnostics`): agent messages `0x0600`/`0x0601` (`nix/agent/src/diagnose.rs`; on NixOS clipboard, sound,
+microphone and share run in the user's session process – the system agent has no desktop access), the relay on the
+runner's control socket and a new `--control` of `omaf-runner bridge` and `omaf bridge` (`run/bridge.sock`), the
+core's job `diagnostics` (`crates/omaflake-core/src/diagnostics.rs`, `api/diagnostics.rs`; the host's clipboard is
+saved and restored), the page `diagnostics` in the app, `omaf ui` and the Linux app, the VMs tab's `diagnose` action,
+`omaf diagnose`. With it the clipboard bug the maintainer found: in a macOS guest from an image before 0.7.4 the
+clipboard helper never started – omaflake's SSH failed silently (the guest's authorized_keys lacks omaflake's key;
+OPEN whether the core service lacks the ssh-agent key) –; the helpers are now started until they run (`pgrep` at the
+end of the SSH command), failures are logged once per run, the agent always starts, and the Diagnose page's `ssh`
+check offers "Add omaflake's Key …". Checked here: Rust (core 474, agent 37) and Swift (47) tests, clippy for macOS and
+aarch64-linux, the agent's checks live in this macOS guest (info, network, clipboard both ways; sound and microphone
+timed out on this VM's audio device), the relay end to end with the real agent on a pseudo-terminal through a real
+control socket (`omaf-runner diagnose-check`). OPEN: everything in a running guest – a full diagnosis from the app,
+sound/microphone (TCC for the SSH-started agent), NixOS session checks, the camera status, `omaf-runner bridge
+--control` against a QEMU guest, the page looked at on screen. The draft as noted:
 After testing MIDI by hand (MIDI Monitor in the guest; the workspace tool `_tools/miditest`, which copies itself into
 the VM over `omaf ssh`, runs there and echoes on the Mac, then writes a log): every feature of a VM should be testable
 from the app (and `omaf ui`, the CLI), with its result judged and kept. Draft:

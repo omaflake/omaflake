@@ -1148,6 +1148,65 @@ public struct DoctorPage: Decodable, Sendable, Equatable {
     public var issues: Int
 }
 
+public enum DiagnosticsState: String, OpenEnum { case idle, running, finished, failed, unknown }
+
+/// A running VM's diagnosis (plan B162, api.md "diagnostics"): one row per check, Run Again / Copy Log / Show Log
+/// File, and the job's log as the build page has it. Decoded tolerantly: the fields the core may leave out are optional.
+public struct DiagnosticsPage: Decodable, Sendable, Equatable {
+    public enum Status: String, OpenEnum { case pending, running, pass, fail, confirm, skipped, unknown }
+
+    public struct Check: Decodable, Sendable, Equatable, Identifiable {
+        public var id: String
+        public var title: ViewText
+        public var icon: String?
+        public var status: Status
+        public var detail: ViewText?
+        public var hint: ViewText?
+        /// Heard It / Not Heard (sound, microphone), Add omaflake's Key … (ssh on a macOS VM)
+        public var actions: [ViewAction]
+
+        enum CodingKeys: String, CodingKey { case id, title, icon, status, detail, hint, actions }
+
+        public init(from decoder: Decoder) throws {
+            let c = try decoder.container(keyedBy: CodingKeys.self)
+            id = try c.decode(String.self, forKey: .id)
+            title = try c.decode(ViewText.self, forKey: .title)
+            icon = try c.decodeIfPresent(String.self, forKey: .icon)
+            status = try c.decode(.status, or: .unknown)
+            detail = try c.decodeIfPresent(ViewText.self, forKey: .detail)
+            hint = try c.decodeIfPresent(ViewText.self, forKey: .hint)
+            actions = try c.decode(.actions, or: [])
+        }
+    }
+
+    public var title: ViewText
+    public var subtitle: ViewText?
+    public var state: DiagnosticsState
+    public var checked: Date?
+    public var intro: ViewText?
+    public var checks: [Check]
+    /// run (Run Again / Running …), copy (Copy Log), reveal (Show Log File)
+    public var actions: [ViewAction]
+    public var log: LogRef?
+    /// The log file, `<data>/logs/diagnostics-<vm>-<time>.log`
+    public var file: String?
+
+    enum CodingKeys: String, CodingKey { case title, subtitle, state, checked, intro, checks, actions, log, file }
+
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        title = try c.decode(ViewText.self, forKey: .title)
+        subtitle = try c.decodeIfPresent(ViewText.self, forKey: .subtitle)
+        state = try c.decode(.state, or: .unknown)
+        checked = try c.decodeIfPresent(Date.self, forKey: .checked)
+        intro = try c.decodeIfPresent(ViewText.self, forKey: .intro)
+        checks = try c.decode(.checks, or: [])
+        actions = try c.decode(.actions, or: [])
+        log = try c.decodeIfPresent(LogRef.self, forKey: .log)
+        file = try c.decodeIfPresent(String.self, forKey: .file)
+    }
+}
+
 public struct MacBasePage: Decodable, Sendable, Equatable {
     public struct IpswLine: Decodable, Sendable, Equatable {
         public var label: ViewText
@@ -1290,7 +1349,7 @@ public struct ViewError: Decodable, Sendable, Equatable {
 /// A page's model, by the page it is
 public enum PageModel: Sendable, Equatable {
     case home(HomePage), vms(VmsPage), vm(VmPage), images(ImagesPage), image(ImagePage), recipes(RecipesPage)
-    case newVm(NewVmPage), build(BuildPage), doctor(DoctorPage), macBase(MacBasePage), settings(SettingsPage)
+    case newVm(NewVmPage), build(BuildPage), doctor(DoctorPage), diagnostics(DiagnosticsPage), macBase(MacBasePage), settings(SettingsPage)
     case activity(ActivityPage), importStep(ImportPage), credentials(CredentialsPage), credential(CredentialPage)
     case looks(LooksPage), keys(KeysPage), studio(RecipeStudioPage), keymapStudio(KeymapStudioPage), lookStudio(LookStudioPage), sources(SourcesPage)
     /// The page could not be built
@@ -1315,6 +1374,7 @@ public enum PageModel: Sendable, Equatable {
         case "newVm": self = .newVm(try NewVmPage(from: decoder))
         case "build": self = .build(try BuildPage(from: decoder))
         case "doctor": self = .doctor(try DoctorPage(from: decoder))
+        case "diagnostics": self = .diagnostics(try DiagnosticsPage(from: decoder))
         case "macBase": self = .macBase(try MacBasePage(from: decoder))
         case "settings": self = .settings(try SettingsPage(from: decoder))
         // The catalog (plan B147): the sources, the recipes they offer (the recipes' shape), key bindings (the looks')

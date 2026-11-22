@@ -654,6 +654,8 @@ the Mac over one channel.
   | `0x0501` | both | MIDI data | records `id u32, protocol u8, flags u8, words u16` [+ `time u64` when flags bit 0] + UMP words (u32), whole UMP messages only, at most 64 KiB, never chunked |
   | `0x0502` | guest → Mac | MIDI status | `{"endpoints": n, "failed": [names]}` |
   | `0x0503` / `0x0504` | Mac → guest / guest → Mac | MIDI ping / pong | at most 64 bytes, echoed at once (round trip, once a second) |
+  | `0x0600` | Mac → guest | diagnosis request | `{"id": u32, "check", "args"?}` – one check of the VM's diagnosis (plan B162), answered once |
+  | `0x0601` | guest → Mac | diagnosis answer | `{"id", "check", "status" ("pass" \| "fail" \| "confirm" \| "skipped"), "detail", "data"?}` |
 
   Implemented (B96, B106, B161): `0x0001`–`0x0004`, `0x0100`, `0x0200`–`0x0203`, `0x0500`–`0x0504`. **MIDI (plan
   B161):** every MIDI endpoint of the Mac (CoreMIDI, except omaflake's own: property `app.omaflake.mirror`) becomes a
@@ -691,6 +693,24 @@ the Mac over one channel.
   v4l2loopback; the Mac sends a frame only against a credit, otherwise it keeps the newest one and sends it with the
   next credit (older ones are dropped – live video is never queued); no credit for 2 s stops the Mac camera. That bounds
   the Mac → guest queue at two frames.
+  **Diagnosis (plan B162):** the agent offers the feature `diagnose` (always, on every guest kind) and answers
+  `0x0600` with one `0x0601` of the same `id` within 15 s (a check that needs longer says so and answers when done;
+  requests are handled one at a time; unknown checks answer `skipped`). Checks and their `args` / `data`:
+  `info` – `data: {os, user?, session (bool: a user is logged in to the desktop), helpers: {clipboard: bool}}`
+  (macOS: the clipboard helper's process; NixOS: true, the agent carries the clipboard); `clipboard-read` –
+  `data: {text}`, the guest's clipboard as text; `clipboard-write {text}` – put it on the guest's clipboard;
+  `share-write {name, text}` / `share-read {name}` – a file in the guest's share folder (macOS `/Volumes/My Shared
+  Files`, NixOS `/mnt/share`; `name` a plain file name), `data: {text}` for read, `fail` when the folder is missing;
+  `network` – `data: {addresses, dns (bool, resolves omaflake.app), internet (bool, TCP to 1.1.1.1:443 within 3 s)}`;
+  `sound` – plays a 1 s 440 Hz tone on the guest's default output → `confirm` (only the user hears it) or `fail` with
+  why; `microphone` – records 2 s from the default input → `data: {level}` (RMS 0…1, peak), `pass` above 0.01, else
+  `confirm` ("say something and try again"); `camera` – NixOS: the loopback device and the Mac's last camera status,
+  macOS: `skipped` (the guest side comes after M12); `midi` – `data: {endpoints, failed}`.
+  **Relay:** whatever holds the agent link answers a control request `{"command": "diagnose", "check", "args"?}` with
+  the agent's answer (or `{"error"}` after 15 s) – `omaf-runner run` on its control socket, `omaf-runner bridge` and
+  `omaf bridge` on a new `--control <socket>` (the instance's `bridge.sock`); `{"command": "midi"}` gives the host
+  side's MIDI state on all three. The core runs the diagnosis (`diagnostics.run`, api.md) and does the host's half
+  (clipboard token, share file, SSH, the agent's report).
 - **Trust on the Mac side (the guest is untrusted):**
   1. Limits in the parser: 2 MiB per frame, resynchronisation after bad headers, an error budget (64 bad frames,
      malformed JSON or unknown types) – then the Mac side stops listening to that VM's agent and records why.

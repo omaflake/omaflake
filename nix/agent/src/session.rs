@@ -5,8 +5,8 @@
 //! writes it. macOS: the pasteboard's change count is polled, pbpaste/pbcopy read and write text (PNG: OPEN).
 //! Each side remembers what it wrote last, so its echo is not sent back.
 
-use crate::clip;
 use crate::proto::*;
+use crate::{clip, diagnose};
 #[cfg(target_os = "linux")]
 use std::io::{BufRead, BufReader};
 use std::io::{Read, Write};
@@ -30,7 +30,7 @@ struct Seen {
 
 /// (mime, data) of the Wayland clipboard: a PNG if offered, else text; None if empty, something else or too large
 #[cfg(target_os = "linux")]
-fn current_clipboard() -> Option<(&'static str, Vec<u8>)> {
+pub(crate) fn current_clipboard() -> Option<(&'static str, Vec<u8>)> {
     let types = Command::new("wl-paste").arg("--list-types").output().ok()?.stdout;
     let types = String::from_utf8_lossy(&types);
     let (mime, args): (&str, &[&str]) = if types.lines().any(|t| t == clip::PNG) {
@@ -54,9 +54,13 @@ pub fn run() {
     log("connected to the omaflake agent");
     let seen = Arc::new(Mutex::new(Seen::default()));
 
-    // Mac → Wayland: clipboard messages the system agent passes on
-    let mut reader = stream.try_clone().expect("socket");
+    // Both directions write whole frames under this lock (the clipboard watcher and the diagnosis)
+    let writer = Arc::new(Mutex::new(stream.try_clone().expect("socket")));
+
+    // Mac → Wayland: clipboard messages the system agent passes on; diagnosis checks it hands to the session
+    let mut reader = stream;
     let seen_in = seen.clone();
+    let diag_out = writer.clone();
     std::thread::spawn(move || {
         let mut decoder = Decoder::default();
         let mut parts = Reassembler::default();
@@ -71,19 +75,22 @@ pub fn run() {
             };
             decoder.feed(&chunk[..n]);
             while let Some(frame) = decoder.next_frame() {
+                if frame.kind == MSG_DIAGNOSE_REQUEST && frame.payload.len() <= MAX_DIAGNOSE_REQUEST {
+                    diagnose(&frame.payload, seen_in.clone(), diag_out.clone());
+                    continue;
+                }
                 if frame.kind != MSG_CLIPBOARD {
                     continue;
                 }
                 let Some(payload) = parts.push(frame, clip::MAX_MESSAGE) else { continue };
                 let Some((mime, data)) = clip::decode(&payload) else { continue };
                 seen_in.lock().unwrap().written = Some(clip::fingerprint(&mime, &data));
-                write_clipboard(&mime, &data);
+                let _ = write_clipboard(&mime, &data);
             }
         }
     });
 
     // guest → Mac: every change of the clipboard, except the echo of what came from the Mac
-    let mut writer = stream;
     watch_clipboard(|| {
         let Some((mime, data)) = current_clipboard() else { return true };
         let fp = clip::fingerprint(mime, &data);
@@ -94,7 +101,8 @@ pub fn run() {
             }
             s.sent = Some(fp);
         }
-        if writer.write_all(&encode_message(MSG_CLIPBOARD, &clip::encode(mime, &data))).is_err() {
+        let bytes = encode_message(MSG_CLIPBOARD, &clip::encode(mime, &data));
+        if writer.lock().unwrap_or_else(|e| e.into_inner()).write_all(&bytes).is_err() {
             log("the omaflake agent went away");
             return false;
         }
@@ -102,15 +110,58 @@ pub fn run() {
     });
 }
 
-#[cfg(target_os = "linux")]
-fn write_clipboard(mime: &str, data: &[u8]) {
-    let child = Command::new("wl-copy").args(["--type", mime]).stdin(Stdio::piped()).spawn();
-    if let Ok(mut child) = child {
-        if let Some(mut stdin) = child.stdin.take() {
-            let _ = stdin.write_all(data);
-        }
-        let _ = child.wait();
+/// The user's clipboard for the diagnosis: written as if the Mac had sent it (its echo is not sent back)
+struct SessionClipboard(Arc<Mutex<Seen>>);
+
+impl diagnose::Clipboard for SessionClipboard {
+    fn read(&self) -> Option<(&'static str, Vec<u8>)> {
+        current_clipboard()
     }
+    fn write(&self, text: &str) -> Result<(), String> {
+        self.0.lock().unwrap_or_else(|e| e.into_inner()).written = Some(clip::fingerprint(clip::TEXT, text.as_bytes()));
+        write_clipboard(clip::TEXT, text.as_bytes())
+    }
+}
+
+/// macOS: the agent itself runs as the logged-in user and reads and writes the pasteboard for the diagnosis
+#[cfg(target_os = "macos")]
+pub struct PlainClipboard;
+
+#[cfg(target_os = "macos")]
+impl diagnose::Clipboard for PlainClipboard {
+    fn read(&self) -> Option<(&'static str, Vec<u8>)> {
+        current_clipboard()
+    }
+    fn write(&self, text: &str) -> Result<(), String> {
+        write_clipboard(clip::TEXT, text.as_bytes())
+    }
+}
+
+/// A diagnosis check the system agent hands to this session (Linux: clipboard, sound, microphone, share – they need
+/// the user's desktop, spec §11.9); run on its own thread so the clipboard keeps flowing, answered on the socket
+fn diagnose(payload: &[u8], seen: Arc<Mutex<Seen>>, out: Arc<Mutex<UnixStream>>) {
+    let Ok(req) = diagnose::parse_request(payload) else { return log("malformed diagnosis request") };
+    std::thread::spawn(move || {
+        let answer = diagnose::run(&req, diagnose::Context { sessions: 1 }, Some(&SessionClipboard(seen)));
+        let bytes = encode_message(MSG_DIAGNOSE_ANSWER, &diagnose::encode(&answer));
+        let _ = out.lock().unwrap_or_else(|e| e.into_inner()).write_all(&bytes);
+    });
+}
+
+#[cfg(target_os = "linux")]
+pub(crate) fn write_clipboard(mime: &str, data: &[u8]) -> Result<(), String> {
+    let child = Command::new("wl-copy").args(["--type", mime]).stdin(Stdio::piped()).spawn();
+    feed(child.map_err(|e| format!("wl-copy: {e}"))?, data, "wl-copy")
+}
+
+/// Writes `data` to a child's stdin and waits for it. Its error output is not piped: wl-copy forks a child that keeps
+/// serving the clipboard and would hold such a pipe open
+fn feed(mut child: std::process::Child, data: &[u8], name: &str) -> Result<(), String> {
+    if let Some(mut stdin) = child.stdin.take() {
+        stdin.write_all(data).map_err(|e| format!("{name}: {e}"))?;
+    }
+    let status = child.wait().map_err(|e| format!("{name}: {e}"))?;
+    if status.success() { Ok(()) } else { Err(format!("{name} failed ({status})")) }
 }
 
 /// Calls `changed` on every clipboard change until it returns false (Linux: wl-paste --watch)
@@ -137,22 +188,18 @@ fn pb_command(name: &str) -> Command {
 }
 
 #[cfg(target_os = "macos")]
-fn current_clipboard() -> Option<(&'static str, Vec<u8>)> {
+pub(crate) fn current_clipboard() -> Option<(&'static str, Vec<u8>)> {
     let data = pb_command("pbpaste").output().ok()?.stdout;
     (!data.is_empty() && data.len() <= MAX_CLIPBOARD).then_some((clip::TEXT, data))
 }
 
 #[cfg(target_os = "macos")]
-fn write_clipboard(mime: &str, data: &[u8]) {
+pub(crate) fn write_clipboard(mime: &str, data: &[u8]) -> Result<(), String> {
     if mime != clip::TEXT {
-        return; // PNG into a macOS guest's pasteboard: OPEN
+        return Err("PNG into a macOS guest's pasteboard is not supported yet".into()); // OPEN
     }
-    if let Ok(mut child) = pb_command("pbcopy").stdin(Stdio::piped()).spawn() {
-        if let Some(mut stdin) = child.stdin.take() {
-            let _ = stdin.write_all(data);
-        }
-        let _ = child.wait();
-    }
+    let child = pb_command("pbcopy").stdin(Stdio::piped()).spawn();
+    feed(child.map_err(|e| format!("pbcopy: {e}"))?, data, "pbcopy")
 }
 
 #[cfg(target_os = "macos")]

@@ -267,10 +267,30 @@ impl VzBackend {
     }
 
     /// Starts the guest's helpers (darwin-guest.nix) – over SSH instead of a LaunchAgent, which macOS would announce as
-    /// a background item in every clone (BM25): the clipboard helper, and the omaflake agent for MIDI (plan B161).
-    /// Each starts only once; images without one simply lack that feature.
+    /// a background item in every clone (BM25): the clipboard helper, and the omaflake agent (MIDI, plan B161, and the
+    /// diagnosis, B162). Each starts only once; images without the agent simply lack it. The command ends with a check
+    /// that the helpers run, so a start that did not take fails (and is tried again at the next look); the error is
+    /// ssh's stderr (or the exit status) – the caller logs it.
+    pub fn start_guest_helpers(&self, c: &InstanceConfig, host: &str) -> std::result::Result<(), String> {
+        let args = self.ssh_arguments_to(c, host, &[guest_helpers_command(c)], true);
+        let Some((exe, rest)) = args.split_first() else { return Err("no ssh".into()) };
+        match Shell::run(exe, rest, &RunOptions::default()) {
+            Ok(r) if r.status == 0 => Ok(()),
+            Ok(r) => {
+                let why = r.stderr.trim();
+                Err(if why.is_empty() {
+                    format!("exit status {} – the helpers did not start (or are not in this image)", r.status)
+                } else {
+                    format!("exit status {}: {why}", r.status)
+                })
+            }
+            Err(e) => Err(e.message().to_string()),
+        }
+    }
+
+    /// `start_guest_helpers`, true when they run
     pub fn start_clipboard_agent(&self, c: &InstanceConfig, host: &str) -> bool {
-        run_ok(&self.ssh_arguments_to(c, host, &[guest_helpers_command(c)], true))
+        self.start_guest_helpers(c, host).is_ok()
     }
 
     /// `SshCommand::arguments` to `host` port 22; `batch` adds `-o BatchMode=yes -o ConnectTimeout=10` after ssh
@@ -432,9 +452,9 @@ impl VmBackend for VzBackend {
                 && Ports::ssh_banner(&host, 22, sockets::DEFAULT_TIMEOUT).is_some()
             {
                 self.apply_host_name(c, &host);
-                if c.clipboard_on() || c.midi_on() {
-                    self.start_clipboard_agent(c, &host);
-                }
+                // Always: the agent carries the diagnosis (plan B162); a start that failed here is retried and logged
+                // by the core service's looks (`ensure_clipboard_agents`)
+                self.start_clipboard_agent(c, &host);
                 return true;
             }
             if self.pid(c).is_none() {
@@ -465,8 +485,10 @@ fn path_string(p: &Path) -> String {
     p.to_string_lossy().into_owned()
 }
 
-/// The shell command that starts a macOS guest's helpers for `c`: the clipboard helper, and the omaflake agent for
-/// MIDI – the agent only where the image has it (older images: nothing to start, no error)
+/// The shell command that starts a macOS guest's helpers for `c`: the clipboard helper when the clipboard is on, the
+/// omaflake agent always where the image has it (it carries MIDI and the diagnosis; older images: nothing to start).
+/// It ends with a check that what it started runs (after a second: the clipboard helper exits at once without its
+/// port), so ssh's exit status tells whether the start took.
 fn guest_helpers_command(c: &InstanceConfig) -> String {
     const CLIPBOARD: &str = "/run/current-system/sw/bin/omaflake-clipboard-agent";
     const AGENT: &str = "/run/current-system/sw/bin/omaflake-agent-start";
@@ -474,9 +496,14 @@ fn guest_helpers_command(c: &InstanceConfig) -> String {
     if c.clipboard_on() {
         parts.push(CLIPBOARD.to_string());
     }
-    if c.midi_on() {
-        parts.push(format!("[ ! -x {AGENT} ] || {AGENT}"));
+    parts.push(format!("{{ [ ! -x {AGENT} ] || {AGENT}; }}"));
+    parts.push("sleep 1".into());
+    let mut checks = Vec::new();
+    if c.clipboard_on() {
+        checks.push("pgrep -f clipboard-agent-macos.py >/dev/null".to_string());
     }
+    checks.push(format!("{{ [ ! -x {AGENT} ] || pgrep -xq omaflake-agent; }}"));
+    parts.push(checks.join(" && "));
     parts.join("; ")
 }
 
@@ -718,15 +745,19 @@ pub(crate) mod tests {
     }
 
     #[test]
-    fn guest_helpers_follow_clipboard_and_midi() {
+    fn guest_helpers_start_the_agent_always_and_check_they_run() {
+        let agent = "{ [ ! -x /run/current-system/sw/bin/omaflake-agent-start ] || /run/current-system/sw/bin/omaflake-agent-start; }";
+        let agent_runs = "{ [ ! -x /run/current-system/sw/bin/omaflake-agent-start ] || pgrep -xq omaflake-agent; }";
         let mut c = mac_config("m1", NetworkMode::Shared);
-        assert_eq!(guest_helpers_command(&c), "/run/current-system/sw/bin/omaflake-clipboard-agent");
-        c.midi = Some(true);
-        c.clipboard = Some(false);
         assert_eq!(
             guest_helpers_command(&c),
-            "[ ! -x /run/current-system/sw/bin/omaflake-agent-start ] || /run/current-system/sw/bin/omaflake-agent-start"
+            format!(
+                "/run/current-system/sw/bin/omaflake-clipboard-agent; {agent}; sleep 1; pgrep -f clipboard-agent-macos.py >/dev/null && {agent_runs}"
+            )
         );
+        c.midi = Some(true);
+        c.clipboard = Some(false);
+        assert_eq!(guest_helpers_command(&c), format!("{agent}; sleep 1; {agent_runs}"));
     }
 
     #[test]

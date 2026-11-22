@@ -51,6 +51,10 @@ impl AgentProtocol {
     /// MIDI: one data message at most (never chunked), a ping's payload at most (spec §11.9, plan B161)
     pub const MAX_MIDI_MESSAGE: usize = 64 * 1024;
     pub const MAX_MIDI_PING: usize = 64;
+    /// Diagnosis (plan B162): an answer at most (a clipboard's text, a share file's content), and how long the Mac side
+    /// waits for one
+    pub const MAX_DIAGNOSE_ANSWER: usize = 1024 * 1024;
+    pub const DIAGNOSE_TIMEOUT: Duration = Duration::from_secs(15);
     /// MIDI from the guest: bytes a second it may send on average, and the burst above that (a SysEx dump is fine, a
     /// guest flooding the host's devices is cut off)
     pub const MIDI_RATE: usize = 1024 * 1024;
@@ -125,6 +129,10 @@ pub enum AgentMessage {
     MidiPing = 0x0503,
     /// guest → Mac: the ping's payload unchanged
     MidiPong = 0x0504,
+    /// Mac → guest: {"id": u32, "check", "args"?} – one check of the VM's diagnosis (plan B162)
+    DiagnoseRequest = 0x0600,
+    /// guest → Mac: {"id", "check", "status", "detail", "data"?} – the answer to the request of the same id
+    DiagnoseAnswer = 0x0601,
 }
 
 impl AgentMessage {
@@ -146,6 +154,8 @@ impl AgentMessage {
             MidiStatus,
             MidiPing,
             MidiPong,
+            DiagnoseRequest,
+            DiagnoseAnswer,
         ]
         .into_iter()
         .find(|m| *m as u16 == v)
@@ -382,6 +392,28 @@ impl Untrusted {
     /// most 256 Unicode scalars
     pub(crate) fn text(s: &str) -> String {
         s.chars().filter(|c| !is_control_character(*c)).take(256).collect()
+    }
+
+    /// A JSON value from the guest, cleaned: strings without control characters (newlines and tabs stay) and at most
+    /// 4096 scalars, at most 256 entries per array or object, at most 8 levels deep (deeper ones become null)
+    pub(crate) fn value(v: &serde_json::Value) -> serde_json::Value {
+        fn clean(v: &serde_json::Value, depth: usize) -> serde_json::Value {
+            use serde_json::Value as V;
+            if depth > 8 {
+                return V::Null;
+            }
+            match v {
+                V::String(s) => V::String(
+                    s.chars().filter(|c| matches!(c, '\n' | '\t') || !is_control_character(*c)).take(4096).collect(),
+                ),
+                V::Array(a) => V::Array(a.iter().take(256).map(|x| clean(x, depth + 1)).collect()),
+                V::Object(o) => {
+                    V::Object(o.iter().take(256).map(|(k, x)| (Untrusted::text(k), clean(x, depth + 1))).collect())
+                }
+                other => other.clone(),
+            }
+        }
+        clean(v, 0)
     }
 
     /// Finite, ≥ 0 and < 1e15, else None
@@ -839,6 +871,65 @@ impl AgentSender {
     }
 }
 
+/// The diagnosis requests of one agent connection (plan B162, spec §11.9 `0x0600`/`0x0601`): a request gets an id and
+/// waits for the answer of that id (`DIAGNOSE_TIMEOUT`); one request at a time, as the agent handles them. The link
+/// hands it the answers (`AgentLink::handle`); answers to no waiting request are dropped.
+#[derive(Debug, Default)]
+pub struct DiagnoseRelay {
+    next: std::sync::atomic::AtomicU32,
+    pending: Mutex<HashMap<u32, std::sync::mpsc::Sender<serde_json::Value>>>,
+    one: Mutex<()>,
+    /// The welcome enabled `diagnose` (the agent offers it and the host allows it)
+    enabled: std::sync::atomic::AtomicBool,
+}
+
+impl DiagnoseRelay {
+    /// The guest's agent offers the diagnosis (its last welcome enabled it)
+    pub fn enabled(&self) -> bool {
+        self.enabled.load(std::sync::atomic::Ordering::SeqCst)
+    }
+
+    /// Sends `{"id", "check", "args"?}` and waits up to `timeout` for the answer (cleaned, `Untrusted::value`); Err
+    /// with the reason when the port is gone or no answer came
+    pub fn request(
+        &self,
+        sender: &AgentSender,
+        check: &str,
+        args: Option<&serde_json::Value>,
+        timeout: Duration,
+    ) -> std::result::Result<serde_json::Value, String> {
+        let _one = self.one.lock().unwrap_or_else(|e| e.into_inner());
+        let id = self.next.fetch_add(1, std::sync::atomic::Ordering::SeqCst).wrapping_add(1);
+        let (tx, rx) = std::sync::mpsc::channel();
+        self.pending.lock().unwrap_or_else(|e| e.into_inner()).insert(id, tx);
+        let mut request = serde_json::json!({"id": id, "check": check});
+        if let Some(args) = args {
+            request["args"] = args.clone();
+        }
+        let sent = serde_json::to_vec(&request).is_ok_and(|bytes| sender.send(AgentMessage::DiagnoseRequest, &bytes));
+        let answer = if sent { rx.recv_timeout(timeout).ok() } else { None };
+        self.pending.lock().unwrap_or_else(|e| e.into_inner()).remove(&id);
+        match answer {
+            Some(a) => Ok(a),
+            None if !sent => Err("the VM's agent port is gone".into()),
+            None => Err(format!("no answer from the guest's agent within {} s", timeout.as_secs())),
+        }
+    }
+
+    /// An answer from the guest: to the request waiting for its id; false when none waits for it
+    pub(crate) fn deliver(&self, answer: serde_json::Value) -> bool {
+        let Some(id) = answer.get("id").and_then(serde_json::Value::as_u64).and_then(|i| u32::try_from(i).ok()) else {
+            return false;
+        };
+        let waiting = self.pending.lock().unwrap_or_else(|e| e.into_inner()).remove(&id);
+        waiting.is_some_and(|tx| tx.send(answer).is_ok())
+    }
+
+    pub(crate) fn set_enabled(&self, on: bool) {
+        self.enabled.store(on, std::sync::atomic::Ordering::SeqCst);
+    }
+}
+
 /// The Mac side of one agent connection: reads frames from the stream (QEMU: the port's Unix socket), answers the
 /// hello with a welcome and keeps what the agent reports in `state_file`. Accepts only the messages above, with
 /// limits: the guest is untrusted (spec §11.9). Nothing the guest sends makes the Mac do more than update that file.
@@ -873,6 +964,8 @@ pub struct AgentLink {
     midi_dropped: usize,
     /// Round trips of the last pings, in milliseconds
     round_trips: Vec<f64>,
+    /// Diagnosis requests waiting for their answers (plan B162)
+    diagnoses: Arc<DiagnoseRelay>,
 }
 
 impl AgentLink {
@@ -916,12 +1009,18 @@ impl AgentLink {
             midi_filled: Instant::now(),
             midi_dropped: 0,
             round_trips: Vec::new(),
+            diagnoses: Arc::default(),
         })
     }
 
     /// A handle for writing to the guest from other threads
     pub fn sender(&self) -> AgentSender {
         self.sender.clone()
+    }
+
+    /// The diagnosis requests (plan B162): from other threads through `sender()`, answered on the link's thread
+    pub fn diagnoses(&self) -> Arc<DiagnoseRelay> {
+        self.diagnoses.clone()
     }
 
     /// What the welcome enabled
@@ -1157,11 +1256,29 @@ impl AgentLink {
                 });
                 return; // kept with the next status; no file write per pong
             }
+            AgentMessage::DiagnoseAnswer => {
+                if !self.enabled.contains("diagnose") {
+                    return;
+                }
+                let Some(payload) = self.parts.push(frame, AgentProtocol::MAX_DIAGNOSE_ANSWER) else { return };
+                let Ok(answer) = serde_json::from_slice::<serde_json::Value>(&payload) else {
+                    self.errors += 1;
+                    return;
+                };
+                if !answer.is_object() {
+                    self.errors += 1;
+                    return;
+                }
+                // An answer nobody waits for any more (it came too late) is dropped, no error
+                self.diagnoses.deliver(Untrusted::value(&answer));
+                return;
+            }
             AgentMessage::Welcome
             | AgentMessage::CameraFrame
             | AgentMessage::CameraStatus
             | AgentMessage::MidiEndpoints
-            | AgentMessage::MidiPing => {
+            | AgentMessage::MidiPing
+            | AgentMessage::DiagnoseRequest => {
                 self.errors += 1; // the Mac's messages, never the guest's
                 return;
             }
@@ -1185,6 +1302,7 @@ impl AgentLink {
         let mut features: Vec<String> = self.enabled.iter().cloned().collect();
         features.sort();
         self.state.features = Some(features.clone());
+        self.diagnoses.set_enabled(self.enabled.contains("diagnose"));
         let w = AgentWelcome {
             protocol: version,
             features,
@@ -1268,7 +1386,7 @@ mod tests {
     fn message_types_round_trip() {
         for v in [
             0x0001, 0x0002, 0x0003, 0x0004, 0x0100, 0x0200, 0x0201, 0x0202, 0x0203, 0x0500, 0x0501, 0x0502, 0x0503,
-            0x0504,
+            0x0504, 0x0600, 0x0601,
         ] {
             assert_eq!(AgentMessage::from_u16(v).map(|m| m as u16), Some(v));
         }
@@ -1686,5 +1804,77 @@ mod tests {
         assert!(h.send(AgentMessage::MidiStatus, br#"{"endpoints":5}"#));
         assert_eq!(*got.lock().unwrap(), 0);
         assert!(h.state().unwrap().midi.is_none());
+    }
+
+    /// Diagnosis (plan B162): a request goes out with an id, the answer of that id comes back cleaned; answers nobody
+    /// waits for and the guest sending requests are dropped
+    #[test]
+    fn diagnose_request_and_answer() {
+        let offering = br#"{"agent":"0.4.0","protocol":{"min":1,"max":1},"features":["status","diagnose"]}"#;
+        let mut h = Harness::new(&["diagnose"]);
+        let relay = h.link.diagnoses();
+        assert!(!relay.enabled());
+        assert!(h.send(AgentMessage::Hello, offering));
+        assert!(relay.enabled());
+        assert_eq!(h.reply()[0].type_, AgentMessage::Welcome as u16);
+        let sender = h.link.sender();
+        let r = relay.clone();
+        let asking = std::thread::spawn(move || {
+            r.request(&sender, "clipboard-write", Some(&serde_json::json!({"text": "t"})), Duration::from_secs(5))
+        });
+        // The request on the guest's end
+        let guest = h.guest.take().unwrap();
+        guest.set_nonblocking(false).unwrap();
+        guest.set_read_timeout(Some(Duration::from_secs(5))).unwrap();
+        let mut d = AgentDecoder::new();
+        let mut buf = vec![0u8; 4096];
+        let request = loop {
+            if let Some(f) = d.next_frame() {
+                break f;
+            }
+            let n = (&guest).read(&mut buf).unwrap();
+            d.feed(&buf[..n]);
+        };
+        assert_eq!(request.type_, AgentMessage::DiagnoseRequest as u16);
+        let request: Value = serde_json::from_slice(&request.payload).unwrap();
+        assert_eq!((request["check"].as_str(), request["args"]["text"].as_str()), (Some("clipboard-write"), Some("t")));
+        let id = request["id"].as_u64().unwrap();
+        // A late answer of another id is dropped; the right one (with a control character) is delivered cleaned
+        let other = serde_json::json!({"id": id + 7, "check": "x", "status": "pass", "detail": ""});
+        assert!(h.send(AgentMessage::DiagnoseAnswer, other.to_string().as_bytes()));
+        let answer =
+            serde_json::json!({"id": id, "check": "clipboard-write", "status": "pass", "detail": "ok\u{1b}[1m\nnext"});
+        assert!(h.send(AgentMessage::DiagnoseAnswer, answer.to_string().as_bytes()));
+        let got = asking.join().unwrap().unwrap();
+        assert_eq!(got["detail"], "ok[1m\nnext");
+        assert_eq!(got["status"], "pass");
+        // Requests are the Mac's: from the guest they cost an error; malformed answers too
+        assert!(h.send(AgentMessage::DiagnoseRequest, br#"{"id":1,"check":"info"}"#));
+        assert!(h.send(AgentMessage::DiagnoseAnswer, b"[1,2]"));
+        assert_eq!(h.link.errors, 2);
+        // No answer: the request gives up after its timeout
+        let e = relay.request(&h.link.sender(), "info", None, Duration::from_millis(100)).unwrap_err();
+        assert!(e.contains("no answer"), "{e}");
+    }
+
+    #[test]
+    fn diagnose_off_without_the_feature() {
+        let mut h = Harness::new(&["status"]);
+        assert!(h.send(AgentMessage::Hello, HELLO.as_bytes()));
+        assert!(!h.link.diagnoses().enabled());
+        let answer = br#"{"id":1,"check":"info","status":"pass","detail":""}"#;
+        assert!(h.send(AgentMessage::DiagnoseAnswer, answer));
+        assert_eq!(h.link.errors, 0, "dropped quietly");
+    }
+
+    #[test]
+    fn untrusted_values_keep_their_shape() {
+        let v = serde_json::json!({"a\u{1b}": ["x\ty\u{7}", 1.5, true, null], "b": {"c": "d\ne"}});
+        assert_eq!(Untrusted::value(&v), serde_json::json!({"a": ["x\ty", 1.5, true, null], "b": {"c": "d\ne"}}));
+        let mut deep = serde_json::json!("x");
+        for _ in 0..12 {
+            deep = serde_json::json!([deep]);
+        }
+        assert!(Untrusted::value(&deep).to_string().contains("null"));
     }
 }

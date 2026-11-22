@@ -918,6 +918,22 @@ fn view_goldens() -> Vec<(&'static str, Value)> {
                 .unwrap(),
         ),
         ("doctor", page("doctor", json!({}))),
+        (
+            "diagnostics",
+            build(
+                &super::views::tests::diagnosis_ctx(),
+                &PageRef { page: "diagnostics".into(), params: json!({"name": "research"}) },
+            )
+            .unwrap(),
+        ),
+        (
+            "diagnostics.macos",
+            build(
+                &super::views::tests::diagnosis_ctx(),
+                &PageRef { page: "diagnostics".into(), params: json!({"name": "work"}) },
+            )
+            .unwrap(),
+        ),
         ("credentials", page("credentials", json!({}))),
         ("looks", page("looks", json!({}))),
         ("locales", page("locales", json!({}))),

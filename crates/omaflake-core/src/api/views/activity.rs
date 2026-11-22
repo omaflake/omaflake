@@ -137,6 +137,25 @@ pub fn job_ended(job: &JobDto) -> Option<(Level, Text, Option<Notification>)> {
             notification("Build failed", tf!("%@ – the log is in the Images tab.", &name)),
         ),
         (K::Build, S::Cancelled) => (Level::Info, tf!("Build of %@ cancelled", &name), None),
+        (K::Diagnostics, S::Finished) => {
+            let failed: Vec<String> = result(())
+                .get("checks")
+                .and_then(Value::as_array)
+                .map(|c| {
+                    c.iter()
+                        .filter(|x| x.get("status").and_then(Value::as_str) == Some("fail"))
+                        .filter_map(|x| x.get("id").and_then(Value::as_str))
+                        .map(|id| crate::diagnostics::title(id).to_string())
+                        .collect()
+                })
+                .unwrap_or_default();
+            if failed.is_empty() {
+                (Level::Info, tf!("%@: nothing failed", &job.title), None)
+            } else {
+                (Level::Warning, tf!("%@: %@ failed", &job.title, failed.join(", ")), None)
+            }
+        }
+        (K::Diagnostics, S::Failed) => (Level::Error, tf!("%@: %@", &job.title, error), None),
         (K::IpswDownload, S::Finished) => {
             let version = result(()).get("version").and_then(Value::as_str).map(str::to_string);
             (

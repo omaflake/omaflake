@@ -1046,6 +1046,8 @@ pub enum JobKind {
     LookInstall,
     /// Install a module or key binding set (`modules.install`, plan B142)
     ModuleInstall,
+    /// A running VM's diagnosis (`diagnostics.run`, plan B162)
+    Diagnostics,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -1267,6 +1269,7 @@ mod tests {
         assert_eq!(s(JobKind::NixCleanUp), json!("nix-clean-up"));
         assert_eq!(s(JobKind::CliInstall), json!("cli-install"));
         assert_eq!(s(JobKind::MacosInstall), json!("macos-install"));
+        assert_eq!(s(JobKind::Diagnostics), json!("diagnostics"));
         assert_eq!(s(UpdateState::NoFeed), json!("noFeed"));
     }
 

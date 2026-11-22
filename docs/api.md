@@ -246,7 +246,7 @@ comes as events, and `jobs.*` ask and steer.
   "kind": "build",          // build | macos-install | ipsw-download | builder-install-nix | builder-mount-nix | builder-setup
                             // | builder-apply | builder-clean-up | nix-clean-up | cli-install | import | export | data-move
                             // | recipe-install | look-install | module-install
-                            // | builder-uninstall-nix | builder-trust | qemu-install | setup (plan B160)
+                            // | builder-uninstall-nix | builder-trust | qemu-install | setup (plan B160) | diagnostics (B162)
   "title": "Build dev",
   "recipe": "omaflake.nixos.dev@…",    // build, recipe-install
   "guestKind": "nixos",
@@ -280,6 +280,7 @@ move writes `data-move.log` next to config.json, as `logs/` moves along). Downlo
 | `ipsw-download` | `{file, version}` |
 | `macos-install` | `{base, existing, ready}` |
 | `builder-install-nix`, `builder-mount-nix`, `builder-uninstall-nix`, `builder-trust`, `builder-setup`, `builder-apply`, `builder-clean-up`, `nix-clean-up`, `qemu-install`, `setup` | `{message}` – what it did, in English |
+| `diagnostics` | `{checks: [{id, status, detail}], file}` – a VM's diagnosis (plan B162); `file` its log, `<data>/logs/diagnostics-<vm>-<time>.log` (a new one per run) |
 | `cli-install` | `{link, installed, message}` – the link, whether it is there now (install) or was removed; `message` in English |
 
 - **Builds** queue: one build per guest kind at a time, NixOS and macOS side by side (plan B60). Right before it
@@ -382,6 +383,9 @@ Params and results in short; the types are those of §4.
 | `vms.log` | `name, lines? (200), qemu?` | `{lines: [string]}` – NixOS: the serial console (`qemu`: QEMU's own log); macOS: the runner's log |
 | `vms.wait` | `name, timeout? (s, 300)` | `{via}` – blocks until SSH or the agent answers; `vm-stopped` when it does not run |
 | `vms.share` | `name` | `{path}` – the share folder, created if it is the default one |
+| `diagnostics.run` | `name` | Job `diagnostics` → `result: {checks, file}` – the running VM's diagnosis (plan B162; page `diagnostics`, §10.5); one per VM at a time (a second call answers the running job); `vm-stopped` when the VM does not run |
+| `diagnostics.confirm` | `name, check, ok` | the `diagnostics` page's model – a check waiting for the user (`confirm`: sound, microphone) becomes `pass` or `fail`, logged and kept |
+| `diagnostics.copy` | `name` | `{copied}` – the VM's newest diagnosis log on this computer's clipboard (macOS: pbcopy; Linux: the bridge's clipboard backend, else wl-copy or xclip) |
 | `vms.nextName` | `recipe` | `{name}` – the first free VM name for it (`dev`, `dev-2`, …) |
 | `vms.forget` | `name` | `null` – stop listing a VM that runs from elsewhere (its package stays) |
 | `vms.useExternal` | `path, confirmNetwork?` | `Vm` – a VM package that runs from where it is; `{networkVolume: true}` in the error data when it is on a network volume and `confirmNetwork` was not set |
@@ -538,6 +542,7 @@ Pages and their params:
 | `newVm` | `image, values?` | the New VM form for exactly that image (plan B100) |
 | `build` | `recipe` | the Build Image page of one recipe |
 | `doctor` | – | versions and updates, the checks in three sections with their actions |
+| `diagnostics` | `name` | a running VM's diagnosis (plan B162): its checks with status, detail, hint and actions, the run's log |
 | `credentials` | – | the credentials, each with its usage and Copy Password (plan B137, B138) |
 | `looks` | – | the Looks tab: the looks here with their colours, usage and the default, what the sources offer besides (plan B141) |
 | `modules` | – | the Modules tab: modules and key binding sets here with the recipes made of them, what the sources offer (plan B142; the looks' shape) |
@@ -672,7 +677,7 @@ a change at once: send `method` with `params` and the new value at `param` (`nul
 **Icons** are names a UI maps to its symbols (SF Symbols, Nerd Font glyphs or plain characters in a TUI): `vm`,
 `image`, `recipe`, `activity`, `nixos`, `macos`, `start-window`, `start-headless`, `stop`, `terminal`, `folder`,
 `export`, `import`, `external`, `hide`, `upgrade`, `reset`, `trash`, `build`, `new-vm`, `create`, `cancel`, `install`,
-`refresh`, `download`, `pause`, `apply`, `clean`, `guide`, `log`, `doctor`, `settings`, `key`, `quit`, `up`, `add`,
+`refresh`, `download`, `pause`, `apply`, `clean`, `guide`, `log`, `doctor`, `diagnose`, `settings`, `key`, `quit`, `up`, `add`,
 `clipboard`, `sound`, `microphone`, `camera`, `midi`, `ephemeral`, `network-isolated`, `network-none`, `upgradable`,
 `outdated`, `lab`, `arch`, `official`, `lock`, `lock-warning`, `github`, `url`, `warning`, `ok`, `filter`,
 `finished`, `failed`, `cancelled`. An unknown name is drawn as nothing (or its `label`).
@@ -818,6 +823,22 @@ action?}` ("Image ready" with "New VM …", "Build failed" with the error, "Buil
 note?, file?, full?}` – the job's id and where its log is: `jobs.log {id: job, from}` reads what is kept (the newest
 5000 lines, `from` the first of them), then `job.log` brings new lines; `lines` the count so far, `full` opens the
 whole file. The build is the page's primary action (Cancel is not).
+
+**diagnostics** – params `{name}`; a running VM's diagnosis (plan B162). `{title, subtitle, state: idle|running|
+finished|failed, checked?, intro, checks: [{id, title, icon, status: pending|running|pass|fail|confirm|skipped, detail?,
+hint?, actions}], actions, log?, file?}`. Checks in order: `agent`, `ssh` (macOS), `clipboard`, `share`, `network`,
+`sound`, `microphone`, `camera`, `midi`, `disk` – a switch that is off makes its check `skipped` ("Clipboard is off for
+this VM"). Item actions: sound/microphone with `confirm` – "Heard It" / "Not Heard" (`diagnostics.confirm {name, check,
+ok}`); ssh `fail` on a macOS VM – "Add omaflake's Key …" (`ui.terminal` with an ssh line that appends omaflake's public
+key to the guest's authorized_keys, with the user's own key). Page actions: `run` ("Run Again", primary when finished;
+"Running …" busy while it runs), `copy` ("Copy Log", `diagnostics.copy {name}` – the core puts the log on this
+computer's clipboard), `reveal` ("Show Log File", `ui.reveal file`). `log` as the build page's (`{job, from, lines,
+…}`), `file` the log file (`<data>/logs/diagnostics-<vm>-<time>.log`). Subscribing runs a diagnosis once when the VM has
+none since it started (as `doctor` runs its checks).
+Methods: `diagnostics.run {name}` → Job `diagnostics` (`result: {checks: [{id, status, detail}], file}`; one per VM at a
+time; `vm-stopped` when the VM is not running), `diagnostics.confirm {name, check, ok}` → page model,
+`diagnostics.copy {name}` → `{copied: bool}`. The VMs tab's running rows get the action `diagnose` (icon `diagnose`,
+"Diagnose …", `ui.show diagnostics {name}`). CLI: `omaf diagnose <name>` prints the checks and the log's path.
 
 **doctor** – `{versions, update, intro, checking, checked?, actions: [check], sections: [{id: requirements|nixos|macos,
 title, items}], issues}`. `versions`: one line "omaflake" – "App <clientVersion> · Core <version>" (the UI's version

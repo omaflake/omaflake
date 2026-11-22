@@ -5,8 +5,11 @@
 set -euo pipefail
 root="$(cd "$(dirname "$0")/.." && pwd)"
 conf="${1:-debug}"
-swift build --package-path "$root" -c "$conf" --product omaf-runner
-bin="$(swift build --package-path "$root" -c "$conf" --show-bin-path)/omaf-runner"
+# SWIFT_SCRATCH_PATH: build output elsewhere (as scripts/bundle-app.sh)
+swift_paths=()
+[[ -n ${SWIFT_SCRATCH_PATH:-} ]] && swift_paths=(--scratch-path "$SWIFT_SCRATCH_PATH")
+swift build --package-path "$root" ${swift_paths[@]+"${swift_paths[@]}"} -c "$conf" --product omaf-runner
+bin="$(swift build --package-path "$root" ${swift_paths[@]+"${swift_paths[@]}"} -c "$conf" --show-bin-path)/omaf-runner"
 codesign --force --sign - --entitlements "$root/App/omaf-runner.entitlements" "$bin"
 codesign -d --entitlements - "$bin" 2>/dev/null | grep -q com.apple.security.virtualization \
   || { echo "Entitlement missing after signing" >&2; exit 1; }

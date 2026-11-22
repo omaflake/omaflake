@@ -13,7 +13,8 @@ import OmaflakeKit
 /// what switches the features on for this VM. Each side of the clipboard remembers what it last wrote, so the change
 /// that causes is not sent back; nothing is sent until something is copied. MIDI (plan B161, --midi, QEMU guests on a
 /// Mac): the same CoreMIDI bridge as `run --midi`, over the agent once its welcome enables "midi"; the VM's own pair
-/// on the Mac is "omaflake <--vm-name>".
+/// on the Mac is "omaflake <--vm-name>". Control (plan B162, --control): the instance's bridge.sock, with the same
+/// request and answer format as `run`'s control socket (`ControlServer`) – `status`, `diagnose`, `midi`.
 struct Bridge: ParsableCommand {
     static let configuration = CommandConfiguration(abstract: "Agent, clipboard and camera bridge between the Mac and a VM (started by omaf).")
     @Option(help: "Unix socket of the VM's agent port") var agent: String?
@@ -23,6 +24,7 @@ struct Bridge: ParsableCommand {
     @Flag(help: "Send a test pattern instead of the camera") var cameraTestPattern = false
     @Flag(help: "The Mac's MIDI devices in the VM over the agent (with --agent and --vm-name)") var midi = false
     @Option(help: "The VM's name: its own MIDI pair on the Mac is \"omaflake <name>\"") var vmName: String?
+    @Option(help: "Control socket (status, diagnose, midi), e.g. <instance>/run/bridge.sock") var control: String?
 
     func run() throws {
         // The process ends when the VM closes a port (it is going away)
@@ -38,6 +40,7 @@ struct Bridge: ParsableCommand {
         }
         // Created here, on the main thread: CoreMIDI's notifications come on its run loop (run below)
         let midiBridge = midi ? vmName.flatMap { MIDIBridge.start(vmName: $0, log: log) } : nil
+        var agentLink: AgentLink?
         if let agent {
             guard let agentState else { throw ValidationError("--agent needs --agent-state") }
             let fd = try connect(agent)
@@ -62,10 +65,32 @@ struct Bridge: ParsableCommand {
                 if link.run() == .closed { closed() }
             }
             parts.append(link)
+            agentLink = link
         }
         if let clip { clip.start(); parts.append(clip) }
         if let cam { cam.start(); parts.append(cam) }
         guard !parts.isEmpty else { throw ValidationError("--agent, --clipboard and/or --camera") }
+        if let control {
+            // Requests are handled on the main queue (served by both loops below); a diagnosis answers from a thread
+            let link = agentLink
+            let midiState = midiBridge
+            parts.append(try ControlServer(path: url(control)) { request, reply in
+                let command = request.object["command"] as? String ?? ""
+                switch command {
+                case "status":
+                    let features = link?.features
+                    reply(["state": "running", "pid": "\(getpid())",
+                           "agent": link == nil ? "none" : features == nil ? "waiting for the guest's agent" : "connected",
+                           "features": (features ?? []).sorted().joined(separator: ", ")])
+                case "diagnose":
+                    ControlServer.diagnose(link, request, reply: reply)
+                case "midi":
+                    reply(midiState?.describe() ?? ["error": "this VM runs without MIDI (omaf set <name> --midi, then restart)"])
+                default:
+                    reply(ControlServer.unknown(command, available: RunnerClient.bridgeCommands))
+                }
+            })
+        }
         if let midiBridge {
             parts.append(midiBridge)
             // The main run loop instead of dispatchMain: it serves the main queue too, and CoreMIDI's notifications

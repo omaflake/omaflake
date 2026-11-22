@@ -503,7 +503,7 @@ final class AppModel {
     }
 
     /// The params that make a page another page (not form values)
-    static let identity: [String: [String]] = ["newVm": ["image"], "build": ["recipe"], "credential": ["id"], "baseCredential": ["name"], "locale": ["id"], "recipeStudio": ["id"], "keymapStudio": ["id"], "lookStudio": ["id"]]
+    static let identity: [String: [String]] = ["newVm": ["image"], "build": ["recipe"], "credential": ["id"], "baseCredential": ["name"], "locale": ["id"], "recipeStudio": ["id"], "keymapStudio": ["id"], "lookStudio": ["id"], "diagnostics": ["name"]]
 
     private func send(_ a: ViewAction, params: JSONValue, shown: [String: String], form: PageRef?) async {
         var params = params

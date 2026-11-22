@@ -13,10 +13,15 @@
 set -euo pipefail
 root=$(cd "$(dirname "$0")/.." && pwd)
 cd "$root"
-swift build -c release --product OmaflakeApp
-swift build -c release --product omaf-runner
+# Build output where the developer keeps it: SWIFT_SCRATCH_PATH (swift build --scratch-path) and CARGO_TARGET_DIR, e.g.
+# on the VM's own disk when the checkout is on a slow shared folder; by default .build/ and target/ in the checkout
+swift_paths=()
+[[ -n ${SWIFT_SCRATCH_PATH:-} ]] && swift_paths=(--scratch-path "$SWIFT_SCRATCH_PATH")
+swift build ${swift_paths[@]+"${swift_paths[@]}"} -c release --product OmaflakeApp
+swift build ${swift_paths[@]+"${swift_paths[@]}"} -c release --product omaf-runner
 cargo build --release --locked -p omaf
-bindir=$(swift build -c release --show-bin-path)
+bindir=$(swift build ${swift_paths[@]+"${swift_paths[@]}"} -c release --show-bin-path)
+cargo_target=${CARGO_TARGET_DIR:-$root/target}
 bin=$bindir/OmaflakeApp
 app=$root/build/omaflake.app
 # Do not delete the old bundle, move it to the trash folder
@@ -26,7 +31,7 @@ if [[ -e $app ]]; then
 fi
 mkdir -p "$app/Contents/MacOS" "$app/Contents/Resources"
 cp "$bin" "$app/Contents/MacOS/omaflake"
-cp "$root/target/release/omaf" "$app/Contents/MacOS/omaf"
+cp "$cargo_target/release/omaf" "$app/Contents/MacOS/omaf"
 helper=$app/Contents/Helpers/omaf-runner.app
 mkdir -p "$helper/Contents/MacOS"
 cp "$bindir/omaf-runner" "$helper/Contents/MacOS/omaf-runner"

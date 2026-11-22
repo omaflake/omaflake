@@ -1,0 +1,195 @@
+{
+  "actions": [
+    {
+      "enabled": true,
+      "icon": "refresh",
+      "id": "run",
+      "label": {
+        "key": "Run Again",
+        "text": "Run Again"
+      },
+      "method": "diagnostics.run",
+      "params": {
+        "name": "work"
+      },
+      "primary": true
+    },
+    {
+      "enabled": true,
+      "help": {
+        "key": "Puts the diagnosis and its log on this computer's clipboard",
+        "text": "Puts the diagnosis and its log on this computer's clipboard"
+      },
+      "icon": "copy",
+      "id": "copy",
+      "label": {
+        "key": "Copy Log",
+        "text": "Copy Log"
+      },
+      "method": "diagnostics.copy",
+      "params": {
+        "name": "work"
+      }
+    },
+    {
+      "enabled": true,
+      "icon": "folder",
+      "id": "reveal",
+      "label": {
+        "key": "Show Log File",
+        "text": "Show Log File"
+      },
+      "method": "ui.reveal",
+      "params": {
+        "path": "/data/logs/diagnostics-work-20261122-101600.log"
+      }
+    }
+  ],
+  "checks": [
+    {
+      "actions": [],
+      "detail": {
+        "text": "no word from the guest's agent – macOS guests start it over SSH (see SSH); images built before 0.7.4 have none"
+      },
+      "hint": {
+        "key": "macOS guests start the omaflake agent over SSH – check SSH. Images built before the diagnosis lack it: rebuild the image, then upgrade the VM.",
+        "text": "macOS guests start the omaflake agent over SSH – check SSH. Images built before the diagnosis lack it: rebuild the image, then upgrade the VM."
+      },
+      "icon": "vm",
+      "id": "agent",
+      "status": "fail",
+      "title": {
+        "key": "Agent",
+        "text": "Agent"
+      }
+    },
+    {
+      "actions": [
+        {
+          "enabled": true,
+          "help": {
+            "key": "Appends omaflake's public key to the guest's authorized_keys – ssh asks for your own key's passphrase or the guest's password",
+            "text": "Appends omaflake's public key to the guest's authorized_keys – ssh asks for your own key's passphrase or the guest's password"
+          },
+          "icon": "key",
+          "id": "addKey",
+          "label": {
+            "key": "Add omaflake's Key …",
+            "text": "Add omaflake's Key …"
+          },
+          "method": "ui.terminal",
+          "params": {
+            "line": "ssh -p 22 alex@192.168.64.7 'mkdir -p ~/.ssh && cat >> ~/.ssh/authorized_keys' < '/data/ssh/id_ed25519.pub'"
+          }
+        }
+      ],
+      "detail": {
+        "text": "alex@192.168.64.7: Permission denied (publickey)."
+      },
+      "hint": {
+        "key": "omaflake's key is not in the guest's authorized_keys (images before 0.7.4) – Add omaflake's Key … appends it with your own key; then the clipboard helper and the agent start.",
+        "text": "omaflake's key is not in the guest's authorized_keys (images before 0.7.4) – Add omaflake's Key … appends it with your own key; then the clipboard helper and the agent start."
+      },
+      "icon": "terminal",
+      "id": "ssh",
+      "status": "fail",
+      "title": {
+        "key": "SSH",
+        "text": "SSH"
+      }
+    },
+    {
+      "actions": [],
+      "icon": "clipboard",
+      "id": "clipboard",
+      "status": "running",
+      "title": {
+        "key": "Clipboard",
+        "text": "Clipboard"
+      }
+    },
+    {
+      "actions": [],
+      "icon": "folder",
+      "id": "share",
+      "status": "pending",
+      "title": {
+        "key": "Share folder",
+        "text": "Share folder"
+      }
+    },
+    {
+      "actions": [],
+      "icon": "globe",
+      "id": "network",
+      "status": "pending",
+      "title": {
+        "key": "Network",
+        "text": "Network"
+      }
+    },
+    {
+      "actions": [],
+      "icon": "sound",
+      "id": "sound",
+      "status": "pending",
+      "title": {
+        "key": "Sound",
+        "text": "Sound"
+      }
+    },
+    {
+      "actions": [],
+      "icon": "microphone",
+      "id": "microphone",
+      "status": "pending",
+      "title": {
+        "key": "Microphone",
+        "text": "Microphone"
+      }
+    },
+    {
+      "actions": [],
+      "icon": "camera",
+      "id": "camera",
+      "status": "pending",
+      "title": {
+        "key": "Camera",
+        "text": "Camera"
+      }
+    },
+    {
+      "actions": [],
+      "icon": "midi",
+      "id": "midi",
+      "status": "pending",
+      "title": {
+        "key": "MIDI",
+        "text": "MIDI"
+      }
+    },
+    {
+      "actions": [],
+      "icon": "gauge",
+      "id": "disk",
+      "status": "pending",
+      "title": {
+        "key": "Disk",
+        "text": "Disk"
+      }
+    }
+  ],
+  "file": "/data/logs/diagnostics-work-20261122-101600.log",
+  "intro": {
+    "key": "Checks what this VM's features do – the guest's half through its omaflake agent, this computer's half here. A switch that is off skips its check; sound and the microphone ask you.",
+    "text": "Checks what this VM's features do – the guest's half through its omaflake agent, this computer's half here. A switch that is off skips its check; sound and the microphone ask you."
+  },
+  "state": "failed",
+  "subtitle": {
+    "text": "work · dev"
+  },
+  "title": {
+    "key": "Diagnosis",
+    "text": "Diagnosis"
+  }
+}

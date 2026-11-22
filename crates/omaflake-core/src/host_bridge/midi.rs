@@ -35,6 +35,11 @@ pub trait MidiHost: Send + Sync {
     fn use_agent(&self, sender: AgentSender);
     /// Records the guest's apps played – to the port of each record's id (unknown ids are dropped)
     fn deliver(&self, records: Vec<MidiRecord>);
+    /// The host side's state for the control socket's `midi` (plan B162): `{"endpoints", "in", "out", "agent"}` as
+    /// strings, as omaf-runner answers it
+    fn describe(&self) -> serde_json::Value {
+        serde_json::json!({"endpoints": "0", "in": "", "out": "", "agent": "unknown"})
+    }
 }
 
 /// The id of the VM's own pair in the list
@@ -987,6 +992,24 @@ mod alsa {
         fn use_agent(&self, sender: AgentSender) {
             self.seq.lock().unwrap_or_else(|e| e.into_inner()).sender = Some(sender);
             self.rescan(true);
+        }
+
+        fn describe(&self) -> serde_json::Value {
+            let s = self.seq.lock().unwrap_or_else(|e| e.into_inner());
+            let names = |direction: &str| {
+                s.list
+                    .iter()
+                    .filter(|e| e.direction == direction)
+                    .map(|e| e.name.clone())
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            };
+            serde_json::json!({
+                "endpoints": s.list.len().to_string(),
+                "in": names("in"),
+                "out": names("out"),
+                "agent": if s.sender.is_some() { "connected" } else { "waiting for the guest's agent" },
+            })
         }
 
         fn deliver(&self, records: Vec<MidiRecord>) {

@@ -211,6 +211,14 @@ pub(crate) fn row(ctx: &Ctx, v: &Vm) -> VmRowView {
             .then(Then::Terminal)
             .primary(),
         );
+        // The VM's diagnosis (plan B162)
+        actions.push(Action::show(
+            "diagnose",
+            Text::new("Diagnose …"),
+            Some("diagnose"),
+            "diagnostics",
+            json!({"name": name}),
+        ));
         actions.push(
             Action::call("stop", Text::new("Shut down"), Some("stop"), "vms.stop", json!({"name": name})).destructive(),
         );

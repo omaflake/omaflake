@@ -163,6 +163,32 @@ fn every_view_text_has_german() {
         c.fetching = true;
         c.doctor = None;
         pages(&c, &format!("{from} empty"), &mut keys);
+        // The diagnosis (plan B162): every check in every state with each of omaflake's own details, both guest kinds
+        {
+            use crate::api::views::{PageRef, build};
+            use crate::diagnostics::{CHECKS, CheckResult, CheckStatus as S, OWN_DETAILS};
+            for status in [S::Pending, S::Running, S::Pass, S::Fail, S::Confirm, S::Skipped] {
+                for detail in OWN_DETAILS {
+                    let mut c = crate::api::views::tests::diagnosis_ctx();
+                    c.host = host;
+                    for r in c.diagnostics.values_mut() {
+                        for id in CHECKS {
+                            r.set(&CheckResult::new(id, status, detail));
+                        }
+                    }
+                    for name in ["research", "work"] {
+                        let page = PageRef { page: "diagnostics".into(), params: json!({"name": name}) };
+                        if let Ok(model) = build(&c, &page) {
+                            collect(&model, &format!("diagnostics on {from}"), &mut keys);
+                        }
+                    }
+                }
+            }
+            let mut c = crate::api::views::tests::diagnosis_ctx();
+            c.vms[0].status = crate::models::VmStatus::Stopped;
+            let page = PageRef { page: "diagnostics".into(), params: json!({"name": "research"}) };
+            collect(&build(&c, &page).unwrap(), "diagnostics stopped", &mut keys);
+        }
     }
     assert!(golden > 250 && keys.len() > golden, "{golden} keys in the golden files, {} in all", keys.len());
     let missing = missing(&keys);

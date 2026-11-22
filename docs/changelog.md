@@ -22,6 +22,10 @@ timing.
 
 ### Added
 
+- **Diagnose** for every running VM: one click (the VMs tab, `omaf diagnose <vm>`) checks the agent, SSH, the
+  clipboard both ways, the share folder, the network, sound, microphone, camera, MIDI and the disk – through the
+  omaflake agent, not SSH. Each check says what it found and what to do; sound and microphone ask you. The log is on
+  the page like a build's, copied with one click and kept in the data folder's logs.
 - **MIDI in macOS VMs:** this computer's MIDI devices – a stage piano, a keyboard, a synthesizer, Bluetooth or network
   MIDI, another app's virtual port – appear in the VM as MIDI devices of the same name, both ways, while the computer's
   own apps keep using them; devices plugged in or out come and go in the VM. MIDI 1.0 and MIDI 2.0 pass unchanged
@@ -50,6 +54,9 @@ timing.
 
 ### Fixed
 
+- macOS VMs: the clipboard helper and the omaflake agent are started until they run, and a start that fails says why
+  (in the VM's log and the activity list) – a VM from an older image could stay without clipboard and nobody knew. The
+  Diagnose page offers to add omaflake's key to such a VM.
 - macOS VMs with the German keyboard get the Mac's classic "German" layout (@ on Option+L) instead of "German –
   Standard", where @ and other keys sit elsewhere. Needs an image built with this version.
 - A VM's own MIDI pair on this computer is named after the VM – macOS VMs all named it "omaflake vm", so two VMs with

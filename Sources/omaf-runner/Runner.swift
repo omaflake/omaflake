@@ -14,7 +14,7 @@ struct VMRunner: ParsableCommand {
     static let configuration = CommandConfiguration(
         commandName: "omaf-runner",
         abstract: "Install and run macOS VMs (one process per VM).",
-        subcommands: [Latest.self, Install.self, Clone.self, Run.self, Control.self, IP.self, Bridge.self, MIDICheck.self]
+        subcommands: [Latest.self, Install.self, Clone.self, Run.self, Control.self, IP.self, Bridge.self, MIDICheck.self, DiagnoseCheck.self]
     )
 }
 
@@ -149,11 +149,27 @@ struct Run: ParsableCommand {
 struct Control: ParsableCommand {
     static let configuration = CommandConfiguration(commandName: "ctl", abstract: "Control a running omaf-runner.")
     @Argument(help: "Control socket") var socket: String
-    @Argument(help: "status | stop | kill | show | midi") var command: String
+    @Argument(help: "status | stop | kill | show | midi | diagnose") var command: String
+    @Option(help: "diagnose: the check (info, network, clipboard-read, …)") var check: String?
+    @Option(help: "diagnose: the check's args as a JSON object, e.g. '{\"text\":\"x\"}'") var args: String?
 
     func run() throws {
-        let reply = try RunnerClient.send(command, socket: url(socket))
-        for (k, v) in reply.sorted(by: { $0.key < $1.key }) { print("\(k): \(v)") }
+        var request: [String: Any] = ["command": command]
+        if let check { request["check"] = check }
+        if let args {
+            guard let obj = (try? JSONSerialization.jsonObject(with: Data(args.utf8))) as? [String: Any] else {
+                throw ValidationError("--args must be a JSON object")
+            }
+            request["args"] = obj
+        }
+        // A diagnosis waits up to 15 s for the guest's agent
+        let reply = try RunnerClient.request(request, socket: url(socket), timeout: command == "diagnose" ? 20 : 5)
+        for (k, v) in reply.sorted(by: { $0.key < $1.key }) {
+            if let s = v as? String { print("\(k): \(s)"); continue }
+            let json = JSONSerialization.isValidJSONObject([v])
+                ? (try? JSONSerialization.data(withJSONObject: [v], options: [.sortedKeys, .withoutEscapingSlashes])) : nil
+            print("\(k): \(json.map { String(String(decoding: $0, as: UTF8.self).dropFirst().dropLast()) } ?? "\(v)")")
+        }
         if reply["error"] != nil { throw ExitCode(1) }
     }
 }

@@ -420,7 +420,7 @@ impl App {
         }
         // A job's log (build, macBase: a LogRef): what the core keeps from `from` on, then `job.log`
         let log = match page.page.as_str() {
-            "build" | "macBase" => model.get("log").and_then(model::LogBox::from_model),
+            "build" | "macBase" | "diagnostics" => model.get("log").and_then(model::LogBox::from_model),
             _ => None,
         };
         if let Some(log) = log.filter(|l| !self.logs.contains_key(&l.job)) {

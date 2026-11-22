@@ -45,10 +45,12 @@ extension APIContractTests {
                 #expect(p.head.actions.map(\.id) == ["import", "external"] && p.head.actions[0].ask.first?.multiple == true)
                 #expect(p.head.actions[0].ask.first?.check?.method == "packages.inspect" && p.head.actions[1].ask.first?.multiple == false)
                 let r = try #require(p.rows.first)
-                #expect(r.lamp.state == .on && r.actions.map(\.id) == ["keys", "showShare", "terminal", "stop"])
+                #expect(r.lamp.state == .on && r.actions.map(\.id) == ["keys", "showShare", "terminal", "diagnose", "stop"])
+                // The diagnosis (plan B162): its page, for this VM
+                #expect(r.actions[3].icon == "diagnose" && r.actions[3].method == "ui.show" && r.actions[3].params["page"] == .string("diagnostics"))
                 // The running VM's default is its terminal; the other row has none
                 #expect(r.actions.primary?.id == "terminal" && p.rows.last?.actions.primary == nil)
-                #expect(r.actions[2].then == .terminal && r.actions[3].destructive && r.vm.name == "research")
+                #expect(r.actions[2].then == .terminal && r.actions[4].destructive && r.vm.name == "research")
                 #expect(r.detail.switches.first?.on == true && r.detail.switchesNote != nil)
                 #expect(r.detail.actions.allSatisfy { !$0.enabled && $0.reason?.key == "Shut the VM down first" })
                 #expect(r.detail.info.first { $0.label.key == "Created" }?.value.args.first.map { if case .date = $0 { true } else { false } } == true)
@@ -350,6 +352,25 @@ extension APIContractTests {
                              PageRef("build", .object(["recipe": .string("omaflake.nixos.dev@velvet-tiger-orbit")]))]
                 let sent = try #require(try JSONSerialization.jsonObject(with: JSONEncoder.api.encode(Subscribe(pages: pages))) as? NSDictionary)
                 #expect(sent == (try viewObject("views.subscribe.params")))
+            },
+        ].merging(diagnosticsCheck) { first, _ in first }
+    }
+
+    /// The diagnosis page (plan B162)
+    var diagnosticsCheck: [String: () throws -> Void] {
+        [
+            "diagnostics": {
+                guard case .diagnostics(let p) = try page("diagnostics", as: "diagnostics") else { throw Unexpected() }
+                #expect(p.state == .finished && p.checked != nil && p.subtitle != nil && p.checks.first?.id == "agent")
+                #expect(p.checks.allSatisfy { $0.status != .unknown })
+                #expect(p.checks.first { $0.id == "sound" }?.actions.map(\.id) == ["heard", "notHeard"])
+                #expect(p.actions.map(\.id) == ["run", "copy", "reveal"] && p.log?.job == "j9" && p.log?.full != nil)
+            },
+            "diagnostics.macos": {
+                guard case .diagnostics(let p) = try page("diagnostics.macos", as: "diagnostics") else { throw Unexpected() }
+                #expect(p.state == .failed && p.log == nil && p.checks.allSatisfy { $0.status != .unknown })
+                #expect(p.checks.map(\.status).prefix(3) == [.fail, .fail, .running])
+                #expect(p.checks.first { $0.id == "ssh" }?.actions.map(\.id) == ["addKey"])
             },
         ]
     }

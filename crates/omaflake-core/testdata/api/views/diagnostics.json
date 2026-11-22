@@ -1,0 +1,260 @@
+{
+  "actions": [
+    {
+      "enabled": true,
+      "icon": "refresh",
+      "id": "run",
+      "label": {
+        "key": "Run Again",
+        "text": "Run Again"
+      },
+      "method": "diagnostics.run",
+      "params": {
+        "name": "research"
+      },
+      "primary": true
+    },
+    {
+      "enabled": true,
+      "help": {
+        "key": "Puts the diagnosis and its log on this computer's clipboard",
+        "text": "Puts the diagnosis and its log on this computer's clipboard"
+      },
+      "icon": "copy",
+      "id": "copy",
+      "label": {
+        "key": "Copy Log",
+        "text": "Copy Log"
+      },
+      "method": "diagnostics.copy",
+      "params": {
+        "name": "research"
+      }
+    },
+    {
+      "enabled": true,
+      "icon": "folder",
+      "id": "reveal",
+      "label": {
+        "key": "Show Log File",
+        "text": "Show Log File"
+      },
+      "method": "ui.reveal",
+      "params": {
+        "path": "/data/logs/diagnostics-research-20261122-101500.log"
+      }
+    }
+  ],
+  "checked": "2026-11-22T10:15:30Z",
+  "checks": [
+    {
+      "actions": [],
+      "detail": {
+        "text": "0.4.0 · NixOS 26.05 · round trip 3 ms"
+      },
+      "icon": "vm",
+      "id": "agent",
+      "status": "pass",
+      "title": {
+        "key": "Agent",
+        "text": "Agent"
+      }
+    },
+    {
+      "actions": [],
+      "detail": {
+        "text": "omaflake's key is accepted"
+      },
+      "icon": "terminal",
+      "id": "ssh",
+      "status": "pass",
+      "title": {
+        "key": "SSH",
+        "text": "SSH"
+      }
+    },
+    {
+      "actions": [],
+      "detail": {
+        "key": "both ways",
+        "text": "both ways"
+      },
+      "icon": "clipboard",
+      "id": "clipboard",
+      "status": "pass",
+      "title": {
+        "key": "Clipboard",
+        "text": "Clipboard"
+      }
+    },
+    {
+      "actions": [],
+      "detail": {
+        "text": "the guest does not see this computer's file"
+      },
+      "hint": {
+        "key": "The share folder is /Volumes/My Shared Files in macOS guests, /mnt/share in NixOS guests.",
+        "text": "The share folder is /Volumes/My Shared Files in macOS guests, /mnt/share in NixOS guests."
+      },
+      "icon": "folder",
+      "id": "share",
+      "status": "fail",
+      "title": {
+        "key": "Share folder",
+        "text": "Share folder"
+      }
+    },
+    {
+      "actions": [],
+      "detail": {
+        "text": "1 address(es) · DNS yes · internet yes"
+      },
+      "icon": "globe",
+      "id": "network",
+      "status": "pass",
+      "title": {
+        "key": "Network",
+        "text": "Network"
+      }
+    },
+    {
+      "actions": [
+        {
+          "enabled": true,
+          "icon": "ok",
+          "id": "heard",
+          "label": {
+            "key": "Heard It",
+            "text": "Heard It"
+          },
+          "method": "diagnostics.confirm",
+          "params": {
+            "check": "sound",
+            "name": "research",
+            "ok": true
+          }
+        },
+        {
+          "enabled": true,
+          "icon": "cancel",
+          "id": "notHeard",
+          "label": {
+            "key": "Not Heard",
+            "text": "Not Heard"
+          },
+          "method": "diagnostics.confirm",
+          "params": {
+            "check": "sound",
+            "name": "research",
+            "ok": false
+          }
+        }
+      ],
+      "detail": {
+        "text": "played 440 Hz on the default output"
+      },
+      "hint": {
+        "key": "A short tone played in the guest – did you hear it?",
+        "text": "A short tone played in the guest – did you hear it?"
+      },
+      "icon": "sound",
+      "id": "sound",
+      "status": "confirm",
+      "title": {
+        "key": "Sound",
+        "text": "Sound"
+      }
+    },
+    {
+      "actions": [],
+      "detail": {
+        "key": "The microphone is off for this VM",
+        "text": "The microphone is off for this VM"
+      },
+      "icon": "microphone",
+      "id": "microphone",
+      "status": "skipped",
+      "title": {
+        "key": "Microphone",
+        "text": "Microphone"
+      }
+    },
+    {
+      "actions": [],
+      "detail": {
+        "key": "The camera is off for this VM",
+        "text": "The camera is off for this VM"
+      },
+      "icon": "camera",
+      "id": "camera",
+      "status": "skipped",
+      "title": {
+        "key": "Camera",
+        "text": "Camera"
+      }
+    },
+    {
+      "actions": [],
+      "detail": {
+        "key": "MIDI is off for this VM",
+        "text": "MIDI is off for this VM"
+      },
+      "icon": "midi",
+      "id": "midi",
+      "status": "skipped",
+      "title": {
+        "key": "MIDI",
+        "text": "MIDI"
+      }
+    },
+    {
+      "actions": [],
+      "detail": {
+        "text": "20.0 GB of 64.0 GB free"
+      },
+      "icon": "gauge",
+      "id": "disk",
+      "status": "pass",
+      "title": {
+        "key": "Disk",
+        "text": "Disk"
+      }
+    }
+  ],
+  "file": "/data/logs/diagnostics-research-20261122-101500.log",
+  "intro": {
+    "key": "Checks what this VM's features do – the guest's half through its omaflake agent, this computer's half here. A switch that is off skips its check; sound and the microphone ask you.",
+    "text": "Checks what this VM's features do – the guest's half through its omaflake agent, this computer's half here. A switch that is off skips its check; sound and the microphone ask you."
+  },
+  "log": {
+    "file": "/data/logs/j9.log",
+    "from": 0,
+    "full": {
+      "enabled": true,
+      "help": {
+        "key": "Every line, also the routine ones left out above",
+        "text": "Every line, also the routine ones left out above"
+      },
+      "icon": "log",
+      "id": "fullLog",
+      "label": {
+        "key": "Full Log …",
+        "text": "Full Log …"
+      },
+      "method": "ui.open",
+      "params": {
+        "path": "/data/logs/j9.log"
+      }
+    },
+    "job": "j9",
+    "lines": 3
+  },
+  "state": "finished",
+  "subtitle": {
+    "text": "research · dev (velvet)"
+  },
+  "title": {
+    "key": "Diagnosis",
+    "text": "Diagnosis"
+  }
+}
