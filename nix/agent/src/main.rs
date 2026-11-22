@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 //! omaflake agent (guest side): one process per guest, talking to omaflake on the Mac over the virtio port
 //! org.omaflake.agent (spec §11.9): hello and periodic status, the clipboard (for the user's Wayland session, through
-//! `omaflake-agent session`) and the Mac's camera as /dev/video42.
+//! `omaflake-agent session`), the Mac's camera as /dev/video42 and the Mac's MIDI endpoints (CoreMIDI on macOS, the
+//! ALSA sequencer on Linux – midi.rs, midi_alsa.rs).
 //!
 //! The port reports POLLHUP while nothing listens on the Mac's end. Each time the Mac side connects, the agent
 //! says hello (again every few seconds until a welcome comes back), then sends its status at the interval the
@@ -24,6 +25,11 @@ mod b64;
 mod camera;
 mod clip;
 mod midi;
+#[cfg(any(not(target_os = "macos"), test))]
+mod midi1;
+#[cfg(not(target_os = "macos"))]
+mod midi_alsa;
+mod midi_clock;
 mod proto;
 mod session;
 mod status;
@@ -54,8 +60,8 @@ const WELCOME_FILE: &str = concat_runtime!("welcome.json");
 
 static STOP: AtomicBool = AtomicBool::new(false);
 
-/// The port's writing end, shared: CoreMIDI's thread sends MIDI played in the guest straight away (no detour through
-/// the poll loop), so every frame is written whole under this lock
+/// The port's writing end, shared: the MIDI thread (CoreMIDI's, or the ALSA input thread on Linux) sends MIDI played in
+/// the guest straight away (no detour through the poll loop), so every frame is written whole under this lock
 static PORT_OUT: Mutex<Option<File>> = Mutex::new(None);
 /// The Mac enabled MIDI in its welcome – MIDI from the guest's apps goes out only then
 static MIDI_ON: AtomicBool = AtomicBool::new(false);
@@ -69,7 +75,7 @@ fn write_port(bytes: &[u8]) {
     }
 }
 
-/// A guest app played to one of the virtual destinations (CoreMIDI's thread)
+/// A guest app played to one of the virtual destinations / writable ports (the MIDI thread)
 fn midi_out(record: ump::Record) {
     if !MIDI_ON.load(Ordering::SeqCst) {
         return;

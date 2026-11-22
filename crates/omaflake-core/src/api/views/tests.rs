@@ -335,12 +335,13 @@ fn vm_rows_say_what_the_app_said() {
     assert_eq!((camera["enabled"].clone(), camera["on"].clone()), (json!(false), json!(false)));
     let badges: Vec<&str> = work["badges"].as_array().unwrap().iter().map(|b| b["icon"].as_str().unwrap()).collect();
     assert_eq!(badges, ["microphone", "midi", "ephemeral", "network-isolated"]);
-    // MIDI reaches macOS guests (plan B161); for NixOS guests the switch is not available yet
+    // MIDI reaches every guest kind (plan B161): macOS and NixOS guests have the switch
     let midi = action(&work["detail"]["switches"], "midi");
     assert_eq!(midi["on"], true);
     assert_eq!(midi["params"], json!({"name": "work", "midi": false}));
     let midi = action(&d["switches"], "midi");
-    assert_eq!((midi["enabled"].clone(), midi["on"].clone()), (json!(false), json!(false)));
+    assert_eq!((midi["enabled"].clone(), midi["on"].clone()), (json!(true), json!(false)));
+    assert_eq!(midi["params"], json!({"name": "research", "midi": true}));
     let info = work["detail"]["info"].as_array().unwrap();
     let line = |label: &str| info.iter().find(|l| l["label"]["key"] == label).unwrap().clone();
     assert_eq!(line("SSH")["value"]["key"], "address while running");
@@ -486,7 +487,7 @@ fn recipe_rows_by_line_with_offers_and_updates() {
     );
     assert_eq!(build["reason"]["key"], "Open the Doctor first: %@");
     let d = &dev["detail"];
-    assert_eq!(d["info"][3]["value"]["text"], "Clipboard · Sound · Share folder");
+    assert_eq!(d["info"][3]["value"]["text"], "Clipboard · Sound · MIDI · Share folder");
     assert_eq!(d["info"][4]["value"]["key"], "%lld built, the newest %@");
     assert_eq!(ids(&d["actions"]), ["update", "copy", "removeAll"]);
     // What it is made of (plan B142): its modules, look, key bindings and what is wrong – its keys on a page of their own
@@ -601,6 +602,7 @@ fn new_vm_defaults_and_validation() {
             "microphone",
             "clipboard",
             "camera",
+            "midi",
             "network",
             "share",
             "sharePath",

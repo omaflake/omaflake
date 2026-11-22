@@ -237,14 +237,12 @@ pub(crate) fn page(ctx: &Ctx, p: &NewVmParams) -> Option<NewVmPage> {
                 .value_param("camera"),
         );
     }
-    // MIDI (plan B161): macOS guests for now
-    if mac {
-        resources.push(
-            Field::new("midi", FieldKind::Toggle, Text::new("MIDI devices in the VM"), s["midi"].clone())
-                .param("settings.midi")
-                .value_param("midi"),
-        );
-    }
+    // MIDI (plan B161): every guest kind
+    resources.push(
+        Field::new("midi", FieldKind::Toggle, Text::new("MIDI devices in the VM"), s["midi"].clone())
+            .param("settings.midi")
+            .value_param("midi"),
+    );
     let mut network = Field::new("network", FieldKind::Choice, Text::new("Network"), s["network"].clone())
         .param("settings.network")
         .value_param("network");

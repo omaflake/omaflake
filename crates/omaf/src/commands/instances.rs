@@ -161,9 +161,6 @@ pub fn new(a: &cli::New) -> Outcome {
     if let Some(v) = cli::inverted(a.midi, a.no_midi) {
         settings.midi = Some(v);
     }
-    if settings.kind == GuestKind::Nixos && settings.midi == Some(true) {
-        eprintln!("Note: MIDI reaches macOS guests for now; NixOS guests get it later (plan B161).");
-    }
     if let Some(v) = cli::inverted(a.share, a.no_share) {
         settings.share = v;
     }

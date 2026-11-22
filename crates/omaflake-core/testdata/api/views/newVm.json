@@ -270,6 +270,18 @@
           "valueParam": "camera"
         },
         {
+          "enabled": true,
+          "id": "midi",
+          "kind": "toggle",
+          "label": {
+            "key": "MIDI devices in the VM",
+            "text": "MIDI devices in the VM"
+          },
+          "param": "settings.midi",
+          "value": true,
+          "valueParam": "midi"
+        },
+        {
           "choices": [
             {
               "label": {

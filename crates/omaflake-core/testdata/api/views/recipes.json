@@ -374,12 +374,16 @@
                   "text": "Sound"
                 },
                 {
+                  "key": "MIDI",
+                  "text": "MIDI"
+                },
+                {
                   "key": "Share folder",
                   "text": "Share folder"
                 }
               ],
-              "key": "%@ · %@ · %@",
-              "text": "Clipboard · Sound · Share folder"
+              "key": "%@ · %@ · %@ · %@",
+              "text": "Clipboard · Sound · MIDI · Share folder"
             }
           },
           {

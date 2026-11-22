@@ -651,7 +651,7 @@ the Mac over one channel.
   | `0x0203` | Mac → guest | camera status | `{"status", "detail"}` (ready, streaming, unavailable, stopped) |
   | `0x03xx`, `0x04xx` | | tunnels; open URL, notifications | later |
   | `0x0500` | Mac → guest | MIDI endpoints | `{"endpoints": [{id, direction ("in" \| "out"), name, manufacturer?, model?, protocol (1 \| 2)}]}`: the whole list after each change |
-  | `0x0501` | both | MIDI data | records `id u32, protocol u8, 0 u8, words u16` + UMP words (u32), whole UMP messages only, at most 64 KiB, never chunked |
+  | `0x0501` | both | MIDI data | records `id u32, protocol u8, flags u8, words u16` [+ `time u64` when flags bit 0] + UMP words (u32), whole UMP messages only, at most 64 KiB, never chunked |
   | `0x0502` | guest → Mac | MIDI status | `{"endpoints": n, "failed": [names]}` |
   | `0x0503` / `0x0504` | Mac → guest / guest → Mac | MIDI ping / pong | at most 64 bytes, echoed at once (round trip, once a second) |
 
@@ -660,10 +660,31 @@ the Mac over one channel.
   virtual endpoint in the guest with its name, manufacturer, model, protocol and unique id; `id` is the Mac endpoint's
   CoreMIDI unique id, `0` the VM's own pair ("omaflake <VM>" on the Mac, "omaflake Mac" in the guest). Mac → guest:
   data from a source, read on an input port of the source's protocol (no conversion); guest → Mac: data the guest's
-  apps played to a virtual destination, sent to the Mac endpoint of that id only. Timestamps are "now". Limits on the
+  apps played to a virtual destination, sent to the Mac endpoint of that id only. Limits on the
   Mac side: whole UMP messages, 1 MiB/s on average with 512 KiB bursts, unknown ids dropped, the status rate-limited
-  like status. Guest: macOS through CoreMIDI's C API (virtual endpoints need no driver or entitlement); NixOS
-  (ALSA sequencer, UMP since Linux 6.5): OPEN. **Connection:** the guest says hello when the Mac side is there (Linux: the port's
+  like status. Guest: macOS through CoreMIDI's C API (virtual endpoints need no driver or entitlement); NixOS through
+  the ALSA sequencer (client "omaflake", one port per endpoint; MIDI 2.0 as UMP where the kernel's sequencer has it,
+  Linux 6.5+, else MIDI 1.0 events converted from and to UMP).
+  **Host sides:** VZ guests (macOS) – `omaf-runner run --midi`; QEMU guests (NixOS) on a Mac – `omaf-runner bridge
+  --midi` with the same CoreMIDI bridge; on a Linux host – `omaf bridge --midi` with the host's ALSA sequencer ports
+  (every port that can be read or written, except omaflake's own and the kernel's system/announce ports; the client
+  name "omaflake <VM>" for the VM's own pair). The VM's `midi` switch decides, for every guest kind.
+  **Timestamps (plan B161, C7):** the record's byte 5 is `flags`; bit 0 set: 8 bytes `time` (u64 LE) follow the header –
+  nanoseconds of the sender's monotonic clock when the data arrived from its MIDI system (CoreMIDI's event list time
+  stamp, ALSA's event time; data without one are stamped on arrival). Other bits are malformed. The receiver maps the
+  sender's clock onto its own: `offset` = the smallest `own_now − time` seen over the last 30 s (a window that keeps
+  the newest minimum when it slides), and hands the data to its MIDI system for `time + offset + 2 ms` (CoreMIDI: the
+  event list's time stamp in host ticks; ALSA: an event scheduled on the client's real-time queue). A time already
+  past, or more than 1 s ahead, is delivered now. So the jitter of the transport is smoothed by up to 2 ms, and notes
+  keep their spacing.
+  **UMP endpoints (plan B161, C7):** an endpoint of the list may carry `ump` – what a MIDI 2.0 device says of itself
+  (CoreMIDI's `MIDIUMPEndpoint` and `MIDIUMPFunctionBlock`, macOS 15+; ALSA's UMP endpoint and block info):
+  `{"name", "productInstanceId", "manufacturer"? (3 bytes as lowercase hex, no separators: "00213b"), "family"? (u16),
+  "model"? (u16), "version"? (4 bytes, the same: "01020304"), "staticBlocks": bool, "blocks": [{"id" (0–31), "name", "direction" ("in" | "out" | "both"),
+  "firstGroup" (0–15), "groups" (1–16), "midi1" ("no" | "yes" | "low-speed"), "uiHint" ("unknown" | "receiver" |
+  "sender" | "both")}]}` (a direction the sender does not know is "both") – at most 32 blocks, names at most 98 bytes. The guest mirrors it where its MIDI system can
+  (macOS 15+: a `MIDIUMPMutableEndpoint` with its function blocks; Linux: the sequencer client's UMP endpoint and
+  block info) and else ignores it; the data, MIDI-CI included, pass either way. **Connection:** the guest says hello when the Mac side is there (Linux: the port's
   `POLLHUP` clears) and again every 5 s until a welcome comes; the Mac answers each hello with a welcome. Version: the
   highest both speak; with none in common there is no welcome, and the app shows why. **Flow control for the camera:**
   credits – the guest grants as many frames as it has buffers free (2) and returns one per frame written to

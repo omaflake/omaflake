@@ -520,7 +520,7 @@ fn defaults_text(r: &RecipeDto) -> Text {
     if r.camera.unwrap_or(false) && r.kind == crate::models::GuestKind::Nixos {
         on.push(Text::new("Camera"));
     }
-    if r.midi.unwrap_or(false) && r.kind == crate::models::GuestKind::Macos {
+    if r.midi.unwrap_or(false) {
         on.push(Text::new("MIDI"));
     }
     if r.share {

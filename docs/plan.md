@@ -522,10 +522,21 @@ what MIDI does not carry (a piano's USB audio, vendor tools). Implemented:
   runner's bridge on the other end, test endpoints as the device, CoreMIDI on both sides. With the agent built by Nix
   for aarch64-darwin (links CoreMIDI): 500/500 notes each way, latency min 0.06 · median 0.12 · p99 0.25 ms (no
   virtio, no guest scheduling – a lower bound), a 1,000-byte SysEx and a MIDI 2.0 note (16-bit velocity) identical.
-  The macOS recipe `minimal` evaluates with `omaflake-agent-start`. **OPEN:** in a macOS guest – CoreMIDI
-  from the SSH-started agent (the user's MIDI server), Dorico seeing the endpoints, latency with the real piano; NixOS
-  guests (ALSA sequencer); the Linux host (`omaf bridge`) does not offer MIDI; timestamps are "now" (no scheduling);
-  UMP endpoint / function block mirroring (CoreMIDI's MIDIUMPEndpoint, macOS 15+) – the data, MIDI-CI included, pass.
+  The macOS recipe `minimal` evaluates with `omaflake-agent-start`.
+- *C7 (2026-11-22, maintainer: all of it in 0.7.4):* **NixOS guests** – the agent on the ALSA sequencer
+  (`nix/agent/src/midi_alsa.rs`, libasound by FFI, UMP symbols by dlsym; `midi1.rs` UMP ↔ MIDI 1.0; vm-guest.nix loads
+  `snd-seq`), on a Mac served by `omaf-runner bridge --midi --vm-name` (the same MIDIBridge), on a Linux host by
+  `omaf bridge --midi` (`host_bridge/midi.rs`: the host's sequencer ports, libasound loaded at run time, a client
+  "omaflake <VM>"); the switch for every guest kind. **Timestamps** – records' flags bit 0 with the sender's monotonic
+  ns, a clock mapper on each receiving side (30 s sliding minimum, +2 ms), scheduled delivery (CoreMIDI time stamps,
+  ALSA real-time queue). **UMP endpoints** – the Mac reads MIDIUMPEndpointManager (macOS 15+), the Linux host ALSA's
+  UMP info, the guest mirrors them (MIDIUMPMutableEndpoint by the ObjC runtime; the sequencer client's UMP info).
+  Spec §11.9, shared vectors with `time`. Checked: Rust (core 463, agent 26) and Swift (42) tests, Linux type-check
+  and clippy (aarch64-unknown-linux-gnu), `midi-check` with the new agent (see below), flakes evaluate.
+  **OPEN:** everything with a running guest or Linux MIDI hardware – CoreMIDI from the SSH-started agent in a macOS
+  guest, Dorico, latency with the real piano; the ALSA sides (struct layout, subscriptions, the queue's time base,
+  UMP client mode on the guest kernel – `SND_SEQ_UMP` in nixpkgs' config –, the byte order of ALSA's manufacturer id);
+  UMP info with a real MIDI 2.0 device (none here); whether apps honour future time stamps on a virtual source.
 
 **B160 (2026-11-22): Setup by one click, user-level, always visible (release 0.7.4).** Found on a freshly reset Mac
 (maintainer, 2026-11-21, logs of that Mac): the Nix installer failed four times at "Rename /etc/fstab.tmp to

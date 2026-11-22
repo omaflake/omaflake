@@ -694,7 +694,6 @@ pub static DE: &[(&str, &str)] = &[
     ("Looks", "Looks"),
     ("MIDI", "MIDI"),
     ("MIDI devices in the VM", "MIDI-Geräte in der VM"),
-    ("MIDI for NixOS guests comes later", "MIDI für NixOS-Gäste kommt später"),
     ("Mac with Apple silicon, macOS 27", "Mac mit Apple silicon, macOS 27"),
     ("Magenta", "Magenta"),
     ("Make Default", "Als Standard"),

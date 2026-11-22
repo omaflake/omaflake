@@ -13,8 +13,15 @@ import OmaflakeKit
 /// - Per VM one more pair on the Mac, "omaflake <VM>": what the Mac's apps play to it comes out of "omaflake Mac" in
 ///   the guest, what the guest plays to "omaflake Mac" comes out of it on the Mac.
 /// - Endpoints carrying `mirrorProperty` (ours, and those of other omaflake VMs) are never mirrored: no loops.
-/// - Data are sent as they arrive (timestamp "now"); the guest is untrusted – what it sends is checked in `AgentLink`
-///   (whole UMP messages, rate limit) and goes only to endpoints of the current list.
+/// - Data carry their time (plan B161, C7): Mac → guest the event list's time stamp in monotonic nanoseconds (0:
+///   now); guest → Mac the guest's time mapped onto the Mac's clock (`MIDIClockMapper`) and handed to CoreMIDI as the
+///   event list's time stamp, so notes keep their spacing. The guest is untrusted – what it sends is checked in
+///   `AgentLink` (whole UMP messages, rate limit) and goes only to endpoints of the current list.
+/// - MIDI 2.0 devices (macOS 15+) bring what they say of themselves – CoreMIDI's UMP endpoint and its function
+///   blocks – as `ump` in the list; the list is sent again when that changes.
+///
+/// CoreMIDI calls the client's notifications on the run loop of the thread that created the bridge: create it on a
+/// thread whose run loop runs (the main thread with NSApplication or `RunLoop.main.run()`).
 final class MIDIBridge: @unchecked Sendable {
     /// Set to 1 on omaflake's own endpoints (here and in the guest), so no omaflake mirrors them again
     nonisolated(unsafe) static let mirrorProperty = "app.omaflake.mirror" as CFString   // immutable constant
@@ -35,11 +42,13 @@ final class MIDIBridge: @unchecked Sendable {
     // Under `lock`: read on CoreMIDI's and the link's threads
     private var link: AgentLink?
     private var destinations: [UInt32: MIDIEndpointRef] = [:]
+    private var clock = MIDIClockMapper()
     // On `queue`
     private var connected: [UInt32: (endpoint: MIDIEndpointRef, protocol: UInt8)] = [:]
     private var list: [MIDIEndpointInfo] = []
     private var rescanPending = false
     private var pings: DispatchSourceTimer?
+    private var observers: [NSObjectProtocol] = []
 
     init(vmName: String, log: @escaping @Sendable (String) -> Void) throws {
         self.vmName = vmName
@@ -66,6 +75,38 @@ final class MIDIBridge: @unchecked Sendable {
             MIDIObjectSetIntegerProperty(endpoint, Self.mirrorProperty, 1)
             MIDIObjectSetStringProperty(endpoint, kMIDIPropertyManufacturer, "omaflake" as CFString)
         }
+        // A MIDI 2.0 device that comes, goes or changes its function blocks: the list again
+        for name in [MIDIUMPEndpointManager.endpointWasAddedNotification, MIDIUMPEndpointManager.endpointWasRemovedNotification,
+                     MIDIUMPEndpointManager.endpointWasUpdatedNotification, MIDIUMPEndpointManager.functionBlockWasUpdatedNotification] {
+            observers.append(NotificationCenter.default.addObserver(forName: name, object: nil, queue: nil) { [weak self] _ in
+                self?.scheduleRescan()
+            })
+        }
+    }
+
+    deinit {
+        for o in observers { NotificationCenter.default.removeObserver(o) }
+    }
+
+    /// The bridge for a VM, or nil (logged) when CoreMIDI refuses – the VM then runs without MIDI
+    static func start(vmName: String, log: @escaping @Sendable (String) -> Void) -> MIDIBridge? {
+        do {
+            return try MIDIBridge(vmName: vmName, log: log)
+        } catch {
+            log("MIDI: \(omaf_runner.describe(error)) – the VM runs without MIDI")
+            return nil
+        }
+    }
+
+    /// Wires the bridge to an agent link (`run` and `bridge` alike): what the guest plays comes here, and once a
+    /// welcome enabled "midi" (call from the link's `onWelcome`) the guest gets the list
+    func attach(_ link: AgentLink) {
+        link.onMIDI = { [weak self] records in self?.fromGuest(records) }
+    }
+
+    /// For the link's `onWelcome`: MIDI enabled – the guest gets the list (again after each new hello)
+    func welcomed(_ features: Set<String>, link: AgentLink) {
+        if features.contains("midi") { useAgent(link) }
     }
 
     private func check(_ status: OSStatus, _ what: String) throws {
@@ -75,7 +116,11 @@ final class MIDIBridge: @unchecked Sendable {
     /// The guest's agent carries MIDI (its welcome enabled it, again after each new hello): it gets the whole list,
     /// and the round trip is measured once a second from now on
     func useAgent(_ link: AgentLink) {
-        lock.withLock { self.link = link }
+        // A new hello may be a new boot of the guest: its clock starts over
+        lock.withLock {
+            self.link = link
+            clock = MIDIClockMapper()
+        }
         queue.async { [self] in
             rescan(forceSend: true)
             if pings == nil {
@@ -147,6 +192,13 @@ final class MIDIBridge: @unchecked Sendable {
         ]
         next += sources.values.map(\.1).filter { connected[$0.id] != nil }.sorted { ($0.name, $0.id) < ($1.name, $1.id) }
         next += dests.values.map(\.1).sorted { ($0.name, $0.id) < ($1.name, $1.id) }
+        // MIDI 2.0 devices: what they say of themselves, matched by their source or destination
+        let ump = Self.umpInfo()
+        next = next.map { e in
+            var e = e
+            if e.id != Self.vmPortID, let ref = (e.direction == "in" ? sources[e.id]?.0 : dests[e.id]?.0) { e.ump = ump[ref] }
+            return e
+        }
         guard forceSend || next != list else { return }
         if next != list {
             let names = next.dropFirst(2).map { "\($0.direction == "in" ? "→" : "←") \($0.name)" }
@@ -168,6 +220,51 @@ final class MIDIBridge: @unchecked Sendable {
                                 protocol: integer(e, kMIDIPropertyProtocolID) == 2 ? 2 : 1)
     }
 
+    /// CoreMIDI's UMP endpoints (macOS 15+), by their source and destination, within the spec's limits
+    private static func umpInfo() -> [MIDIEndpointRef: MIDIUMPInfo] {
+        var out: [MIDIEndpointRef: MIDIUMPInfo] = [:]
+        for u in MIDIUMPEndpointManager.shared.umpEndpoints {
+            let d = u.deviceInfo
+            let m = d.manufacturerID.sysExIDByte, r = d.revisionLevel.revisionLevel
+            let info = MIDIUMPInfo(
+                name: u.name, productInstanceId: u.productInstanceID,
+                manufacturer: MIDIUMPInfo.hex([m.0, m.1, m.2]), family: d.family, model: d.modelNumber,
+                version: MIDIUMPInfo.hex([r.0, r.1, r.2, r.3]), staticBlocks: u.hasStaticFunctionBlocks,
+                blocks: u.functionBlocks.map { b in
+                    MIDIUMPInfo.Block(id: b.functionBlockID, name: b.name, direction: direction(b.direction),
+                                      firstGroup: b.firstGroup, groups: b.totalGroupsSpanned, midi1: midi1(b.midi1Info),
+                                      uiHint: uiHint(b.uiHint))
+                }).limited()
+            for ref in [u.midiSource, u.midiDestination] where ref != 0 { out[ref] = info }
+        }
+        return out
+    }
+
+    private static func direction(_ d: MIDIUMPFunctionBlockDirection) -> String {
+        switch d {
+        case .input: "in"
+        case .output: "out"
+        default: "both"   // bidirectional, or unknown: both, so nothing is hidden
+        }
+    }
+
+    private static func midi1(_ m: MIDIUMPFunctionBlockMIDI1Info) -> String {
+        switch m {
+        case .unrestrictedBandwidth: "yes"
+        case .restrictedBandwidth: "low-speed"
+        default: "no"
+        }
+    }
+
+    private static func uiHint(_ h: MIDIUMPFunctionBlockUIHint) -> String {
+        switch h {
+        case .receiver: "receiver"
+        case .sender: "sender"
+        case .senderReceiver: "both"
+        default: "unknown"
+        }
+    }
+
     private static func integer(_ obj: MIDIObjectRef, _ key: CFString) -> Int32? {
         var value: Int32 = 0
         return MIDIObjectGetIntegerProperty(obj, key, &value) == noErr ? value : nil
@@ -181,46 +278,98 @@ final class MIDIBridge: @unchecked Sendable {
 
     // MARK: Data
 
-    /// CoreMIDI's thread: a source of the Mac (or the VM's destination) sent something – straight to the guest
+    /// CoreMIDI's thread: a source of the Mac (or the VM's destination) sent something – straight to the guest, with
+    /// the time it arrived (the event list's time stamp; 0 means now)
     private func fromMac(_ list: UnsafePointer<MIDIEventList>, id: UInt32) {
         guard let link = lock.withLock({ link }) else { return }
-        let (proto, words) = Self.words(list)
-        guard proto == 1 || proto == 2, !words.isEmpty else { return }
-        for payload in MIDIRecord.encode([MIDIRecord(id: id, protocol: proto, words: words)]) {
-            link.send(.midiData, payload: payload)
+        let (proto, packets) = Self.packets(list)
+        guard proto == 1 || proto == 2 else { return }
+        let now = Self.nanoseconds(mach_absolute_time())
+        // Packets of the same time go in one record
+        var records: [MIDIRecord] = []
+        for (stamp, words) in packets where !words.isEmpty {
+            let time = stamp == 0 ? now : Self.nanoseconds(stamp)
+            if let last = records.last, last.time == time {
+                records[records.count - 1].words += words
+            } else {
+                records.append(MIDIRecord(id: id, protocol: proto, time: time, words: words))
+            }
         }
+        for payload in MIDIRecord.encode(records) { link.send(.midiData, payload: payload) }
     }
 
-    /// The link's thread: what the guest's apps played, to the Mac's destination (or out of the VM's source)
+    /// The link's thread: what the guest's apps played, to the Mac's destination (or out of the VM's source) – at the
+    /// guest's time mapped onto the Mac's clock, or now when it sent none
     func fromGuest(_ records: [MIDIRecord]) {
         for r in records {
+            var stamp: MIDITimeStamp = 0
+            if let time = r.time {
+                let now = mach_absolute_time()
+                let due = lock.withLock { clock.due(time: time, now: Self.nanoseconds(now)) }
+                stamp = max(now, Self.ticks(due))
+            }
             if r.id == Self.vmPortID {
-                Self.eventLists(r) { MIDIReceivedEventList(vmSource, $0) }
+                Self.eventLists(r, timeStamp: stamp) { MIDIReceivedEventList(vmSource, $0) }
             } else if let dest = lock.withLock({ destinations[r.id] }) {
-                Self.eventLists(r) { MIDISendEventList(output, dest, $0) }
+                Self.eventLists(r, timeStamp: stamp) { MIDISendEventList(output, dest, $0) }
             }
             // else: an endpoint that is gone (or never was) – dropped
         }
     }
 
-    /// The protocol and all words of an event list (packets follow each other with `wordCount` words each)
-    static func words(_ list: UnsafePointer<MIDIEventList>) -> (UInt8, [UInt32]) {
+    // MARK: Clock
+
+    /// Host ticks (mach_absolute_time, CoreMIDI's MIDITimeStamp) per nanosecond: numer / denom
+    private static let timebase: mach_timebase_info_data_t = {
+        var t = mach_timebase_info_data_t()
+        mach_timebase_info(&t)
+        return t
+    }()
+
+    /// Host ticks as monotonic nanoseconds (the clock of `DispatchTime.uptimeNanoseconds`)
+    static func nanoseconds(_ ticks: UInt64) -> UInt64 {
+        let t = timebase
+        return t.numer == t.denom ? ticks : UInt64((UInt128(ticks) * UInt128(t.numer)) / UInt128(t.denom))
+    }
+
+    /// Monotonic nanoseconds as host ticks
+    static func ticks(_ nanoseconds: UInt64) -> UInt64 {
+        let t = timebase
+        return t.numer == t.denom ? nanoseconds : UInt64((UInt128(nanoseconds) * UInt128(t.denom)) / UInt128(t.numer))
+    }
+
+    // MARK: Event lists
+
+    /// The protocol and the packets of an event list – each packet's time stamp and its whole messages (packets
+    /// follow each other with `wordCount` words each)
+    static func packets(_ list: UnsafePointer<MIDIEventList>) -> (UInt8, [(MIDITimeStamp, [UInt32])]) {
         let raw = UnsafeRawPointer(list)
         let proto = raw.loadUnaligned(as: Int32.self)
         let count = raw.loadUnaligned(fromByteOffset: 4, as: UInt32.self)
         var packet = raw + 8
-        var words: [UInt32] = []
+        var out: [(MIDITimeStamp, [UInt32])] = []
         for _ in 0..<count {
-            let n = min(Int(packet.loadUnaligned(fromByteOffset: 8, as: UInt32.self)), 64)
-            for i in 0..<n { words.append(packet.loadUnaligned(fromByteOffset: 12 + 4 * i, as: UInt32.self)) }
+            let stamp = packet.loadUnaligned(as: UInt64.self)
+            // Not capped at the 64 words MIDIEventPacket declares: CoreMIDI puts messages of the same time stamp
+            // into one packet, which may be longer (seen: 192 words of SysEx)
+            let n = Int(packet.loadUnaligned(fromByteOffset: 8, as: UInt32.self))
+            var words = (0..<n).map { packet.loadUnaligned(fromByteOffset: 12 + 4 * $0, as: UInt32.self) }
+            words.removeLast(words.count - MIDIRecord.wholeMessages(words))
+            out.append((stamp, words))
             packet += 12 + 4 * n
         }
-        words.removeLast(words.count - MIDIRecord.wholeMessages(words))
-        return (UInt8(truncatingIfNeeded: proto), words)
+        return (UInt8(truncatingIfNeeded: proto), out)
     }
 
-    /// A record as event lists (timestamp 0: now), one message per add; a full list is passed on and started again
-    static func eventLists(_ r: MIDIRecord, _ body: (UnsafePointer<MIDIEventList>) -> Void) {
+    /// The protocol and all words of an event list
+    static func words(_ list: UnsafePointer<MIDIEventList>) -> (UInt8, [UInt32]) {
+        let (proto, packets) = packets(list)
+        return (proto, packets.flatMap(\.1))
+    }
+
+    /// A record as event lists with the time stamp `timeStamp` (host ticks; 0: now), one message per add; a full
+    /// list is passed on and started again
+    static func eventLists(_ r: MIDIRecord, timeStamp: MIDITimeStamp = 0, _ body: (UnsafePointer<MIDIEventList>) -> Void) {
         let size = 16 * 1024
         let raw = UnsafeMutableRawPointer.allocate(byteCount: size, alignment: 8)
         defer { raw.deallocate() }
@@ -232,7 +381,7 @@ final class MIDIBridge: @unchecked Sendable {
             while i < buf.count {
                 let n = MIDIRecord.messageWords(buf[i])
                 guard i + n <= buf.count else { break }
-                let next: UnsafeMutablePointer<MIDIEventPacket>? = MIDIEventListAdd(list, size, packet, 0, n, buf.baseAddress! + i)
+                let next: UnsafeMutablePointer<MIDIEventPacket>? = MIDIEventListAdd(list, size, packet, timeStamp, n, buf.baseAddress! + i)
                 if let next {
                     packet = next
                     i += n

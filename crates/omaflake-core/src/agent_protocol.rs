@@ -48,6 +48,13 @@ impl AgentProtocol {
     /// Camera: 1280×720 NV12, and the frames the guest may grant at once (spec §11.9, credits)
     pub const CAMERA_FRAME_BYTES: usize = 1280 * 720 * 3 / 2;
     pub const MAX_CAMERA_CREDITS: u32 = 4;
+    /// MIDI: one data message at most (never chunked), a ping's payload at most (spec §11.9, plan B161)
+    pub const MAX_MIDI_MESSAGE: usize = 64 * 1024;
+    pub const MAX_MIDI_PING: usize = 64;
+    /// MIDI from the guest: bytes a second it may send on average, and the burst above that (a SysEx dump is fine, a
+    /// guest flooding the host's devices is cut off)
+    pub const MIDI_RATE: usize = 1024 * 1024;
+    pub const MIDI_BURST: usize = 512 * 1024;
 
     /// Versions the Mac side speaks: the current one and, once there is one, the previous one (spec §11.9)
     pub const SUPPORTED: std::ops::RangeInclusive<u32> = 1..=1;
@@ -108,15 +115,40 @@ pub enum AgentMessage {
     CameraFrame = 0x0202,
     /// Mac → guest: {"status", "detail"}
     CameraStatus = 0x0203,
+    /// Mac → guest: {"endpoints": [...]}, the whole list after each change
+    MidiEndpoints = 0x0500,
+    /// both: MIDI records (`MidiRecord`)
+    MidiData = 0x0501,
+    /// guest → Mac: {"endpoints": n, "failed": [names]}
+    MidiStatus = 0x0502,
+    /// Mac → guest: at most `MAX_MIDI_PING` bytes, answered at once
+    MidiPing = 0x0503,
+    /// guest → Mac: the ping's payload unchanged
+    MidiPong = 0x0504,
 }
 
 impl AgentMessage {
     /// Swift `Message(rawValue:)`
     pub fn from_u16(v: u16) -> Option<Self> {
         use AgentMessage::*;
-        [Hello, Welcome, Status, Goodbye, Clipboard, CameraControl, CameraCredit, CameraFrame, CameraStatus]
-            .into_iter()
-            .find(|m| *m as u16 == v)
+        [
+            Hello,
+            Welcome,
+            Status,
+            Goodbye,
+            Clipboard,
+            CameraControl,
+            CameraCredit,
+            CameraFrame,
+            CameraStatus,
+            MidiEndpoints,
+            MidiData,
+            MidiStatus,
+            MidiPing,
+            MidiPong,
+        ]
+        .into_iter()
+        .find(|m| *m as u16 == v)
     }
 }
 
@@ -389,6 +421,277 @@ fn is_control_character(c: char) -> bool {
     c.is_control() || FORMAT.iter().any(|&(lo, hi)| (lo..=hi).contains(&v))
 }
 
+// MARK: MIDI
+
+/// MIDI data on the agent's port (spec §11.9, plan B161): Universal MIDI Packets (MIDI 2.0's format, which carries MIDI
+/// 1.0 too) in records naming their endpoint – `id u32, protocol u8 (1 | 2), flags u8, words u16`, then, when flags
+/// bit 0 is set, `time u64` (the sender's monotonic nanoseconds when the data arrived from its MIDI system), then the
+/// words (u32), all little endian, whole UMP messages only. The same as Swift's `MIDIRecord` and nix/agent/src/ump.rs;
+/// all check the "midi" vectors.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct MidiRecord {
+    /// An endpoint of the host's list: host → guest the source the data came from, guest → host the destination
+    pub id: u32,
+    /// 1 = MIDI 1.0 UMP, 2 = MIDI 2.0 UMP (CoreMIDI's MIDIProtocolID)
+    pub protocol: u8,
+    /// The sender's monotonic clock in nanoseconds when the data arrived from its MIDI system; None: "now"
+    pub time: Option<u64>,
+    pub words: Vec<u32>,
+}
+
+impl MidiRecord {
+    pub const HEADER_LENGTH: usize = 8;
+    /// Flags bit 0: 8 bytes of `time` follow the header; other bits are malformed
+    pub const FLAG_TIME: u8 = 1;
+
+    /// Words of the UMP message starting with `first`, by its message type (UMP spec 1.1)
+    pub fn message_words(first: u32) -> usize {
+        match first >> 28 {
+            0x0 | 0x1 | 0x2 | 0x6 | 0x7 => 1,
+            0x3 | 0x4 | 0x8 | 0x9 | 0xA => 2,
+            0xB | 0xC => 3,
+            _ => 4, // 0x5 (SysEx8, mixed data), 0xD (flex data), 0xE, 0xF (UMP stream)
+        }
+    }
+
+    /// How many of `words` form whole messages (a message cut off at the end is left out)
+    pub fn whole_messages(words: &[u32]) -> usize {
+        let mut i = 0;
+        while i < words.len() {
+            let n = Self::message_words(words[i]);
+            if i + n > words.len() {
+                break;
+            }
+            i += n;
+        }
+        i
+    }
+
+    fn header_length(&self) -> usize {
+        Self::HEADER_LENGTH + if self.time.is_some() { 8 } else { 0 }
+    }
+
+    /// Records as payloads of at most `MAX_MIDI_MESSAGE` bytes; long records split at message boundaries (each part
+    /// keeps the record's time)
+    pub fn encode(records: &[MidiRecord]) -> Vec<Vec<u8>> {
+        let max = AgentProtocol::MAX_MIDI_MESSAGE;
+        let mut out: Vec<Vec<u8>> = vec![];
+        let mut cur: Vec<u8> = vec![];
+        for r in records {
+            let header = r.header_length();
+            let max_words = ((max - header) / 4).min(u16::MAX as usize);
+            let words = &r.words[..Self::whole_messages(&r.words)];
+            let mut start = 0;
+            while start < words.len() {
+                let mut end = start;
+                while end < words.len() && end + Self::message_words(words[end]) - start <= max_words {
+                    end += Self::message_words(words[end]);
+                }
+                let part = &words[start..end];
+                if !cur.is_empty() && cur.len() + header + part.len() * 4 > max {
+                    out.push(std::mem::take(&mut cur));
+                }
+                cur.extend_from_slice(&r.id.to_le_bytes());
+                cur.push(r.protocol);
+                cur.push(if r.time.is_some() { Self::FLAG_TIME } else { 0 });
+                cur.extend_from_slice(&(part.len() as u16).to_le_bytes());
+                if let Some(t) = r.time {
+                    cur.extend_from_slice(&t.to_le_bytes());
+                }
+                for w in part {
+                    cur.extend_from_slice(&w.to_le_bytes());
+                }
+                start = end;
+            }
+        }
+        if !cur.is_empty() {
+            out.push(cur);
+        }
+        out
+    }
+
+    /// The records of a payload; None if it is malformed (too long, cut off, a protocol other than 1 or 2, unknown
+    /// flags, or words that are not whole messages)
+    pub fn decode(payload: &[u8]) -> Option<Vec<MidiRecord>> {
+        if payload.len() > AgentProtocol::MAX_MIDI_MESSAGE {
+            return None;
+        }
+        let mut records = vec![];
+        let mut at = 0;
+        while at < payload.len() {
+            let head = payload.get(at..at + Self::HEADER_LENGTH)?;
+            let id = u32::from_le_bytes([head[0], head[1], head[2], head[3]]);
+            let (protocol, flags) = (head[4], head[5]);
+            let count = u16::from_le_bytes([head[6], head[7]]) as usize;
+            if !(protocol == 1 || protocol == 2) || flags & !Self::FLAG_TIME != 0 {
+                return None;
+            }
+            at += Self::HEADER_LENGTH;
+            let time = if flags & Self::FLAG_TIME != 0 {
+                let t = payload.get(at..at + 8)?;
+                at += 8;
+                Some(u64::from_le_bytes(t.try_into().ok()?))
+            } else {
+                None
+            };
+            let body = payload.get(at..at + count * 4)?;
+            let words: Vec<u32> = body.as_chunks::<4>().0.iter().map(|c| u32::from_le_bytes(*c)).collect();
+            if Self::whole_messages(&words) != words.len() {
+                return None;
+            }
+            at += count * 4;
+            records.push(MidiRecord { id, protocol, time, words });
+        }
+        Some(records)
+    }
+}
+
+/// One endpoint of the host as the guest gets it (`MidiEndpoints`; Swift `MIDIEndpointInfo`)
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct MidiEndpointInfo {
+    pub id: u32,
+    /// "in": a source on the host, its data come into the guest; "out": a destination, the guest plays to it
+    pub direction: String,
+    pub name: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub manufacturer: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub model: Option<String>,
+    pub protocol: u8,
+    /// What a MIDI 2.0 device says of itself (spec §11.9, "UMP endpoints"), where the host's MIDI system has it
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub ump: Option<UmpEndpointInfo>,
+}
+
+/// A MIDI 2.0 device's UMP endpoint (CoreMIDI's `MIDIUMPEndpoint`, ALSA's UMP endpoint info)
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct UmpEndpointInfo {
+    pub name: String,
+    #[serde(rename = "productInstanceId")]
+    pub product_instance_id: String,
+    /// The 3 bytes of the SysEx manufacturer id as hex
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub manufacturer: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub family: Option<u16>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub model: Option<u16>,
+    /// The 4 bytes of the software revision as hex
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub version: Option<String>,
+    #[serde(rename = "staticBlocks")]
+    pub static_blocks: bool,
+    pub blocks: Vec<UmpBlockInfo>,
+}
+
+/// A function block of a UMP endpoint
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct UmpBlockInfo {
+    /// 0–31
+    pub id: u8,
+    pub name: String,
+    /// "in" | "out" | "both"
+    pub direction: String,
+    /// 0–15
+    #[serde(rename = "firstGroup")]
+    pub first_group: u8,
+    /// 1–16
+    pub groups: u8,
+    /// "no" | "yes" | "low-speed"
+    pub midi1: String,
+    /// "unknown" | "receiver" | "sender" | "both"
+    #[serde(rename = "uiHint")]
+    pub ui_hint: String,
+}
+
+impl UmpEndpointInfo {
+    /// At most this many blocks, names at most this many bytes (spec §11.9)
+    pub const MAX_BLOCKS: usize = 32;
+    pub const MAX_NAME: usize = 98;
+
+    /// Within the spec's limits: at most 32 blocks, names cut to 98 bytes (at a character boundary), ids, groups and
+    /// the first group in range (blocks out of range are left out)
+    pub fn limited(mut self) -> UmpEndpointInfo {
+        self.name = Self::cut(&self.name);
+        self.product_instance_id = Self::cut(&self.product_instance_id);
+        self.blocks.retain(|b| b.id < 32 && b.first_group < 16 && (1..=16).contains(&b.groups));
+        self.blocks.truncate(Self::MAX_BLOCKS);
+        for b in &mut self.blocks {
+            b.name = Self::cut(&b.name);
+        }
+        self
+    }
+
+    fn cut(s: &str) -> String {
+        let clean: String = s.chars().filter(|c| !c.is_control()).collect();
+        let mut end = clean.len().min(Self::MAX_NAME);
+        while !clean.is_char_boundary(end) {
+            end -= 1;
+        }
+        clean[..end].to_string()
+    }
+}
+
+/// The sender's clock mapped onto the receiver's (spec §11.9, "Timestamps"): `offset` is the smallest
+/// `own_now − time` seen over the last 30 s – the transport's fastest delivery – and data are handed to the MIDI system
+/// for `time + offset + 2 ms`. A time already past, or more than 1 s ahead, is delivered now. Pure: the caller passes
+/// both clocks (nanoseconds).
+#[derive(Debug, Clone, Default)]
+pub struct ClockMapper {
+    /// (own_now, offset), offsets strictly increasing from the front: the front is the window's minimum, and a newer
+    /// sample with the same or a smaller offset replaces older ones (so the newest minimum is kept when it slides)
+    window: std::collections::VecDeque<(u64, i128)>,
+}
+
+impl ClockMapper {
+    pub const WINDOW: u64 = 30_000_000_000;
+    pub const LEAD: u64 = 2_000_000;
+    pub const MAX_AHEAD: u64 = 1_000_000_000;
+
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// One more sample: data stamped `time` by the sender arrived at `own_now`
+    pub fn observe(&mut self, own_now: u64, time: u64) {
+        let offset = own_now as i128 - time as i128;
+        while self.window.back().is_some_and(|&(_, o)| o >= offset) {
+            self.window.pop_back();
+        }
+        self.window.push_back((own_now, offset));
+        while self.window.front().is_some_and(|&(at, _)| at.saturating_add(Self::WINDOW) < own_now) {
+            self.window.pop_front();
+        }
+    }
+
+    /// The current offset (own clock − sender's), None before the first sample
+    pub fn offset(&self) -> Option<i128> {
+        self.window.front().map(|&(_, o)| o)
+    }
+
+    /// When data stamped `time` should reach the MIDI system on the own clock; None: now (no offset yet, already
+    /// past, or more than 1 s ahead)
+    pub fn deliver_at(&self, own_now: u64, time: u64) -> Option<u64> {
+        let target = time as i128 + self.offset()? + Self::LEAD as i128;
+        let now = own_now as i128;
+        (target > now && target <= now + Self::MAX_AHEAD as i128).then_some(target as u64)
+    }
+
+    /// `observe`, then `deliver_at`: what a receiver does with each timestamped record
+    pub fn schedule(&mut self, own_now: u64, time: u64) -> Option<u64> {
+        self.observe(own_now, time);
+        self.deliver_at(own_now, time)
+    }
+}
+
+/// This process's monotonic clock in nanoseconds (CLOCK_MONOTONIC): MIDI time stamps and the round trip's pings
+pub fn monotonic_ns() -> u64 {
+    let mut ts = libc::timespec { tv_sec: 0, tv_nsec: 0 };
+    // SAFETY: `ts` is a valid timespec to write; CLOCK_MONOTONIC exists on macOS and Linux
+    unsafe { libc::clock_gettime(libc::CLOCK_MONOTONIC, &mut ts) };
+    (ts.tv_sec as u64).saturating_mul(1_000_000_000).saturating_add(ts.tv_nsec as u64)
+}
+
 // MARK: State
 
 /// What omaflake knows from a VM's agent: kept by the Mac side of the link in the run folder (`agent.json`),
@@ -431,12 +734,12 @@ pub struct AgentState {
     /// What the welcome enabled: offered by the agent and switched on for this VM
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub features: Option<Vec<String>>,
-    /// MIDI (macOS guests, plan B161; kept by omaf-runner): the guest's endpoints and the measured round trip
+    /// MIDI (plan B161; kept by omaf-runner and `omaf bridge`): the guest's endpoints and the measured round trip
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub midi: Option<AgentMidiState>,
 }
 
-/// What a guest reported about its MIDI endpoints, and the round trip omaf-runner measured (spec §11.9)
+/// What a guest reported about its MIDI endpoints, and the round trip the host side measured (spec §11.9)
 #[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
 pub struct AgentMidiState {
     pub endpoints: u32,
@@ -503,6 +806,8 @@ pub type WelcomeHandler = Box<dyn Fn(&HashSet<String>) + Send + Sync>;
 pub type ClipboardHandler = Box<dyn Fn(&str, &[u8]) + Send + Sync>;
 /// `AgentLink::on_camera`
 pub type CameraHandler = Box<dyn Fn(CameraRequest) + Send + Sync>;
+/// `AgentLink::on_midi`: records the guest's apps played (checked: whole UMP messages, within the rate limit)
+pub type MidiHandler = Box<dyn Fn(Vec<MidiRecord>) + Send + Sync>;
 
 /// Writes to the guest from any thread (Swift `AgentLink.send`, thread-safe)
 #[derive(Debug, Clone)]
@@ -521,6 +826,16 @@ impl AgentSender {
         };
         let stream = self.stream.lock().unwrap_or_else(|e| e.into_inner());
         (&*stream).write_all(&bytes).is_ok()
+    }
+
+    /// A ping for the MIDI round trip: its payload is the send time (`monotonic_ns`), the pong brings it back
+    pub fn send_midi_ping(&self) -> bool {
+        self.send(AgentMessage::MidiPing, &monotonic_ns().to_le_bytes())
+    }
+
+    /// Records to the guest (MIDI data messages of at most 64 KiB each); false when the port is gone
+    pub fn send_midi(&self, records: &[MidiRecord]) -> bool {
+        MidiRecord::encode(records).iter().all(|p| self.send(AgentMessage::MidiData, p))
     }
 }
 
@@ -550,6 +865,14 @@ pub struct AgentLink {
     pub on_clipboard: Option<ClipboardHandler>,
     /// The guest's camera requests, when the camera is enabled
     pub on_camera: Option<CameraHandler>,
+    /// MIDI the guest's apps played, when MIDI is enabled; the receiver sends only to ids of its current list
+    pub on_midi: Option<MidiHandler>,
+    /// MIDI from the guest: the token bucket (bytes), when it was last filled, how much was dropped
+    midi_tokens: f64,
+    midi_filled: Instant,
+    midi_dropped: usize,
+    /// Round trips of the last pings, in milliseconds
+    round_trips: Vec<f64>,
 }
 
 impl AgentLink {
@@ -588,6 +911,11 @@ impl AgentLink {
             on_welcome: None,
             on_clipboard: None,
             on_camera: None,
+            on_midi: None,
+            midi_tokens: AgentProtocol::MIDI_BURST as f64,
+            midi_filled: Instant::now(),
+            midi_dropped: 0,
+            round_trips: Vec::new(),
         })
     }
 
@@ -644,8 +972,10 @@ impl AgentLink {
             self.errors += 1; // unknown to this version; a newer agent only sends what the welcome enabled
             return;
         };
-        if matches!(message, AgentMessage::Hello | AgentMessage::Status | AgentMessage::Goodbye)
-            && let Some(last) = self.last_accepted.get(&frame.type_)
+        if matches!(
+            message,
+            AgentMessage::Hello | AgentMessage::Status | AgentMessage::Goodbye | AgentMessage::MidiStatus
+        ) && let Some(last) = self.last_accepted.get(&frame.type_)
             && now.duration_since(*last) < Self::MIN_INTERVAL
         {
             return;
@@ -752,7 +1082,86 @@ impl AgentLink {
                 }
                 return;
             }
-            AgentMessage::Welcome | AgentMessage::CameraFrame | AgentMessage::CameraStatus => {
+            AgentMessage::MidiData => {
+                if !self.enabled.contains("midi") {
+                    return;
+                }
+                // Token bucket: `MIDI_RATE` bytes a second on average, `MIDI_BURST` at once – beyond that dropped
+                let elapsed = now.duration_since(self.midi_filled).as_secs_f64();
+                self.midi_tokens = (self.midi_tokens + elapsed * AgentProtocol::MIDI_RATE as f64)
+                    .min(AgentProtocol::MIDI_BURST as f64);
+                self.midi_filled = now;
+                if frame.payload.len() as f64 > self.midi_tokens {
+                    self.midi_dropped += 1;
+                    if self.midi_dropped == 1 || self.midi_dropped.is_multiple_of(1000) {
+                        let rate = AgentProtocol::MIDI_RATE / 1024;
+                        (self.log)(&format!(
+                            "agent: MIDI from the guest beyond {rate} KiB/s dropped ({}×)",
+                            self.midi_dropped
+                        ));
+                    }
+                    return;
+                }
+                self.midi_tokens -= frame.payload.len() as f64;
+                let Some(records) = MidiRecord::decode(&frame.payload) else {
+                    self.errors += 1;
+                    return;
+                };
+                if let Some(on_midi) = &self.on_midi {
+                    on_midi(records);
+                }
+                return;
+            }
+            AgentMessage::MidiStatus => {
+                if !self.enabled.contains("midi") {
+                    return;
+                }
+                #[derive(Deserialize)]
+                struct Status {
+                    endpoints: i64,
+                    #[serde(default)]
+                    failed: Option<Vec<String>>,
+                }
+                let s = match serde_json::from_slice::<Status>(&frame.payload) {
+                    Ok(s) if s.endpoints >= 0 => s,
+                    _ => {
+                        self.errors += 1;
+                        return;
+                    }
+                };
+                let midi = self.state.midi.get_or_insert_with(AgentMidiState::default);
+                midi.endpoints = s.endpoints.min(1024) as u32;
+                midi.failed = s.failed.unwrap_or_default().iter().take(64).map(|f| Untrusted::text(f)).collect();
+            }
+            AgentMessage::MidiPong => {
+                if !self.enabled.contains("midi") || frame.payload.len() != 8 {
+                    return;
+                }
+                let sent = u64::from_le_bytes(frame.payload[..8].try_into().unwrap_or_default());
+                let now_ns = monotonic_ns();
+                if sent > now_ns || now_ns - sent >= 10_000_000_000 {
+                    return; // a forged or stale time
+                }
+                self.round_trips.push((now_ns - sent) as f64 / 1e6);
+                if self.round_trips.len() > 60 {
+                    self.round_trips.remove(0);
+                }
+                let mut sorted = self.round_trips.clone();
+                sorted.sort_by(f64::total_cmp);
+                let midi = self.state.midi.get_or_insert_with(AgentMidiState::default);
+                midi.round_trip_ms = Some(RoundTrip {
+                    min: sorted[0],
+                    median: sorted[sorted.len() / 2],
+                    max: sorted[sorted.len() - 1],
+                    samples: sorted.len() as u32,
+                });
+                return; // kept with the next status; no file write per pong
+            }
+            AgentMessage::Welcome
+            | AgentMessage::CameraFrame
+            | AgentMessage::CameraStatus
+            | AgentMessage::MidiEndpoints
+            | AgentMessage::MidiPing => {
                 self.errors += 1; // the Mac's messages, never the guest's
                 return;
             }
@@ -857,7 +1266,10 @@ mod tests {
 
     #[test]
     fn message_types_round_trip() {
-        for v in [0x0001, 0x0002, 0x0003, 0x0004, 0x0100, 0x0200, 0x0201, 0x0202, 0x0203] {
+        for v in [
+            0x0001, 0x0002, 0x0003, 0x0004, 0x0100, 0x0200, 0x0201, 0x0202, 0x0203, 0x0500, 0x0501, 0x0502, 0x0503,
+            0x0504,
+        ] {
             assert_eq!(AgentMessage::from_u16(v).map(|m| m as u16), Some(v));
         }
         assert_eq!(AgentMessage::from_u16(0x0005), None);
@@ -1106,5 +1518,173 @@ mod tests {
         });
         assert_eq!(h.link.run(), LinkEnd::Abandoned);
         drop(t.join().unwrap());
+    }
+
+    /// The "midi" vectors shared with omaf-runner and the guest agent: records with and without time stamps
+    #[test]
+    fn midi_vectors() {
+        let file = concat!(env!("CARGO_MANIFEST_DIR"), "/../../nix/agent/testdata/vectors.json");
+        let v: Value = serde_json::from_slice(&std::fs::read(file).unwrap()).unwrap();
+        let cases = v["midi"].as_array().unwrap();
+        assert!(cases.iter().any(|c| c["records"].as_array().is_some_and(|r| r.iter().any(|r| r["time"].is_u64()))));
+        for case in cases {
+            let wire = bytes(case["hex"].as_str().unwrap());
+            match case["records"].as_array() {
+                Some(want) => {
+                    let records: Vec<MidiRecord> = want
+                        .iter()
+                        .map(|r| MidiRecord {
+                            id: r["id"].as_u64().unwrap() as u32,
+                            protocol: r["protocol"].as_u64().unwrap() as u8,
+                            time: r["time"].as_u64(),
+                            words: r["words"].as_array().unwrap().iter().map(|w| w.as_u64().unwrap() as u32).collect(),
+                        })
+                        .collect();
+                    assert_eq!(MidiRecord::decode(&wire).as_ref(), Some(&records), "{}", case["name"]);
+                    assert_eq!(MidiRecord::encode(&records), vec![wire.clone()], "{}", case["name"]);
+                }
+                None => assert_eq!(MidiRecord::decode(&wire), None, "{}", case["name"]),
+            }
+        }
+    }
+
+    #[test]
+    fn long_midi_records_are_split_and_keep_their_time() {
+        let words: Vec<u32> = (0..40_000u32).map(|i| if i % 2 == 0 { 0x3016_0000 } else { i }).collect();
+        let parts = MidiRecord::encode(&[MidiRecord { id: 7, protocol: 1, time: Some(42), words: words.clone() }]);
+        assert!(parts.len() > 1 && parts.iter().all(|p| p.len() <= AgentProtocol::MAX_MIDI_MESSAGE));
+        let back: Vec<MidiRecord> = parts.iter().flat_map(|p| MidiRecord::decode(p).unwrap()).collect();
+        assert!(back.iter().all(|r| r.time == Some(42) && r.id == 7));
+        assert_eq!(back.into_iter().flat_map(|r| r.words).collect::<Vec<_>>(), words);
+        // a cut-off message at the end is not sent
+        let half = MidiRecord { id: 1, protocol: 2, time: None, words: vec![0x4090_3C00] };
+        assert!(MidiRecord::encode(&[half]).is_empty());
+        assert_eq!(MidiRecord::message_words(0x2090_3C64), 1);
+        assert_eq!(MidiRecord::message_words(0x4090_3C00), 2);
+        assert_eq!(MidiRecord::message_words(0xF000_0000), 4);
+    }
+
+    #[test]
+    fn endpoint_list_json() {
+        let e = MidiEndpointInfo {
+            id: 0x1401,
+            direction: "in".into(),
+            name: "Synth: Port".into(),
+            manufacturer: None,
+            model: None,
+            protocol: 2,
+            ump: Some(
+                UmpEndpointInfo {
+                    name: "Synth\u{7}".into(),
+                    product_instance_id: "x".repeat(200),
+                    manufacturer: Some("00201f".into()),
+                    family: Some(1),
+                    model: None,
+                    version: None,
+                    static_blocks: true,
+                    blocks: vec![UmpBlockInfo {
+                        id: 0,
+                        name: "Main".into(),
+                        direction: "both".into(),
+                        first_group: 0,
+                        groups: 1,
+                        midi1: "no".into(),
+                        ui_hint: "both".into(),
+                    }],
+                }
+                .limited(),
+            ),
+        };
+        let json = serde_json::to_value(&e).unwrap();
+        assert_eq!(json["ump"]["name"], "Synth");
+        assert_eq!(json["ump"]["productInstanceId"].as_str().unwrap().len(), UmpEndpointInfo::MAX_NAME);
+        assert_eq!(json["ump"]["staticBlocks"], true);
+        assert_eq!(json["ump"]["blocks"][0]["firstGroup"], 0);
+        assert_eq!(json["ump"]["blocks"][0]["uiHint"], "both");
+        assert!(json.get("manufacturer").is_none() && json["ump"].get("model").is_none());
+        let back: MidiEndpointInfo = serde_json::from_value(json).unwrap();
+        assert_eq!(back, e);
+    }
+
+    const MS: u64 = 1_000_000;
+
+    #[test]
+    fn clock_mapper_takes_the_fastest_delivery() {
+        let mut c = ClockMapper::new();
+        assert_eq!(c.deliver_at(1000 * MS, 0), None, "no offset yet: now");
+        // The sender's clock is 500 ms behind; transport 3 ms, then 1 ms, then 5 ms
+        c.observe(1003 * MS, 500 * MS);
+        assert_eq!(c.offset(), Some(503 * MS as i128));
+        c.observe(1011 * MS, 510 * MS);
+        assert_eq!(c.offset(), Some(501 * MS as i128));
+        // 1 ms slower than the fastest: delivered at its time + the fastest offset + 2 ms – the spacing is kept
+        assert_eq!(c.schedule(1022 * MS, 520 * MS), Some(1023 * MS));
+        assert_eq!(c.offset(), Some(501 * MS as i128));
+        // the fastest one itself: 2 ms later than it came
+        assert_eq!(c.schedule(1031 * MS, 530 * MS), Some(1033 * MS));
+        // already past (the transport stalled for more than 2 ms): now
+        assert_eq!(c.deliver_at(1050 * MS, 535 * MS), None);
+        // more than 1 s ahead (a forged time): now
+        assert_eq!(c.deliver_at(1050 * MS, 2000 * MS), None);
+    }
+
+    #[test]
+    fn clock_mapper_window_slides_and_keeps_the_newest_minimum() {
+        let mut c = ClockMapper::new();
+        let s = 1_000 * MS;
+        c.observe(s, 0); // offset 1000 ms
+        c.observe(s + 10_000 * MS, 10_000 * MS - 2 * MS); // offset 1002 ms
+        c.observe(s + 20_000 * MS, 20_000 * MS - 3 * MS); // offset 1003 ms
+        assert_eq!(c.offset(), Some(1000 * MS as i128));
+        // 31 s later the first sample left the window: the smallest of the rest
+        c.observe(s + 31_000 * MS, 31_000 * MS - 4 * MS);
+        assert_eq!(c.offset(), Some(1002 * MS as i128));
+        // a new sample equal to the minimum replaces the older one, so it stays when that one leaves
+        c.observe(s + 32_000 * MS, 32_000 * MS - 2 * MS);
+        c.observe(s + 41_000 * MS, 41_000 * MS - 5 * MS);
+        assert_eq!(c.offset(), Some(1002 * MS as i128), "the newest minimum (at 32 s) is still in the window");
+        c.observe(s + 63_000 * MS, 63_000 * MS - 6 * MS);
+        assert_eq!(c.offset(), Some(1005 * MS as i128));
+    }
+
+    #[test]
+    fn midi_from_the_guest() {
+        let offering = br#"{"agent":"0.3.0","protocol":{"min":1,"max":1},"features":["status","midi"]}"#;
+        let mut h = Harness::new(&["midi"]);
+        let got: Arc<Mutex<Vec<MidiRecord>>> = Arc::default();
+        let g = got.clone();
+        h.link.on_midi = Some(Box::new(move |r| g.lock().unwrap().extend(r)));
+        assert!(h.send(AgentMessage::Hello, offering));
+        assert!(h.link.enabled().contains("midi"));
+        let note = MidiRecord { id: 3, protocol: 1, time: Some(77), words: vec![0x2090_3C64] };
+        assert!(h.send(AgentMessage::MidiData, &MidiRecord::encode(std::slice::from_ref(&note))[0]));
+        assert_eq!(*got.lock().unwrap(), [note]);
+        // malformed data cost an error; the host's own messages too
+        assert!(h.send(AgentMessage::MidiData, &bytes("0100000001020100643c9020")));
+        assert!(h.send(AgentMessage::MidiPing, b"x"));
+        assert_eq!(h.link.errors, 2);
+        // status and round trip go into agent.json
+        assert!(h.send(AgentMessage::MidiStatus, br#"{"endpoints":5,"failed":["bad\u001bname"]}"#));
+        let sent = monotonic_ns().to_le_bytes();
+        assert!(h.send(AgentMessage::MidiPong, &sent));
+        assert!(h.send(AgentMessage::MidiPong, &u64::MAX.to_le_bytes())); // a forged time: ignored
+        let midi = h.link.state().midi.clone().unwrap();
+        assert_eq!((midi.endpoints, midi.failed), (5, vec!["badname".to_string()]));
+        assert_eq!(midi.round_trip_ms.unwrap().samples, 1);
+        assert_eq!(h.state().unwrap().midi.unwrap().endpoints, 5);
+    }
+
+    #[test]
+    fn midi_off_for_the_vm_is_dropped() {
+        let offering = br#"{"agent":"0.3.0","protocol":{"min":1,"max":1},"features":["status","midi"]}"#;
+        let mut h = Harness::new(&["status"]);
+        let got: Arc<Mutex<usize>> = Arc::default();
+        let g = got.clone();
+        h.link.on_midi = Some(Box::new(move |_| *g.lock().unwrap() += 1));
+        assert!(h.send(AgentMessage::Hello, offering));
+        assert!(h.send(AgentMessage::MidiData, &bytes("0403020101000100643c9020")));
+        assert!(h.send(AgentMessage::MidiStatus, br#"{"endpoints":5}"#));
+        assert_eq!(*got.lock().unwrap(), 0);
+        assert!(h.state().unwrap().midi.is_none());
     }
 }

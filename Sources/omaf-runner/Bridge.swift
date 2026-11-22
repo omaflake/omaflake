@@ -11,7 +11,9 @@ import OmaflakeKit
 /// (images from plan B106 on); older images keep their own ports: org.omaflake.clipboard (one JSON object per line,
 /// {"mime": …, "data": <base64>}) and org.omaflake.camera. --clipboard / --camera (the old ports' sockets) are also
 /// what switches the features on for this VM. Each side of the clipboard remembers what it last wrote, so the change
-/// that causes is not sent back; nothing is sent until something is copied.
+/// that causes is not sent back; nothing is sent until something is copied. MIDI (plan B161, --midi, QEMU guests on a
+/// Mac): the same CoreMIDI bridge as `run --midi`, over the agent once its welcome enables "midi"; the VM's own pair
+/// on the Mac is "omaflake <--vm-name>".
 struct Bridge: ParsableCommand {
     static let configuration = CommandConfiguration(abstract: "Agent, clipboard and camera bridge between the Mac and a VM (started by omaf).")
     @Option(help: "Unix socket of the VM's agent port") var agent: String?
@@ -19,6 +21,8 @@ struct Bridge: ParsableCommand {
     @Option(help: "Unix socket of the VM's clipboard port") var clipboard: String?
     @Option(help: "Unix socket of the VM's camera port") var camera: String?
     @Flag(help: "Send a test pattern instead of the camera") var cameraTestPattern = false
+    @Flag(help: "The Mac's MIDI devices in the VM over the agent (with --agent and --vm-name)") var midi = false
+    @Option(help: "The VM's name: its own MIDI pair on the Mac is \"omaflake <name>\"") var vmName: String?
 
     func run() throws {
         // The process ends when the VM closes a port (it is going away)
@@ -27,22 +31,32 @@ struct Bridge: ParsableCommand {
         // The old ports (images before plan B106); a send timeout, so a port nobody reads in a newer image never blocks
         let clip = try clipboard.map { ClipboardBridge(fd: try connect($0, sendTimeout: 2)) }
         let cam = try camera.map { CameraBridge(transport: .port(try connect($0)), testPattern: cameraTestPattern, onClosed: closed) }
+        let log: @Sendable (String) -> Void = { FileHandle.standardError.write(Data("\($0)\n".utf8)) }
+        if midi {
+            guard agent != nil else { throw ValidationError("--midi needs --agent") }
+            guard let vmName, !vmName.isEmpty else { throw ValidationError("--midi needs --vm-name") }
+        }
+        // Created here, on the main thread: CoreMIDI's notifications come on its run loop (run below)
+        let midiBridge = midi ? vmName.flatMap { MIDIBridge.start(vmName: $0, log: log) } : nil
         if let agent {
             guard let agentState else { throw ValidationError("--agent needs --agent-state") }
             let fd = try connect(agent)
             var allowed: Set<String> = ["status"]
             if clip != nil { allowed.insert("clipboard") }
             if cam != nil { allowed.insert("camera") }
+            if midiBridge != nil { allowed.insert("midi") }
             let link = AgentLink(fd: fd, stateFile: URL(fileURLWithPath: agentState), host: "omaflake", allowed: allowed,
-                                 log: { FileHandle.standardError.write(Data("\($0)\n".utf8)) })
+                                 log: log)
             // An image whose agent carries the clipboard and the camera: they move from the old ports to the agent
             link.onWelcome = { [weak link] features in
                 guard let link else { return }
                 if features.contains("clipboard") { clip?.useAgent(link) }
                 if features.contains("camera") { cam?.useAgent(link) }
+                midiBridge?.welcomed(features, link: link)
             }
             link.onClipboard = { mime, data in clip?.apply(mime: mime, data: data) }
             link.onCamera = { request in cam?.request(request) }
+            midiBridge?.attach(link)
             Thread.detachNewThread {
                 // The VM closed the port: it is going away. A guest that misbehaves only loses its agent link.
                 if link.run() == .closed { closed() }
@@ -52,6 +66,14 @@ struct Bridge: ParsableCommand {
         if let clip { clip.start(); parts.append(clip) }
         if let cam { cam.start(); parts.append(cam) }
         guard !parts.isEmpty else { throw ValidationError("--agent, --clipboard and/or --camera") }
+        if let midiBridge {
+            parts.append(midiBridge)
+            // The main run loop instead of dispatchMain: it serves the main queue too, and CoreMIDI's notifications
+            // (devices plugged in or out) need it; the timer keeps it from returning for want of sources
+            let keepAlive = Timer(timeInterval: 3600, repeats: true) { _ in }
+            RunLoop.main.add(keepAlive, forMode: .default)
+            withExtendedLifetime(parts) { while true { RunLoop.main.run() } }
+        }
         withExtendedLifetime(parts) { dispatchMain() }
     }
 

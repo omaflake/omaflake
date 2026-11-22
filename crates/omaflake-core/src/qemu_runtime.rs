@@ -284,7 +284,8 @@ impl QemuRuntime {
             if let Ok(mut qmp) = QmpClient::connect(&ip.qmp_socket(), Duration::from_secs(1))
                 && qmp.status().is_ok()
             {
-                self.start_bridge(&ip, config.clipboard_on(), config.camera_on());
+                let midi = config.midi_on().then_some(config.name.as_str());
+                self.start_bridge(&ip, config.clipboard_on(), config.camera_on(), midi);
                 return Ok(self.pid(&config.name).unwrap_or(child));
             }
             std::thread::sleep(Duration::from_millis(200));
@@ -322,16 +323,17 @@ impl QemuRuntime {
         }
     }
 
-    /// The host side of the agent, clipboard and camera, detached like QEMU: it ends when the VM closes a port. macOS:
-    /// `omaf-runner bridge`; Linux: `omaf bridge` with the same options (plan B126). Without it the VM simply runs
-    /// without them (readiness then by SSH). OMAFLAKE_CAMERA_TEST_PATTERN=1 sends a test
-    /// pattern instead of the camera (tests without camera permission).
-    pub(crate) fn start_bridge(&self, ip: &InstancePaths, clipboard: bool, camera: bool) {
+    /// The host side of the agent, clipboard, camera and MIDI, detached like QEMU: it ends when the VM closes a port.
+    /// macOS: `omaf-runner bridge`; Linux: `omaf bridge` with the same options (plan B126). Without it the VM simply
+    /// runs without them (readiness then by SSH). `midi`: the VM's name when its MIDI switch is on (plan B161 – the
+    /// host's "omaflake <VM>" pair is named after it). OMAFLAKE_CAMERA_TEST_PATTERN=1 sends a test pattern instead of
+    /// the camera (tests without camera permission).
+    pub(crate) fn start_bridge(&self, ip: &InstancePaths, clipboard: bool, camera: bool, midi: Option<&str>) {
         let program =
             if cfg!(target_os = "linux") { Self::locate_omaf() } else { VzBackend::locate_runner(&self.paths).ok() };
         let Some(program) = program else { return };
         let test_pattern = std::env::var("OMAFLAKE_CAMERA_TEST_PATTERN").as_deref() == Ok("1");
-        let args = bridge_arguments(ip, cfg!(target_os = "linux"), clipboard, camera, test_pattern);
+        let args = bridge_arguments(ip, cfg!(target_os = "linux"), clipboard, camera, test_pattern, midi);
         let _ = spawn_detached(&program, &args, &ip.bridge_log(), &[]);
     }
 
@@ -609,8 +611,16 @@ impl Drop for FileLock {
 }
 
 /// The bridge's arguments. omaf-runner (macOS) gets the old ports' sockets with `--clipboard`/`--camera` (images
-/// before plan B106 use them); `omaf bridge` (Linux) speaks only the agent and takes them as switches
-fn bridge_arguments(ip: &InstancePaths, linux: bool, clipboard: bool, camera: bool, test_pattern: bool) -> Vec<String> {
+/// before plan B106 use them); `omaf bridge` (Linux) speaks only the agent and takes them as switches. MIDI (plan B161)
+/// is the same on both hosts: `--midi --vm-name <name>`
+fn bridge_arguments(
+    ip: &InstancePaths,
+    linux: bool,
+    clipboard: bool,
+    camera: bool,
+    test_pattern: bool,
+    midi: Option<&str>,
+) -> Vec<String> {
     let mut args: Vec<String> = vec![
         "bridge".into(),
         "--agent".into(),
@@ -633,6 +643,9 @@ fn bridge_arguments(ip: &InstancePaths, linux: bool, clipboard: bool, camera: bo
             args.push("--camera-test-pattern".into());
         }
     }
+    if let Some(name) = midi {
+        args.extend(["--midi".into(), "--vm-name".into(), name.into()]);
+    }
     args
 }
 
@@ -650,7 +663,7 @@ mod tests {
         let ip_state = ip.agent_state().to_string_lossy().into_owned();
         let head = vec!["bridge".to_string(), "--agent".into(), ip_agent, "--agent-state".into(), ip_state];
         assert_eq!(
-            bridge_arguments(&ip, true, false, false, true),
+            bridge_arguments(&ip, true, false, false, true, None),
             head,
             "the agent always, the pattern only with the camera"
         );
@@ -661,10 +674,20 @@ mod tests {
             ip.camera_socket().to_string_lossy().into_owned(),
             "--camera-test-pattern".into(),
         ]);
-        assert_eq!(bridge_arguments(&ip, false, true, true, true), mac, "omaf-runner: the old ports' sockets");
+        assert_eq!(bridge_arguments(&ip, false, true, true, true, None), mac, "omaf-runner: the old ports' sockets");
         let mut linux = head.clone();
         linux.extend(["--clipboard".into(), "--camera".into()]);
-        assert_eq!(bridge_arguments(&ip, true, true, true, false), linux, "omaf bridge: switches");
+        assert_eq!(bridge_arguments(&ip, true, true, true, false, None), linux, "omaf bridge: switches");
+        // MIDI (plan B161): the same on both hosts, with the VM's name for the host's "omaflake <VM>" pair
+        let midi = ["--midi".to_string(), "--vm-name".into(), "t1".into()];
+        for linux in [true, false] {
+            let mut want = head.clone();
+            want.extend(midi.clone());
+            assert_eq!(bridge_arguments(&ip, linux, false, false, false, Some("t1")), want, "linux: {linux}");
+        }
+        let mut both = linux.clone();
+        both.extend(midi);
+        assert_eq!(bridge_arguments(&ip, true, true, true, false, Some("t1")), both, "after the other switches");
     }
 
     #[test]

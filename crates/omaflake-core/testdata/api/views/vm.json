@@ -503,7 +503,7 @@
           }
         },
         {
-          "enabled": false,
+          "enabled": true,
           "help": {
             "key": "This computer's MIDI devices in the VM, both ways",
             "text": "This computer's MIDI devices in the VM, both ways"
@@ -519,10 +519,6 @@
           "params": {
             "midi": true,
             "name": "research"
-          },
-          "reason": {
-            "key": "MIDI for NixOS guests comes later",
-            "text": "MIDI for NixOS guests comes later"
           }
         }
       ],

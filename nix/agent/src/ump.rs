@@ -8,9 +8,11 @@
 //! offset 0  id        u32   an endpoint of the Mac's list: Mac → guest the source the data came from,
 //!                           guest → Mac the destination it goes to
 //!        4  protocol  u8    1 = MIDI 1.0 UMP, 2 = MIDI 2.0 UMP (CoreMIDI's MIDIProtocolID)
-//!        5  0         u8
+//!        5  flags     u8    bit 0: a time stamp follows the header; other bits are malformed
 //!        6  words     u16   how many UMP words follow
-//!        8  words           u32 each, little endian; whole UMP messages only
+//!       (8  time      u64   only with flags bit 0: nanoseconds of the sender's monotonic clock when the data arrived
+//!                           from its MIDI system, little endian – plan B161, C7; midi_clock.rs maps it)
+//!   8 or 16 words           u32 each, little endian; whole UMP messages only
 //! ```
 //!
 //! The same encoding is in Sources/OmaflakeKit/Runner/AgentProtocol.swift (`MIDIRecord`); both test suites check the
@@ -22,10 +24,15 @@ use crate::proto::MAX_MIDI_MESSAGE;
 pub struct Record {
     pub id: u32,
     pub protocol: u8,
+    /// The sender's monotonic nanoseconds when the data arrived from its MIDI system (None: deliver now)
+    pub time: Option<u64>,
     pub words: Vec<u32>,
 }
 
 pub const RECORD_HEADER: usize = 8;
+/// Flags bit 0: an 8-byte time stamp follows the header
+pub const FLAG_TIME: u8 = 1;
+const TIME_LEN: usize = 8;
 
 /// Words of the UMP message that starts with `first`: by its message type, the top four bits (UMP spec 1.1)
 pub fn message_words(first: u32) -> usize {
@@ -50,12 +57,14 @@ pub fn whole_messages(words: &[u32]) -> usize {
     i
 }
 
-/// Records as MIDI data payloads of at most MAX_MIDI_MESSAGE bytes each; a long record is split at message boundaries
+/// Records as MIDI data payloads of at most MAX_MIDI_MESSAGE bytes each; a long record is split at message boundaries,
+/// every part keeping the record's time stamp
 pub fn encode(records: &[Record]) -> Vec<Vec<u8>> {
-    let max_words = ((MAX_MIDI_MESSAGE - RECORD_HEADER) / 4).min(u16::MAX as usize);
     let mut out: Vec<Vec<u8>> = vec![];
     let mut cur: Vec<u8> = vec![];
     for r in records {
+        let head = RECORD_HEADER + if r.time.is_some() { TIME_LEN } else { 0 };
+        let max_words = ((MAX_MIDI_MESSAGE - head) / 4).min(u16::MAX as usize);
         let words = &r.words[..whole_messages(&r.words)];
         let mut start = 0;
         while start < words.len() {
@@ -64,13 +73,16 @@ pub fn encode(records: &[Record]) -> Vec<Vec<u8>> {
                 end += message_words(words[end]);
             }
             let part = &words[start..end];
-            if !cur.is_empty() && cur.len() + RECORD_HEADER + part.len() * 4 > MAX_MIDI_MESSAGE {
+            if !cur.is_empty() && cur.len() + head + part.len() * 4 > MAX_MIDI_MESSAGE {
                 out.push(std::mem::take(&mut cur));
             }
             cur.extend_from_slice(&r.id.to_le_bytes());
             cur.push(r.protocol);
-            cur.push(0);
+            cur.push(if r.time.is_some() { FLAG_TIME } else { 0 });
             cur.extend_from_slice(&(part.len() as u16).to_le_bytes());
+            if let Some(t) = r.time {
+                cur.extend_from_slice(&t.to_le_bytes());
+            }
             for w in part {
                 cur.extend_from_slice(&w.to_le_bytes());
             }
@@ -83,8 +95,8 @@ pub fn encode(records: &[Record]) -> Vec<Vec<u8>> {
     out
 }
 
-/// The records of a MIDI data payload; None if it is malformed: too long, a record cut off, a protocol other than 1
-/// or 2, or words that are not whole UMP messages
+/// The records of a MIDI data payload; None if it is malformed: too long, a record or its time stamp cut off, a
+/// protocol other than 1 or 2, unknown flags, or words that are not whole UMP messages
 pub fn decode(payload: &[u8]) -> Option<Vec<Record>> {
     if payload.len() > MAX_MIDI_MESSAGE {
         return None;
@@ -95,18 +107,26 @@ pub fn decode(payload: &[u8]) -> Option<Vec<Record>> {
         let head = payload.get(at..at + RECORD_HEADER)?;
         let id = u32::from_le_bytes(head[0..4].try_into().unwrap());
         let protocol = head[4];
+        let flags = head[5];
         let count = u16::from_le_bytes([head[6], head[7]]) as usize;
-        if protocol != 1 && protocol != 2 {
+        if (protocol != 1 && protocol != 2) || flags & !FLAG_TIME != 0 {
             return None;
         }
         at += RECORD_HEADER;
+        let time = if flags & FLAG_TIME != 0 {
+            let t = payload.get(at..at + TIME_LEN)?;
+            at += TIME_LEN;
+            Some(u64::from_le_bytes(t.try_into().unwrap()))
+        } else {
+            None
+        };
         let body = payload.get(at..at + count * 4)?;
         let words: Vec<u32> = body.as_chunks::<4>().0.iter().map(|c| u32::from_le_bytes(*c)).collect();
         if whole_messages(&words) != words.len() {
             return None;
         }
         at += count * 4;
-        records.push(Record { id, protocol, words });
+        records.push(Record { id, protocol, time, words });
     }
     Some(records)
 }
@@ -133,6 +153,7 @@ mod tests {
                         .map(|r| Record {
                             id: r["id"].as_u64().unwrap() as u32,
                             protocol: r["protocol"].as_u64().unwrap() as u8,
+                            time: r["time"].as_u64(),
                             words: r["words"].as_array().unwrap().iter().map(|w| w.as_u64().unwrap() as u32).collect(),
                         })
                         .collect();
@@ -157,11 +178,38 @@ mod tests {
     #[test]
     fn long_data_is_split_and_comes_back_whole() {
         let words: Vec<u32> = (0..40_000u32).map(|i| if i % 2 == 0 { 0x3016_0000 } else { i }).collect();
-        let parts = encode(&[Record { id: 7, protocol: 1, words: words.clone() }]);
+        let parts = encode(&[Record { id: 7, protocol: 1, time: None, words: words.clone() }]);
         assert!(parts.len() > 1 && parts.iter().all(|p| p.len() <= MAX_MIDI_MESSAGE));
         let back: Vec<u32> = parts.iter().flat_map(|p| decode(p).unwrap()).flat_map(|r| r.words).collect();
         assert_eq!(back, words);
         // a cut-off message at the end is not sent
-        assert_eq!(encode(&[Record { id: 1, protocol: 2, words: vec![0x4090_3C00] }]), Vec::<Vec<u8>>::new());
+        assert_eq!(
+            encode(&[Record { id: 1, protocol: 2, time: None, words: vec![0x4090_3C00] }]),
+            Vec::<Vec<u8>>::new()
+        );
+    }
+
+    #[test]
+    fn long_timestamped_data_keeps_the_time_on_every_part() {
+        let words: Vec<u32> = (0..40_000u32).map(|i| if i % 2 == 0 { 0x3016_0000 } else { i }).collect();
+        let parts = encode(&[Record { id: 3, protocol: 1, time: Some(42), words: words.clone() }]);
+        assert!(parts.len() > 1 && parts.iter().all(|p| p.len() <= MAX_MIDI_MESSAGE));
+        let records: Vec<Record> = parts.iter().flat_map(|p| decode(p).unwrap()).collect();
+        assert!(records.iter().all(|r| r.time == Some(42) && r.id == 3));
+        assert_eq!(records.into_iter().flat_map(|r| r.words).collect::<Vec<_>>(), words);
+    }
+
+    #[test]
+    fn timestamps_round_trip() {
+        let r = Record { id: 9, protocol: 2, time: Some(u64::MAX), words: vec![0x4090_3C00, 0xFFFF_0000] };
+        let parts = encode(std::slice::from_ref(&r));
+        assert_eq!(parts.len(), 1);
+        assert_eq!(parts[0].len(), RECORD_HEADER + 8 + 8);
+        assert_eq!(parts[0][5], FLAG_TIME);
+        assert_eq!(decode(&parts[0]), Some(vec![r]));
+        // flags bit 1 is unknown: malformed even with a valid time stamp after it
+        let mut bad = parts[0].clone();
+        bad[5] = 0x03;
+        assert_eq!(decode(&bad), None);
     }
 }

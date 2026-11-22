@@ -116,7 +116,7 @@ pub struct Vm {
     pub microphone: bool,
     pub clipboard: bool,
     pub camera: bool,
-    /// The Mac's MIDI devices in the VM (plan B161)
+    /// The host's MIDI devices in the VM (plan B161)
     pub midi: bool,
     /// How a plain start (`vms.start` with `display: auto`) shows it
     pub display: DisplayMode,

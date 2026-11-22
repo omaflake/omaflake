@@ -3,27 +3,29 @@
 //! (Bridge.swift, Camera.swift) is on a Mac: `omaf bridge`, one process per VM, started detached by
 //! `QemuRuntime::start` and ending with the VM (QEMU closes the agent port). It answers the agent's hello
 //! (`AgentLink`: the instance's `agent.json`, so readiness and `omaf agent` work as on a Mac) and, when the VM's
-//! switches allow them, carries the host's clipboard (`clipboard`: Wayland or X11) and camera (`camera`, frames from
-//! `v4l2` or the test pattern) over the agent. Only images whose agent carries clipboard and camera (plan B106 on) –
+//! switches allow them, carries the host's clipboard (`clipboard`: Wayland or X11), camera (`camera`, frames from
+//! `v4l2` or the test pattern) and MIDI (`midi`: the ALSA sequencer, plan B161) over the agent. Only images whose agent carries clipboard and camera (plan B106 on) –
 //! the old per-feature ports QEMU still attaches stay unserved on Linux.
 
 pub mod camera;
 pub mod clipboard;
 pub mod convert;
+pub mod midi;
 #[cfg(target_os = "linux")]
 pub mod v4l2;
 
 use std::collections::HashSet;
 use std::os::unix::net::UnixStream;
 use std::path::{Path, PathBuf};
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
 use crate::Log;
-use crate::agent_protocol::{AgentLink, LinkEnd};
+use crate::agent_protocol::{AgentLink, AgentSender, LinkEnd};
 use crate::sockets::connect_unix;
 use camera::{CameraBridge, FrameSource};
 use clipboard::{ClipboardBackend, ClipboardBridge};
+use midi::MidiHost;
 
 /// What `omaf bridge` is asked to do (its options)
 #[derive(Debug, Clone)]
@@ -38,6 +40,10 @@ pub struct BridgeOptions {
     pub camera: bool,
     /// Frames of a test pattern instead of the camera
     pub camera_test_pattern: bool,
+    /// The VM's MIDI switch (plan B161)
+    pub midi: bool,
+    /// The VM's name: the host's sequencer client for its own pair is "omaflake <name>"
+    pub vm_name: String,
 }
 
 /// The Mac side's host name in the welcome, as Bridge.swift sends it
@@ -80,7 +86,26 @@ pub fn run(options: &BridgeOptions) -> Result<LinkEnd, String> {
             None
         }
     };
-    Bridge::new(stream, &options.agent_state, clipboard, camera, log).map(|b| b.run())
+    let midi: Option<Arc<dyn MidiHost>> = if !options.midi {
+        None
+    } else {
+        #[cfg(target_os = "linux")]
+        {
+            match midi::start(&options.vm_name, log.clone()) {
+                Ok(m) => Some(m),
+                Err(why) => {
+                    log(&format!("MIDI: unavailable – {why} – the VM runs without MIDI"));
+                    None
+                }
+            }
+        }
+        #[cfg(not(target_os = "linux"))]
+        {
+            log("MIDI: the ALSA sequencer exists on Linux only");
+            None
+        }
+    };
+    Bridge::new(stream, &options.agent_state, clipboard, camera, midi, log).map(|b| b.run())
 }
 
 /// Connects to QEMU's socket, retrying every 0.5 s until `wait` ran out; reads then wait forever (a connect timeout
@@ -106,12 +131,13 @@ pub struct Bridge {
 
 impl Bridge {
     /// `clipboard`: the host's clipboard (None: off for this VM, or none in this session); `camera`: a frame source
-    /// and its label for the "ready" status (None: off)
+    /// and its label for the "ready" status (None: off); `midi`: the host's MIDI (None: off, or no sequencer)
     pub fn new(
         stream: UnixStream,
         state_file: &Path,
         clipboard: Option<Arc<dyn ClipboardBackend>>,
         camera: Option<(Box<dyn FrameSource>, &str)>,
+        midi: Option<Arc<dyn MidiHost>>,
         log: Arc<Log<'static>>,
     ) -> Result<Bridge, String> {
         let mut allowed: HashSet<String> = HashSet::from(["status".to_string()]);
@@ -120,6 +146,9 @@ impl Bridge {
         }
         if camera.is_some() {
             allowed.insert("camera".into());
+        }
+        if midi.is_some() {
+            allowed.insert("midi".into());
         }
         let mut link = AgentLink::new(stream, state_file.to_path_buf(), HOST, STATUS_INTERVAL, allowed, log.clone())
             .map_err(|e| e.message().to_string())?;
@@ -130,7 +159,23 @@ impl Bridge {
         });
         let camera = camera.map(|(source, label)| Arc::new(CameraBridge::start(source, label, log.clone())));
         let sender = link.sender();
-        let (clip, cam) = (clipboard.clone(), camera.clone());
+        let (clip, cam, mid) = (clipboard.clone(), camera.clone(), midi.clone());
+        // MIDI's round trip: a ping a second once a welcome enabled MIDI (the pongs go into agent.json)
+        let pings: Arc<Mutex<Option<AgentSender>>> = Arc::default();
+        if midi.is_some() {
+            let p = pings.clone();
+            std::thread::spawn(move || {
+                loop {
+                    std::thread::sleep(Duration::from_secs(1));
+                    let sender = p.lock().unwrap_or_else(|e| e.into_inner()).clone();
+                    if let Some(s) = sender
+                        && !s.send_midi_ping()
+                    {
+                        return; // the port is gone
+                    }
+                }
+            });
+        }
         // Each welcome (also after a new hello – the guest restarted its agent) hands the features it enabled the link
         link.on_welcome = Some(Box::new(move |features| {
             if let Some(c) = clip.as_ref().filter(|_| features.contains("clipboard")) {
@@ -139,12 +184,19 @@ impl Bridge {
             if let Some(c) = cam.as_ref().filter(|_| features.contains("camera")) {
                 c.use_agent(sender.clone());
             }
+            if let Some(m) = mid.as_ref().filter(|_| features.contains("midi")) {
+                m.use_agent(sender.clone());
+                *pings.lock().unwrap_or_else(|e| e.into_inner()) = Some(sender.clone());
+            }
         }));
         if let Some(c) = clipboard {
             link.on_clipboard = Some(Box::new(move |mime, data| c.apply(mime, data)));
         }
         if let Some(c) = camera {
             link.on_camera = Some(Box::new(move |request| c.request(request)));
+        }
+        if let Some(m) = midi {
+            link.on_midi = Some(Box::new(move |records| m.deliver(records)));
         }
         Ok(Bridge { link })
     }
@@ -215,12 +267,21 @@ mod tests {
         clipboard: Option<Arc<dyn ClipboardBackend>>,
         camera: Option<Box<dyn FrameSource>>,
     ) -> (Guest, std::thread::JoinHandle<LinkEnd>, PathBuf, tempfile::TempDir) {
+        start_with(clipboard, camera, None)
+    }
+
+    fn start_with(
+        clipboard: Option<Arc<dyn ClipboardBackend>>,
+        camera: Option<Box<dyn FrameSource>>,
+        midi: Option<Arc<dyn MidiHost>>,
+    ) -> (Guest, std::thread::JoinHandle<LinkEnd>, PathBuf, tempfile::TempDir) {
         let (guest, host) = UnixStream::pair().unwrap();
         guest.set_read_timeout(Some(Duration::from_millis(200))).unwrap();
         let dir = tempfile::tempdir().unwrap();
         let state = dir.path().join("agent.json");
         let bridge =
-            Bridge::new(host, &state, clipboard, camera.map(|c| (c, "test pattern")), Arc::new(|_: &str| {})).unwrap();
+            Bridge::new(host, &state, clipboard, camera.map(|c| (c, "test pattern")), midi, Arc::new(|_: &str| {}))
+                .unwrap();
         let t = std::thread::spawn(move || bridge.run());
         (Guest { stream: guest, decoder: AgentDecoder::new(), parts: AgentReassembler::new() }, t, state, dir)
     }
@@ -317,6 +378,58 @@ mod tests {
         assert!(guest.stream.read(&mut buf).is_err(), "nothing comes back (read times out)");
         drop(guest);
         assert_eq!(t.join().unwrap(), LinkEnd::Closed);
+    }
+
+    /// A host MIDI system that lists one keyboard and keeps what the guest played
+    #[derive(Default)]
+    struct FakeMidi {
+        played: Mutex<Vec<crate::agent_protocol::MidiRecord>>,
+    }
+
+    impl MidiHost for FakeMidi {
+        fn use_agent(&self, sender: AgentSender) {
+            let list = serde_json::json!({"endpoints": [
+                {"id": 0x1401, "direction": "in", "name": "Keystation: MIDI 1", "protocol": 1}
+            ]});
+            sender.send(AgentMessage::MidiEndpoints, list.to_string().as_bytes());
+            let note =
+                crate::agent_protocol::MidiRecord { id: 0x1401, protocol: 1, time: Some(5), words: vec![0x2090_3C64] };
+            sender.send_midi(&[note]);
+        }
+
+        fn deliver(&self, records: Vec<crate::agent_protocol::MidiRecord>) {
+            self.played.lock().unwrap().extend(records);
+        }
+    }
+
+    #[test]
+    fn midi_both_ways_with_round_trip() {
+        use crate::agent_protocol::MidiRecord;
+        let fake = Arc::new(FakeMidi::default());
+        let (mut guest, _t, state, _dir) = start_with(None, None, Some(fake.clone()));
+        guest.send(AgentMessage::Hello, hello(&["status", "midi"]));
+        assert_eq!(guest.json(AgentMessage::Welcome)["features"], serde_json::json!(["midi", "status"]));
+        assert_eq!(guest.json(AgentMessage::MidiEndpoints)["endpoints"][0]["id"], 0x1401);
+        let data = MidiRecord::decode(&guest.expect(AgentMessage::MidiData)).unwrap();
+        assert_eq!(data[0].words, [0x2090_3C64]);
+        // guest → host
+        let played = MidiRecord { id: 0x1401, protocol: 2, time: None, words: vec![0x4090_3C00, 0xFFFF_0000] };
+        let payload = &MidiRecord::encode(std::slice::from_ref(&played))[0];
+        guest.stream.write_all(&AgentProtocol::encode(AgentMessage::MidiData as u16, 0, payload)).unwrap();
+        // a ping within about a second: answered, then the status writes the round trip into agent.json
+        let ping = guest.expect(AgentMessage::MidiPing);
+        guest.stream.write_all(&AgentProtocol::encode(AgentMessage::MidiPong as u16, 0, &ping)).unwrap();
+        guest.send(AgentMessage::MidiStatus, serde_json::json!({"endpoints": 3, "failed": []}));
+        let deadline = Instant::now() + Duration::from_secs(5);
+        let midi = loop {
+            if let Some(m) = AgentState::load(&state).and_then(|s| s.midi).filter(|m| m.round_trip_ms.is_some()) {
+                break m;
+            }
+            assert!(Instant::now() < deadline, "no MIDI state in agent.json");
+            std::thread::sleep(Duration::from_millis(20));
+        };
+        assert_eq!(midi.endpoints, 3);
+        assert_eq!(*fake.played.lock().unwrap(), [played]);
     }
 
     #[test]

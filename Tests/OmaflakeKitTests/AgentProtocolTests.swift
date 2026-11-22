@@ -232,6 +232,7 @@ struct AgentProtocolTests {
             if let want = c["records"] as? [[String: Any]] {
                 let records = want.map {
                     MIDIRecord(id: UInt32($0["id"] as! Int), protocol: UInt8($0["protocol"] as! Int),
+                               time: ($0["time"] as? NSNumber)?.uint64Value,
                                words: ($0["words"] as! [Int]).map { UInt32($0) })
                 }
                 #expect(MIDIRecord.decode(wire) == records, "\(c["name"]!)")
@@ -245,6 +246,68 @@ struct AgentProtocolTests {
         let parts = MIDIRecord.encode([MIDIRecord(id: 7, protocol: 1, words: words)])
         #expect(parts.count > 1 && parts.allSatisfy { $0.count <= AgentProtocol.maxMIDIMessage })
         #expect(parts.flatMap { MIDIRecord.decode($0)! }.flatMap(\.words) == words)
+        // … and every part keeps the record's time
+        let timed = MIDIRecord.encode([MIDIRecord(id: 7, protocol: 1, time: 123_456_789, words: words)])
+        #expect(timed.count > 1 && timed.allSatisfy { $0.count <= AgentProtocol.maxMIDIMessage })
+        let back = timed.flatMap { MIDIRecord.decode($0)! }
+        #expect(back.allSatisfy { $0.time == 123_456_789 } && back.flatMap(\.words) == words)
+    }
+
+    /// The clock mapping of timestamped MIDI (spec §11.9, "Timestamps"): the smallest offset over 30 s, delivery at
+    /// time + offset + 2 ms, now when past or more than 1 s ahead
+    @Test func midiClockMapper() {
+        let ms: UInt64 = 1_000_000
+        var m = MIDIClockMapper()
+        #expect(m.offset == nil)
+        // The guest's clock runs 5 s behind; the first message took 1 ms: offset 5 s + 1 ms, due 2 ms after it came
+        let base: UInt64 = 100_000 * ms
+        #expect(m.due(time: base - 5_000 * ms, now: base + 1 * ms) == base + 3 * ms)
+        // A faster message lowers the offset; a later one that waited 3 ms longer comes due on time (spacing kept)
+        #expect(m.due(time: base - 4_990 * ms, now: base + 10 * ms + 500_000) == base + 10 * ms + 2_500_000)
+        #expect(m.offset == Int64(5_000 * ms + 500_000))
+        #expect(m.due(time: base - 4_980 * ms, now: base + 21 * ms) == base + 22 * ms + 500_000)
+        // 3 ms late beyond the lead: already past – now
+        #expect(m.due(time: base - 4_970 * ms, now: base + 34 * ms) == base + 34 * ms)
+        // A sender's clock ahead of ours works the same (negative offset)
+        var ahead = MIDIClockMapper()
+        #expect(ahead.due(time: 9_000_000 * ms, now: 10 * ms) == 12 * ms)
+        #expect(ahead.offset! < 0)
+        // The minimum slides out after 30 s: the newest minimum behind it takes over
+        var w = MIDIClockMapper()
+        _ = w.due(time: 0, now: 1 * ms)                                   // offset 1 ms
+        _ = w.due(time: 10_000 * ms, now: 10_000 * ms + 4 * ms)          // 4 ms
+        _ = w.due(time: 20_000 * ms, now: 20_000 * ms + 3 * ms)          // 3 ms – replaces 4 ms
+        #expect(w.offset == Int64(1 * ms))
+        _ = w.due(time: 31_000 * ms, now: 31_000 * ms + 9 * ms)          // 1 ms is 31 s old: 3 ms takes over
+        #expect(w.offset == Int64(3 * ms))
+        // A jump in the sender's clock becomes the new minimum: due within the lead, never further ahead
+        var j = MIDIClockMapper()
+        _ = j.due(time: 0, now: 1 * ms)
+        #expect(j.due(time: 5_000 * ms, now: 2 * ms) == 4 * ms)
+        #expect(j.due(time: 5_001 * ms, now: 3 * ms) == 5 * ms)
+    }
+
+    /// UMP endpoint info in the endpoint list: the spec's field names, limits applied, absent when there is none
+    @Test func midiUMPInfo() throws {
+        let long = String(repeating: "ä", count: 60)   // 120 bytes
+        let blocks = (0..<40).map {
+            MIDIUMPInfo.Block(id: UInt8($0), name: long, direction: "both", firstGroup: 15, groups: 4, midi1: "no", uiHint: "both")
+        }
+        let info = MIDIUMPInfo(name: long, productInstanceId: "SN1", manufacturer: MIDIUMPInfo.hex([0x00, 0x21, 0x3B]),
+                               family: 2, model: 3, version: MIDIUMPInfo.hex([1, 0, 0, 0]), staticBlocks: true,
+                               blocks: blocks).limited()
+        #expect(info.name.utf8.count == 98 && info.blocks.count == 32 && info.blocks.allSatisfy { $0.name.utf8.count <= 98 })
+        #expect(info.blocks.allSatisfy { $0.id <= 31 && $0.groups == 1 })
+        let e = MIDIEndpointInfo(id: 1, direction: "in", name: "Piano", manufacturer: nil, model: nil, protocol: 2, ump: info)
+        let obj = try JSONSerialization.jsonObject(with: JSONEncoder().encode(e)) as! [String: Any]
+        let ump = obj["ump"] as! [String: Any]
+        #expect(Set(ump.keys) == ["name", "productInstanceId", "manufacturer", "family", "model", "version", "staticBlocks", "blocks"])
+        #expect(ump["manufacturer"] as? String == "00213b" && ump["version"] as? String == "01000000")
+        let block = (ump["blocks"] as! [[String: Any]])[0]
+        #expect(Set(block.keys) == ["id", "name", "direction", "firstGroup", "groups", "midi1", "uiHint"])
+        let plain = MIDIEndpointInfo(id: 1, direction: "in", name: "Piano", manufacturer: nil, model: nil, protocol: 1)
+        let plainObj = try JSONSerialization.jsonObject(with: JSONEncoder().encode(plain)) as! [String: Any]
+        #expect(plainObj["ump"] == nil)
     }
 
     /// MIDI from the guest only once enabled, malformed data cost budget, the status lands in agent.json, a pong
@@ -268,6 +331,14 @@ struct AgentProtocolTests {
         #expect(got.value == [MIDIRecord(id: 42, protocol: 1, words: [0x2090_3C64])])
         #expect(h.send(.midiData, Data([1, 2, 3])))   // malformed: dropped, one error
         #expect(got.value?.count == 1)
+        // A timestamped record keeps its time; unknown flags are malformed
+        let timed = MIDIRecord(id: 42, protocol: 1, time: 5_000_000_000, words: [0x2080_3C00])
+        #expect(h.send(.midiData, MIDIRecord.encode([timed])[0]))
+        #expect(got.value?.last == timed)
+        var flagged = MIDIRecord.encode([MIDIRecord(id: 42, protocol: 1, words: [0x2090_3C64])])[0]
+        flagged[5] = 0x02
+        #expect(h.send(.midiData, flagged))
+        #expect(got.value?.count == 2)
         #expect(h.send(.midiStatus, #"{"endpoints":3,"failed":["Piano\u0007"]}"#))
         let state = try #require(AgentState.load(h.stateFile))
         #expect(state.midi?.endpoints == 3 && state.midi?.failed == ["Piano"])

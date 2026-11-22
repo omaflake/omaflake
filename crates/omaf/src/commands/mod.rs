@@ -130,6 +130,8 @@ fn bridge(a: &Bridge) -> Outcome {
         clipboard: a.clipboard,
         camera: a.camera,
         camera_test_pattern: a.camera_test_pattern,
+        midi: a.midi,
+        vm_name: a.vm_name.clone().unwrap_or_default(),
     };
     match omaflake_core::host_bridge::run(&options) {
         Ok(end) => {

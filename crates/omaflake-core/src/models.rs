@@ -211,7 +211,7 @@ pub struct RecipeDefaults {
     pub clipboard: Option<bool>,
     /// The Mac's camera in the VM (default off; NixOS guests – only while an app in the VM uses it)
     pub camera: Option<bool>,
-    /// The Mac's MIDI devices in the VM, both ways (default off; macOS guests – plan B161)
+    /// The host's MIDI devices in the VM, both ways (default off; every guest kind – plan B161)
     pub midi: Option<bool>,
     /// What the recipe is for (shown behind an "i"); `description_de` etc. in the app's language when present
     pub description: Option<String>,
@@ -451,7 +451,7 @@ pub struct InstanceConfig {
     /// The Mac's camera; None = off
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub camera: Option<bool>,
-    /// The Mac's MIDI devices; None = off
+    /// The host's MIDI devices; None = off
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub midi: Option<bool>,
     /// How a plain start shows the VM (from the recipe); None = headless in the CLI, a window in the app

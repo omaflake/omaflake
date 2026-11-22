@@ -170,22 +170,29 @@ public struct AgentDecoder: Sendable {
 // MARK: MIDI
 
 /// MIDI data on the agent's port (spec §11.9, plan B161): Universal MIDI Packets (MIDI 2.0's format, which carries
-/// MIDI 1.0 too) in records naming their endpoint – `id u32, protocol u8 (1 | 2), 0 u8, words u16`, then the words
-/// (u32 little endian), whole UMP messages only. The same as nix/agent/src/ump.rs; both check the "midi" vectors.
+/// MIDI 1.0 too) in records naming their endpoint – `id u32, protocol u8 (1 | 2), flags u8, words u16`, with flags
+/// bit 0 the sender's time `u64` (C7), then the words (u32 little endian), whole UMP messages only. The same as
+/// nix/agent/src/ump.rs; both check the "midi" vectors.
 public struct MIDIRecord: Sendable, Equatable {
     /// An endpoint of the Mac's list: Mac → guest the source the data came from, guest → Mac the destination
     public var id: UInt32
     /// 1 = MIDI 1.0 UMP, 2 = MIDI 2.0 UMP (CoreMIDI's MIDIProtocolID)
     public var `protocol`: UInt8
+    /// Nanoseconds of the sender's monotonic clock when the data arrived from its MIDI system (nil: none sent)
+    public var time: UInt64?
     public var words: [UInt32]
 
-    public init(id: UInt32, protocol: UInt8, words: [UInt32]) {
+    public init(id: UInt32, protocol: UInt8, time: UInt64? = nil, words: [UInt32]) {
         self.id = id
         self.protocol = `protocol`
+        self.time = time
         self.words = words
     }
 
     public static let headerLength = 8
+    /// The time after the header when flags bit 0 is set
+    public static let timeLength = 8
+    public static let flagTime: UInt8 = 1
 
     /// Words of the UMP message starting with `first`, by its message type (UMP spec 1.1)
     public static func messageWords(_ first: UInt32) -> Int {
@@ -208,26 +215,29 @@ public struct MIDIRecord: Sendable, Equatable {
         return i - words.startIndex
     }
 
-    /// Records as payloads of at most `maxMIDIMessage` bytes; long records split at message boundaries
+    /// Records as payloads of at most `maxMIDIMessage` bytes; long records split at message boundaries, each part
+    /// keeps the record's time
     public static func encode(_ records: [MIDIRecord]) -> [Data] {
-        let maxWords = min((AgentProtocol.maxMIDIMessage - headerLength) / 4, Int(UInt16.max))
         var out: [Data] = []
         var cur = Data()
         for r in records {
+            let header = headerLength + (r.time == nil ? 0 : timeLength)
+            let maxWords = min((AgentProtocol.maxMIDIMessage - header) / 4, Int(UInt16.max))
             let words = r.words[0..<wholeMessages(r.words)]
             var start = 0
             while start < words.count {
                 var end = start
                 while end < words.count, end + messageWords(words[end]) - start <= maxWords { end += messageWords(words[end]) }
                 let part = words[start..<end]
-                if !cur.isEmpty, cur.count + headerLength + part.count * 4 > AgentProtocol.maxMIDIMessage {
+                if !cur.isEmpty, cur.count + header + part.count * 4 > AgentProtocol.maxMIDIMessage {
                     out.append(cur)
                     cur = Data()
                 }
                 withUnsafeBytes(of: r.id.littleEndian) { cur.append(contentsOf: $0) }
                 cur.append(r.protocol)
-                cur.append(0)
+                cur.append(r.time == nil ? 0 : flagTime)
                 withUnsafeBytes(of: UInt16(part.count).littleEndian) { cur.append(contentsOf: $0) }
+                if let time = r.time { withUnsafeBytes(of: time.littleEndian) { cur.append(contentsOf: $0) } }
                 for w in part { withUnsafeBytes(of: w.littleEndian) { cur.append(contentsOf: $0) } }
                 start = end
             }
@@ -236,8 +246,8 @@ public struct MIDIRecord: Sendable, Equatable {
         return out
     }
 
-    /// The records of a payload; nil if it is malformed (too long, cut off, a protocol other than 1 or 2, or words
-    /// that are not whole messages)
+    /// The records of a payload; nil if it is malformed (too long, cut off – the time too –, a protocol other than 1
+    /// or 2, flags other than bit 0, or words that are not whole messages)
     public static func decode(_ payload: Data) -> [MIDIRecord]? {
         guard payload.count <= AgentProtocol.maxMIDIMessage else { return nil }
         let bytes = [UInt8](payload)
@@ -248,17 +258,146 @@ public struct MIDIRecord: Sendable, Equatable {
         var at = 0
         while at < bytes.count {
             guard at + headerLength <= bytes.count else { return nil }
-            let id = u32(at), proto = bytes[at + 4]
+            let id = u32(at), proto = bytes[at + 4], flags = bytes[at + 5]
             let count = Int(UInt16(bytes[at + 6]) | UInt16(bytes[at + 7]) << 8)
-            guard proto == 1 || proto == 2 else { return nil }
+            guard proto == 1 || proto == 2, flags & ~flagTime == 0 else { return nil }
             at += headerLength
+            var time: UInt64?
+            if flags & flagTime != 0 {
+                guard at + timeLength <= bytes.count else { return nil }
+                time = UInt64(u32(at)) | UInt64(u32(at + 4)) << 32
+                at += timeLength
+            }
             guard at + count * 4 <= bytes.count else { return nil }
             let words = (0..<count).map { u32(at + $0 * 4) }
             guard wholeMessages(words) == words.count else { return nil }
             at += count * 4
-            records.append(MIDIRecord(id: id, protocol: proto, words: words))
+            records.append(MIDIRecord(id: id, protocol: proto, time: time, words: words))
         }
         return records
+    }
+}
+
+/// Maps the sender's clock onto the receiver's for timestamped MIDI (spec §11.9, "Timestamps", plan B161 C7): the
+/// offset is the smallest `own_now − time` seen over the last `window` – a sliding window that keeps the newest
+/// minimum when an older one slides out –, and data are due at `time + offset + lead`; a time already past, or more
+/// than `horizon` ahead, is due now. So the transport's jitter is smoothed by up to `lead` and notes keep their spacing.
+/// Pure: times are nanoseconds, `now` is passed in.
+public struct MIDIClockMapper: Sendable {
+    public static let window: UInt64 = 30_000_000_000
+    public static let lead: UInt64 = 2_000_000
+    public static let horizon: UInt64 = 1_000_000_000
+
+    /// (when seen on the own clock, offset), offsets strictly increasing from the front: the front is the minimum
+    private var samples: [(at: UInt64, offset: Int64)] = []
+    private var head = 0
+
+    public init() {}
+
+    /// The current offset (own clock − sender's clock), nil before the first sample
+    public var offset: Int64? { head < samples.count ? samples[head].offset : nil }
+
+    /// When data the sender stamped `time` are due on the own clock, given the own clock reads `now`
+    public mutating func due(time: UInt64, now: UInt64) -> UInt64 {
+        let sample = Int64(bitPattern: now &- time)
+        // Older samples with an offset as large or larger never become the minimum again
+        while samples.count > head, samples[samples.count - 1].offset >= sample { samples.removeLast() }
+        samples.append((now, sample))
+        // Samples older than the window slide out (the newer minimum behind them takes over)
+        while head < samples.count - 1, now &- samples[head].at > Self.window { head += 1 }
+        if head > 64, head * 2 > samples.count {
+            samples.removeFirst(head)
+            head = 0
+        }
+        let target = Int64(bitPattern: time) &+ samples[head].offset &+ Int64(Self.lead)
+        let t = UInt64(bitPattern: target)
+        guard target > Int64(bitPattern: now), t &- now <= Self.horizon else { return now }
+        return t
+    }
+}
+
+/// What a MIDI 2.0 device says of itself (spec §11.9, "UMP endpoints", plan B161 C7): CoreMIDI's MIDIUMPEndpoint
+/// and its MIDIUMPFunctionBlocks, carried in the endpoint list (`MIDIEndpointInfo.ump`). `limited()` applies the
+/// spec's limits: names at most 98 bytes, at most 32 blocks, ids 0–31, groups within 0–15.
+public struct MIDIUMPInfo: Codable, Sendable, Equatable {
+    public static let maxName = 98
+    public static let maxBlocks = 32
+
+    public var name: String
+    public var productInstanceId: String
+    /// The SysEx manufacturer id, 3 bytes as hex (lowercase, no separators)
+    public var manufacturer: String?
+    public var family: UInt16?
+    public var model: UInt16?
+    /// The revision level, 4 bytes as hex (lowercase, no separators)
+    public var version: String?
+    public var staticBlocks: Bool
+    public var blocks: [Block]
+
+    public struct Block: Codable, Sendable, Equatable {
+        public var id: UInt8
+        public var name: String
+        /// "in" | "out" | "both"
+        public var direction: String
+        public var firstGroup: UInt8
+        public var groups: UInt8
+        /// "no" | "yes" | "low-speed"
+        public var midi1: String
+        /// "unknown" | "receiver" | "sender" | "both"
+        public var uiHint: String
+
+        public init(id: UInt8, name: String, direction: String, firstGroup: UInt8, groups: UInt8, midi1: String, uiHint: String) {
+            self.id = id
+            self.name = name
+            self.direction = direction
+            self.firstGroup = firstGroup
+            self.groups = groups
+            self.midi1 = midi1
+            self.uiHint = uiHint
+        }
+    }
+
+    public init(name: String, productInstanceId: String, manufacturer: String? = nil, family: UInt16? = nil,
+                model: UInt16? = nil, version: String? = nil, staticBlocks: Bool, blocks: [Block]) {
+        self.name = name
+        self.productInstanceId = productInstanceId
+        self.manufacturer = manufacturer
+        self.family = family
+        self.model = model
+        self.version = version
+        self.staticBlocks = staticBlocks
+        self.blocks = blocks
+    }
+
+    /// Bytes as lowercase hex without separators ("00213b")
+    public static func hex(_ bytes: [UInt8]) -> String { bytes.map { String(format: "%02x", $0) }.joined() }
+
+    /// `s` cut to at most `maxName` UTF-8 bytes, at a character boundary
+    public static func cut(_ s: String) -> String {
+        guard s.utf8.count > maxName else { return s }
+        var out = ""
+        var bytes = 0
+        for c in s {
+            let n = String(c).utf8.count
+            if bytes + n > maxName { break }
+            out.append(c)
+            bytes += n
+        }
+        return out
+    }
+
+    /// Within the spec's limits: blocks with an id beyond 31 or groups outside 0–15 are left out, at most 32 kept
+    public func limited() -> MIDIUMPInfo {
+        var info = self
+        info.name = Self.cut(name)
+        info.productInstanceId = Self.cut(productInstanceId)
+        info.blocks = Array(blocks.filter { $0.id <= 31 && $0.firstGroup <= 15 && $0.groups >= 1 }.prefix(Self.maxBlocks)).map {
+            var b = $0
+            b.name = Self.cut(b.name)
+            b.groups = min(b.groups, 16 - b.firstGroup)
+            return b
+        }
+        return info
     }
 }
 
@@ -271,14 +410,18 @@ public struct MIDIEndpointInfo: Codable, Sendable, Equatable {
     public var manufacturer: String?
     public var model: String?
     public var `protocol`: UInt8
+    /// What a MIDI 2.0 device says of itself (macOS 15+), when CoreMIDI knows a UMP endpoint for it
+    public var ump: MIDIUMPInfo?
 
-    public init(id: UInt32, direction: String, name: String, manufacturer: String?, model: String?, protocol: UInt8) {
+    public init(id: UInt32, direction: String, name: String, manufacturer: String?, model: String?, protocol: UInt8,
+                ump: MIDIUMPInfo? = nil) {
         self.id = id
         self.direction = direction
         self.name = name
         self.manufacturer = manufacturer
         self.model = model
         self.protocol = `protocol`
+        self.ump = ump
     }
 }
 

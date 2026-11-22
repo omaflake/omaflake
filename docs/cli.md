@@ -167,15 +167,21 @@ with `#custom-omaflake.running`, `.building`, `.failed`.
   `org.omaflake.camera` (`cam.sock`). macOS asks for camera permission the first time, for the app that started the VM
   (omaflake or Terminal). `OMAFLAKE_CAMERA_TEST_PATTERN=1 omaf start …` sends a test pattern instead (no camera, no
   permission; `OMAFLAKE_CAMERA_TEST_FPS` sets its rate). macOS guests: after M12 (plan §8).
-- **MIDI (macOS guests, plan B161):** the Mac's MIDI endpoints as virtual MIDI endpoints of the same name in the guest,
-  both ways, off by default (`--midi`, `omaf set`, recipe.toml `midi`). Nothing is captured – the Mac's apps keep the
-  devices – and devices plugged in or out while the VM runs follow. The data are Universal MIDI Packets in the
-  protocol of each device (MIDI 1.0 or 2.0, read on a port of that protocol, so nothing is converted on the way)
-  over the omaflake agent (spec §11.9); timestamps are "now". Per VM one more pair on the Mac, "omaflake <name>",
-  appears in the guest as "omaflake Mac". omaflake starts the agent over SSH once the guest answers (like the
-  clipboard helper; `omaflake-agent-start`, log `/tmp/omaflake-agent.log` in the guest). `omaf-runner ctl
-  <run/runner.sock> midi` lists what the VM gets; agent.json keeps how many endpoints the guest made and the round
-  trip Mac → agent → Mac of a ping once a second (`midi.roundTripMs`). NixOS guests: later (ALSA sequencer).
+- **MIDI (plan B161, every guest kind):** the host's MIDI endpoints as virtual MIDI endpoints of the same name in the
+  guest, both ways, off by default (`--midi`, `omaf set`, recipe.toml `midi`). Nothing is captured – the host's apps
+  keep the devices – and devices plugged in or out while the VM runs follow. The data are Universal MIDI Packets in the
+  protocol of each device over the omaflake agent (spec §11.9), stamped with the time they arrived; the receiver
+  delivers them 2 ms after the fastest transport seen in the last 30 s, so notes keep their spacing. Host sides: macOS
+  guests `omaf-runner run --midi`; NixOS guests on a Mac `omaf-runner bridge --midi --vm-name <name>` (CoreMIDI, read
+  on a port of each device's protocol, nothing converted); NixOS guests on a Linux host `omaf bridge --midi --vm-name
+  <name>` – every port of the ALSA sequencer that can be read or written (except omaflake's own clients and the
+  kernel's System client), named "client: port"; MIDI 1.0 events become UMP and back, UMP clients (Linux 6.5+,
+  alsa-lib 1.2.10+) pass raw (OPEN: checked on a Linux desktop with MIDI hardware). Per VM one more pair on the host,
+  "omaflake <name>" (on Linux a sequencer client with the ports "omaflake <name> in" and "… out"), appears in the guest
+  as "omaflake Mac" or "omaflake host". In macOS guests omaflake starts the agent over SSH once the guest answers (like
+  the clipboard helper; `omaflake-agent-start`, log `/tmp/omaflake-agent.log` in the guest). `omaf-runner ctl
+  <run/runner.sock> midi` lists what a macOS VM gets; agent.json keeps how many endpoints the guest made and the round
+  trip host → agent → host of a ping once a second (`midi.roundTripMs`).
 - **Builds and the service (plan B120):** when the core service runs, `omaf build` runs as its job – the app and
   other clients see it, it waits in the same queue as theirs, and an already running build of the recipe is followed
   instead of started twice; the command prints its log (routine lines left out; `--verbose` names the log file that

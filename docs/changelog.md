@@ -20,7 +20,12 @@ are collected under *Unreleased*. Releases: [GitHub](https://github.com/omaflake
   own apps keep using them; devices plugged in or out come and go in the VM. MIDI 1.0 and MIDI 2.0 pass unchanged
   (Universal MIDI Packets over the omaflake agent). Each VM also gets a pair "omaflake <VM>" on this computer, to
   connect its apps with the VM's. Off by default: the VM's MIDI switch in the app, `omaf new/set --midi`, recipe.toml
-  `midi` (vm table). Needs an image built with this version; NixOS guests get MIDI later.
+  `midi` (vm table). Needs an image built with this version.
+- **MIDI in NixOS VMs** too – on a Mac (CoreMIDI) and on a Linux host (the ALSA sequencer): the devices appear in the
+  guest's ALSA sequencer, MIDI 2.0 as UMP where the guest's kernel has it.
+- MIDI keeps its timing: data carry the time they were played, and the other side plays them at that spacing (up to
+  2 ms of the transport's jitter smoothed). MIDI 2.0 devices appear with their UMP endpoint and function blocks where
+  the guest can show them (macOS 15+, Linux 6.5+).
 
 ### Changed
 

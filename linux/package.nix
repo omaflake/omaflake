@@ -3,12 +3,13 @@
 # (plan B119, docs/linux.md). iced draws with wgpu (Vulkan, else OpenGL) and winit opens its window on Wayland or X11
 # – all of them load their libraries at run time, so the wrapper puts them on LD_LIBRARY_PATH. The VMs' clipboard
 # (`omaf bridge`, plan B126) uses wl-clipboard or xclip: the wrappers of both programs append them to PATH (one the
-# user has comes first).
+# user has comes first). MIDI (`omaf bridge --midi`, plan B161) loads libasound.so.2 at run time (dlopen, no link
+# dependency): the wrappers of both programs put alsa-lib on LD_LIBRARY_PATH.
 { lib, rustPlatform, makeWrapper, wayland, libxkbcommon, vulkan-loader, libGL, libx11, libxcursor, libxi
-, libxrandr, libxcb, fontconfig, wl-clipboard, xclip }:
+, libxrandr, libxcb, fontconfig, wl-clipboard, xclip, alsa-lib }:
 
 let
-  runtimeLibs = [ wayland libxkbcommon vulkan-loader libGL libx11 libxcursor libxi libxrandr libxcb fontconfig ];
+  runtimeLibs = [ wayland libxkbcommon vulkan-loader libGL libx11 libxcursor libxi libxrandr libxcb fontconfig alsa-lib ];
   cargo = builtins.fromTOML (builtins.readFile ../Cargo.toml);
 in
 rustPlatform.buildRustPackage {
@@ -50,8 +51,9 @@ rustPlatform.buildRustPackage {
     mkdir -p $out/share/omaflake && cp -r nix $out/share/omaflake/nix
     wrapProgram $out/bin/omaflake --prefix LD_LIBRARY_PATH : ${lib.makeLibraryPath runtimeLibs} \
       --suffix PATH : ${lib.makeBinPath [ wl-clipboard xclip ]}
-    # omaf runs the bridge too (omaf start from a terminal): the same clipboard tools (plan B129)
-    wrapProgram $out/bin/omaf --suffix PATH : ${lib.makeBinPath [ wl-clipboard xclip ]}
+    # omaf runs the bridge too (omaf start from a terminal): the same clipboard tools (plan B129) and alsa-lib for MIDI
+    wrapProgram $out/bin/omaf --suffix PATH : ${lib.makeBinPath [ wl-clipboard xclip ]} \
+      --prefix LD_LIBRARY_PATH : ${lib.makeLibraryPath [ alsa-lib ]}
   '';
 
   meta = {

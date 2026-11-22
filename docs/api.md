@@ -734,7 +734,7 @@ A row (sorted by name):
 Row actions: busy – none (the lamp works); running – `showShare` (when it shares), `terminal`, `stop`; a start blocker
 – the Doctor's warning (`ui.show doctor`, help "Open the Doctor first: …"); else `startHeadless` (`display: none`) and
 `startWindow` (`display: auto`), disabled with the macOS limit's reason. Details: switches clipboard, sound,
-microphone (turning it on turns sound on), camera (not for macOS guests), MIDI (macOS guests only, plan B161); info Image, omaflake ID (as short as
+microphone (turning it on turns sound on), camera (not for macOS guests), MIDI (every guest kind, plan B161); info Image, omaflake ID (as short as
 `idLengths.vm`), Recipe, Resources, Network, SSH (the command line, or "address while running"), Share folder,
 Ephemeral, Created, Runs from, Agent, Guest (load, memory, disk, addresses, users); actions export (asks a folder),
 forget (runs from elsewhere), upgrade (to `latestImage`, with its question), reset, remove – all greyed out while it
@@ -790,7 +790,7 @@ the default; `""` = custom values) CPU cores and RAM are the profile's and those
 needs adds a warning. Missing values are the recipe's (sound and clipboard on,
 microphone and camera off where it says nothing), the name the next free one. Fields: name (errors: "A name is
 needed", the name rule, "“%@” is here already"), ephemeral, CPU cores (1–10), RAM (1–48 GB), disk (10–500 GB step 10;
-`info` "as the image" for macOS), sound, microphone (needs sound), clipboard, camera (NixOS), network (no `isolated`
+`info` "as the image" for macOS), sound, microphone (needs sound), clipboard, camera (NixOS), MIDI (every guest kind, plan B161), network (no `isolated`
 for macOS), share, share folder (`path`, placeholder the default `share/<name>`), start afterwards. `warnings`: the
 macOS limit ("… – the VM is created but not started."). `create` is `vms.create` with `{name, image, settings,
 sharePath?, start}` and `then: back` (primary), disabled while a value is wrong. Every editable field has `valueParam`

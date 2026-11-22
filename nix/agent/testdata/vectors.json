@@ -61,15 +61,35 @@
       "name": "MIDI 1.0 note on from one source",
       "hex": "0403020101000100643c9020",
       "records": [
-        { "id": 16909060, "protocol": 1, "words": [546323556] }
+        {
+          "id": 16909060,
+          "protocol": 1,
+          "words": [
+            546323556
+          ]
+        }
       ]
     },
     {
       "name": "MIDI 2.0 note on, then a SysEx7 packet for another endpoint",
       "hex": "0500000002000200003c90400000ffff06000000010002007f7e033000000009",
       "records": [
-        { "id": 5, "protocol": 2, "words": [1083194368, 4294901760] },
-        { "id": 6, "protocol": 1, "words": [805535359, 150994944] }
+        {
+          "id": 5,
+          "protocol": 2,
+          "words": [
+            1083194368,
+            4294901760
+          ]
+        },
+        {
+          "id": 6,
+          "protocol": 1,
+          "words": [
+            805535359,
+            150994944
+          ]
+        }
       ]
     },
     {
@@ -85,6 +105,52 @@
     {
       "name": "half a MIDI 2.0 message is malformed",
       "hex": "0100000002000100003c9040",
+      "records": null
+    },
+    {
+      "name": "MIDI 1.0 note on with a timestamp (flags 1: 8 bytes of the sender's monotonic nanoseconds)",
+      "hex": "010000000101010000ca9a3b00000000643c9020",
+      "records": [
+        {
+          "id": 1,
+          "protocol": 1,
+          "time": 1000000000,
+          "words": [
+            546323556
+          ]
+        }
+      ]
+    },
+    {
+      "name": "a timestamped and a plain record in one payload",
+      "hex": "0700000002010200efcdab8967452301003c90400000ffff0700000001000100643c9020",
+      "records": [
+        {
+          "id": 7,
+          "protocol": 2,
+          "time": 81985529216486895,
+          "words": [
+            1083194368,
+            4294901760
+          ]
+        },
+        {
+          "id": 7,
+          "protocol": 1,
+          "words": [
+            546323556
+          ]
+        }
+      ]
+    },
+    {
+      "name": "unknown flags are malformed",
+      "hex": "0100000001020100643c9020",
+      "records": null
+    },
+    {
+      "name": "timestamp cut off",
+      "hex": "010000000101010000ca9a3b",
       "records": null
     }
   ]

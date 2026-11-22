@@ -185,10 +185,13 @@ impl GuestSettings {
         #[cfg(not(target_os = "macos"))]
         {
             for key in ["LC_ALL", "LC_MESSAGES", "LANG"] {
-                if let Ok(v) = std::env::var(key) {
-                    if !v.is_empty() && v != "C" && v != "POSIX" && !v.starts_with("C.") {
-                        return v;
-                    }
+                if let Ok(v) = std::env::var(key)
+                    && !v.is_empty()
+                    && v != "C"
+                    && v != "POSIX"
+                    && !v.starts_with("C.")
+                {
+                    return v;
                 }
             }
             "en_US".into()

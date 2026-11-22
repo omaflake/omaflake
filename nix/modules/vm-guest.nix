@@ -135,7 +135,11 @@ in
     # The Mac's camera as /dev/video42 "Mac Camera" (v4l2loopback), fed by the agent – only while an application reads
     # it (the Mac camera is on only then); the agent replaces camera-agent.py (plan B106)
     boot.extraModulePackages = [ config.boot.kernelPackages.v4l2loopback ];
-    boot.kernelModules = [ "v4l2loopback" ];
+    # snd-seq – MIDI with the Mac (plan B161): the agent is an ALSA sequencer client ("omaflake", one port per Mac
+    # endpoint); the sequencer core is loaded at boot, since the agent's ProtectKernelModules keeps it from loading it
+    # on demand. UMP (MIDI 2.0) needs the kernel's SND_SEQ_UMP (Linux 6.5+): OPEN whether nixpkgs' kernel config has
+    # it; without it the agent converts to MIDI 1.0 events.
+    boot.kernelModules = [ "v4l2loopback" "snd-seq" ];
     boot.extraModprobeConfig = ''
       options v4l2loopback devices=1 video_nr=42 card_label="Mac Camera" exclusive_caps=1 max_openers=10
     '';

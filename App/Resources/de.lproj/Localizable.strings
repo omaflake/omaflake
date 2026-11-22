@@ -238,7 +238,6 @@
 "Camera in the VM" = "Kamera in der VM";
 "MIDI" = "MIDI";
 "MIDI devices in the VM" = "MIDI-Geräte in der VM";
-"MIDI for NixOS guests comes later" = "MIDI für NixOS-Gäste kommt später";
 "This computer's MIDI devices in the VM, both ways" = "Die MIDI-Geräte dieses Computers in der VM, in beide Richtungen";
 
 /* Linux builder maintenance */

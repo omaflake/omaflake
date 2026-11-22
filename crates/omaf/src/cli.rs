@@ -159,7 +159,7 @@ pub enum Command {
     Status(Status),
     /// Plan B126: what `omaf-runner bridge` is on a Mac, for a Linux host – started by the core next to QEMU
     #[command(
-        about = "Agent, clipboard and camera bridge between this Linux host and a VM (started by omaf).",
+        about = "Agent, clipboard, camera and MIDI bridge between this Linux host and a VM (started by omaf).",
         hide = true
     )]
     Bridge(Bridge),
@@ -177,6 +177,10 @@ pub struct Bridge {
     pub camera: bool,
     #[arg(long, help = "Send a test pattern instead of the camera")]
     pub camera_test_pattern: bool,
+    #[arg(long, requires = "vm_name", help = "Carry this host's MIDI devices (the VM's switch)")]
+    pub midi: bool,
+    #[arg(long, value_name = "name", help = "The VM's name, for its MIDI ports (\"omaflake <name>\")")]
+    pub vm_name: Option<String>,
 }
 
 #[derive(Debug, Args)]
@@ -652,11 +656,7 @@ pub struct New {
     pub camera: bool,
     #[arg(long, overrides_with = "camera", help = "Without this computer's camera")]
     pub no_camera: bool,
-    #[arg(
-        long,
-        overrides_with = "no_midi",
-        help = "This computer's MIDI devices in the VM, both ways, macOS (default off)"
-    )]
+    #[arg(long, overrides_with = "no_midi", help = "This computer's MIDI devices in the VM, both ways (default off)")]
     pub midi: bool,
     #[arg(long, overrides_with = "midi", help = "Without this computer's MIDI devices")]
     pub no_midi: bool,
@@ -710,7 +710,7 @@ pub struct Set {
     pub camera: bool,
     #[arg(long, overrides_with = "camera", help = "Without this computer's camera")]
     pub no_camera: bool,
-    #[arg(long, overrides_with = "no_midi", help = "This computer's MIDI devices in the VM, both ways (macOS)")]
+    #[arg(long, overrides_with = "no_midi", help = "This computer's MIDI devices in the VM, both ways")]
     pub midi: bool,
     #[arg(long, overrides_with = "midi", help = "Without this computer's MIDI devices")]
     pub no_midi: bool,

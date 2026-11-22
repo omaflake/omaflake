@@ -81,13 +81,9 @@ final class RunController: NSObject, NSApplicationDelegate, NSWindowDelegate, VZ
                 // MIDI: the Mac side exists from the start (its "omaflake <VM>" pair is there for the Mac's apps);
                 // the guest's endpoints come once its agent's welcome enables MIDI
                 if request.midi {
-                    do {
-                        midi = try MIDIBridge(vmName: request.bundle.dir.deletingPathExtension().lastPathComponent,
-                                              log: { text in log(text) })
-                        allowed.insert("midi")
-                    } catch {
-                        log("MIDI: \(describe(error)) – the VM runs without MIDI")
-                    }
+                    midi = MIDIBridge.start(vmName: request.bundle.dir.deletingPathExtension().lastPathComponent,
+                                            log: { text in log(text) })
+                    if midi != nil { allowed.insert("midi") }
                 }
                 let link = AgentLink(fd: ourEnd, stateFile: stateFile, host: "omaflake", allowed: allowed,
                                      log: { text in log(text) })   // runner.log, like everything else here
@@ -95,10 +91,10 @@ final class RunController: NSObject, NSApplicationDelegate, NSWindowDelegate, VZ
                 link.onWelcome = { [weak link] (features: Set<String>) in
                     guard let link else { return }
                     if features.contains("clipboard") { clip?.useAgent(link) }
-                    if features.contains("midi") { midiBridge?.useAgent(link) }
+                    midiBridge?.welcomed(features, link: link)
                 }
                 link.onClipboard = { mime, data in clip?.apply(mime: mime, data: data) }
-                link.onMIDI = { records in midiBridge?.fromGuest(records) }
+                midiBridge?.attach(link)
                 Thread.detachNewThread { _ = link.run() }   // ends when the VM goes; a misbehaving guest only loses its link
                 agent = link
                 log("Agent: port \(AgentProtocol.portName)")
