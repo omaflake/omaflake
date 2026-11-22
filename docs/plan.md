@@ -488,12 +488,23 @@ Lume (trycua) only after a license review (OPEN).
 
 ## 8. Next steps (as of 2026-11-22)
 
-**Release 0.7.4 (2026-11-22, prepared – not pushed or tagged yet):** B159 (`path:` references with a space), B160 (setup
-by one click, user-level: Nix with one administrator question, omaflake's own Linux builder as a LaunchAgent, Nix in
-~/.zshrc, omaflake's SSH key, every step visible), B161 (MIDI in macOS and NixOS guests on both hosts, timestamps, UMP
-endpoints), the Doctor's details translated. Built and checked in a macOS guest without a hypervisor – the OPEN items
-of B160 and B161 (the Linux builder, running guests, MIDI hardware) need the maintainer's Mac. After the push: the
-image flake's lock at the 0.7.4 code (as for every release), website `update.json`.
+**Next (2026-11-23, after release 0.7.4):** the maintainer's tests on the Mac – a fresh Mac with Set Up for NixOS
+(the Linux builder's two stages, Nix's one administrator question, Full Disk Access: OPEN, B160), creating and
+replacing a base per credential (B166), the core handover after an update (B165), a forced stop and the build window,
+the diagnosis on NixOS guests and on a Linux host (B162), MIDI with the real piano and Dorico (B161). Not built yet:
+the disk size of a VM (B164), upgrading a VM in place, why a macOS build VM once had no SSH (port 22 closed, 2026-11-22
+– watch it with the build window when it happens again), and M12 once the Developer ID is there.
+
+**Release 0.7.4 (2026-11-23):** B159 (`path:` references with a space), B160 (setup by one click, user-level: Nix with
+one administrator question, omaflake's own Linux builder as a LaunchAgent, Nix in ~/.zshrc, omaflake's SSH key, every
+step visible), B161 (MIDI in macOS and NixOS guests on both hosts, timestamps, UMP endpoints, the pair named after the
+VM), B162 (the diagnosis from the UI, the clipboard helper started until it runs), B163 (the classic German layout in
+macOS guests), B164 (cores and memory of a VM), B165 (a new app replaces an old core; stop forces off; the build
+window), B166 (a macOS base per credential), the Doctor's details translated. Built in a macOS guest without a
+hypervisor; tried by the maintainer on the Mac (2026-11-22): a new macOS VM from a 0.7.4 image with MIDI (the
+Scarlett 4i4 in the guest, notes arrive), the diagnosis (all but the clipboard passed – fixed before the release),
+the build of a macOS image. After the push: the image flake's lock at the 0.7.4 code (as for every release), website
+`update.json`.
 
 **Next (2026-11-04, after release 0.7.3):** nothing left to build without the Developer ID – the smaller items of
 2026-10-24 (B125) are done, B158 closed the remaining OPEN items, and the 2 s of black between Plymouth and Hyprland
@@ -539,7 +550,13 @@ microphone and share run in the user's session process – the system agent has 
 runner's control socket and a new `--control` of `omaf-runner bridge` and `omaf bridge` (`run/bridge.sock`), the
 core's job `diagnostics` (`crates/omaflake-core/src/diagnostics.rs`, `api/diagnostics.rs`; the host's clipboard is
 saved and restored), the page `diagnostics` in the app, `omaf ui` and the Linux app, the VMs tab's `diagnose` action,
-`omaf diagnose`. With it the clipboard bug the maintainer found: in a macOS guest from an image before 0.7.4 the
+`omaf diagnose`. The maintainer's first diagnosis (2026-11-22, a VM from a 0.7.4 image: agent, SSH with omaflake's
+key, share, network, MIDI, disk pass; sound heard) failed only the clipboard – the helper did not run: the new
+start check `pgrep -f clipboard-agent-macos.py` at the end of the SSH command put the helper's name into that shell's
+own command line, and the helper's start script (`pgrep -f clipboard-agent-macos.py && exit 0`) took the shell for a
+running helper and did not start; the check then found the same shell. Now the check is
+`pgrep -f 'clipboard-agent-macos[.]py'` (checked with pgrep in a macOS guest), and a test keeps the name out of the
+command. With it the clipboard bug the maintainer found: in a macOS guest from an image before 0.7.4 the
 clipboard helper never started – omaflake's SSH failed silently (the guest's authorized_keys lacks omaflake's key;
 OPEN whether the core service lacks the ssh-agent key) –; the helpers are now started until they run (`pgrep` at the
 end of the SSH command), failures are logged once per run, the agent always starts, and the Diagnose page's `ssh`

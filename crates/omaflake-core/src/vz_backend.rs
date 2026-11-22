@@ -532,14 +532,16 @@ fn guest_helpers_command(c: &InstanceConfig) -> String {
     parts.push("sleep 1".into());
     let mut checks = Vec::new();
     if c.clipboard_on() {
-        checks.push("pgrep -f clipboard-agent-macos.py >/dev/null".to_string());
+        // "[.]": this shell's own command line must not hold the helper's name – the helper's start script asks
+        // `pgrep -f clipboard-agent-macos.py` whether one runs and would find this shell and not start (found by the
+        // maintainer's diagnosis, 0.7.4)
+        checks.push("pgrep -f 'clipboard-agent-macos[.]py' >/dev/null".to_string());
     }
     checks.push(format!("{{ [ ! -x {AGENT} ] || pgrep -xq omaflake-agent; }}"));
     parts.push(checks.join(" && "));
     parts.join("; ")
 }
 
-/// Runs `args` (program first); true when it exited with 0
 /// Appends a line with the time to a VM's runner.log (best effort)
 fn note_in_runner_log(file: &Path, line: &str) {
     use std::io::Write;
@@ -548,6 +550,7 @@ fn note_in_runner_log(file: &Path, line: &str) {
     }
 }
 
+/// Runs `args` (program first); true when it exited with 0
 fn run_ok(args: &[String]) -> bool {
     let Some((exe, rest)) = args.split_first() else { return false };
     Shell::run(exe, rest, &RunOptions::default()).is_ok_and(|r| r.status == 0)
@@ -831,12 +834,16 @@ pub(crate) mod tests {
         assert_eq!(
             guest_helpers_command(&c),
             format!(
-                "/run/current-system/sw/bin/omaflake-clipboard-agent; {agent}; sleep 1; pgrep -f clipboard-agent-macos.py >/dev/null && {agent_runs}"
+                "/run/current-system/sw/bin/omaflake-clipboard-agent; {agent}; sleep 1; pgrep -f 'clipboard-agent-macos[.]py' >/dev/null && {agent_runs}"
             )
         );
         c.midi = Some(true);
         c.clipboard = Some(false);
         assert_eq!(guest_helpers_command(&c), format!("{agent}; sleep 1; {agent_runs}"));
+        // The command never holds the helper's name as such: its start script's `pgrep -f clipboard-agent-macos.py`
+        // would take this very shell for a running helper
+        c.clipboard = Some(true);
+        assert!(!guest_helpers_command(&c).contains("clipboard-agent-macos.py"));
     }
 
     #[test]

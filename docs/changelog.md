@@ -13,7 +13,7 @@ are collected under *Unreleased*. Releases: [GitHub](https://github.com/omaflake
 
 ## [Unreleased]
 
-## [0.7.4] – 2026-11-22
+## [0.7.4] – 2026-11-23
 
 Setting up is one button now, and it shows what it does: **Set Up for NixOS** in the Doctor installs Nix (the only
 time macOS asks for an administrator), sets up omaflake's own Linux builder as you – no nix-darwin, nothing in /etc –,
