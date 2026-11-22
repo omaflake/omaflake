@@ -502,6 +502,28 @@ maintainer tries 0.7.0–0.7.3 (clicks in the apps; a VM's loading screen and ke
 running guest or a real Linux desktop (docs/linux.md) – and **M12** once the Developer ID is there. GitHub Pages of omaflake and website already publish
 through Actions (checked 2026-11-04: `build_type` workflow, domains omaflake.dev and omaflake.app).
 
+**B162 (2026-11-22, idea of the maintainer – noted, not built): diagnostics for a VM's features, from the UI.**
+After testing MIDI by hand (MIDI Monitor in the guest; the workspace tool `_tools/miditest`, which copies itself into
+the VM over `omaf ssh`, runs there and echoes on the Mac, then writes a log): every feature of a VM should be testable
+from the app (and `omaf ui`, the CLI), with its result judged and kept. Draft:
+- *One job per run:* `diagnostics.run {vm, checks?}` → Job `diagnostics`, one step per check, each with a result
+  `pass` | `fail` | `confirm` (only the user can tell: "did you hear it?") | `skipped` (switch off, guest kind, no
+  agent) and its numbers; the run's log in `<data>/logs/diagnostics-<vm>-<time>.log`; "Copy Diagnosis" puts the
+  result and the log on the clipboard (also wanted by B160 for the setup).
+- *Through the agent, not SSH:* new agent messages (`0x06xx`: test request / answer) so a test needs no SSH and no
+  tool copied in; SSH stays the fallback for images without them.
+- *Checks:* **agent** (hello, round trip); **clipboard** – a token through the Mac's pasteboard into the guest and
+  back (text and a small PNG); **MIDI** – the VM's pair looped by the agent (latency, a 1,000-byte SysEx unchanged,
+  timed notes keep their spacing), each device asked for its identity (`miditest identity`); **sound** – the agent
+  plays a short tone in the guest → `confirm`, plus the guest's output device and errors; **microphone** – the guest
+  records 2 s and reports the level while the user speaks (a meter in the UI); **camera** – the guest opens the camera,
+  reports resolution, frame rate and a thumbnail; **share folder** – a file written on one side, read on the other;
+  **network** – address, DNS, the internet; **SSH**; **disk** – free space. NixOS and macOS guests, both hosts.
+- *UI:* a "Diagnose …" action in the VM's details; a page with one row per check (status, numbers, hint, "Again",
+  "Heard it" / "Did not"), the Doctor's style; the result's age shown.
+OPEN: everything – the agent messages, how a tone and a recording are made in each guest (CoreAudio; PipeWire/ALSA),
+whether a check may play sound without asking.
+
 **B161 (2026-11-22): MIDI in macOS guests.** The maintainer ran Dorico in a macOS guest (Steinberg download and
 licenser fine) and asked for the stage piano's MIDI. USB passthrough exists since macOS 27 (`VZUSBPassthroughDevice`
 with an `AAUSBAccessory`), but AccessoryAccess needs `com.apple.developer.accessory-access.usb`
