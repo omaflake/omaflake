@@ -13,6 +13,13 @@ are collected under *Unreleased*. Releases: [GitHub](https://github.com/omaflake
 
 ## [Unreleased]
 
+## [0.7.4] – 2026-11-22
+
+Setting up is one button now, and it shows what it does: **Set Up for NixOS** in the Doctor installs Nix (the only
+time macOS asks for an administrator), sets up omaflake's own Linux builder as you – no nix-darwin, nothing in /etc –,
+its SSH key, QEMU and a look. And MIDI: this computer's MIDI devices in macOS and NixOS VMs, both ways, with their
+timing.
+
 ### Added
 
 - **MIDI in macOS VMs:** this computer's MIDI devices – a stage piano, a keyboard, a synthesizer, Bluetooth or network

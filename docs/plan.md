@@ -486,7 +486,14 @@ Lume (trycua) only after a license review (OPEN).
 
 ---
 
-## 8. Next steps (as of 2026-11-04)
+## 8. Next steps (as of 2026-11-22)
+
+**Release 0.7.4 (2026-11-22, prepared – not pushed or tagged yet):** B159 (`path:` references with a space), B160 (setup
+by one click, user-level: Nix with one administrator question, omaflake's own Linux builder as a LaunchAgent, Nix in
+~/.zshrc, omaflake's SSH key, every step visible), B161 (MIDI in macOS and NixOS guests on both hosts, timestamps, UMP
+endpoints), the Doctor's details translated. Built and checked in a macOS guest without a hypervisor – the OPEN items
+of B160 and B161 (the Linux builder, running guests, MIDI hardware) need the maintainer's Mac. After the push: the
+image flake's lock at the 0.7.4 code (as for every release), website `update.json`.
 
 **Next (2026-11-04, after release 0.7.3):** nothing left to build without the Developer ID – the smaller items of
 2026-10-24 (B125) are done, B158 closed the remaining OPEN items, and the 2 s of black between Plymouth and Hyprland
