@@ -502,6 +502,21 @@ maintainer tries 0.7.0–0.7.3 (clicks in the apps; a VM's loading screen and ke
 running guest or a real Linux desktop (docs/linux.md) – and **M12** once the Developer ID is there. GitHub Pages of omaflake and website already publish
 through Actions (checked 2026-11-04: `build_type` workflow, domains omaflake.dev and omaflake.app).
 
+**B165 (2026-11-22, found, not built): a new app keeps talking to the old core service.** The maintainer replaced
+/Applications/omaflake.app; the running `omaf serve --socket` (started 8 h before by the old app, idle-exit never
+reached while a VM runs) stayed, the new app connected to it, and VMs, builds and the diagnosis ran the old code – the
+Doctor's "App 0.7.4 · Core 0.7.4" could not tell (same version). Wanted: the core reports a build identity (the
+executable's hash or mtime and path), the app compares it with its own bundled `omaf` and, when they differ, asks the
+old service to stop after its jobs and starts its own (or says so); the CLI the same. Meanwhile: quit the app,
+`pkill -f "omaf serve"`, start it again.
+
+**B166 (2026-11-22, wish of the maintainer – noted, not built): several macOS bases per macOS build, one per
+credential.** A base carries its user (the credential it was made with), so every image of it has that user; with one
+base per build a second credential cannot make macOS images. Wanted: bases named per build and credential
+(`mac-base-<build>-<credential>`), the build page picking the base of its credential (offering to create it),
+"Create Again" for a base (e.g. one from before omaflake's own SSH key, B160 – its builds still need the user's key in
+the ssh-agent) and "Remove", the existing base assigned to its credential once.
+
 **B164 (2026-11-22, found, not built): a VM's resources cannot be changed.** `omaf set` and the VM's details change
 sound, microphone, clipboard, camera, MIDI and the window, but not CPU cores, memory or the disk size – a VM keeps what
 it was created with (the maintainer's development VM: 4 cores, 8 GB, 75 GB, too small for builds). Cores and memory
