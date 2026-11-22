@@ -540,8 +540,10 @@ what MIDI does not carry (a piano's USB audio, vendor tools). Implemented:
   UMP info, the guest mirrors them (MIDIUMPMutableEndpoint by the ObjC runtime; the sequencer client's UMP info).
   Spec §11.9, shared vectors with `time`. Checked: Rust (core 463, agent 26) and Swift (42) tests, Linux type-check
   and clippy (aarch64-unknown-linux-gnu), `midi-check` with the new agent (see below), flakes evaluate.
-  **OPEN:** everything with a running guest or Linux MIDI hardware – CoreMIDI from the SSH-started agent in a macOS
-  guest, Dorico, latency with the real piano; the ALSA sides (struct layout, subscriptions, the queue's time base,
+  **Checked by the maintainer (2026-11-22, release 0.7.4, a new macOS VM from a 0.7.4 image with MIDI on):** the
+  Mac's stage piano → the guest – notes arrive in MIDI Monitor, so CoreMIDI from the SSH-started agent reaches the
+  guest's apps. **OPEN:** everything else with a running guest or Linux MIDI hardware – guest → Mac, Dorico, latency
+  with the real piano; the ALSA sides (struct layout, subscriptions, the queue's time base,
   UMP client mode on the guest kernel – `SND_SEQ_UMP` in nixpkgs' config –, the byte order of ALSA's manufacturer id);
   UMP info with a real MIDI 2.0 device (none here); whether apps honour future time stamps on a virtual source.
 
