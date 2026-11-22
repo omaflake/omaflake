@@ -36,10 +36,13 @@ use crate::trash::Disposal;
 use crate::vm_err;
 use crate::vz_backend::VzBackend;
 
-static BASE_STEPS: [Step; 1] = [|_| Ok(())];
+/// v1 → v2 (plan B166): `ownKey` and `version` are new; a base from before does not know omaflake's own key
+static BASE_STEPS: [Step; 2] = [|_| Ok(()), |_| Ok(())];
 
 /// `omaflake-base.json` in a base folder (plan B139): the credential its guest user was created from – macOS image
 /// builds take its password from there, so nobody types one. Bases from before have none until one is assigned.
+/// Since plan B166 it is written right after the clone (an unfinished base continues with its credential) and
+/// carries whether omaflake's own SSH key went into the guest.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct BaseRecord {
     /// The credential's ID ("c-…")
@@ -49,6 +52,12 @@ pub struct BaseRecord {
     pub credential_name: String,
     /// The guest user
     pub user: String,
+    /// omaflake's own SSH key is in the guest's authorized_keys (plan B160) – false for bases from before
+    #[serde(rename = "ownKey", default)]
+    pub own_key: bool,
+    /// The macOS version ("27.0.1") when it was known (Apple's IPSW)
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub version: Option<String>,
 }
 
 impl BaseRecord {
@@ -103,6 +112,11 @@ pub struct BaseRequest {
     pub authorized_keys: Vec<String>,
     /// Show the first boot in a window (headless otherwise)
     pub window: bool,
+    /// The credential the guest user comes from (plan B139) – it names the base (plan B166) and is recorded in it
+    pub credential: Option<(String, String)>,
+    /// A base this one supersedes (plan B166): never reused as the new base's folder – the caller removes it once the
+    /// new one is ready (`supersede`)
+    pub replace: Option<PathBuf>,
 }
 
 impl BaseRequest {
@@ -118,6 +132,8 @@ impl BaseRequest {
             password,
             authorized_keys: MacBaseInstaller::default_public_keys(),
             window: false,
+            credential: None,
+            replace: None,
         }
     }
 }
@@ -248,13 +264,102 @@ impl MacBaseInstaller {
         self.paths.bases().join(format!("mac-base-{build}"))
     }
 
+    /// "Work Laptop" → "work-laptop": a credential's name as a part of a folder name
+    pub fn credential_slug(name: &str) -> String {
+        let mut out = String::new();
+        for c in name.trim().chars().flat_map(char::to_lowercase) {
+            if c.is_ascii_alphanumeric() {
+                out.push(c);
+            } else if !out.ends_with('-') {
+                out.push('-');
+            }
+        }
+        out.trim_matches('-').chars().take(32).collect::<String>().trim_end_matches('-').to_string()
+    }
+
+    /// The folder a base of `build` for `credential` (ID, name) gets (plan B166): the credential's base of this build
+    /// when there is one; else `mac-base-<build>` while that is free (the first base of a build), else
+    /// `mac-base-<build>-<credential>` (with `-2`, `-3`, … while taken). `avoid` (a base being replaced) is never
+    /// chosen. Without a credential: `mac-base-<build>`.
+    pub fn base_for(&self, build: &str, credential: Option<(&str, &str)>, avoid: Option<&Path>) -> PathBuf {
+        let first = self.base(build);
+        let Some((id, name)) = credential else { return first };
+        let usable = |dir: &Path| avoid != Some(dir);
+        let prefix = format!("mac-base-{build}-");
+        let mut names: Vec<String> = fs::read_dir(self.paths.bases())
+            .map(|entries| entries.flatten().map(|e| e.file_name().to_string_lossy().into_owned()).collect())
+            .unwrap_or_default();
+        names.retain(|n| *n == file_name(&first) || n.starts_with(&prefix));
+        names.sort();
+        if let Some(own) = names
+            .iter()
+            .map(|n| self.paths.bases().join(n))
+            .find(|dir| usable(dir) && BaseRecord::of(dir).is_some_and(|r| r.credential == id))
+        {
+            return own;
+        }
+        if !first.exists() && usable(&first) {
+            return first;
+        }
+        let slug = Some(Self::credential_slug(name)).filter(|s| !s.is_empty()).unwrap_or_else(|| id.to_string());
+        let mut n = 1;
+        loop {
+            let dir = if n == 1 {
+                self.paths.bases().join(format!("{prefix}{slug}"))
+            } else {
+                self.paths.bases().join(format!("{prefix}{slug}-{n}"))
+            };
+            if !dir.exists() && usable(&dir) {
+                return dir;
+            }
+            n += 1;
+        }
+    }
+
     /// The base that `install` would end at, if it exists already (only known up front without `ipsw`).
     pub fn existing_base(&self, r: &BaseRequest) -> Option<PathBuf> {
         if r.ipsw.is_some() {
             return None;
         }
-        let dir = self.base(&self.latest_build()?);
+        let credential = r.credential.as_ref().map(|(id, name)| (id.as_str(), name.as_str()));
+        let dir = self.base_for(&self.latest_build()?, credential, r.replace.as_deref());
         Self::is_ready(&dir).then_some(dir)
+    }
+
+    /// After a replacement (plan B166): deletes the superseded base `old` for real (a product action, `Disposal`) and
+    /// gives the new one `old`'s name when it took the place of a base of the same build and credential (so "Create
+    /// Again" keeps the name). The caller checks that no image build uses `old`. Returns where the new base is.
+    pub fn supersede(&self, old: &Path, new: &Path, log: &(dyn Fn(&str) + Send + Sync + '_)) -> Result<PathBuf> {
+        if old == new || !old.exists() {
+            return Ok(new.to_path_buf());
+        }
+        let build_of = |dir: &Path| MacVmBundle::new(dir).load_config().ok().and_then(|c| c.os_build);
+        let same_place = build_of(new).is_some_and(|b| build_of(old).as_deref() == Some(b.as_str()))
+            && match (BaseRecord::of(old), BaseRecord::of(new)) {
+                (Some(o), Some(n)) => o.credential == n.credential,
+                (None, _) => true,
+                (Some(_), None) => false,
+            };
+        Disposal::delete(&[old])?;
+        log(&format!("Removed {} – {} replaces it", file_name(old), file_name(new)));
+        if !same_place {
+            return Ok(new.to_path_buf());
+        }
+        match fs::rename(new, old) {
+            Ok(()) => {
+                let logs = self.paths.logs();
+                let _ = fs::rename(
+                    logs.join(format!("first-boot-{}.log", file_name(new))),
+                    logs.join(format!("first-boot-{}.log", file_name(old))),
+                );
+                log(&format!("{} is now {}", file_name(new), file_name(old)));
+                Ok(old.to_path_buf())
+            }
+            Err(e) => {
+                log(&format!("{} keeps its name ({})", file_name(new), crate::error::os_text(&e)));
+                Ok(new.to_path_buf())
+            }
+        }
     }
 
     /// Runs all steps (keeping the Mac awake); progress (including the runner's) goes to `log` line by line. Blocks
@@ -280,6 +385,7 @@ impl MacBaseInstaller {
         fs::create_dir_all(self.paths.bases()).with_path(&self.paths.bases())?;
 
         // 1. Fresh installation, named after the installed build; the IPSW from Apple unless one was given
+        let mut version = None;
         let fresh_vm = match &r.ipsw {
             Some(ipsw) => self.install_fresh(r, ipsw, log)?,
             None => {
@@ -290,6 +396,7 @@ impl MacBaseInstaller {
                     ));
                 };
                 let fresh = self.fresh(&release.build);
+                version = Some(release.version.clone());
                 if fresh.exists() {
                     log(&format!("{} exists – reusing it", file_name(&fresh)));
                     fresh
@@ -301,8 +408,9 @@ impl MacBaseInstaller {
         };
         let build = MacVmBundle::new(&fresh_vm).load_config()?.os_build.unwrap_or_else(|| "unknown".into());
 
-        // 2. Base = APFS clone with a new machine identifier and MAC
-        let base_dir = self.base(&build);
+        // 2. Base = APFS clone with a new machine identifier and MAC – one per build and credential (plan B166)
+        let credential = r.credential.as_ref().map(|(id, name)| (id.as_str(), name.as_str()));
+        let base_dir = self.base_for(&build, credential, r.replace.as_deref());
         if Self::is_ready(&base_dir) {
             log(&format!("{} exists already – nothing to do", file_name(&base_dir)));
             return Ok(BaseOutcome::Existing(base_dir));
@@ -320,6 +428,19 @@ impl MacBaseInstaller {
             &RunOptions::default(),
         )?;
         log(&format!("Base {} cloned from {}", base_dir.display(), file_name(&fresh_vm)));
+        if let Some((id, name)) = &r.credential {
+            // Right away: an unfinished base continues with its credential, and the folder name finds it again
+            BaseRecord {
+                credential: id.clone(),
+                credential_name: name.clone(),
+                user: r.user.clone(),
+                own_key: crate::ssh_identity::SshIdentity::standard()
+                    .public_key()
+                    .is_some_and(|own| r.authorized_keys.iter().any(|k| k.trim() == own.trim())),
+                version,
+            }
+            .write(&base_dir)?;
+        }
         let Some(password) = &r.password else { return Ok(BaseOutcome::Created { dir: base_dir, ready: false }) };
         if r.authorized_keys.is_empty() {
             return Err(vm_err!(
@@ -339,7 +460,6 @@ impl MacBaseInstaller {
         names.retain(|n| n.starts_with("mac-base-"));
         names.sort();
         names.reverse();
-        let newest = crate::mac_image_builder::MacImageBuilder::newest_base_in(paths);
         names
             .into_iter()
             .map(|name| {
@@ -347,10 +467,16 @@ impl MacBaseInstaller {
                 let os_build = crate::mac_vm::MacVmBundle::new(dir.clone()).load_config().ok().and_then(|c| c.os_build);
                 let created =
                     fs::metadata(&dir).and_then(|m| m.modified()).ok().map(chrono::DateTime::<chrono::Utc>::from);
+                let record = BaseRecord::of(&dir);
+                // The newest of its credential (plan B166)
+                let newest = crate::mac_image_builder::MacImageBuilder::newest_base_for(
+                    paths,
+                    record.as_ref().map(|r| r.credential.as_str()),
+                );
                 BaseInfo {
                     ready: Self::is_ready(&dir),
                     user: Self::user_of(&dir, &paths.logs()),
-                    record: BaseRecord::of(&dir),
+                    record,
                     newest: newest.as_deref() == Some(dir.as_path()),
                     size_bytes: allocated(&dir),
                     os_build,
@@ -691,7 +817,7 @@ pub struct BaseInfo {
     pub record: Option<BaseRecord>,
     /// Installed completely (new macOS images can be built from it)
     pub ready: bool,
-    /// The one new macOS images are built from
+    /// The newest ready base of its credential: macOS images with that credential are built from it (plan B166)
     pub newest: bool,
     pub created: Option<chrono::DateTime<chrono::Utc>>,
     /// Allocated blocks of its files (the disk is sparse)
@@ -787,6 +913,94 @@ mod tests {
         assert_eq!(i.existing_base(&r), None);
         // a runner that cannot ask Apple: unknown
         assert_eq!(i.latest_build(), None);
+    }
+
+    /// Plan B166: one base per build and credential, the first keeps the plain name
+    #[test]
+    fn bases_are_named_per_build_and_credential() {
+        let (_t, p) = temp_paths();
+        let i = installer(&p, "/usr/bin/false");
+        assert_eq!(MacBaseInstaller::credential_slug("  Work Laptop! "), "work-laptop");
+        assert_eq!(MacBaseInstaller::credential_slug("ÄÖ"), "");
+        let work = ("c-1", "Work");
+        let home = ("c-2", "Home");
+        // The first base of a build
+        assert_eq!(i.base_for("26A434", Some(work), None), p.bases().join("mac-base-26A434"));
+        let record = |dir: &Path, (id, name): (&str, &str), own_key: bool| {
+            fs::create_dir_all(dir).unwrap();
+            BaseRecord {
+                credential: id.into(),
+                credential_name: name.into(),
+                user: "u".into(),
+                own_key,
+                version: None,
+            }
+            .write(dir)
+            .unwrap();
+        };
+        let first = p.bases().join("mac-base-26A434");
+        record(&first, work, false);
+        // Its credential finds it again; another credential gets its own name
+        assert_eq!(i.base_for("26A434", Some(work), None), first);
+        let second = p.bases().join("mac-base-26A434-home");
+        assert_eq!(i.base_for("26A434", Some(home), None), second);
+        record(&second, home, true);
+        assert_eq!(i.base_for("26A434", Some(home), None), second);
+        // A slug taken by another credential: numbered; without a slug the ID
+        assert_eq!(i.base_for("26A434", Some(("c-3", "home")), None), p.bases().join("mac-base-26A434-home-2"));
+        assert_eq!(i.base_for("26A434", Some(("c-4", "…")), None), p.bases().join("mac-base-26A434-c-4"));
+        // Replacing: never the base being replaced
+        assert_eq!(i.base_for("26A434", Some(work), Some(&first)), p.bases().join("mac-base-26A434-work"));
+        // Another build: its plain name again
+        assert_eq!(i.base_for("27A1", Some(home), None), p.bases().join("mac-base-27A1"));
+        // The newest base per credential (ready ones only)
+        assert_eq!(crate::mac_image_builder::MacImageBuilder::newest_base_for(&p, Some("c-2")), None);
+        fs::write(second.join(MacBaseInstaller::READY_MARKER), "u\n").unwrap();
+        fs::write(first.join(MacBaseInstaller::READY_MARKER), "u\n").unwrap();
+        assert_eq!(crate::mac_image_builder::MacImageBuilder::newest_base_for(&p, Some("c-2")), Some(second.clone()));
+        assert_eq!(crate::mac_image_builder::MacImageBuilder::newest_base_for(&p, Some("c-1")), Some(first.clone()));
+        assert_eq!(crate::mac_image_builder::MacImageBuilder::base_for_credential(&p, Some("c-9")), None);
+        let listed = MacBaseInstaller::list(&p);
+        assert!(listed.iter().all(|b| b.newest));
+        assert_eq!(
+            listed.iter().find(|b| b.path == first).and_then(|b| b.record.clone()).map(|r| r.own_key),
+            Some(false)
+        );
+    }
+
+    /// Plan B166: Create Again – the new base takes the old one's name once the old one is gone
+    #[test]
+    fn a_replaced_base_gives_its_name_to_the_new_one() {
+        let (_t, p) = temp_paths();
+        let i = installer(&p, "/usr/bin/false");
+        let make = |name: &str, build: &str| {
+            let dir = p.bases().join(name);
+            fs::create_dir_all(&dir).unwrap();
+            MacVmBundle::new(&dir)
+                .save(&crate::mac_vm::MacVmConfig::new(4, 8192, 80, "02:00:00:00:00:01", Some(build.into())))
+                .unwrap();
+            BaseRecord {
+                credential: "c-1".into(),
+                credential_name: "Work".into(),
+                user: "u".into(),
+                own_key: true,
+                version: None,
+            }
+            .write(&dir)
+            .unwrap();
+            dir
+        };
+        let old = make("mac-base-26A434", "26A434");
+        let new = make("mac-base-26A434-work", "26A434");
+        let lines = Mutex::new(Vec::new());
+        let now = i.supersede(&old, &new, &|l: &str| lines.lock().unwrap().push(l.to_string())).unwrap();
+        assert_eq!(now, old);
+        assert!(!new.exists() && BaseRecord::of(&old).is_some());
+        assert_eq!(lines.lock().unwrap().len(), 2);
+        // A newer build keeps its own name
+        let newer = make("mac-base-27A1", "27A1");
+        assert_eq!(i.supersede(&old, &newer, &|_: &str| {}).unwrap(), newer);
+        assert!(!old.exists());
     }
 
     /// A stand-in runner whose `install <dir> …` writes a config.json with the build, or fails

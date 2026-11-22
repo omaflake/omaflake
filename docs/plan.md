@@ -502,7 +502,7 @@ maintainer tries 0.7.0–0.7.3 (clicks in the apps; a VM's loading screen and ke
 running guest or a real Linux desktop (docs/linux.md) – and **M12** once the Developer ID is there. GitHub Pages of omaflake and website already publish
 through Actions (checked 2026-11-04: `build_type` workflow, domains omaflake.dev and omaflake.app).
 
-**B165 (2026-11-22, found, not built): a new app keeps talking to the old core service.** The maintainer replaced
+**B165 (2026-11-22, built for 0.7.4): a new app keeps talking to the old core service.** Built: `initialize`'s `core {executable, size, modified}`; the app (and the CLI) compare it with their own `omaf` and call `service.restart`, then connect to their own service once the old one ended (VMs keep running); a notice while it waits for jobs. Also in this round-up: a stop whose clean shutdown cannot be asked or takes over 60 s forces the VM off with a log line and an activity warning; a macOS build VM can be shown in a window (`window`). OPEN: tried against a real older service, a forced stop and `--window` on the maintainer's Mac. The maintainer replaced
 /Applications/omaflake.app; the running `omaf serve --socket` (started 8 h before by the old app, idle-exit never
 reached while a VM runs) stayed, the new app connected to it, and VMs, builds and the diagnosis ran the old code – the
 Doctor's "App 0.7.4 · Core 0.7.4" could not tell (same version). Wanted: the core reports a build identity (the
@@ -510,14 +510,13 @@ executable's hash or mtime and path), the app compares it with its own bundled `
 old service to stop after its jobs and starts its own (or says so); the CLI the same. Meanwhile: quit the app,
 `pkill -f "omaf serve"`, start it again.
 
-**B166 (2026-11-22, wish of the maintainer – noted, not built): several macOS bases per macOS build, one per
-credential.** A base carries its user (the credential it was made with), so every image of it has that user; with one
+**B166 (2026-11-22, built for 0.7.4): several macOS bases per macOS build, one per credential.** Built: base names per build and credential (the first keeps `mac-base-<build>`), the base record v2 with `ownKey` and `version` (docs/schema/base/v2.json; a v1 record reads as without omaflake's key), `macos.installBase {replace}` (the new base first, then the old one removed), `macos.removeBase` (refused while a build uses it), the build page's credential field and its note, the macBase page's bases list, the Doctor ok when the default credential has a ready base, CLI `omaf macos install --credential --replace`, `omaf macos remove`. OPEN: creating and replacing a base on the maintainer's Mac. A base carries its user (the credential it was made with), so every image of it has that user; with one
 base per build a second credential cannot make macOS images. Wanted: bases named per build and credential
 (`mac-base-<build>-<credential>`), the build page picking the base of its credential (offering to create it),
 "Create Again" for a base (e.g. one from before omaflake's own SSH key, B160 – its builds still need the user's key in
 the ssh-agent) and "Remove", the existing base assigned to its credential once.
 
-**B164 (2026-11-22, found, not built): a VM's resources cannot be changed.** `omaf set` and the VM's details change
+**B164 (2026-11-22, cores and memory built for 0.7.4; the disk OPEN): a VM's resources cannot be changed.** Built: `vms.set {cpus, memoryGb}` for a stopped VM (limits from the host; macOS VMs also write the bundle's config.json, which the runner reads), the VM's details fields, `omaf set --cpus --memory`. `omaf set` and the VM's details change
 sound, microphone, clipboard, camera, MIDI and the window, but not CPU cores, memory or the disk size – a VM keeps what
 it was created with (the maintainer's development VM: 4 cores, 8 GB, 75 GB, too small for builds). Cores and memory
 are a line in the instance's config (VZ and QEMU read them at start); a larger disk needs the image grown and the

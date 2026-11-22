@@ -192,22 +192,43 @@ pub(crate) fn ctx() -> Ctx {
             is_default: true,
             images: vec!["omaflake.nixos.dev@cedar-mango-lift".into()],
         }],
-        bases: vec![crate::api::types::BaseDto {
-            name: "mac-base-26A434".into(),
-            path: "/data/bases/mac-base-26A434".into(),
-            os_build: Some("26A434".into()),
-            user: Some("alex".into()),
-            ready: true,
-            newest: true,
-            created: Some(fx::date("2026-10-17T10:00:00Z")),
-            size_bytes: Some(41_000_000_000),
-            credential: Some("c-1".into()),
-            credential_name: Some("Work".into()),
-        }],
+        bases: vec![
+            crate::api::types::BaseDto {
+                name: "mac-base-26A434".into(),
+                path: "/data/bases/mac-base-26A434".into(),
+                os_build: Some("26A434".into()),
+                user: Some("alex".into()),
+                ready: true,
+                newest: true,
+                created: Some(fx::date("2026-10-17T10:00:00Z")),
+                size_bytes: Some(41_000_000_000),
+                credential: Some("c-1".into()),
+                credential_name: Some("Work".into()),
+                own_key: true,
+                version: Some("27.0.1".into()),
+                in_use: false,
+            },
+            crate::api::types::BaseDto {
+                name: "mac-base-25F71".into(),
+                path: "/data/bases/mac-base-25F71".into(),
+                os_build: Some("25F71".into()),
+                user: Some("alex".into()),
+                ready: true,
+                newest: false,
+                created: Some(fx::date("2026-09-01T10:00:00Z")),
+                size_bytes: Some(39_000_000_000),
+                credential: Some("c-1".into()),
+                credential_name: Some("Work".into()),
+                own_key: false,
+                version: None,
+                in_use: true,
+            },
+        ],
         settings: answer.settings.clone(),
         settings_answer: Some(answer),
         default_data_folder: "/home/.omaflake".into(),
         mac_max: 2,
+        vm_limits: crate::platform::VmLimits { max_cpus: 10, max_memory_gb: 30 },
         activity: vec![
             ActivityEntry {
                 id: 2,
@@ -775,19 +796,43 @@ fn build_page_follows_the_job() {
     c.recipes.recipes[0].runs_here = true;
     c.jobs.retain(|j| j.id != "j2");
     c.doctor.as_mut().unwrap().build_blockers.macos.clear();
-    // The form: the base's credential (fixed) and the default look
+    // The form (plan B166): the credential is chosen – an unknown one falls back to the default, which has a base
     let page = get(&c, "build", json!({"recipe": "lab.macos.base@ocean-maple", "values": {"credential": "c-9"}}));
     let build = action(&page["actions"], "build");
     assert!(build.get("ask").is_none());
+    assert_eq!(build["enabled"], true);
     assert_eq!(
         build["params"],
-        json!({"recipe": "lab.macos.base@ocean-maple", "credential": "c-1", "look": "omaflake.look.rose-pine-dawn", "locale": "l-1"})
+        json!({"recipe": "lab.macos.base@ocean-maple", "credential": "c-1", "look": "omaflake.look.rose-pine-dawn", "locale": "l-1", "window": false})
     );
     let fields: Vec<&str> = page["fields"].as_array().unwrap().iter().map(|f| f["id"].as_str().unwrap()).collect();
-    assert_eq!(fields, ["credential", "look", "locale"]);
+    assert_eq!(fields, ["credential", "look", "locale", "window"]);
     assert_eq!(page["fields"][0]["valueParam"], "credential");
+    assert_eq!(page["fields"][0]["enabled"], true);
     assert_eq!(page["fields"][0]["choices"][0]["label"]["text"], "Work – alex");
-    assert_eq!(page["fields"][0]["enabled"], false, "the base's credential");
+    assert!(page.get("macBase").is_none());
+    // Show the build VM: into the build's params
+    let page = get(&c, "build", json!({"recipe": "lab.macos.base@ocean-maple", "values": {"window": true}}));
+    assert_eq!(action(&page["actions"], "build")["params"]["window"], true);
+    // A credential without a base: the build waits, the note offers to create its base
+    let mut other = c.clone();
+    let mut second = other.credentials[0].clone();
+    second.id = "c-2".into();
+    second.name = "Home".into();
+    other.credentials.push(second);
+    let home = get(&other, "build", json!({"recipe": "lab.macos.base@ocean-maple", "values": {"credential": "c-2"}}));
+    let home_build = action(&home["actions"], "build");
+    assert_eq!(
+        (home_build["enabled"].clone(), home_build["reason"]["text"].clone()),
+        (json!(false), json!("No macOS base for Home yet"))
+    );
+    assert_eq!(home["macBase"]["action"]["label"]["text"], "Create Base for Home …");
+    assert_eq!(
+        home["macBase"]["action"]["params"],
+        json!({"page": "macBase", "params": {"values": {"credential": "c-2"}}})
+    );
+    let page = get(&c, "build", json!({"recipe": "lab.macos.base@ocean-maple"}));
+    let build = action(&page["actions"], "build");
     // The installed looks (plan B141), the default preset; no "recipe's own" any more
     let looks: Vec<&str> =
         page["fields"][1]["choices"].as_array().unwrap().iter().map(|c| c["value"].as_str().unwrap()).collect();
@@ -1269,6 +1314,51 @@ fn mac_base_page() {
         (json!("credential"), json!("credential"))
     );
     assert_eq!(create["primary"], true);
+    // Every base with Create Again and Remove (plan B166); one before omaflake's own key says so
+    let rows = page["bases"].as_array().unwrap();
+    assert_eq!(rows.len(), 2);
+    assert_eq!(
+        (rows[0]["name"].clone(), rows[0]["build"].clone(), rows[0]["version"].clone(), rows[0]["credential"].clone()),
+        (json!("mac-base-26A434"), json!("26A434"), json!("27.0.1"), json!("Work"))
+    );
+    assert_eq!(rows[0]["ownKey"], true);
+    assert!(rows[0].get("hint").is_none());
+    assert_eq!(ids(&rows[0]["actions"]), ["recreate", "remove"]);
+    let again = action(&rows[0]["actions"], "recreate");
+    assert_eq!(
+        (again["method"].clone(), again["params"].clone()),
+        (
+            json!("macos.installBase"),
+            json!({"credential": "c-1", "replace": "mac-base-26A434", "ipsw": "/x/UniversalMac.ipsw"})
+        )
+    );
+    assert!(again["confirm"].is_object());
+    assert_eq!(rows[1]["ownKey"], false);
+    assert!(rows[1]["hint"]["text"]["key"].as_str().unwrap().starts_with("Made before omaflake's own SSH key"));
+    // An image build uses it: neither Create Again nor Remove now
+    assert_eq!(action(&rows[1]["actions"], "remove")["enabled"], false);
+    assert_eq!(action(&rows[1]["actions"], "recreate")["enabled"], false);
+}
+
+#[test]
+fn a_vm_shows_its_cores_and_memory_as_fields() {
+    let c = ctx();
+    let page = get(&c, "vms", json!({}));
+    for row in page["rows"].as_array().unwrap() {
+        let fields = row["detail"]["fields"].as_array().unwrap();
+        assert_eq!(ids(&row["detail"]["fields"]), ["cpus", "memoryGb"]);
+        let name = row["name"].clone();
+        let running = row["vm"]["status"] == "running";
+        for f in fields {
+            assert_eq!(f["kind"], "number");
+            assert_eq!(f["set"]["method"], "vms.set");
+            assert_eq!(f["set"]["params"], json!({"name": name}));
+            assert_eq!(f["set"]["param"], f["id"]);
+            assert_eq!(f["enabled"], !running && row["vm"]["busy"] == false);
+        }
+        assert_eq!((fields[0]["min"].clone(), fields[1]["min"].clone()), (json!(1), json!(2)));
+        assert_eq!((fields[0]["max"].clone(), fields[1]["max"].clone()), (json!(10), json!(30)));
+    }
 }
 
 // MARK: Settings
@@ -1857,8 +1947,8 @@ fn credentials_are_rows_and_a_used_one_keeps_its_values() {
     let work = &page["rows"][0];
     // A row as the other lists: lamp (in use), name, subtitle, the quick action; the rest when opened
     assert_eq!(work["lamp"]["state"], "on");
-    assert_eq!(work["subtitle"]["text"], "alex · 1 image · 1 macOS base");
-    assert_eq!(work["usedBy"], json!(["omaflake.nixos.dev@cedar-mango-lift", "mac-base-26A434"]));
+    assert_eq!(work["subtitle"]["text"], "alex · 1 image · 2 macOS bases");
+    assert_eq!(work["usedBy"], json!(["omaflake.nixos.dev@cedar-mango-lift", "mac-base-26A434", "mac-base-25F71"]));
     assert_eq!(ids(&work["actions"]), ["copyPassword"]);
     assert_eq!(work["actions"][0]["enabled"], true);
     assert_eq!(ids(&work["detail"]["actions"]), ["edit", "password", "default", "remove"]);
@@ -1922,12 +2012,11 @@ fn macos_bases_are_a_section_of_the_images_on_a_mac() {
     assert_eq!(row["badges"][0]["id"], "newest");
     assert!(row["subtitle"]["text"].as_str().unwrap().starts_with("macOS 26A434 · Work (alex)"));
     assert!(row["actions"].as_array().unwrap().iter().all(|a| a["id"] != "assign"));
-    // A macOS build runs: the base stays
-    assert_eq!(action(&row["actions"], "remove")["enabled"], false);
+    let remove = action(&row["actions"], "remove");
+    assert_eq!((remove["enabled"].clone(), remove["method"].clone()), (json!(true), json!("macos.removeBase")));
+    // An image build uses the older base (plan B166): it stays
+    assert_eq!(action(&bases["rows"][1]["actions"], "remove")["enabled"], false);
     c.jobs.clear();
-    let page = get(&c, "images", json!({}));
-    let remove = action(&page["bases"]["rows"][0]["actions"], "remove");
-    assert_eq!((remove["enabled"].clone(), remove["method"].clone()), (json!(true), json!("bases.remove")));
     // A base from before credentials: a warning and the way to assign one – the form takes the one with its user
     c.bases[0].credential = None;
     c.bases[0].credential_name = None;

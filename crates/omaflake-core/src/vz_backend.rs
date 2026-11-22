@@ -46,6 +46,9 @@ pub struct VzBackend {
 }
 
 impl VzBackend {
+    /// How long the runner's stop request may take when SSH cannot ask the guest (plan B165 round-up)
+    pub const REQUEST_WAIT: Duration = Duration::from_secs(15);
+
     /// Virtualization.framework runs at most two macOS VMs per Mac (plan BM16).
     pub const MAX_RUNNING: usize = 2;
 
@@ -127,6 +130,16 @@ impl VzBackend {
             &RunOptions::default(),
         )?;
         let vm = MacVmBundle::new(ip.vm());
+        let mut cfg = vm.load_config()?;
+        cfg.cpus = c.cpus;
+        cfg.memory_mb = c.memory_gb * 1024;
+        vm.save(&cfg)
+    }
+
+    /// Cores and memory of a stopped macOS VM into its folder's config.json – the runner reads them at start (plan
+    /// B164)
+    pub(crate) fn apply_resources(paths: &Paths, c: &InstanceConfig) -> Result<()> {
+        let vm = MacVmBundle::new(paths.instance(&c.name).vm());
         let mut cfg = vm.load_config()?;
         cfg.cpus = c.cpus;
         cfg.memory_mb = c.memory_gb * 1024;
@@ -390,26 +403,45 @@ impl VmBackend for VzBackend {
     /// Shutdown via SSH (`sudo -n /sbin/shutdown -h now`, allowed by darwin-guest.nix; a stop request from the
     /// runner hangs on the guest's confirmation dialog when a user is logged in, plan BM17) → runner stop request
     /// → after `timeout` the runner forces the VM off → SIGKILL.
+    /// A clean shutdown: `sudo shutdown -h now` over SSH (plan BM17). When SSH cannot ask (no address, refused,
+    /// sudo without the password), the runner's `stop` (Virtualization.framework's request, the power button) gets
+    /// `REQUEST_WAIT`; a guest still running after `timeout` (or that wait) is forced off – `kill`, then SIGKILL. A
+    /// forced end is a line in runner.log (plan B165 round-up).
     fn stop(&self, c: &InstanceConfig, timeout: Duration) -> Result<StopResult> {
         let Some(pid) = self.pid(c) else { return Ok(StopResult::AlreadyStopped) };
         let socket = self.paths.instance(&c.name).runner_socket();
-        if let Some(host) = self.address(c) {
-            let shutdown = ["sudo", "-n", "/sbin/shutdown", "-h", "now"].map(String::from);
-            let _ = run_ok(&self.ssh_arguments_to(c, &host, &shutdown, true));
+        let asked = match self.address(c) {
+            Some(host) => {
+                let shutdown = ["sudo", "-n", "/sbin/shutdown", "-h", "now"].map(String::from);
+                run_ok(&self.ssh_arguments_to(c, &host, &shutdown, true))
+            }
+            None => false,
+        };
+        let wait = if asked {
+            timeout
         } else {
             let _ = RunnerClient::send("stop", &socket, RunnerClient::DEFAULT_TIMEOUT);
-        }
-        if spawn::wait_for_exit(pid, timeout) {
+            timeout.min(Self::REQUEST_WAIT)
+        };
+        if spawn::wait_for_exit(pid, wait) {
             return Ok(StopResult::Powerdown);
         }
-        if RunnerClient::send("kill", &socket, RunnerClient::DEFAULT_TIMEOUT).is_ok()
+        let why = if asked {
+            format!("still running {} s after the shutdown over SSH", wait.as_secs())
+        } else {
+            "the shutdown could not be asked over SSH".to_string()
+        };
+        let result = if RunnerClient::send("kill", &socket, RunnerClient::DEFAULT_TIMEOUT).is_ok()
             && spawn::wait_for_exit(pid, Duration::from_secs(10))
         {
-            return Ok(StopResult::ForcedOff);
-        }
-        spawn::send_signal(pid, libc::SIGKILL);
-        spawn::wait_for_exit(pid, Duration::from_secs(5));
-        Ok(StopResult::Killed)
+            StopResult::ForcedOff
+        } else {
+            spawn::send_signal(pid, libc::SIGKILL);
+            spawn::wait_for_exit(pid, Duration::from_secs(5));
+            StopResult::Killed
+        };
+        note_in_runner_log(&self.paths.instance(&c.name).runner_log(), &format!("omaflake: {result} – {why}"));
+        Ok(result)
     }
 
     fn status(&self, c: &InstanceConfig) -> VmStatus {
@@ -508,6 +540,14 @@ fn guest_helpers_command(c: &InstanceConfig) -> String {
 }
 
 /// Runs `args` (program first); true when it exited with 0
+/// Appends a line with the time to a VM's runner.log (best effort)
+fn note_in_runner_log(file: &Path, line: &str) {
+    use std::io::Write;
+    if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open(file) {
+        let _ = writeln!(f, "[{}] {line}", chrono::Local::now().format("%Y-%m-%d %H:%M:%S"));
+    }
+}
+
 fn run_ok(args: &[String]) -> bool {
     let Some((exe, rest)) = args.split_first() else { return false };
     Shell::run(exe, rest, &RunOptions::default()).is_ok_and(|r| r.status == 0)
@@ -595,6 +635,45 @@ pub(crate) mod tests {
             VzBackend::check_network(NetworkMode::Shared).is_ok()
                 && VzBackend::check_network(NetworkMode::None).is_ok()
         );
+    }
+
+    /// Plan B165 round-up: a guest that cannot be asked over SSH (no network here) and does not end on the runner's
+    /// request is forced off, and runner.log says why
+    #[test]
+    fn a_guest_that_cannot_be_asked_is_forced_off() {
+        let (_t, p) = temp_paths();
+        let vz = backend(&p, "/usr/bin/false");
+        let c = mac_config("m1", NetworkMode::None);
+        let ip = p.instance(&c.name);
+        std::fs::create_dir_all(&ip.dir).unwrap();
+        std::fs::create_dir_all(&ip.run).unwrap();
+        // A process whose path names omaf-runner: a copy of sleep
+        let fake = p.root.join("omaf-runner");
+        std::fs::create_dir_all(&fake).unwrap();
+        std::fs::copy("/bin/sleep", fake.join("sleep")).unwrap();
+        // A copied system binary needs a signature of its own on macOS
+        if cfg!(target_os = "macos") {
+            let signed = std::process::Command::new("/usr/bin/codesign")
+                .args(["-f", "-s", "-"])
+                .arg(fake.join("sleep"))
+                .output()
+                .is_ok_and(|o| o.status.success());
+            if !signed {
+                eprintln!("skipped: codesign could not sign the stand-in runner");
+                return;
+            }
+        }
+        let mut child = std::process::Command::new(fake.join("sleep")).arg("30").spawn().unwrap();
+        std::fs::write(ip.runner_pid(), format!("{}\n", child.id())).unwrap();
+        assert_eq!(vz.status(&c), VmStatus::Running);
+        let started = Instant::now();
+        let result = vz.stop(&c, Duration::from_secs(60)).unwrap();
+        let _ = child.wait();
+        // No socket for `kill`: SIGKILL – after the short wait for the request, not the whole timeout
+        assert_eq!(result, StopResult::Killed);
+        assert!(started.elapsed() < Duration::from_secs(40), "{:?}", started.elapsed());
+        let log = std::fs::read_to_string(ip.runner_log()).unwrap();
+        assert!(log.contains("omaflake: killed (SIGKILL) – the shutdown could not be asked over SSH"), "{log}");
     }
 
     #[test]

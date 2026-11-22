@@ -17,10 +17,13 @@ public final class CoreClient: @unchecked Sendable {
         public let toServer: FileHandle
         public let fromServer: FileHandle
         public let terminate: @Sendable () -> Void
+        /// The service's socket; nil for a private server (plan B165: only a service is handed over)
+        public let socket: String?
 
-        public init(toServer: FileHandle, fromServer: FileHandle, terminate: @escaping @Sendable () -> Void) {
+        public init(toServer: FileHandle, fromServer: FileHandle, socket: String? = nil, terminate: @escaping @Sendable () -> Void) {
             self.toServer = toServer
             self.fromServer = fromServer
+            self.socket = socket
             self.terminate = terminate
         }
     }
@@ -45,6 +48,15 @@ public final class CoreClient: @unchecked Sendable {
     private var pending: [Int: (generation: Int, continuation: CheckedContinuation<Data, Error>)] = [:]
     private var waitingForReady: [CheckedContinuation<Void, Error>] = []
     private var failures = 0
+    /// This client's own `omaf` (plan B165); nil: whichever core runs is fine
+    private let ownCore: CoreIdentity?
+    /// The other core asked to restart, and its socket – until this client is connected again
+    private var handover: (core: CoreIdentity?, socket: String)?
+    /// Cores asked to restart that then ended: one that comes back (an installed agent of another omaf) is used as it
+    /// is, not asked again – no loop
+    private var ended: [CoreIdentity?] = []
+    /// How long to wait for the old service's socket to go after the connection to it ended, and the pauses between looks
+    private let handoverPolls: [Duration]
     /// What `initialize` answered last
     public private(set) var session: InitializeResult? {
         get { lock.withLock { _session } }
@@ -52,14 +64,20 @@ public final class CoreClient: @unchecked Sendable {
     }
     private var _session: InitializeResult?
 
+    /// `ownCore`: the `omaf` this client brings (`CoreIdentity.of(executable:)`) – a service of another one is asked to
+    /// restart, and this client connects again once it has ended (plan B165)
     public init(launcher: @escaping Launcher, initialize: InitializeParams, topics: [String] = ServerEvent.topics,
-                restartDelays: [Duration] = [.seconds(1), .seconds(2), .seconds(5), .seconds(15), .seconds(30)]) {
+                restartDelays: [Duration] = [.seconds(1), .seconds(2), .seconds(5), .seconds(15), .seconds(30)],
+                ownCore: CoreIdentity? = nil,
+                handoverPolls: [Duration] = [.milliseconds(100), .milliseconds(200), .milliseconds(500), .seconds(1), .seconds(2)]) {
         // Writing to a server that just ended must be an error, not SIGPIPE ending the app
         signal(SIGPIPE, SIG_IGN)
         self.launcher = launcher
         self.initialize = initialize
         self.topics = topics
         self.restartDelays = restartDelays.isEmpty ? [.seconds(1)] : restartDelays
+        self.ownCore = ownCore
+        self.handoverPolls = handoverPolls.isEmpty ? [.milliseconds(100)] : handoverPolls
         (events, eventSink) = AsyncStream.makeStream(of: ServerEvent.self, bufferingPolicy: .unbounded)
     }
 
@@ -141,6 +159,7 @@ public final class CoreClient: @unchecked Sendable {
             guard let waiters else { return }
             eventSink.yield(.connected(result))
             waiters.forEach { $0.resume() }
+            checkCore(result, socket: conn.socket, generation: gen)
         } catch {
             conn.terminate()
             failed("\(error.localizedDescription)", generation: gen)
@@ -172,10 +191,73 @@ public final class CoreClient: @unchecked Sendable {
         state.open.forEach { $0.resume(throwing: error) }
         state.waiters.forEach { $0.resume(throwing: error) }
         eventSink.yield(.disconnected(reason))
+        let old = lock.withLock { handover }
         Task.detached {
+            // After a handover: the old service's socket gone first, so that the next start brings this client's own
+            if let old, await self.waitUntilGone(old.socket) {
+                self.lock.withLock { self.ended.append(old.core) }
+            }
             try? await Task.sleep(for: state.delay)
             self.start()
         }
+    }
+
+    // MARK: Which core (plan B165)
+
+    /// Compares the service's core with this client's own; another one is asked to restart once (`service.restart`),
+    /// and this client goes on with it until it ends – then `failed` connects again, to this client's own
+    private func checkCore(_ result: InitializeResult, socket: String?, generation gen: Int) {
+        guard let ownCore, let socket else { return }
+        enum Step { case none, ask, kept }
+        let step = lock.withLock { () -> Step in
+            handover = nil
+            if ownCore.isSame(as: result.core) { ended = []; return .none }
+            if ended.contains(result.core) { return .kept }
+            handover = (result.core, socket)
+            return .ask
+        }
+        switch step {
+        case .none: return
+        case .kept:
+            eventSink.yield(.coreHandover(.kept))
+        case .ask:
+            Task.detached {
+                struct Restart: Decodable { let jobs: Int }
+                do {
+                    let r: Restart = try await self.request("service.restart", Optional<[String: String]>.none, generation: gen)
+                    self.eventSink.yield(.coreHandover(.waiting(jobs: r.jobs)))
+                } catch {
+                    // Not asked after all (the connection ended meanwhile, or the core refused): try again next time
+                    self.lock.withLock {
+                        if self.handover?.socket == socket, self.generation == gen { self.handover = nil }
+                    }
+                    FileHandle.standardError.write(Data("omaflake: service.restart failed: \(error.localizedDescription)\n".utf8))
+                }
+            }
+        }
+    }
+
+    /// Waits (bounded, with growing pauses) until nothing answers on `socket` any more: the file is gone or refuses
+    /// connections – true then, false after `limit`. Never ends the service itself.
+    @discardableResult
+    func waitUntilGone(_ socket: String, limit: Duration = .seconds(30)) async -> Bool {
+        let clock = ContinuousClock()
+        let deadline = clock.now + limit
+        var i = 0
+        while clock.now < deadline {
+            if !Self.answers(socket) { return true }
+            try? await Task.sleep(for: handoverPolls[min(i, handoverPolls.count - 1)])
+            i += 1
+        }
+        FileHandle.standardError.write(Data("omaflake: the old core service still answers on \(socket) – connecting anyway\n".utf8))
+        return false
+    }
+
+    /// Whether a server accepts connections on `socket` (connecting to a Unix socket does not block)
+    static func answers(_ socket: String) -> Bool {
+        guard FileManager.default.fileExists(atPath: socket), let fd = try? connectUnix(socket, timeout: 0) else { return false }
+        close(fd)
+        return true
     }
 
     // MARK: Requests
@@ -371,7 +453,8 @@ public final class CoreClient: @unchecked Sendable {
         _ = fcntl(writeFD, F_SETFD, FD_CLOEXEC)
         let reading = FileHandle(fileDescriptor: fd, closeOnDealloc: true)
         let writing = FileHandle(fileDescriptor: writeFD, closeOnDealloc: true)
-        return Connection(toServer: writing, fromServer: reading, terminate: { _ = Darwin.shutdown(reading.fileDescriptor, SHUT_RDWR) })
+        return Connection(toServer: writing, fromServer: reading, socket: path,
+                          terminate: { _ = Darwin.shutdown(reading.fileDescriptor, SHUT_RDWR) })
     }
 
     /// Starts `<executable> serve` as a child process; its stderr goes where this process' goes

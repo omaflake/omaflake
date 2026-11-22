@@ -78,7 +78,8 @@ extension APIContractTests {
                 #expect(p.head.count == 2 && !p.jobs.isEmpty && p.rows.count == 2)
                 // On a Mac the macOS bases are a section of their own (plan B137)
                 let bases = try #require(p.bases)
-                #expect(bases.rows.map(\.name) == ["mac-base-26A434"] && bases.rows[0].actions.map(\.id) == ["reveal", "remove"])
+                // A base per macOS build and credential (plan B166)
+                #expect(bases.rows.map(\.name) == ["mac-base-26A434", "mac-base-25F71"] && bases.rows[0].actions.map(\.id) == ["reveal", "remove"])
                 let job = try #require(p.jobs.first)
                 #expect(job.state == .running && job.fraction != nil && job.actions.first?.method == "jobs.cancel")
                 #expect(job.open.method == "ui.show" && job.open.params["page"] == .string("build") && job.open.primary)
@@ -171,7 +172,8 @@ extension APIContractTests {
                 guard case .build(let p) = try page("build.macos", as: "build") else { throw Unexpected() }
                 // The default credential has a stored password: nothing is asked (plan B137)
                 #expect(p.state == .idle && p.actions.first?.ask.isEmpty == true && p.badges.first?.id == "lab")
-                #expect(p.fields?.map(\.id) == ["credential", "look", "locale"] && p.fields?.first?.valueParam == "credential")
+                // "Show the build VM" for macOS builds (plan B165 round-up)
+                #expect(p.fields?.map(\.id) == ["credential", "look", "locale", "window"] && p.fields?.first?.valueParam == "credential")
             },
             "doctor": {
                 guard case .doctor(let p) = try page("doctor", as: "doctor") else { throw Unexpected() }
@@ -206,7 +208,8 @@ extension APIContractTests {
                 guard case .credentials(let p) = try page("credentials", as: "credentials") else { throw Unexpected() }
                 // A row as the other lists: in use (lamp, by whom), the quick Copy Password, the rest when opened
                 #expect(p.rows.map(\.name) == ["Work"] && p.rows[0].badges.map(\.id) == ["default"])
-                #expect(p.rows[0].lamp.state == .on && p.rows[0].usedBy.count == 2 && p.rows[0].actions.map(\.id) == ["copyPassword"])
+                // an image and two bases use it (plan B166)
+                #expect(p.rows[0].lamp.state == .on && p.rows[0].usedBy.count == 3 && p.rows[0].actions.map(\.id) == ["copyPassword"])
                 #expect(p.rows[0].detail.actions.map(\.id) == ["edit", "password", "default", "remove"])
                 #expect(p.add.method == "ui.show" && p.add.params["page"] == .string("credential"))
             },
@@ -376,6 +379,72 @@ extension APIContractTests {
     }
 
     struct Unexpected: Error {}
+
+    /// A golden page with some of its keys changed (`path`: keys down to the object that gets `value` under `key`)
+    func patched(_ name: String, _ path: [String], _ key: String, _ value: Any) throws -> Data {
+        let root = try #require(viewObject(name).mutableCopy() as? NSMutableDictionary)
+        var object = root
+        for k in path {
+            let child = try #require((object[k] as? NSDictionary)?.mutableCopy() as? NSMutableDictionary)
+            object[k] = child
+            object = child
+        }
+        object[key] = value
+        return try JSONSerialization.data(withJSONObject: root)
+    }
+
+    /// The bases of the macBase page (plan B166) as api.md describes them – also while the golden file has none
+    @Test func macBaseRowsDecode() throws {
+        let remove: [String: Any] = ["id": "remove", "label": ["key": "Remove …", "text": "Remove …"], "method": "macos.removeBase",
+                                     "params": ["name": "mac-base-26A434"], "enabled": true, "destructive": true, "icon": "remove",
+                                     "confirm": ["title": ["text": "Remove mac-base-26A434?"], "text": ["text": "It cannot be undone."],
+                                                 "button": ["text": "Remove"], "destructive": true]]
+        let recreate: [String: Any] = ["id": "recreate", "label": ["key": "Create Again …", "text": "Create Again …"],
+                                       "method": "macos.installBase", "params": ["credential": "c-1", "replace": "mac-base-26A434"],
+                                       "enabled": true, "icon": "create",
+                                       "confirm": ["title": ["text": "Create mac-base-26A434 again?"], "text": ["text": "The new one replaces it once ready."],
+                                                   "button": ["text": "Create Again"], "destructive": false]]
+        let bases: [[String: Any]] = [
+            ["name": "mac-base-26A434", "build": "26A434", "version": "26.0", "credential": "Work – alex", "user": "alex",
+             "created": "2026-10-20T08:00:00Z", "ownKey": false,
+             "hint": ["icon": "warning", "tone": "warning",
+                      "text": ["key": "Made before omaflake's own SSH key – its builds need your key in the ssh-agent. Create it again.",
+                               "text": "Made before omaflake's own SSH key – its builds need your key in the ssh-agent. Create it again."]],
+             "actions": [recreate, remove]],
+            ["name": "mac-base-26A434-home", "build": "26A434", "version": "26.0", "credential": "Home – sam",
+             "user": "sam", "created": "2026-11-20T08:00:00.123Z", "ownKey": true, "actions": []],
+        ]
+        let page = try PageModel.decode(page: "macBase", from: try patched("macBase", [], "bases", bases))
+        guard case .macBase(let p) = page else { throw Unexpected() }
+        #expect(p.bases.map(\.name) == ["mac-base-26A434", "mac-base-26A434-home"])
+        #expect(p.bases[0].ownKey == false && p.bases[0].hint?.text.key?.hasPrefix("Made before") == true && p.bases[0].hint?.tone == .warning && p.bases[0].user == "alex")
+        #expect(p.bases[0].credential?.text == "Work – alex" && p.bases[1].credential?.text == "Home – sam")
+        #expect(p.bases[0].actions.map(\.id) == ["recreate", "remove"] && p.bases[0].actions[1].destructive)
+        #expect(p.bases[0].actions.allSatisfy { $0.confirm != nil } && p.bases[0].actions[0].params["replace"] == .string("mac-base-26A434"))
+        #expect(p.bases[0].created != nil && p.bases[1].created != nil && p.bases[1].ownKey && p.bases[1].hint == nil)
+        // A core before B166 sends none
+        let old = try #require(viewObject("macBase").mutableCopy() as? NSMutableDictionary)
+        old.removeObject(forKey: "bases")
+        guard case .macBase(let o) = try PageModel.decode(page: "macBase", from: try JSONSerialization.data(withJSONObject: old)) else { throw Unexpected() }
+        #expect(o.bases.isEmpty)
+    }
+
+    /// A VM's resources as fields of its details (plan B164) – also while the golden file has none; a field this app
+    /// cannot read is left out
+    @Test func vmDetailFieldsDecode() throws {
+        let cpus: [String: Any] = ["id": "cpus", "kind": "number", "label": ["key": "CPU cores", "text": "CPU cores"], "value": 4,
+                                   "min": 1, "max": 8, "enabled": true,
+                                   "set": ["method": "vms.set", "params": ["name": "research"], "param": "cpus"]]
+        let memory: [String: Any] = ["id": "memoryGb", "kind": "number", "label": ["key": "Memory (GB)", "text": "Memory (GB)"],
+                                     "value": 8, "min": 2, "max": 32, "enabled": false,
+                                     "reason": ["key": "Shut the VM down first", "text": "Shut the VM down first"],
+                                     "set": ["method": "vms.set", "params": ["name": "research"], "param": "memoryGb"]]
+        let broken: [String: Any] = ["id": "broken"]
+        let data = try patched("vm", ["row", "detail"], "fields", [cpus, memory, broken])
+        guard case .vm(let p) = try PageModel.decode(page: "vm", from: data) else { throw Unexpected() }
+        #expect(p.row.detail.fields.map(\.id) == ["cpus", "memoryGb"] && p.row.detail.fields.allSatisfy { $0.kind == .number })
+        #expect(p.row.detail.fields[0].set?.param == "cpus" && p.row.detail.fields[1].enabled == false)
+    }
 
     @Test func everyViewFileIsChecked() throws {
         let files = try FileManager.default.contentsOfDirectory(atPath: Self.viewFolder.path).filter { $0.hasSuffix(".json") }

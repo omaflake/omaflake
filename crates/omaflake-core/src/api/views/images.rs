@@ -192,12 +192,8 @@ pub(crate) fn page(ctx: &Ctx, p: &ImagesParams) -> ImagesPage {
     ImagesPage { head, jobs, rows, unreadable: unreadable(&ctx.unreadable_images), bases }
 }
 
-/// The macOS bases (plan B137): removing one is refused while a base is installed or a macOS image built
+/// The macOS bases (plan B137): removing one is refused while an image build uses it (plan B166)
 fn bases_section(ctx: &Ctx) -> BasesSection {
-    let busy = ctx.jobs.iter().any(|j| {
-        j.state.is_active()
-            && (j.kind == JobKind::MacosInstall || (j.kind == JobKind::Build && j.guest_kind == Some(GuestKind::Macos)))
-    });
     let rows = ctx
         .bases
         .iter()
@@ -221,7 +217,12 @@ fn bases_section(ctx: &Ctx) -> BasesSection {
             let mut badges = Vec::new();
             if b.newest {
                 badges.push(
-                    Badge::new("newest", "ok", Text::new("New macOS images are built from this base"), Tone::Accent)
+                    Badge::new(
+                        "newest",
+                        "ok",
+                        Text::new("New macOS images with its credential are built from this base"),
+                        Tone::Accent,
+                    )
                         .label(Text::new("newest")),
                 );
             }
@@ -253,7 +254,7 @@ fn bases_section(ctx: &Ctx) -> BasesSection {
             BaseRow {
                 name: b.name.clone(),
                 lamp: if b.newest {
-                    Lamp::new(LampState::On, "New macOS images are built from it")
+                    Lamp::new(LampState::On, "New macOS images with its credential are built from it")
                 } else {
                     Lamp::new(LampState::Off, "Not used for new images")
                 },
@@ -277,17 +278,14 @@ fn bases_section(ctx: &Ctx) -> BasesSection {
                         "ui.reveal",
                         json!({"path": b.path}),
                     )),
-                    Action::call("remove", Text::new("Remove …"), Some("trash"), "bases.remove", json!({"name": b.name}))
+                    Action::call("remove", Text::new("Remove …"), Some("trash"), "macos.removeBase", json!({"name": b.name}))
                         .destructive()
                         .confirm(
                             Confirm::new(tf!("Remove the macOS base “%@”?", &b.name), remove_text)
                                 .button("Remove")
                                 .destructive(),
                         )
-                        .enabled_if(
-                            !busy,
-                            Some(Text::new("A macOS base is being installed or a macOS image built – wait until it ends")),
-                        )
+                        .enabled_if(!b.in_use, Some(Text::new("An image build uses it – wait until it ends")))
                         .into(),
                 ]
                 .into_iter()
@@ -314,7 +312,7 @@ fn bases_section(ctx: &Ctx) -> BasesSection {
         job,
         create,
         footer: Text::new(
-            "A base is a clean macOS installed from Apple's IPSW; macOS images are built from the newest one. Removing an older base frees its space.",
+            "A base is a clean macOS installed from Apple's IPSW, one per macOS build and credential; macOS images are built from the newest base of their credential. Removing an older base frees its space.",
         ),
     }
 }

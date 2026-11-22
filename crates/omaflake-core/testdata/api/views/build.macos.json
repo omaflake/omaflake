@@ -13,7 +13,8 @@
         "credential": "c-1",
         "locale": "l-1",
         "look": "omaflake.look.rose-pine-dawn",
-        "recipe": "lab.macos.base@ocean-maple"
+        "recipe": "lab.macos.base@ocean-maple",
+        "window": false
       },
       "primary": true,
       "reason": {
@@ -93,10 +94,10 @@
           "value": "c-1"
         }
       ],
-      "enabled": false,
+      "enabled": true,
       "help": {
-        "key": "macOS images are built with the credential of their base: its user and password",
-        "text": "macOS images are built with the credential of their base: its user and password"
+        "key": "macOS images are built on this credential's base: its user and password (one base per credential)",
+        "text": "macOS images are built on this credential's base: its user and password (one base per credential)"
       },
       "id": "credential",
       "kind": "choice",
@@ -105,13 +106,6 @@
         "text": "Credential"
       },
       "param": "credential",
-      "reason": {
-        "args": [
-          "mac-base-26A434"
-        ],
-        "key": "The credential of %@",
-        "text": "The credential of mac-base-26A434"
-      },
       "value": "c-1",
       "valueParam": "credential"
     },
@@ -168,6 +162,22 @@
       "param": "locale",
       "value": "l-1",
       "valueParam": "locale"
+    },
+    {
+      "enabled": true,
+      "help": {
+        "key": "Shows the build VM in a window – to see where a build waits; off: headless",
+        "text": "Shows the build VM in a window – to see where a build waits; off: headless"
+      },
+      "id": "window",
+      "kind": "toggle",
+      "label": {
+        "key": "Show the build VM",
+        "text": "Show the build VM"
+      },
+      "param": "window",
+      "value": false,
+      "valueParam": "window"
     }
   ],
   "kind": {

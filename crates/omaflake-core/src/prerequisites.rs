@@ -913,8 +913,18 @@ impl Prerequisites {
         Prerequisite::new(PrerequisiteItem::Ipsw, status, &detail, hint, None)
     }
 
+    /// The macOS base (plan B166 – one per build and credential): ok when the default credential has a ready base,
+    /// also when only other credentials have one (the detail says so – the build page checks its chosen credential
+    /// itself); missing without any ready base; limited while only an unfinished one is there, or when the base's user
+    /// differs from the recipes' macUser.
     pub(crate) fn mac_base(&self) -> Prerequisite {
-        let base = MacImageBuilder::newest_base_in(&self.paths);
+        let default = crate::credentials::Credentials::new(self.paths.clone()).default_credential();
+        let of_default = default.as_ref().and_then(|c| MacImageBuilder::newest_base_for(&self.paths, Some(&c.id)));
+        let base = of_default.clone().or_else(|| MacImageBuilder::newest_base_in(&self.paths));
+        let none_for_default = match (&default, &of_default, &base) {
+            (Some(c), None, Some(_)) => Some(c.name.clone()),
+            _ => None,
+        };
         let bases = self.paths.bases();
         let unfinished = sorted_names(&bases)
             .into_iter()
@@ -953,13 +963,11 @@ impl Prerequisites {
                 p.base_user = Some(user);
                 return p;
             }
-            let mut p = Prerequisite::new(
-                PrerequisiteItem::MacBase,
-                PrerequisiteStatus::Ok,
-                &format!("{name} ({user})"),
-                "",
-                None,
-            );
+            let detail = match &none_for_default {
+                Some(c) => format!("{name} ({user}) – none for the default credential “{c}” yet"),
+                None => format!("{name} ({user})"),
+            };
+            let mut p = Prerequisite::new(PrerequisiteItem::MacBase, PrerequisiteStatus::Ok, &detail, "", None);
             p.base_user = Some(user);
             return p;
         }

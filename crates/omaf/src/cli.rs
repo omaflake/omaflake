@@ -415,17 +415,23 @@ pub struct Build {
                 macos/minimal)"
     )]
     pub recipe: String,
-    #[arg(long, value_name = "base", help = "macOS: base folder (default: newest ~/.omaflake/bases/mac-base-*)")]
+    #[arg(
+        long,
+        value_name = "base",
+        help = "macOS: base folder (default: the credential's newest ~/.omaflake/bases/mac-base-*)"
+    )]
     pub base: Option<String>,
     #[arg(long, help = "macOS: keep a failed build folder for inspection instead of deleting it")]
     pub keep_failed: bool,
+    #[arg(long, help = "macOS: show the build VM in a window – to see where it waits (NixOS: ignored)")]
+    pub window: bool,
     #[arg(long, help = "Show every line of the build log, also the disk image tool's routine ones")]
     pub verbose: bool,
     #[arg(
         long,
         value_name = "credential",
-        help = "NixOS: who you are in the guest – a credential's name or ID (default: the default credential; omaf \
-                credentials). macOS images take their base's credential"
+        help = "Who you are in the guest – a credential's name or ID (default: the default credential; omaf \
+                credentials). macOS: the image is built on that credential's newest base"
     )]
     pub credential: Option<String>,
     #[arg(
@@ -720,6 +726,10 @@ pub struct Set {
     pub midi: bool,
     #[arg(long, overrides_with = "midi", help = "Without this computer's MIDI devices")]
     pub no_midi: bool,
+    #[arg(long, value_name = "n", help = "CPU cores from the next start (the VM must be stopped)")]
+    pub cpus: Option<u32>,
+    #[arg(long, value_name = "GB", help = "Memory in GB from the next start (the VM must be stopped)")]
+    pub memory: Option<u32>,
 }
 
 #[derive(Debug, Args)]
@@ -953,13 +963,15 @@ pub enum ExternalCommand {
 #[derive(Debug, Subcommand)]
 pub enum MacOsCommand {
     #[command(
-        about = "Download macOS from Apple and build a ready base ~/.omaflake/bases/mac-base-<build> – no manual steps.",
+        about = "Download macOS from Apple and build a ready base ~/.omaflake/bases/mac-base-<build> – no manual steps \
+                 (one per macOS build and credential).",
         long_about = "Download macOS from Apple and build a ready base ~/.omaflake/bases/mac-base-<build> – no manual \
                       steps.\n\nSteps: omaf-runner install (download of the latest supported IPSW unless --ipsw) → \
                       mac-fresh-<build> (never started, read-only) → APFS clone mac-base-<build> with a new identity → \
                       first boot (headless) with provisioning: user, automatic login and SSH, without the Setup \
                       Assistant → your SSH public keys (~/.ssh/*.pub) into the guest → shut down → read-only. Existing \
-                      folders are reused, never overwritten."
+                      folders are reused, never overwritten.\n\nOne base per macOS build and credential: the first \
+                      of a build is mac-base-<build>, one for a further credential mac-base-<build>-<credential>."
     )]
     Install(MacInstall),
     #[command(
@@ -967,6 +979,19 @@ pub enum MacOsCommand {
                  builds ask for none."
     )]
     Assign(MacAssign),
+    #[command(about = "The macOS bases: build, credential, user, whether they know omaflake's own SSH key.")]
+    Bases,
+    #[command(
+        about = "Delete a macOS base for real – images and VMs made from it stay (they are copies); refused while an \
+                 image build uses it."
+    )]
+    Remove(MacRemove),
+}
+
+#[derive(Debug, Args)]
+pub struct MacRemove {
+    #[arg(value_name = "base", help = "The base's name, e.g. mac-base-26A434")]
+    pub base: String,
 }
 
 #[derive(Debug, Args)]
@@ -994,6 +1019,13 @@ pub struct MacInstall {
                 credential; omaf credentials)"
     )]
     pub credential: Option<String>,
+    #[arg(
+        long,
+        value_name = "base",
+        help = "A base this one replaces (e.g. one made before omaflake's own SSH key): the new one is made first, \
+                the old one deleted once it is ready"
+    )]
+    pub replace: Option<String>,
     #[arg(long, help = "Stop after the clone, without the first boot")]
     pub no_first_boot: bool,
     #[arg(long, help = "Show the first boot in a window")]

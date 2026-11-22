@@ -455,6 +455,62 @@
               }
             }
           ],
+          "fields": [
+            {
+              "enabled": false,
+              "id": "cpus",
+              "kind": "number",
+              "label": {
+                "args": [
+                  4
+                ],
+                "key": "CPU cores: %lld",
+                "text": "CPU cores: 4"
+              },
+              "max": 10,
+              "min": 1,
+              "reason": {
+                "key": "Stop the VM to change it",
+                "text": "Stop the VM to change it"
+              },
+              "set": {
+                "method": "vms.set",
+                "param": "cpus",
+                "params": {
+                  "name": "research"
+                }
+              },
+              "step": 1,
+              "value": 4
+            },
+            {
+              "enabled": false,
+              "id": "memoryGb",
+              "kind": "number",
+              "label": {
+                "args": [
+                  8
+                ],
+                "key": "RAM: %lld GB",
+                "text": "RAM: 8 GB"
+              },
+              "max": 30,
+              "min": 2,
+              "reason": {
+                "key": "Stop the VM to change it",
+                "text": "Stop the VM to change it"
+              },
+              "set": {
+                "method": "vms.set",
+                "param": "memoryGb",
+                "params": {
+                  "name": "research"
+                }
+              },
+              "step": 1,
+              "value": 8
+            }
+          ],
           "info": [
             {
               "full": "omaflake.nixos.dev@cedar-mango-lift",

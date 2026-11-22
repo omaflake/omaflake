@@ -33,6 +33,59 @@ public struct InitializeResult: Decodable, Sendable, Equatable {
     public var host: Host
     public var dataFolder: String
     public var configFile: String
+    /// Which `omaf` this server is (plan B165); nil from a core before that check
+    public var core: CoreIdentity?
+}
+
+/// Which `omaf` binary runs (plan B165): its resolved path, size and modification time. The app compares the
+/// service's (`initialize`'s `core`) with its own bundled `omaf`; when they differ it asks the service to restart and
+/// starts its own once that one has ended (api.md §2).
+public struct CoreIdentity: Codable, Sendable, Equatable, Hashable {
+    /// The resolved path
+    public var executable: String
+    /// In bytes
+    public var size: UInt64
+    /// ISO 8601
+    public var modified: String
+
+    public init(executable: String, size: UInt64, modified: String) {
+        self.executable = executable
+        self.size = size
+        self.modified = modified
+    }
+
+    /// The identity of a binary on disk; nil when it cannot be read
+    public static func of(executable url: URL) -> CoreIdentity? {
+        let resolved = url.resolvingSymlinksInPath().standardizedFileURL
+        guard let attributes = try? FileManager.default.attributesOfItem(atPath: resolved.path),
+              let size = (attributes[.size] as? NSNumber)?.uint64Value,
+              let date = attributes[.modificationDate] as? Date else { return nil }
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        return CoreIdentity(executable: resolved.path, size: size, modified: formatter.string(from: date))
+    }
+
+    /// Whether `other` (the running server's) is this binary: the same resolved path, size and modification time
+    /// (to the second – the two sides may write different fractions). A server that does not say which core it is
+    /// (`nil`, an older core) is a different one.
+    public func isSame(as other: CoreIdentity?) -> Bool {
+        guard let other else { return false }
+        guard Self.normalized(executable) == Self.normalized(other.executable), size == other.size else { return false }
+        guard let mine = Self.seconds(modified), let theirs = Self.seconds(other.modified) else {
+            return modified == other.modified
+        }
+        return mine == theirs
+    }
+
+    /// An ISO 8601 time to the whole second (any number of fraction digits dropped)
+    static func seconds(_ text: String) -> Date? {
+        let whole = text.replacingOccurrences(of: #"\.[0-9]+"#, with: "", options: .regularExpression)
+        return ISO8601DateFormatter().date(from: whole)
+    }
+
+    private static func normalized(_ path: String) -> String {
+        URL(fileURLWithPath: path).resolvingSymlinksInPath().standardizedFileURL.path
+    }
 }
 
 /// `settings.get`

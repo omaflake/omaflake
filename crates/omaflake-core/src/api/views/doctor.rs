@@ -774,6 +774,92 @@ fn update_line(ctx: &Ctx) -> UpdateLine {
 
 // MARK: macOS base
 
+/// "macOS 27.0.1 (26A434), 16 GB from Apple – here: …" → "26A434": the build in the first parentheses of the IPSW
+/// check's detail
+fn build_in(detail: &str) -> Option<String> {
+    let open = detail.find('(')?;
+    let close = open + detail[open..].find(')')?;
+    let build = &detail[open + 1..close];
+    (!build.is_empty() && build.chars().all(|c| c.is_ascii_alphanumeric())).then(|| build.to_string())
+}
+
+/// A base's row on the macBase page (plan B166)
+fn base_row(ctx: &Ctx, b: &crate::api::types::BaseDto, chosen: &str, ipsw: Option<&str>, busy: bool) -> MacBaseRow {
+    let credential_name = b.credential.as_ref().map(|id| {
+        ctx.credentials
+            .iter()
+            .find(|c| &c.id == id)
+            .map(|c| c.name.clone())
+            .or_else(|| b.credential_name.clone())
+            .unwrap_or_else(|| id.clone())
+    });
+    // Create Again with the base's credential – one without a credential yet takes the page's chosen one
+    let again_with = b.credential.clone().unwrap_or_else(|| chosen.to_string());
+    let again_name = ctx.credentials.iter().find(|c| c.id == again_with).map(|c| c.name.clone()).unwrap_or_default();
+    let mut params = json!({"credential": again_with, "replace": b.name});
+    if let Some(i) = ipsw {
+        params["ipsw"] = json!(i);
+    }
+    let recreate = Action::call("recreate", Text::new("Create Again …"), Some("refresh"), "macos.installBase", params)
+        .confirm(
+            Confirm::new(
+                tf!("Create “%@” again?", &b.name),
+                tf!("A new base is created with the credential “%@” and omaflake's own SSH key; once it is ready, “%@” is deleted. macOS images and VMs made from it stay – they are copies.", &again_name, &b.name),
+            )
+            .button("Create Again"),
+        )
+        .enabled_if(!busy, Some(Text::new("A macOS base is being created – its progress is below")))
+        .enabled_if(!again_with.is_empty(), Some(Text::new("Create a credential first – the key at the top")))
+        .enabled_if(!b.in_use, Some(Text::new("An image build uses it – wait until it ends")));
+    let remove = Action::call("remove", Text::new("Remove …"), Some("trash"), "macos.removeBase", json!({"name": b.name}))
+        .destructive()
+        .confirm(
+            Confirm::new(
+                tf!("Remove the macOS base “%@”?", &b.name),
+                Text::new(
+                    "It is deleted and cannot be restored. macOS images and VMs made from it stay – they are copies. New macOS images need a base.",
+                ),
+            )
+            .button("Remove")
+            .destructive(),
+        )
+        .enabled_if(!b.in_use, Some(Text::new("An image build uses it – wait until it ends")));
+    let hint = if !b.ready {
+        Some(Hint::new(
+            "warning",
+            Text::new("Not installed completely – it cannot build images; Create Base continues it."),
+            Tone::Warning,
+        ))
+    } else if b.credential.is_none() {
+        Some(Hint::new(
+            "lock-warning",
+            Text::new("No credential yet – assign the one its user was created with (Images → macOS Bases)."),
+            Tone::Warning,
+        ))
+    } else if !b.own_key {
+        Some(Hint::new(
+            "warning",
+            Text::new(
+                "Made before omaflake's own SSH key – its builds need your key in the ssh-agent. Create it again.",
+            ),
+            Tone::Warning,
+        ))
+    } else {
+        None
+    };
+    MacBaseRow {
+        name: b.name.clone(),
+        build: b.os_build.clone(),
+        version: b.version.clone(),
+        credential: credential_name,
+        user: b.user.clone(),
+        created: b.created,
+        own_key: b.own_key,
+        hint,
+        actions: vec![recreate, remove],
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct MacBasePage {
@@ -783,6 +869,8 @@ pub struct MacBasePage {
     /// The base as the Doctor sees it: ready (success) or unfinished (warning)
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub base: Option<Hint>,
+    /// Every base, newest first, with Create Again and Remove (plan B166)
+    pub bases: Vec<MacBaseRow>,
     /// "macOS from Apple (IPSW)": the file chosen or Apple's, the download – the IPSW's only place on the page (its
     /// actions set `values.ipsw` with `ui.field`)
     pub ipsw: IpswLine,
@@ -794,6 +882,34 @@ pub struct MacBasePage {
     /// The latest base creation's log (its job, as the build page's)
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub log: Option<super::build::LogRef>,
+}
+
+/// A base on the macBase page (plan B166)
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MacBaseRow {
+    /// "mac-base-26A434"
+    pub name: String,
+    /// The macOS build it was installed from
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub build: Option<String>,
+    /// The macOS version when it was known at creation (Apple's IPSW)
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub version: Option<String>,
+    /// The credential's name (its current one, else the one recorded); absent for a base without one
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub credential: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub user: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none", with = "crate::json::iso8601::option")]
+    pub created: Option<chrono::DateTime<chrono::Utc>>,
+    /// It knows omaflake's own SSH key (plan B160)
+    pub own_key: bool,
+    /// Why to look at it: made before omaflake's own key, not installed completely, no credential
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub hint: Option<Hint>,
+    /// Create Again … (`macos.installBase {credential, ipsw?, replace}`), Remove … (`macos.removeBase`)
+    pub actions: Vec<Action>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -890,18 +1006,41 @@ pub(crate) fn mac_base_page(ctx: &Ctx, p: &MacBaseParams) -> MacBasePage {
     if let Some(i) = &ipsw {
         params["ipsw"] = json!(i);
     }
+    // A base per build and credential (plan B166): disabled only when the chosen credential has a base of the IPSW's
+    // build already – known up front for Apple's IPSW (its build in the Doctor's line), not for a chosen file
+    let ipsw_build = if ipsw.is_none() { ipsw_item.and_then(|i| build_in(&i.detail)) } else { None };
+    let existing = ipsw_build.as_deref().and_then(|build| {
+        ctx.bases.iter().find(|b| {
+            b.ready && b.credential.as_deref() == Some(credential.as_str()) && b.os_build.as_deref() == Some(build)
+        })
+    });
     let create = Action::call("create", Text::new("Create Base"), Some("create"), "macos.installBase", params)
         .enabled_if(!installing, Some(Text::new("running …")))
         .enabled_if(downloading.is_none(), None)
         .enabled_if(!credential.is_empty(), Some(Text::new("Create a credential first – the key at the top")))
-        .enabled_if(base_item.is_none_or(|b| b.status != S::Ok), base_item.map(|b| Text::verbatim(&b.detail)))
+        .enabled_if(
+            existing.is_none(),
+            existing.map(|b| {
+                tf!(
+                    "%@ is this credential's base of macOS %@ – Create Again replaces it",
+                    &b.name,
+                    b.os_build.clone().unwrap_or_default()
+                )
+            }),
+        )
         .primary();
+    let bases = ctx
+        .bases
+        .iter()
+        .map(|b| base_row(ctx, b, &credential, ipsw.as_deref(), installing || downloading.is_some()))
+        .collect();
     MacBasePage {
         title: Text::new("Create macOS Base"),
         intro: Text::new(
             "Creates your macOS base from the IPSW: the guest user from your credential, automatic login, SSH with your keys from ~/.ssh. No manual steps and no password to type; a missing IPSW is downloaded first.",
         ),
         base,
+        bases,
         ipsw: IpswLine {
             label: Text::new("macOS from Apple (IPSW)"),
             text: ipsw_text,

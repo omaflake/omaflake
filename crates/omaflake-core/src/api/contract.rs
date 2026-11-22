@@ -165,6 +165,11 @@ fn initialize_result() -> InitializeResult {
         host: Host { system: "aarch64-darwin".into(), os: "macOS 27.0.1".into() },
         data_folder: "/data".into(),
         config_file: "/data/config.json".into(),
+        core: Some(CoreIdentity {
+            executable: "/Applications/omaflake.app/Contents/MacOS/omaf".into(),
+            size: 41_943_040,
+            modified: date("2026-11-22T08:00:00.250Z"),
+        }),
     }
 }
 

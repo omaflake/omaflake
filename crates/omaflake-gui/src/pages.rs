@@ -327,6 +327,10 @@ pub fn vm_row<'a>(app: &'a App, r: &'a VmRowView) -> El<'a> {
         if let Some(n) = &d.switches_note {
             c = c.push(secondary(s(n)));
         }
+        // Cores and memory (plan B164): stored at once (`set`)
+        for f in &d.fields {
+            c = c.push(field_view(app, "vms", f, true));
+        }
         c = c.push(Column::with_children(d.info.iter().map(info_line)).spacing(spacing::S));
         if !d.actions.is_empty() {
             c = c.push(wrap(d.actions.iter().map(|a| action_button(a, None, app.pulse)).collect()));
@@ -1784,6 +1788,37 @@ fn mac_base<'a>(app: &'a App, page: &str, m: &'a MacBasePage) -> El<'a> {
         c = c.push(row![widgets::working(app.pulse), secondary(tr("Creating the base …"))].align_y(Alignment::Center));
     }
     c = c.push(page_actions(app, page, &m.actions));
+    // Every base with Create Again and Remove (plan B166)
+    if !m.bases.is_empty() {
+        let mut rows = Column::new().spacing(spacing::L);
+        for b in &m.bases {
+            let mut about = Vec::new();
+            if let Some(build) = &b.build {
+                about.push(match &b.version {
+                    Some(v) => format!("macOS {v} ({build})"),
+                    None => format!("macOS {build}"),
+                });
+            }
+            if let Some(c) = &b.credential {
+                about.push(match &b.user {
+                    Some(u) => format!("{c} ({u})"),
+                    None => c.clone(),
+                });
+            }
+            let mut line =
+                row![container(name_line(b.name.clone(), vec![], Some(about.join(" · ")), vec![])).width(Length::Fill)]
+                    .spacing(spacing::XL)
+                    .align_y(Alignment::Center);
+            for a in &b.actions {
+                line = line.push(action_button(a, Some(page), app.pulse));
+            }
+            rows = rows.push(line);
+            if let Some(h) = &b.hint {
+                rows = rows.push(hint(h, app.pulse));
+            }
+        }
+        c = c.push(container(rows).padding(spacing::CARD_PADDING).width(Length::Fill).style(style::card));
+    }
     if let Some(l) = &m.log {
         c = c.push(log_section(app, l));
     }

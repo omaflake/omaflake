@@ -611,6 +611,18 @@ pub fn log(a: &cli::Log) -> Outcome {
 
 pub fn set(a: &cli::Set) -> Outcome {
     let env = Env::new();
+    // Cores and memory (plan B164) through the API: it checks the host's limits, that the VM is stopped, and writes a
+    // macOS VM's folder too
+    if a.cpus.is_some() || a.memory.is_some() {
+        let mut params = serde_json::json!({"name": a.name});
+        if let Some(n) = a.cpus {
+            params["cpus"] = n.into();
+        }
+        if let Some(n) = a.memory {
+            params["memoryGb"] = n.into();
+        }
+        omaflake_core::api::call_once("vms.set", params)?;
+    }
     let store = env.backends()?.store;
     let lock = InstanceLock::new(&env.paths.instance(&a.name))?;
     let mut c = store.load(&a.name)?;
@@ -635,12 +647,14 @@ pub fn set(a: &cli::Set) -> Outcome {
     Ok(())
 }
 
-/// "<name>: sound on, microphone off, clipboard on, camera off, MIDI off (from the next start)"
+/// "<name>: 4 CPU, 8 GB, sound on, microphone off, clipboard on, camera off, MIDI off (from the next start)"
 pub fn set_line(c: &InstanceConfig) -> String {
     let on = |b: bool| if b { "on" } else { "off" };
     format!(
-        "{}: sound {}, microphone {}, clipboard {}, camera {}, MIDI {} (from the next start)",
+        "{}: {} CPU, {} GB, sound {}, microphone {}, clipboard {}, camera {}, MIDI {} (from the next start)",
         c.name,
+        c.cpus,
+        c.memory_gb,
         on(c.sound_on()),
         on(c.microphone_on()),
         on(c.clipboard_on()),
@@ -951,13 +965,19 @@ mod tests {
         c.camera = Some(true);
         assert_eq!(
             set_line(&c),
-            "dev: sound on, microphone on, clipboard on, camera on, MIDI off (from the next start)"
+            format!(
+                "dev: {} CPU, {} GB, sound on, microphone on, clipboard on, camera on, MIDI off (from the next start)",
+                c.cpus, c.memory_gb
+            )
         );
         c.audio = Some(false);
         c.midi = Some(true);
         assert_eq!(
             set_line(&c),
-            "dev: sound off, microphone off, clipboard on, camera on, MIDI on (from the next start)"
+            format!(
+                "dev: {} CPU, {} GB, sound off, microphone off, clipboard on, camera on, MIDI on (from the next start)",
+                c.cpus, c.memory_gb
+            )
         );
     }
 

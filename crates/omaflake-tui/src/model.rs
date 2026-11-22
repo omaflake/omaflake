@@ -358,6 +358,10 @@ fn list_row(ctx: &Ctx, prefix: &str, row: &Value, out: &mut Vec<Item>) {
             if let Some(note) = d.get("switchesNote") {
                 lines.push(secondary_line(ctx, t(note), 4));
             }
+            // Cores and memory (plan B164): fields whose change is stored at once (`set`)
+            for (i, f) in arr(d, "fields").iter().enumerate() {
+                sub_items.push(field(ctx, &format!("{key}/field{i}"), f));
+            }
             for info in arr(d, "info") {
                 lines.push(info_line(ctx, info, 4));
             }
@@ -1114,6 +1118,41 @@ fn mac_base(ctx: &Ctx, model: &Value, p: &mut Page) {
     }
     if let Some(bar) = button_bar(ctx, "macBase:actions", arr(model, "actions")) {
         p.items.push(bar);
+    }
+    // Every base with Create Again and Remove (plan B166)
+    for base in arr(model, "bases") {
+        let name = s(base, "name").to_string();
+        let mut about = Vec::new();
+        if let Some(build) = base.get("build").and_then(Value::as_str) {
+            about.push(match base.get("version").and_then(Value::as_str) {
+                Some(v) => format!("macOS {v} ({build})"),
+                None => format!("macOS {build}"),
+            });
+        }
+        if let Some(c) = base.get("credential").and_then(Value::as_str) {
+            about.push(match base.get("user").and_then(Value::as_str) {
+                Some(u) => format!("{c} ({u})"),
+                None => c.to_string(),
+            });
+        }
+        let actions = arr(base, "actions").to_vec();
+        let mut buttons = vec![Span::raw("    ")];
+        for a in &actions {
+            buttons.extend(button(ctx, a));
+            buttons.push(Span::raw("   "));
+        }
+        let lines = vec![
+            Line::from(vec![
+                Span::raw("  "),
+                Span::styled(name.clone(), th.text()),
+                Span::styled(format!("  {}", about.join(" · ")), th.secondary()),
+            ]),
+            Line::from(buttons),
+        ];
+        p.items.push(Item::row(format!("macBase:base:{name}"), lines, actions));
+        if let Some(h) = base.get("hint") {
+            p.items.push(hint(ctx, format!("macBase:base:{name}:hint"), h));
+        }
     }
     // The IPSW is shown once, in its line above (it is no field); the log as the build page's
     if let Some(log) = model.get("log").filter(|l| l.is_object()) {

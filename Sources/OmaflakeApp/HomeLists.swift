@@ -159,6 +159,17 @@ struct VmRowView: View {
                         Text(verbatim: model.t(note)).font(.caption2).foregroundStyle(.secondary)
                     }
                 }
+                // Cores and memory from the next start (plan B164), changeable while it is stopped
+                if !row.detail.fields.isEmpty {
+                    HStack(spacing: BrandTokens.Spacing.xxl) {
+                        ForEach(row.detail.fields) { field in
+                            StoredField(field: field, model: model).fixedSize()
+                                .help(Text(verbatim: field.enabled ? model.t(field.help) : model.t(field.reason)))
+                        }
+                        Spacer(minLength: 0)
+                    }
+                    .font(.callout)
+                }
                 InfoLines(lines: row.detail.info, model: model)
                 DetailActions(actions: row.detail.actions, model: model)
             }

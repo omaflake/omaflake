@@ -110,6 +110,18 @@ The first request is `initialize`; anything before it is refused with `-32002`.
   on for its other clients and its jobs.
 - `service.restart` → `{jobs}`: the service ends once no job waits or runs (`jobs`: how many it waits for; 0 – at
   once). For updates (§1) and `omaf service stop`. A private server only notes it.
+- **Which core this is (plan B165):** `initialize`'s result also has `core: {executable, size, modified}` – the running
+  `omaf`'s resolved path, its size in bytes and its modification time (ISO 8601). A UI that brings its own `omaf` (the
+  app's `Contents/MacOS/omaf`) compares them with its own; when they differ it calls `service.restart` and connects
+  again once that service has ended (it starts its own then), telling the user while jobs keep the old one ("An older
+  omaflake core finishes 1 job, then this one takes over"). VMs keep running: their runners are their own processes,
+  and the new service takes them over as after any restart. The CLI does the same when it talks to the service
+  (`omaf ui`, `omaf status`, `omaf call --socket`, `omaf build`, `omaf service start`): a service of another core whose
+  version is not newer than the CLI's is asked to restart (only when the restart brings this omaf – no agent, or the
+  agent runs it), the CLI waits up to 60 s for its jobs ("an older omaflake core is still running … it finishes N
+  job(s)"), then starts its own – or, while the jobs take longer, uses the old one until they are done. A newer
+  service is left alone (an old `omaf` must not take an update back); `omaf call --socket=<path>` only warns. `modified`
+  has milliseconds, so equal cores compare equal after the round trip.
 
 ## 3. Errors
 
@@ -224,7 +236,10 @@ short as it can be).
   `nixDarwin` (no longer checked since plan B160),
   `credential` (at least one credential – the default; images and macOS bases are made with it, plan B139), `look` (at
   least one installed look – the default, plan B141; its action `looks.installRecommended`), `git`,
-  `cli`, `builderRunning`, `flakeEval`, `nixSpace`, `ipsw`, `macBase`, `macSpace`; a Linux host checks `host`, `kvm`,
+  `cli`, `builderRunning`, `flakeEval`, `nixSpace`, `ipsw`, `macBase` (plan B166: `ok` when the default credential has a
+  ready base – also when only other credentials have one, its detail then adds "none for the default credential …";
+  the build page checks its chosen credential itself; `missing` without any ready base; `limited` for an unfinished
+  one or a user that differs from the recipes' macUser), `macSpace`; a Linux host checks `host`, `kvm`,
   `nix`, `flakes`, `qemu`, `flake`, `sshKey`, `credential`, `look`, `git`, `cli`, then `flakeEval`, `nixSpace` – no macOS preflight, plan B124), `status` (`ok` | `limited` | `missing`),
   `title` (English; UIs translate by `item`), `required`, `detail`, `hint`, `install` (a command), `settablePath`,
   `freeBytes`, `neededBytes`, `usedBytes` (nixSpace: what the Nix Store holds where it is a volume of its own, plan B149), `baseUser`, `expectedUser`. `git` and `cli` (the `omaf` command on the user's PATH) are
@@ -329,7 +344,7 @@ Params and results in short; the types are those of §4.
 
 | Method | Params | Result |
 |---|---|---|
-| `initialize` | `client, clientVersion, apiVersion, language?, updateFeed?` | `apiVersion, omafVersion, host: {system, os}, dataFolder, configFile` |
+| `initialize` | `client, clientVersion, apiVersion, language?, updateFeed?` | `apiVersion, omafVersion, host: {system, os}, dataFolder, configFile, core?: {executable, size, modified}` (§2, plan B165) |
 | `events.subscribe` | `topics` | `null` |
 | `shutdown` | – | `null` – ends this session (§2) |
 | `service.restart` | – | `{jobs}` – the service ends once no job waits or runs (§1, §2) |
@@ -360,8 +375,8 @@ Params and results in short; the types are those of §4.
 | `modules.install` | `id, source` | Job `module-install` – a module (`<author>.<platform>.<name>`) or key binding set (`<author>.keymap.<name>`), every file checked against the catalog's SHA-256 |
 | `modules.installAll` | `items: [{id, source}]` | Job `module-install` – the modules and key binding sets the Modules tab offers, one after the other; one that fails does not keep the others out |
 | `modules.remove` | `id` | `null` – recipes made of it cannot be built until it is back |
-| `bases.list` | – | `[{name, path, osBuild?, user?, ready, newest, created?, sizeBytes?, credential?, credentialName?}]` – the macOS bases (`bases/mac-base-*`; plan B138), with the credential of their user (plan B139) |
-| `bases.remove` | `name` | `null` – deletes the base; refused while a macOS base is installed or a macOS image is built |
+| `bases.list` | – | `[{name, path, osBuild?, user?, ready, newest, created?, sizeBytes?, credential?, credentialName?, ownKey, version?, inUse}]` – the macOS bases (`bases/mac-base-*`; plan B138), with the credential of their user (plan B139); `newest`: the newest ready base of its credential (plan B166); `ownKey`: it knows omaflake's own SSH key; `version`: the macOS version when known at creation; `inUse`: an active job uses it (an image build, or a new base replacing it) |
+| `bases.remove` | `name` | `null` – deletes the base; refused while a macOS base is installed or a macOS image is built (older; `macos.removeBase` refuses only while a job uses that base) |
 | `bases.assign` | `name, credential` | `null` – writes the credential (ID or name) into a base created before bases kept theirs (`omaflake-base.json`, plan B139); its user must be the base's |
 | `dataFolder.move` | `target` | Job `data-move` (all VMs must be stopped) |
 | `updates.check` | – | `{state: "noFeed"|"upToDate"|"available"|"off", release?: {version, url, sha256?, notes?, page?}}` – a feed that cannot be read is an error (`network`) |
@@ -374,10 +389,10 @@ Params and results in short; the types are those of §4.
 | `vms.get` | `name` | `Vm` |
 | `vms.create` | `name, image, settings: RecipeSettings, sharePath?, start?` | `Vm` – from exactly that image (plan B100); `start` starts it after creating (a macOS VM beyond the limit is created, not started, with a `message`) |
 | `vms.start` | `name, display?: "auto"|"none"|"window"|"gpu", gl?: "on"|"es"` | `Vm` – `auto` (default): the UI's start – a window, with 3D where QEMU can; refused beyond the macOS limit (`mac-limit`) |
-| `vms.stop` | `name, timeout? (s, 60)` | `{result}` – `alreadyStopped`, `powerdown`, `quit`, `forcedOff`, `killed` |
+| `vms.stop` | `name, timeout? (s, 60)` | `{result}` – `alreadyStopped`, `powerdown`, `quit`, `forcedOff`, `killed`; anything but `powerdown`/`alreadyStopped` is an activity line ("… forced off – the clean shutdown did not take") |
 | `vms.reset` / `vms.remove` | `name` | `null` – refused while running |
 | `vms.upgrade` | `name, image?` | `Vm` – to its line's newest image unless `image` is named; refused while running |
-| `vms.set` | `name, audio?, microphone?, clipboard?, camera?, midi?` | `{vm, takesEffectAtNextStart}` |
+| `vms.set` | `name, audio?, microphone?, clipboard?, camera?, midi?, cpus?, memoryGb?` | `{vm, takesEffectAtNextStart}` – `cpus`/`memoryGb` (plan B164) only while stopped (`vm-running`), 1 to this computer's cores and 2 GB to its memory less 2 GB (`unsupported-system` beyond) |
 | `vms.ssh` | `name, command?: [string]` | `{argv, shellLine}` – what to run in a terminal |
 | `vms.agent` | `name, wait? (s)` | the agent's report (spec §11.9; agent.json) or `null` – `wait`: up to that long for a report that says the agent is up |
 | `vms.log` | `name, lines? (200), qemu?` | `{lines: [string]}` – NixOS: the serial console (`qemu`: QEMU's own log); macOS: the runner's log |
@@ -397,9 +412,9 @@ Params and results in short; the types are those of §4.
 |---|---|---|
 | `images.list` | – | `{images: [Image], unreadable}` |
 | `images.get` | `name` | `Image` with `sizeBytes` |
-| `images.build` | `recipe, credential?, look?, locale?, base?, keepFailed?` | Job `build` – `credential`: a credential's id, left out (or `""`) the default – without any credential `prerequisite`; `look`: an installed look (id, `<author>/<name>`, name or title), left out (or `""`) the default (plan B137, B141) – its data goes to the image flake (`settings.look`); without any look the Doctor blocks the build; left out, the recipe's suggested look when it is installed (plan B142);
+| `images.build` | `recipe, credential?, look?, locale?, base?, keepFailed?, window?` | Job `build` – `credential`: a credential's id, left out (or `""`) the default – without any credential `prerequisite`; `look`: an installed look (id, `<author>/<name>`, name or title), left out (or `""`) the default (plan B137, B141) – its data goes to the image flake (`settings.look`); without any look the Doctor blocks the build; left out, the recipe's suggested look when it is installed (plan B142);
 `locale`: a locale's id or name, left out (or `""`) the default – without any locale the image gets this computer's
-values (plan B141). A recipe whose modules or key binding sets are not here is refused (`prerequisite`, plan B142). A macOS recipe takes its base's credential and its stored password – nothing is asked (plan B139); a base without a credential is refused (`prerequisite`); `base`: the base folder, default the newest; `keepFailed`: keep a failed build folder) |
+values (plan B141). A recipe whose modules or key binding sets are not here is refused (`prerequisite`, plan B142). A macOS recipe is built on the newest base of the chosen credential (plan B166; without one: `prerequisite` "No macOS base for the credential …") with the base's user and the credential's stored password – nothing is asked (plan B139); when the credential has no base but a base without a credential exists, that one is taken and refused (`prerequisite`, assign a credential); `base`: the base folder, default as said; `keepFailed`: keep a failed build folder; `window`: the build VM in a window (`omaf-runner run --window`), NixOS builds ignore it) |
 | `images.remove` | `name` | `null` – refused while VMs use it (`in-use`) |
 
 ### Recipes and sources
@@ -442,7 +457,8 @@ values (plan B141). A recipe whose modules or key binding sets are not here is r
 | `doctor.check` | – | `{prerequisites, nixosPreflight, macosPreflight, latestRelease?, buildBlockers: {nixos, macos}, startBlockers: {nixos, macos}, issues, requirementsMissing, hasMacBase, macBaseUser?, builderSystemIsOmaflakes, cli?, checked}` – blockers are Prerequisites; `builderSystemIsOmaflakes`: this Mac's nix-darwin system comes from omaflake's image flake (else `builder.apply` needs `force`); `cli: {link, target?, installed, blocked, onPath, admin}`: the `omaf` command's link (where Install puts it, this omaflake's `omaf` it points to – absent when the core does not run as `omaf` –, omaflake's link is there, a file that is not omaflake's is in the way, the link's folder is on the login PATH, Install asks for an administrator); a build runs these checks right before it starts, `vms.start` refuses a start blocker of the last check (`prerequisite`) |
 | `doctor.setPath` | `item: "nix"|"qemu"|"flake", path` | as `doctor.check` |
 | `macos.downloadIpsw` | – | Job `ipsw-download` → `result: {file, version}` (cancel pauses; it continues from there) |
-| `macos.installBase` | `credential?, ipsw?` | Job `macos-install` → `result: {base, existing, ready}` – the guest user, full name and password from the credential (ID or name; default: the default credential), recorded in the base (plan B139); `user, fullName, password` directly still work (API version 1) |
+| `macos.removeBase` | `name` | `null` – removes a base (its folder, plan B166); refused while an image build uses it (`in-use`) |
+| `macos.installBase` | `credential?, ipsw?, replace?` | Job `macos-install` → `result: {base, existing, ready}` – one base per macOS build and credential (plan B166): `mac-base-<build>` for the first, `mac-base-<build>-<credential>` for others; `replace`: a base to supersede – the new one is made first, the old one removed after it is ready – the guest user, full name and password from the credential (ID or name; default: the default credential), recorded in the base (plan B139); `user, fullName, password` directly still work (API version 1) |
 | `doctor.installCli` / `doctor.uninstallCli` | – | Job `cli-install` → `result: {link, installed, message}` – the `omaf` command (plan B122): a symlink to this omaflake's `omaf` (inside omaflake.app the bundled `Contents/MacOS/omaf`, else the running executable or the `omaf` next to it). macOS: `/usr/local/bin/omaf` through the administrator dialog (a dismissed dialog cancels the job); Linux: `~/.local/bin/omaf`, no root. Install replaces a link or an older `omaf` there and refuses another file (`exists`); Uninstall removes only omaflake's link (`not-found` otherwise); one at a time (`in-use`) |
 | `builder.installNix` / `builder.mountNix` / `builder.uninstallNix` / `builder.trust` | – | Job → `result: {message}` – the only steps that ask for an administrator (the system's own dialog; their output streams into the job): Nix with `--no-modify-profile --enable-flakes` and the user among `trusted-users`; mount the Nix Store; remove a half-done install (`/nix/nix-installer uninstall`); add the user to `trusted-users` for a Nix omaflake did not install (plan B160). A dismissed dialog cancels the job |
 | `builder.setup` / `builder.apply` (`force?`) / `builder.cleanUp` | – | Job → `result: {message}` – omaflake's own Linux builder, as the user: set up (key, nixpkgs' builder from the binary cache, LaunchAgent, then omaflake's builder – docs/linux-builder.md), built again with its settings, unused data removed. With nix-darwin's builder (Nix has one of its own) apply and clean up keep their administrator steps, and `builder.apply` on a nix-darwin system that is not omaflake's needs `force` (error data `replacesConfiguration`) |
@@ -731,6 +747,8 @@ A row (sorted by name):
              {"id": "stop", "method": "vms.stop", "destructive": true, …}],
  "detail": {"switches": [{"id": "clipboard", "method": "vms.set", "on": true, …}, …],
             "switchesNote": {"key": "Changes take effect at the next start.", …},
+            "fields": [{"id": "cpus", "kind": "number", "value": 4, "min": 1, "max": 10, "enabled": false, "reason": {"key": "Stop the VM to change it", …}, "set": {"method": "vms.set", "params": {"name": "research"}, "param": "cpus"}, …},
+                       {"id": "memoryGb", "kind": "number", "value": 8, "min": 2, "max": 30, "set": {…, "param": "memoryGb"}, …}],
             "info": [{"label": {"key": "Image", …}, "value": {"text": "omaflake.nixos.dev@cedar-mango-lift"}, "note": {"key": "newer image available", …}, "tone": "warning", …}, …],
             "actions": [{"id": "export", …}, {"id": "forget", …}, {"id": "upgrade", …}, {"id": "reset", …}, {"id": "remove", …}]},
  "vm": {…}}
@@ -824,6 +842,23 @@ note?, file?, full?}` – the job's id and where its log is: `jobs.log {id: job,
 5000 lines, `from` the first of them), then `job.log` brings new lines; `lines` the count so far, `full` opens the
 whole file. The build is the page's primary action (Cancel is not).
 
+**Resources of a VM (plan B164):** `vms.set {name, cpus?, memoryGb?}` (with the existing switches) – cores and memory
+from the next start, while the VM is stopped (`vm-running` otherwise), checked against what the host has; the VM's
+details show them as fields (`detail.fields`: `cpus`, `memoryGb` – number fields whose `set` is `vms.set {name}` with
+the value at `param`; enabled while stopped and not busy; `min`/`max` the limits above). A macOS VM's folder
+(`config.json`: cpus, memoryMB) is written along – its runner reads it at start; QEMU takes the instance's values at
+start. The disk size stays as created (OPEN).
+CLI `omaf set <name> --cpus N --memory GB`. **Stop (plan B165 round-up):** `vms.stop` – a clean shutdown (macOS: SSH,
+NixOS: ACPI/agent); when it cannot be asked (SSH refused) or the guest is still running after the timeout (60 s), the
+VM is forced off, and the activity list says which ("forced off – the clean shutdown did not take"). macOS: when SSH
+cannot ask (no address, refused, sudo without its password) the runner's own stop request (the power button) gets up
+to 15 s first; then `omaf-runner kill`, last SIGKILL, and runner.log gets a line "omaflake: forced off … – why".
+NixOS: ACPI powerdown over QMP, `quit` after the timeout, SIGKILL without QMP. **Build window:**
+`images.build {…, window?}` – a macOS image's build VM in a window (to watch where it waits); the build page's field
+`window` ("Show the build VM", a toggle, off by default, macOS recipes only; its value goes to the build action's
+`window`), `omaf build --window`. A macOS build that waits 10 minutes for SSH in vain says where to look: with the
+window, that it shows where it waits; without, to start the build again with "Show the build VM".
+
 **diagnostics** – params `{name}`; a running VM's diagnosis (plan B162). `{title, subtitle, state: idle|running|
 finished|failed, checked?, intro, checks: [{id, title, icon, status: pending|running|pass|fail|confirm|skipped, detail?,
 hint?, actions}], actions, log?, file?}`. Checks in order: `agent`, `ssh` (macOS), `clipboard`, `share`, `network`,
@@ -860,8 +895,24 @@ Create … / Show … (`ui.show macBase`), the `omaf` command's Install … / Un
 a file that is not omaflake's is in the way, the hint then says so – or how to add the link's folder to the PATH).
 Linux builder tasks run one at a time: the others say which runs.
 
-**macBase** – `{title, intro, base?, ipsw: {label, text, download?, actions}, fields: [credential], installing,
-actions: [newCredential?, create], log?}`; params `{values?: {credential, ipsw}}` (defaults: the default credential,
+**macBase** – `{title, intro, base?, bases, ipsw: {label, text, download?, actions}, fields: [credential], installing,
+actions: [newCredential?, create], log?}`; `bases` (plan B166): every base, `[{name, build, version, credential,
+user, created, ownKey (bool: it knows omaflake's own SSH key, B160), hint?, actions: [recreate ("Create Again …",
+`macos.installBase {credential, ipsw?, replace: name}` with a confirm), remove ("Remove …", `macos.removeBase
+{name}`, destructive confirm; disabled while an image build uses it)]}]`, newest first; `hint` for a base without
+omaflake's key ("Made before omaflake's own SSH key – its builds need your key in the ssh-agent. Create it again.").
+Row details: `build` the macOS build, `version` (absent when unknown – a base from a chosen IPSW file or from before
+plan B166), `credential` the credential's **name** (its current one, else the recorded one; absent for a base without
+one), `hint` a Hint object (also "Not installed completely …" and "No credential yet …"), `created` ISO 8601. Create
+Again takes the base's credential (a base without one: the page's chosen credential) and the page's `values.ipsw`; it
+is disabled while a base is created or the IPSW downloads, and while a job uses the base. The replaced base is deleted
+only once the new one is ready; when it took a replaced base's place (same build and credential) the new base gets the
+old name. `create`'s reason when disabled names the existing base ("<base> is this credential's base of macOS <build>
+– Create Again replaces it"); the IPSW's build is known up front only for Apple's (from the Doctor's `ipsw` line).
+A base per macOS build **and credential**: `create` is disabled only when the chosen credential already has a base of
+the IPSW's build (its reason names it); the build page of a macOS recipe picks the newest base of its chosen
+credential (`credential` is a field again, plan B139's lock lifted) and, when that credential has none, its `macBase`
+note offers "Create Base for <credential> …" (`ui.show macBase {values: {credential}}`). params `{values?: {credential, ipsw}}` (defaults: the default credential,
 Apple's IPSW). The IPSW is shown once, in `ipsw`: its actions "Choose IPSW …" and "Use Apple's" are `ui.field` on
 `values.ipsw` of this page. `create` (primary) is `macos.installBase {credential, ipsw?}` – no password is asked: the
 credential's (plan B139); without a credential it is disabled and `newCredential` opens the form. `log`: the latest base creation's job, as the build page's (`{job, from, lines, …}` – the job's real id).

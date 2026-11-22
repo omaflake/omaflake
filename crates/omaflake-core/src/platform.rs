@@ -256,6 +256,40 @@ pub fn kernel_release() -> String {
 
 /// A system tool: on macOS its fixed path (`/usr/bin/ssh` – not whatever comes first in PATH, as in Swift); elsewhere
 /// its name, found in PATH – NixOS has no /usr/bin/ssh, /bin/chmod or /usr/bin/sudo (`/run/wrappers/bin`, profiles)
+/// This computer's CPU cores (as the system offers them to a process), at least 1
+pub fn host_cpus() -> u32 {
+    std::thread::available_parallelism().map(|n| n.get() as u32).unwrap_or(1)
+}
+
+/// This computer's memory in bytes, None when the system does not say
+pub fn host_memory() -> Option<u64> {
+    // SAFETY: sysconf only reads system values
+    let (pages, size) = unsafe { (libc::sysconf(libc::_SC_PHYS_PAGES), libc::sysconf(libc::_SC_PAGESIZE)) };
+    (pages > 0 && size > 0).then(|| pages as u64 * size as u64)
+}
+
+/// What a VM may get on this computer (plan B164): 1 to all cores; 2 GB to the memory less 2 GB for the host
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct VmLimits {
+    pub max_cpus: u32,
+    pub max_memory_gb: u32,
+}
+
+impl VmLimits {
+    pub const MIN_CPUS: u32 = 1;
+    pub const MIN_MEMORY_GB: u32 = 2;
+    /// Left to the host
+    pub const HOST_RESERVE_GB: u32 = 2;
+
+    pub fn of_host() -> VmLimits {
+        let gb = host_memory().map(|b| (b / (1024 * 1024 * 1024)) as u32).unwrap_or(8);
+        VmLimits {
+            max_cpus: host_cpus().max(Self::MIN_CPUS),
+            max_memory_gb: gb.saturating_sub(Self::HOST_RESERVE_GB).max(Self::MIN_MEMORY_GB),
+        }
+    }
+}
+
 pub fn host_tool(macos_path: &str) -> String {
     if cfg!(target_os = "macos") {
         macos_path.to_string()

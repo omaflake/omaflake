@@ -48,6 +48,38 @@ pub struct InitializeResult {
     pub host: Host,
     pub data_folder: String,
     pub config_file: String,
+    /// Which core this is (plan B165): a UI with its own `omaf` compares it and replaces a service of another one
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub core: Option<CoreIdentity>,
+}
+
+/// The running `omaf`: its resolved path, size and modification time (plan B165) – two cores of the same version
+/// still differ (an app replaced in place)
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct CoreIdentity {
+    pub executable: String,
+    pub size: u64,
+    #[serde(with = "crate::json::iso8601_fractional")]
+    pub modified: DateTime<Utc>,
+}
+
+impl CoreIdentity {
+    /// The executable at `path` (resolved), None when it cannot be read
+    pub fn of(path: &std::path::Path) -> Option<CoreIdentity> {
+        let path = path.canonicalize().unwrap_or_else(|_| path.to_path_buf());
+        let meta = std::fs::metadata(&path).ok()?;
+        Some(CoreIdentity {
+            executable: path.to_string_lossy().into_owned(),
+            size: meta.len(),
+            // In milliseconds, as it travels – so a core compares equal with what it said in `initialize`
+            modified: chrono::SubsecRound::trunc_subsecs(DateTime::<Utc>::from(meta.modified().ok()?), 3),
+        })
+    }
+
+    /// This process's executable
+    pub fn current() -> Option<CoreIdentity> {
+        CoreIdentity::of(&std::env::current_exe().ok()?)
+    }
 }
 
 /// `service.restart`: the service ends once these jobs (waiting or running) are done – at once when 0
@@ -750,6 +782,15 @@ pub struct BaseDto {
     /// That credential's name when it was set
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub credential_name: Option<String>,
+    /// omaflake's own SSH key is in the guest (plan B160, B166) – false for bases from before it
+    #[serde(default)]
+    pub own_key: bool,
+    /// The macOS version ("27.0.1") when it was known at creation
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub version: Option<String>,
+    /// An active job uses it (a macOS image build, or a new base replacing it): it cannot be removed now
+    #[serde(default)]
+    pub in_use: bool,
 }
 
 /// A look omaflake can use (`looks.list`, plan B141): installed from a source, or in a local folder source

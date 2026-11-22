@@ -67,6 +67,8 @@ pub struct BuildRequest {
     pub keep_failed: bool,
     /// The credential and look of the image (plan B137); the macOS guest user stays the base's
     pub choice: BuildChoice,
+    /// Show the build VM in a window (`omaf-runner run --window`) – to watch where it waits; headless otherwise
+    pub window: bool,
 }
 
 impl BuildRequest {
@@ -80,8 +82,16 @@ impl BuildRequest {
             base: None,
             keep_failed: false,
             choice: BuildChoice::default(),
+            window: false,
         }
     }
+}
+
+/// How bases sort (oldest first): by their macOS build, then by name – "mac-base-26A434-work" and "mac-base-26A434"
+/// are of the same build
+fn base_order(name: &str) -> (&str, &str) {
+    let build = name.strip_prefix("mac-base-").unwrap_or(name).split('-').next().unwrap_or_default();
+    (build, name)
 }
 
 impl MacImageBuilder {
@@ -103,6 +113,26 @@ impl MacImageBuilder {
         names.retain(|n| n.starts_with("mac-base-"));
         names.sort();
         names.iter().rev().map(|n| paths.bases().join(n)).find(|dir| MacBaseInstaller::is_ready(dir))
+    }
+
+    /// The base a macOS image with credential `credential` (its ID) is built from (plan B166): its newest base, else
+    /// the newest base without a credential yet (the build then asks to assign one), else None
+    pub fn base_for_credential(paths: &Paths, credential: Option<&str>) -> Option<PathBuf> {
+        credential.and_then(|id| Self::newest_base_for(paths, Some(id))).or_else(|| Self::newest_base_for(paths, None))
+    }
+
+    /// The newest ready base of credential `credential` (its ID; plan B166) – images with that credential are built
+    /// from it. None: the newest base that has no credential yet (one from before plan B139).
+    pub fn newest_base_for(paths: &Paths, credential: Option<&str>) -> Option<PathBuf> {
+        let mut names: Vec<String> = fs::read_dir(paths.bases())
+            .map(|entries| entries.flatten().map(|e| e.file_name().to_string_lossy().into_owned()).collect())
+            .unwrap_or_default();
+        names.retain(|n| n.starts_with("mac-base-"));
+        names.sort_by(|a, b| base_order(a).cmp(&base_order(b)));
+        names.iter().rev().map(|n| paths.bases().join(n)).find(|dir| {
+            MacBaseInstaller::is_ready(dir)
+                && crate::mac_base_installer::BaseRecord::of(dir).map(|r| r.credential).as_deref() == credential
+        })
     }
 
     /// Runs the whole pipeline (keeping the Mac awake); progress goes to `log`, details (guest output) to
@@ -195,7 +225,12 @@ impl MacImageBuilder {
         let socket = run.join("runner.sock");
         let pid_file = work.join("runner.pid");
         let run_args = ["run".into(), path_string(&work), "--socket".into(), path_string(&socket)];
-        let run_args: Vec<String> = run_args.into_iter().chain(["--pid-file".into(), path_string(&pid_file)]).collect();
+        let mut run_args: Vec<String> =
+            run_args.into_iter().chain(["--pid-file".into(), path_string(&pid_file)]).collect();
+        if r.window {
+            run_args.push("--window".into());
+            log("The build VM is shown in a window");
+        }
         let child = spawn::spawn_detached(&self.vz.runner, &run_args, &log_file, &[])?;
         // Cancelling forces the build VM off at once (its runner is detached and would outlive omaf otherwise)
         let armed = Arc::new(AtomicBool::new(true));
@@ -441,7 +476,14 @@ impl MacImageBuilder {
                     Some(a) => format!("address {a}, {port}"),
                     None => format!("no DHCP lease for {mac}"),
                 };
-                return Err(vm_err!("No SSH after 10 minutes ({what})"));
+                return Err(if r.window {
+                    vm_err!("No SSH after 10 minutes ({}) – the build VM's window shows where it waits", what)
+                } else {
+                    vm_err!(
+                        "No SSH after 10 minutes ({}) – start the build again with Show the build VM (omaf build --window) to see where it waits",
+                        what
+                    )
+                });
             }
             match ip {
                 Some(a) if Ports::ssh_banner(&a, 22, sockets::DEFAULT_TIMEOUT).is_some() => break a,

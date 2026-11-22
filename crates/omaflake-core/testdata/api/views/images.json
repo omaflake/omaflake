@@ -69,8 +69,8 @@
       }
     },
     "footer": {
-      "key": "A base is a clean macOS installed from Apple's IPSW; macOS images are built from the newest one. Removing an older base frees its space.",
-      "text": "A base is a clean macOS installed from Apple's IPSW; macOS images are built from the newest one. Removing an older base frees its space."
+      "key": "A base is a clean macOS installed from Apple's IPSW, one per macOS build and credential; macOS images are built from the newest base of their credential. Removing an older base frees its space.",
+      "text": "A base is a clean macOS installed from Apple's IPSW, one per macOS build and credential; macOS images are built from the newest base of their credential. Removing an older base frees its space."
     },
     "job": {
       "actions": [],
@@ -170,28 +170,24 @@
               }
             },
             "destructive": true,
-            "enabled": false,
+            "enabled": true,
             "icon": "trash",
             "id": "remove",
             "label": {
               "key": "Remove …",
               "text": "Remove …"
             },
-            "method": "bases.remove",
+            "method": "macos.removeBase",
             "params": {
               "name": "mac-base-26A434"
-            },
-            "reason": {
-              "key": "A macOS base is being installed or a macOS image built – wait until it ends",
-              "text": "A macOS base is being installed or a macOS image built – wait until it ends"
             }
           }
         ],
         "badges": [
           {
             "help": {
-              "key": "New macOS images are built from this base",
-              "text": "New macOS images are built from this base"
+              "key": "New macOS images with its credential are built from this base",
+              "text": "New macOS images with its credential are built from this base"
             },
             "icon": "ok",
             "id": "newest",
@@ -204,8 +200,8 @@
         ],
         "lamp": {
           "help": {
-            "key": "New macOS images are built from it",
-            "text": "New macOS images are built from it"
+            "key": "New macOS images with its credential are built from it",
+            "text": "New macOS images with its credential are built from it"
           },
           "state": "on"
         },
@@ -243,6 +239,102 @@
           ],
           "key": "%@ · %@ · %@ · %@",
           "text": "macOS 26A434 · Work (alex) · 2026-10-17 10:00 UTC · 41.0 GB"
+        }
+      },
+      {
+        "actions": [
+          {
+            "enabled": true,
+            "icon": "folder",
+            "id": "reveal",
+            "label": {
+              "key": "Show in Finder",
+              "text": "Show in Finder"
+            },
+            "method": "ui.reveal",
+            "params": {
+              "path": "/data/bases/mac-base-25F71"
+            }
+          },
+          {
+            "confirm": {
+              "button": {
+                "key": "Remove",
+                "text": "Remove"
+              },
+              "destructive": true,
+              "text": {
+                "key": "It is deleted and cannot be restored. macOS images and VMs made from it stay – they are copies. New macOS images need a base.",
+                "text": "It is deleted and cannot be restored. macOS images and VMs made from it stay – they are copies. New macOS images need a base."
+              },
+              "title": {
+                "args": [
+                  "mac-base-25F71"
+                ],
+                "key": "Remove the macOS base “%@”?",
+                "text": "Remove the macOS base “mac-base-25F71”?"
+              }
+            },
+            "destructive": true,
+            "enabled": false,
+            "icon": "trash",
+            "id": "remove",
+            "label": {
+              "key": "Remove …",
+              "text": "Remove …"
+            },
+            "method": "macos.removeBase",
+            "params": {
+              "name": "mac-base-25F71"
+            },
+            "reason": {
+              "key": "An image build uses it – wait until it ends",
+              "text": "An image build uses it – wait until it ends"
+            }
+          }
+        ],
+        "badges": [],
+        "lamp": {
+          "help": {
+            "key": "Not used for new images",
+            "text": "Not used for new images"
+          },
+          "state": "off"
+        },
+        "name": "mac-base-25F71",
+        "subtitle": {
+          "args": [
+            {
+              "args": [
+                "25F71"
+              ],
+              "key": "macOS %@",
+              "text": "macOS 25F71"
+            },
+            {
+              "text": "Work (alex)"
+            },
+            {
+              "args": [
+                {
+                  "date": "2026-09-01T10:00:00Z"
+                }
+              ],
+              "key": "%@",
+              "text": "2026-09-01 10:00 UTC"
+            },
+            {
+              "args": [
+                {
+                  "bytes": 39000000000
+                }
+              ],
+              "key": "%@",
+              "text": "39.0 GB"
+            }
+          ],
+          "key": "%@ · %@ · %@ · %@",
+          "text": "macOS 25F71 · Work (alex) · 2026-09-01 10:00 UTC · 39.0 GB"
         }
       }
     ],

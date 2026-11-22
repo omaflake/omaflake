@@ -116,6 +116,7 @@ struct StoredField: View {
     let field: Field
     let model: AppModel
     @State private var text: String?
+    @State private var number: Int?
 
     var body: some View {
         let label = model.t(field.label)
@@ -131,6 +132,16 @@ struct StoredField: View {
                     text = $0
                     model.store(field, .string($0), typing: true)
                 }), prompt: field.placeholder.map { Text(verbatim: model.t($0)) })
+            case .number:
+                // Stored after a moment (one call for several clicks); the value shown is the one clicked to
+                let n = number ?? Int(field.value.double ?? 0)
+                let shown = field.label.args.count == 1 && field.label.key != nil
+                    ? model.t(ViewText(key: field.label.key!, args: [.int(Int64(n))], text: field.label.text)) : "\(label): \(n)"
+                Stepper(shown, value: Binding(get: { n }, set: {
+                    number = $0
+                    model.store(field, .number(Double($0)), typing: true)
+                }), in: (field.min ?? 0)...max(field.min ?? 0, field.max ?? Int.max), step: field.step ?? 1)
+                .onChange(of: field.value) { number = nil }
             case .choice:
                 Picker(label, selection: Binding(get: { field.value }, set: { model.store(field, $0) })) {
                     let choices = field.choices.map { (value: $0.value, name: GuestNames.name(field.id, $0, model)) }
@@ -456,6 +467,10 @@ struct DoctorView: View {
                             .textSelection(.enabled)
                     }
                 }
+                if let handover = model.coreHandover {
+                    Label(handover, systemImage: "arrow.triangle.2.circlepath").foregroundStyle(.secondary).font(.callout)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
                 if let problem = model.coreProblem {
                     Label(problem, systemImage: "exclamationmark.triangle.fill").foregroundStyle(BrandTokens.Colors.warning).font(.callout)
                         .fixedSize(horizontal: false, vertical: true)
@@ -697,10 +712,72 @@ struct MacBaseView: View {
                 Spacer()
                 ForEach(page.actions) { ActionPlainButton(action: $0, model: model, form: ref, isDefault: $0.primary) }
             }
+            if !page.bases.isEmpty { MacBaseList(bases: page.bases, model: model) }
             JobLogView(log: page.log, model: model, minHeight: 160)
         }
         .padding(16)
         .onAppear { model.checkDoctor() }
+    }
+}
+
+/// The bases there are (plan B166), newest first: name, build and version, credential and user, created; a warning
+/// for one without omaflake's own SSH key; Create Again and Remove with their confirmations
+struct MacBaseList: View {
+    let bases: [MacBasePage.Base]
+    let model: AppModel
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: BrandTokens.Spacing.m) {
+            Text("Bases").font(.caption.weight(.medium)).foregroundStyle(.secondary)
+            // The page does not scroll: more than a few bases scroll on their own, above the log
+            if bases.count > 3 {
+                ScrollView { rows }.frame(height: 210)
+            } else {
+                rows
+            }
+        }
+    }
+
+    private var rows: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            ForEach(bases) { base in
+                HStack(alignment: .top, spacing: BrandTokens.Spacing.xl) {
+                    Image(systemName: "apple.logo").frame(width: 16).foregroundStyle(.secondary)
+                    VStack(alignment: .leading, spacing: BrandTokens.Spacing.xxs) {
+                        HStack(spacing: BrandTokens.Spacing.m) {
+                            Text(verbatim: base.name).font(.callout.weight(.medium)).lineLimit(1).textSelection(.enabled)
+                            if !base.ownKey {
+                                Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(BrandTokens.Colors.warning)
+                                    .help(Text(verbatim: model.t(base.hint?.text)))
+                            }
+                        }
+                        Text(verbatim: subtitle(base)).font(.caption).foregroundStyle(.secondary).lineLimit(1)
+                        if let hint = base.hint {
+                            Text(verbatim: model.t(hint.text)).font(.caption).foregroundStyle(hint.tone.color)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                    }
+                    Spacer(minLength: 4)
+                    ForEach(base.actions) { ActionIcon(action: $0, model: model) }
+                }
+                .padding(BrandTokens.Spacing.cardPadding)
+            }
+        }
+    }
+
+    /// "macOS 26.0 (26A434) · Work – alex · 20 Oct 2026 at 08:00"
+    private func subtitle(_ base: MacBasePage.Base) -> String {
+        let system = switch (base.version, base.build) {
+        case let (v?, b?): "macOS \(v) (\(b))"
+        case let (v?, nil): "macOS \(v)"
+        case let (nil, b?): b
+        default: ""
+        }
+        let credential = [base.credential.map { model.t($0) }, base.user].compactMap { $0 }.filter { !$0.isEmpty }
+        // The credential's name often carries the user already ("Work – alex"): not twice
+        let who = credential.count == 2 && credential[0].contains(credential[1]) ? credential[0] : credential.joined(separator: " – ")
+        let created = base.created?.formatted(date: .abbreviated, time: .shortened)
+        return [system, who, created].compactMap { $0 }.filter { !$0.isEmpty }.joined(separator: " · ")
     }
 }
 

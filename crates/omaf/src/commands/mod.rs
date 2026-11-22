@@ -79,6 +79,8 @@ pub fn run(command: Command) -> Outcome {
         },
         Command::MacOs { command: MacOsCommand::Install(a) } => macos::install(&a),
         Command::MacOs { command: MacOsCommand::Assign(a) } => macos::assign(&a),
+        Command::MacOs { command: MacOsCommand::Bases } => macos::bases(),
+        Command::MacOs { command: MacOsCommand::Remove(a) } => macos::remove(&a),
         Command::Images(i) => match i.command {
             None | Some(ImagesCommand::List) => instances::images_list(),
             Some(ImagesCommand::Remove { name }) => instances::images_remove(&name),
@@ -202,7 +204,7 @@ fn call(a: &Call) -> Outcome {
     };
     let client = match socket {
         Some(path) => {
-            service::connect(path).ok_or_else(|| Error::new(format!("No service answers on {}", path.display())))?.0
+            service::connect_at(path).ok_or_else(|| Error::new(format!("No service answers on {}", path.display())))?
         }
         None => service::ensure_running(&omaflake_core::Paths::standard())?.client,
     };

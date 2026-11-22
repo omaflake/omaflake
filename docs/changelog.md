@@ -22,6 +22,11 @@ timing.
 
 ### Added
 
+- **A macOS base per credential:** each credential can have its own base of a macOS version, so macOS images can be
+  made for several users. A base can be created again (e.g. one from before omaflake's own SSH key) and removed; the
+  build page picks the base of the credential you choose.
+- **Cores and memory of a VM** can be changed while it is stopped (the VM's details, `omaf set --cpus --memory`).
+- **Show the build VM:** a macOS image's build VM in a window, to see where it waits (`omaf build --window`).
 - **Diagnose** for every running VM: one click (the VMs tab, `omaf diagnose <vm>`) checks the agent, SSH, the
   clipboard both ways, the share folder, the network, sound, microphone, camera, MIDI and the disk – through the
   omaflake agent, not SSH. Each check says what it found and what to do; sound and microphone ask you. The log is on
@@ -54,6 +59,10 @@ timing.
 
 ### Fixed
 
+- A new omaflake app no longer keeps using an older core service that still runs in the background: it asks it to end
+  after its jobs and takes over (VMs keep running). The `omaf` command does the same.
+- Stopping a VM whose clean shutdown cannot be asked (e.g. SSH refused) or does not end within 60 s forces it off and
+  says so, instead of waiting.
 - macOS VMs: the clipboard helper and the omaflake agent are started until they run, and a start that fails says why
   (in the VM's log and the activity list) – a VM from an older image could stay without clipboard and nobody knew. The
   Diagnose page offers to add omaflake's key to such a VM.

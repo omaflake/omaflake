@@ -31,7 +31,7 @@ use crate::ipsw_downloader::MacOsRelease;
 use crate::linux_builder::LinuxBuilder;
 use crate::mac_base_installer::{BaseOutcome, BaseRequest, MacBaseInstaller};
 use crate::mac_image_builder::{BuildRequest, MacImageBuilder};
-use crate::models::{DisplayMode, GlBackend, GuestKind, RecipeDefaults, RecipeId, VmStatus};
+use crate::models::{DisplayMode, GlBackend, GuestKind, RecipeDefaults, RecipeId, StopResult, VmStatus};
 use crate::omaflake_id::OmaflakeId;
 use crate::packages::{Package, PackageKind};
 use crate::paths::{Paths, Settings};
@@ -206,7 +206,7 @@ impl Server {
             "images.build" => self.images_build(params(p)?),
             "images.remove" => self.images_remove(&params::<Name>(p)?.name),
             // macOS bases (plan B137)
-            "bases.list" => Answer::of(base_dtos(&self.paths())),
+            "bases.list" => Answer::of(base_dtos(&self.paths(), &self.bases_in_use())),
             "bases.remove" => self.bases_remove(&params::<Name>(p)?.name),
             "bases.assign" => self.bases_assign(params(p)?),
             // Recipes and sources
@@ -349,6 +349,7 @@ impl Server {
             "doctor.uninstallCli" => self.cli_job(false),
             "macos.downloadIpsw" => self.macos_download_ipsw(),
             "macos.installBase" => self.macos_install_base(params(p)?),
+            "macos.removeBase" => self.macos_remove_base(&params::<Name>(p)?.name),
             "builder.installNix" => self.builder_job(JobKind::BuilderInstallNix, false),
             "builder.mountNix" => self.builder_job(JobKind::BuilderMountNix, false),
             "builder.setup" => self.builder_job(JobKind::BuilderSetup, false),
@@ -433,6 +434,7 @@ impl Server {
             host: host(),
             data_folder: paths.root.to_string_lossy().into_owned(),
             config_file: paths.config_file.to_string_lossy().into_owned(),
+            core: CoreIdentity::current(),
         })
     }
 
@@ -761,6 +763,13 @@ impl Server {
             let c = backends.store.load(&p.name)?;
             backends.backend_for(&c)?.stop(&c, timeout)
         })?;
+        // A forced end is news: the clean shutdown did not take (plan B165 round-up)
+        if matches!(result, StopResult::ForcedOff | StopResult::Killed | StopResult::Quit) {
+            self.events().message_text(
+                Level::Warning,
+                super::views::text::tf!("%@ forced off – the clean shutdown did not take", &p.name),
+            );
+        }
         self.check_doctor_later();
         Answer::of(StopAnswer { result })
     }
@@ -815,8 +824,52 @@ impl Server {
     }
 
     fn vms_set(&self, p: SetParams) -> Reply {
+        // Cores and memory (plan B164): within what this computer has, only while the VM is stopped
+        let limits = platform::VmLimits::of_host();
+        if let Some(n) = p.cpus
+            && !(platform::VmLimits::MIN_CPUS..=limits.max_cpus).contains(&n)
+        {
+            return Err(RpcError::from(vm_err!(
+                codes::UNSUPPORTED_SYSTEM,
+                "{} CPU cores are not possible here – {} to {}",
+                n,
+                platform::VmLimits::MIN_CPUS,
+                limits.max_cpus
+            )));
+        }
+        if let Some(n) = p.memory_gb
+            && !(platform::VmLimits::MIN_MEMORY_GB..=limits.max_memory_gb).contains(&n)
+        {
+            return Err(RpcError::from(vm_err!(
+                codes::UNSUPPORTED_SYSTEM,
+                "{} GB of memory are not possible here – {} to {} GB (this computer keeps 2 GB)",
+                n,
+                platform::VmLimits::MIN_MEMORY_GB,
+                limits.max_memory_gb
+            )));
+        }
         let running = self.act(&p.name, true, |backends, _| {
             let mut c = backends.store.load(&p.name)?;
+            if p.cpus.is_some() || p.memory_gb.is_some() {
+                let running = backends.backend_for(&c).is_ok_and(|b| b.status(&c) == VmStatus::Running);
+                if running {
+                    return Err(vm_err!(
+                        codes::VM_RUNNING,
+                        "{} is running – stop it to change its cores or memory",
+                        p.name
+                    ));
+                }
+                if let Some(n) = p.cpus {
+                    c.cpus = n;
+                }
+                if let Some(n) = p.memory_gb {
+                    c.memory_gb = n;
+                }
+                // A macOS VM's runner reads its folder's config.json; QEMU takes the instance's values at start
+                if c.kind == GuestKind::Macos {
+                    crate::vz_backend::VzBackend::apply_resources(&backends.store.paths, &c)?;
+                }
+            }
             if let Some(v) = p.audio {
                 c.audio = Some(v);
             }
@@ -1036,29 +1089,38 @@ impl Server {
         let mut choice = build_choice(&paths, p.credential.as_deref(), look.as_deref(), p.locale.as_deref())?;
         // macOS: the base's credential and its stored password – nobody types one (plan B139)
         let mut password = None;
+        let mut mac_base = None;
+        let mut mac_user = None;
         if kind == GuestKind::Macos {
+            // The chosen credential's newest base (plan B166)
+            let chosen = choice.credential.as_ref().map(|c| (c.id.clone(), c.name.clone()));
             let base = p
                 .base
                 .clone()
                 .filter(|b| !b.is_empty())
                 .map(PathBuf::from)
-                .or_else(|| MacImageBuilder::newest_base_in(&paths))
+                .or_else(|| MacImageBuilder::base_for_credential(&paths, chosen.as_ref().map(|c| c.0.as_str())))
                 .ok_or_else(|| {
+                    let name = chosen.as_ref().map(|c| c.1.clone()).unwrap_or_default();
                     RpcError::from(vm_err!(
                         codes::PREREQUISITE,
-                        "No base found (expected {}/mac-base-<os-build>) – create one with: omaf macos install",
-                        paths.bases().display()
+                        "No macOS base for the credential “{}” yet – create one (Create Base for {} …, or omaf macos install --credential \"{}\")",
+                        name,
+                        name,
+                        name
                     ))
                 })?;
             let login = Credentials::new(paths.clone()).login_of_base(&base).map_err(err)?;
+            mac_user = Some(login.user.clone());
             choice.credential = Some(login.credential);
             password = Some(login.password);
+            mac_base = Some(base);
         }
         let name = RecipeId::display_name(&p.recipe, Some(d));
         self.inner.jobs.drop_ended(JobKind::Build, &p.recipe);
         let recipe = p.recipe.clone();
         let s = self.clone();
-        let mac = MacOptions { base: p.base.filter(|b| !b.is_empty()).map(PathBuf::from), keep_failed: p.keep_failed };
+        let mac = MacOptions { base: mac_base.clone(), user: mac_user, keep_failed: p.keep_failed, window: p.window };
         let mut spec = JobSpec::new(
             JobKind::Build,
             format!("Build {name}"),
@@ -1090,7 +1152,11 @@ impl Server {
             s.check_doctor_later();
             s.poke();
         }));
-        Ok(Answer::Job(self.inner.jobs.submit(spec)))
+        let job = self.inner.jobs.submit(spec);
+        if let Some(base) = mac_base {
+            lock(&self.inner.base_uses).insert(job.id.clone(), base);
+        }
+        Ok(Answer::Job(job))
     }
 
     fn run_build(
@@ -1110,11 +1176,14 @@ impl Server {
             GuestKind::Macos => {
                 ctx.log(&format!("omaf build {recipe}"));
                 // The flake as it is now (the recipe list may be older, e.g. after a settings change)
-                let user = ImageStore::new(paths.clone())
-                    .recipe_defaults()
-                    .get(recipe)
-                    .and_then(|d| d.user.clone())
-                    .unwrap_or_else(platform::user_name);
+                // The base's user (plan B166: each credential has its own base); else as the recipe says
+                let user = mac.user.clone().unwrap_or_else(|| {
+                    ImageStore::new(paths.clone())
+                        .recipe_defaults()
+                        .get(recipe)
+                        .and_then(|d| d.user.clone())
+                        .unwrap_or_else(platform::user_name)
+                });
                 let Some(password) = password else {
                     return Err(vm_err!("Password of {user} needed (sudo, once)"));
                 };
@@ -1126,6 +1195,7 @@ impl Server {
                     password,
                     base: mac.base,
                     keep_failed: mac.keep_failed,
+                    window: mac.window,
                     choice: choice.clone(),
                 };
                 MacImageBuilder::new(paths.clone(), vz).build(&request, cancel, &*log)?
@@ -2295,13 +2365,22 @@ impl Server {
         // The guest user comes from a credential, its password from the secret store (plan B139); user, full name and
         // password given directly still work (API version 1)
         let login = Credentials::new(self.paths()).base_login(p.credential.as_deref()).map_err(err)?;
-        let record = Some(crate::mac_base_installer::BaseRecord {
-            credential: login.credential.id.clone(),
-            credential_name: login.credential.name.clone(),
-            user: login.user.clone(),
-        });
+        let credential = (login.credential.id.clone(), login.credential.name.clone());
+        // A base to supersede (plan B166): it must be there and no image build may use it
+        let replace = match p.replace.as_deref().filter(|r| !r.is_empty()) {
+            None => None,
+            Some(name) => {
+                let base = MacBaseInstaller::list(&self.paths())
+                    .into_iter()
+                    .find(|b| b.name == name)
+                    .ok_or_else(|| RpcError::from(vm_err!(codes::NOT_FOUND, "No macOS base \"{}\"", name)))?;
+                self.check_base_unused(&base.path, &base.name)?;
+                Some(base.path)
+            }
+        };
         let (user, full_name, password) = (login.user, login.full_name, login.password);
         let ipsw = p.ipsw;
+        let uses = replace.clone();
         let mut spec = JobSpec::new(
             JobKind::MacosInstall,
             format!("Create the macOS base (user {user})"),
@@ -2312,6 +2391,8 @@ impl Server {
                 let installer = MacBaseInstaller::new(paths, vz);
                 let mut request = BaseRequest::new(&user, &full_name, Some(password));
                 request.ipsw = ipsw.map(|i| PathBuf::from(platform::expand_tilde(&i)));
+                request.credential = Some(credential);
+                request.replace = replace.clone();
                 let progress = ctx.progress_sink("Downloading macOS");
                 let log = ctx.log_sink();
                 let job = ctx.job.clone();
@@ -2324,19 +2405,31 @@ impl Server {
                     &*progress,
                     &*log,
                 )?;
-                result(match outcome {
+                let (dir, existing, ready) = match outcome {
                     BaseOutcome::Existing(dir) => {
                         ctx.log(&format!("✓ {} exists already", file_name(&dir)));
-                        BaseResult { base: dir.to_string_lossy().into_owned(), existing: true, ready: true }
+                        (dir, true, true)
                     }
-                    BaseOutcome::Created { dir, ready } => {
-                        if let (Some(r), true) = (&record, ready) {
-                            r.write(&dir)?;
-                        }
-                        ctx.log(&format!("✓ {} is ready – build a macOS image next.", file_name(&dir)));
-                        BaseResult { base: dir.to_string_lossy().into_owned(), existing: false, ready }
+                    BaseOutcome::Created { dir, ready } => (dir, false, ready),
+                };
+                // The superseded base goes once the new one is ready – unless an image build took it meanwhile
+                let dir = match (&replace, ready) {
+                    (Some(old), true) if s.check_base_unused(old, &file_name(old)).is_ok() => {
+                        installer.supersede(old, &dir, &*log)?
                     }
-                })
+                    (Some(old), true) => {
+                        ctx.log(&format!(
+                            "{} is kept – an image build uses it; remove it when that is done",
+                            file_name(old)
+                        ));
+                        dir
+                    }
+                    _ => dir,
+                };
+                if ready && !existing {
+                    ctx.log(&format!("✓ {} is ready – build a macOS image next.", file_name(&dir)));
+                }
+                result(BaseResult { base: dir.to_string_lossy().into_owned(), existing, ready })
             }),
         );
         spec.guest_kind = Some(GuestKind::Macos);
@@ -2346,7 +2439,47 @@ impl Server {
             s.poke();
             s.check_doctor_later();
         }));
-        Ok(Answer::Job(self.inner.jobs.submit(spec)))
+        let job = self.inner.jobs.submit(spec);
+        if let Some(old) = uses {
+            lock(&self.inner.base_uses).insert(job.id.clone(), old);
+        }
+        Ok(Answer::Job(job))
+    }
+
+    /// The bases an active job uses (plan B166): macOS image builds, and a base creation for the base it replaces
+    pub(crate) fn bases_in_use(&self) -> Vec<PathBuf> {
+        let active: HashSet<String> =
+            self.inner.jobs.list().into_iter().filter(|j| j.state.is_active()).map(|j| j.id).collect();
+        let mut uses = lock(&self.inner.base_uses);
+        uses.retain(|id, _| active.contains(id));
+        uses.values().cloned().collect()
+    }
+
+    /// `in-use` while an active job uses base `dir`
+    fn check_base_unused(&self, dir: &std::path::Path, name: &str) -> Result<(), RpcError> {
+        if self.bases_in_use().iter().any(|b| b == dir) {
+            return Err(RpcError::from(vm_err!(
+                codes::IN_USE,
+                "{} is in use – an image build or a new base works with it; try again when it is done",
+                name
+            )));
+        }
+        Ok(())
+    }
+
+    /// `macos.removeBase` (plan B166): deletes a base for real (after the UI's confirmation), refused while an image
+    /// build uses it. Images and VMs made from it stay: they are copies (APFS clones).
+    fn macos_remove_base(&self, name: &str) -> Reply {
+        let paths = self.paths();
+        let Some(base) = MacBaseInstaller::list(&paths).into_iter().find(|b| b.name == name) else {
+            return Err(RpcError::from(vm_err!(codes::NOT_FOUND, "No macOS base \"{}\"", name)));
+        };
+        self.check_base_unused(&base.path, &base.name)?;
+        crate::trash::Disposal::delete(&[&base.path]).map_err(err)?;
+        self.events().message_text(Level::Info, super::views::text::tf!("macOS base %@ removed", name));
+        self.check_doctor_later();
+        self.poke();
+        Answer::of(Value::Null)
     }
 
     /// The jobs that set up and keep up Nix and the Linux builder – one at a time
@@ -3011,6 +3144,11 @@ struct SetParams {
     camera: Option<bool>,
     #[serde(default)]
     midi: Option<bool>,
+    /// From the next start, while stopped (plan B164)
+    #[serde(default)]
+    cpus: Option<u32>,
+    #[serde(default, rename = "memoryGb", alias = "memoryGB")]
+    memory_gb: Option<u32>,
 }
 
 #[derive(Deserialize)]
@@ -3076,13 +3214,19 @@ struct BuildParams {
     /// macOS: keep a failed build folder for inspection
     #[serde(default)]
     keep_failed: bool,
+    /// macOS: show the build VM in a window (to watch where it waits); NixOS builds ignore it
+    #[serde(default)]
+    window: bool,
 }
 
 /// The macOS bases (none on a host without macOS guests)
-pub(crate) fn base_dtos(paths: &Paths) -> Vec<BaseDto> {
+pub(crate) fn base_dtos(paths: &Paths, in_use: &[PathBuf]) -> Vec<BaseDto> {
     MacBaseInstaller::list(paths)
         .into_iter()
         .map(|b| BaseDto {
+            in_use: in_use.contains(&b.path),
+            own_key: b.record.as_ref().is_some_and(|r| r.own_key),
+            version: b.record.as_ref().and_then(|r| r.version.clone()),
             path: b.path.to_string_lossy().into_owned(),
             name: b.name,
             os_build: b.os_build,
@@ -3287,7 +3431,11 @@ pub(crate) fn build_choice(
 /// What `images.build` takes for a macOS build besides the password
 struct MacOptions {
     base: Option<PathBuf>,
+    /// The base's guest user
+    user: Option<String>,
     keep_failed: bool,
+    /// The build VM in a window (plan B165 round-up)
+    window: bool,
 }
 
 #[derive(Deserialize)]
@@ -3381,6 +3529,9 @@ struct InstallBaseParams {
     credential: Option<String>,
     #[serde(default)]
     ipsw: Option<String>,
+    /// A base this one supersedes (its name, plan B166): made first, removed once the new one is ready
+    #[serde(default)]
+    replace: Option<String>,
 }
 
 #[derive(Deserialize)]

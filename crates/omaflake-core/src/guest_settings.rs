@@ -82,7 +82,7 @@ impl GuestSettings {
 
     /// What the flake gets for an image built with `choice`: `mac()` with the overrides of `Settings::guest` (locale,
     /// keyboard, time zone; non-empty values), the credential's user, full name and e-mail, the chosen look and the
-    /// newest base's guest user as `mac_user` (plan B137)
+    /// guest user of the chosen credential's base as `mac_user` (plan B137, B166)
     pub fn for_choice(paths: &Paths, choice: &BuildChoice) -> GuestSettings {
         let mut g = Self::mac();
         let set = |v: Option<String>| v.filter(|v| !v.is_empty());
@@ -118,7 +118,10 @@ impl GuestSettings {
                 }
             }
         }
-        if let Some(base) = MacImageBuilder::newest_base_in(paths) {
+        // The base of the chosen credential (plan B166), else the newest of any
+        let base = MacImageBuilder::base_for_credential(paths, choice.credential.as_ref().map(|c| c.id.as_str()))
+            .or_else(|| MacImageBuilder::newest_base_in(paths));
+        if let Some(base) = base {
             g.mac_user = MacBaseInstaller::user_of(&base, &paths.logs());
         }
         g

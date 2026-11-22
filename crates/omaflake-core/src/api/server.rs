@@ -130,6 +130,8 @@ pub(crate) struct Inner {
     clipboard: Mutex<Clipboard>,
     /// VM → its newest diagnosis (plan B162; the page shows it while it belongs to the VM's current run)
     pub diagnostics: Mutex<HashMap<String, super::views::diagnostics::DiagnosisRecord>>,
+    /// Job ID → the macOS base it uses (plan B166: a base in use cannot be removed)
+    pub base_uses: Mutex<HashMap<String, std::path::PathBuf>>,
     watch: Mutex<Watch>,
     wake: Condvar,
     /// The first `initialize` ran (it migrates older layouts once)
@@ -232,6 +234,7 @@ impl Server {
                 views_last: Mutex::default(),
                 clipboard: Mutex::default(),
                 diagnostics: Mutex::default(),
+                base_uses: Mutex::default(),
                 watch: Mutex::default(),
                 wake: Condvar::new(),
                 migrated: AtomicBool::new(false),

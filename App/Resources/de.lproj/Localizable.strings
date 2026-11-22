@@ -1672,3 +1672,41 @@
 "Finished" = "Fertig";
 "Failed %@" = "Fehlgeschlagen %@";
 "Not run yet" = "Noch nicht ausgeführt";
+
+/* 0.7.4 round-up: macOS bases per credential (plan B166), VM resources (B164), stop, build window */
+"%@ CPU cores are not possible here – %@ to %@" = "%@ CPU-Kerne sind hier nicht möglich – %@ bis %@";
+"%@ GB of memory are not possible here – %@ to %@ GB (this computer keeps 2 GB)" = "%@ GB Arbeitsspeicher sind hier nicht möglich – %@ bis %@ GB (dieser Computer behält 2 GB)";
+"%@ is in use – an image build or a new base works with it; try again when it is done" = "%@ wird verwendet – ein Image-Build oder eine neue Base arbeitet damit; versuche es danach noch einmal";
+"%@ is running – stop it to change its cores or memory" = "%@ läuft – stoppe die VM, um Kerne oder Arbeitsspeicher zu ändern";
+"No SSH after 10 minutes (%@) – start the build again with Show the build VM (omaf build --window) to see where it waits" = "Kein SSH nach 10 Minuten (%@) – starte den Build noch einmal mit „Build-VM zeigen“ (omaf build --window), um zu sehen, wo er wartet";
+"No SSH after 10 minutes (%@) – the build VM's window shows where it waits" = "Kein SSH nach 10 Minuten (%@) – das Fenster der Build-VM zeigt, wo sie wartet";
+"No macOS base for the credential “%@” yet – create one (Create Base for %@ …, or omaf macos install --credential \"%@\")" = "Noch keine macOS-Base für den Zugang „%@“ – erstelle eine (Base für %@ erstellen …, oder omaf macos install --credential \"%@\")";
+"A base is a clean macOS installed from Apple's IPSW, one per macOS build and credential; macOS images are built from the newest base of their credential. Removing an older base frees its space." = "Eine Base ist ein sauberes macOS, installiert aus Apples IPSW – eine je macOS-Build und Zugang; macOS-Images werden aus der neuesten Base ihres Zugangs gebaut. Eine ältere Base zu entfernen gibt ihren Platz frei.";
+"A macOS base is being created – its progress is below" = "Eine macOS-Base wird erstellt – ihr Fortschritt steht unten";
+"A new base is created with the credential “%@” and omaflake's own SSH key; once it is ready, “%@” is deleted. macOS images and VMs made from it stay – they are copies." = "Eine neue Base wird mit dem Zugang „%@“ und omaflakes eigenem SSH-Schlüssel erstellt; sobald sie fertig ist, wird „%@“ gelöscht. macOS-Images und VMs daraus bleiben – sie sind Kopien.";
+"An image build uses it – wait until it ends" = "Ein Image-Build verwendet sie – warte, bis er endet";
+"Create Again" = "Neu erstellen";
+"Create Again …" = "Neu erstellen …";
+"Create “%@” again?" = "„%@“ neu erstellen?";
+"Made before omaflake's own SSH key – its builds need your key in the ssh-agent. Create it again." = "Vor omaflakes eigenem SSH-Schlüssel erstellt – ihre Builds brauchen deinen Schlüssel im ssh-agent. Erstelle sie neu.";
+"New macOS images with its credential are built from it" = "Neue macOS-Images mit ihrem Zugang werden daraus gebaut";
+"New macOS images with its credential are built from this base" = "Neue macOS-Images mit ihrem Zugang werden aus dieser Base gebaut";
+"Show the build VM" = "Build-VM zeigen";
+"Shows the build VM in a window – to see where a build waits; off: headless" = "Zeigt die Build-VM in einem Fenster – um zu sehen, wo ein Build wartet; aus: ohne Fenster";
+"Stop the VM to change it" = "Stoppe die VM, um das zu ändern";
+"macOS images are built on this credential's base: its user and password (one base per credential)" = "macOS-Images werden auf der Base dieses Zugangs gebaut: ihr Benutzer und Passwort (eine Base je Zugang)";
+"No macOS base for %@ yet" = "Noch keine macOS-Base für %@";
+"Create Base for %@ …" = "Base für %@ erstellen …";
+"No macOS base for %@ yet – each credential has its own base with its user and password; it is created from Apple's macOS once." = "Noch keine macOS-Base für %@ – jeder Zugang hat seine eigene Base mit seinem Benutzer und Passwort; sie wird einmal aus Apples macOS erstellt.";
+"%@ is this credential's base of macOS %@ – Create Again replaces it" = "%@ ist die Base dieses Zugangs für macOS %@ – „Neu erstellen“ ersetzt sie";
+"Not installed completely – it cannot build images; Create Base continues it." = "Nicht vollständig installiert – sie kann keine Images bauen; „Base erstellen“ setzt sie fort.";
+"No credential yet – assign the one its user was created with (Images → macOS Bases)." = "Noch kein Zugang – weise den zu, mit denen ihr Benutzer erstellt wurde (Images → macOS-Bases).";
+"%@ forced off – the clean shutdown did not take" = "%@ hart ausgeschaltet – das saubere Herunterfahren hat nicht gegriffen";
+
+/* The app and an older core service (plan B165); the bases list (plan B166) */
+"This app's omaflake core took over" = "Der omaflake-Kern dieser App hat übernommen";
+"An older omaflake core is still running – this one takes over now" = "Ein älterer omaflake-Kern läuft noch – dieser übernimmt jetzt";
+"An older omaflake core is still running – it finishes 1 job, then this one takes over" = "Ein älterer omaflake-Kern läuft noch – er beendet 1 Aufgabe, dann übernimmt dieser";
+"An older omaflake core is still running – it finishes %lld jobs, then this one takes over" = "Ein älterer omaflake-Kern läuft noch – er beendet %lld Aufgaben, dann übernimmt dieser";
+"The core service runs another omaflake (an installed service) – run “omaf service install” again to use this one" = "Der Kern-Dienst gehört zu einem anderen omaflake (ein installierter Dienst) – führe „omaf service install“ erneut aus, um diesen zu nutzen";
+"Bases" = "Basen";

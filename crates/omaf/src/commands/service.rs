@@ -19,7 +19,7 @@ use std::time::{Duration, Instant};
 
 use omaflake_core::api::client::Client;
 use omaflake_core::api::service::{self, Options, is_newer, socket_path};
-use omaflake_core::api::types::JobDto;
+use omaflake_core::api::types::{CoreIdentity, InitializeResult, JobDto};
 use omaflake_core::platform::home_dir;
 use omaflake_core::{Error, Paths, Result};
 use serde_json::{Value, json};
@@ -38,6 +38,8 @@ pub const IDLE_EXIT: u64 = 300;
 const START_WAIT: Duration = Duration::from_secs(10);
 /// How long a restart (`service.restart` without jobs) may take
 const STOP_WAIT: Duration = Duration::from_secs(10);
+/// How long a client waits for an outdated service to finish its jobs before it uses it as it is (plan B165)
+const HANDOVER_WAIT: Duration = Duration::from_secs(60);
 
 /// `omaf serve [--socket[=<path>]] [--idle-exit <secs>]`
 pub fn serve(a: &Serve) -> Outcome {
@@ -95,40 +97,77 @@ impl Running {
 }
 
 /// Connects and initializes when the service runs; None when it does not
-pub fn connect(socket: &Path) -> Option<(Client, String)> {
+pub fn connect(socket: &Path) -> Option<(Client, InitializeResult)> {
     let client = Client::connect(socket).ok()?;
     let init = client.initialize("omaf").ok()?;
-    Some((client, init.omaf_version))
+    Some((client, init))
 }
 
-/// The service of `paths`, started when it does not run, restarted once when it is older than this omaf (and the
-/// restart would bring this omaf)
+/// Why a running service should give way to this omaf: it is older (api.md §1), or another core of a version that is
+/// not newer (plan B165: an app replaced in place keeps its version) – None when it stays. A service newer than this
+/// omaf stays (an old `omaf` must not take an update back); so does one whose restart would not bring this omaf.
+fn replaced_because(init: &InitializeResult, this: Option<&CoreIdentity>) -> Option<Replace> {
+    if is_newer(omaflake_core::VERSION, &init.omaf_version) {
+        return Some(Replace::Older);
+    }
+    let other_core = matches!((&init.core, this), (Some(theirs), Some(ours)) if theirs != ours);
+    (other_core && !is_newer(&init.omaf_version, omaflake_core::VERSION)).then_some(Replace::OtherCore)
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Replace {
+    Older,
+    OtherCore,
+}
+
+/// The service of `paths`, started when it does not run; one that `replaced_because` names is asked to end
+/// (`service.restart`) and replaced once it did (waiting up to a minute for its jobs) – when the restart brings
+/// this omaf
 pub fn ensure_running(paths: &Paths) -> Result<Running> {
     let socket = socket_path(paths);
-    if let Some((client, version)) = connect(&socket) {
-        if !(is_newer(omaflake_core::VERSION, &version) && restart_brings_this_omaf()) {
+    if let Some((client, init)) = connect(&socket) {
+        let version = init.omaf_version.clone();
+        let Some(why) =
+            replaced_because(&init, CoreIdentity::current().as_ref()).filter(|_| restart_brings_this_omaf())
+        else {
             return Ok(Running { client, socket, version, started: false });
-        }
+        };
         let jobs = client.call("service.restart", Value::Null).ok().and_then(|v| v["jobs"].as_u64()).unwrap_or(1);
-        if jobs > 0 {
-            // It ends after its jobs; until then it is the one to use
-            eprintln!(
-                "omaf: the service (omaf {version}) restarts with omaf {} once its jobs are done",
-                omaflake_core::VERSION
-            );
-            return Ok(Running { client, socket, version, started: false });
-        }
+        let wait = if jobs > 0 {
+            match why {
+                Replace::Older => eprintln!(
+                    "omaf: the service (omaf {version}) finishes {jobs} job(s), then omaf {} takes over – waiting up to {} s",
+                    omaflake_core::VERSION,
+                    HANDOVER_WAIT.as_secs()
+                ),
+                Replace::OtherCore => eprintln!(
+                    "omaf: an older omaflake core is still running ({}) – it finishes {jobs} job(s), then this one takes \
+                     over; waiting up to {} s",
+                    init.core.as_ref().map(|c| c.executable.as_str()).unwrap_or("?"),
+                    HANDOVER_WAIT.as_secs()
+                ),
+            }
+            HANDOVER_WAIT
+        } else {
+            STOP_WAIT
+        };
         drop(client);
-        let end = Instant::now() + STOP_WAIT;
+        let end = Instant::now() + wait;
         while service::is_running(&socket) && Instant::now() < end {
-            std::thread::sleep(Duration::from_millis(50));
+            std::thread::sleep(Duration::from_millis(100));
+        }
+        if service::is_running(&socket) {
+            // Its jobs take longer: it is the one to use until they are done (it ends after them on its own)
+            eprintln!("omaf: the running service is still busy – using it until its jobs are done");
+            let (client, init) = connect(&socket).ok_or_else(|| Error::new("The service went away"))?;
+            return Ok(Running { client, socket, version: init.omaf_version, started: false });
         }
     }
     start(paths)?;
     let end = Instant::now() + START_WAIT;
     loop {
-        if let Some((client, version)) = connect(&socket) {
-            return Ok(Running { client, socket, version, started: true });
+        if let Some((client, init)) = connect(&socket) {
+            return Ok(Running { client, socket, version: init.omaf_version, started: true });
         }
         if Instant::now() >= end {
             return Err(Error::new(format!(
@@ -139,6 +178,33 @@ pub fn ensure_running(paths: &Paths) -> Result<Running> {
         }
         std::thread::sleep(Duration::from_millis(50));
     }
+}
+
+/// The service of `paths` when one runs – replaced first when `ensure_running` would replace it; None when none runs
+pub fn connect_running(paths: &Paths) -> Option<Running> {
+    let socket = socket_path(paths);
+    let (client, init) = connect(&socket)?;
+    if replaced_because(&init, CoreIdentity::current().as_ref()).is_some() && restart_brings_this_omaf() {
+        drop(client);
+        return ensure_running(paths).ok();
+    }
+    Some(Running { client, socket, version: init.omaf_version, started: false })
+}
+
+/// A service on a socket of the caller's choice (`omaf call --socket=<path>`): used as it is – it is not ours to
+/// restart –, with a warning when it runs another core (plan B165)
+pub fn connect_at(socket: &Path) -> Option<Client> {
+    let (client, init) = connect(socket)?;
+    if replaced_because(&init, CoreIdentity::current().as_ref()).is_some() {
+        eprintln!(
+            "omaf: the service on {} runs another omaflake core ({}, omaf {}) – `omaf service stop` ends it once its \
+             jobs are done",
+            socket.display(),
+            init.core.as_ref().map(|c| c.executable.as_str()).unwrap_or("?"),
+            init.omaf_version
+        );
+    }
+    Some(client)
 }
 
 /// The installed agent serves the standard data folder – not one of `VM_HOME`
@@ -435,7 +501,7 @@ fn status(paths: &Paths, as_json: bool) -> Outcome {
             "agentFile": file,
             "socket": socket,
             "running": running.is_some(),
-            "version": running.as_ref().map(|(_, v)| v.clone()),
+            "version": running.as_ref().map(|(_, init)| init.omaf_version.clone()),
             "jobs": jobs,
         });
         println!("{}", super::pretty(&v));
@@ -444,8 +510,11 @@ fn status(paths: &Paths, as_json: bool) -> Outcome {
     println!("Agent:   {}", if installed { format!("installed ({})", file.display()) } else { "not installed".into() });
     println!("Socket:  {}", socket.display());
     match running {
-        Some((_, version)) => {
-            println!("Running: yes – omaf {version}, {} job(s) waiting or running", jobs.unwrap_or(0))
+        Some((_, init)) => {
+            println!("Running: yes – omaf {}, {} job(s) waiting or running", init.omaf_version, jobs.unwrap_or(0));
+            if let Some(core) = &init.core {
+                println!("Core:    {}", core.executable);
+            }
         }
         None => println!("Running: no"),
     }
@@ -478,6 +547,32 @@ fn stop(paths: &Paths) -> Outcome {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn init(version: &str, core: Option<CoreIdentity>) -> InitializeResult {
+        InitializeResult {
+            api_version: 1,
+            omaf_version: version.into(),
+            host: omaflake_core::api::types::Host { system: "aarch64-darwin".into(), os: "macOS".into() },
+            data_folder: "/d".into(),
+            config_file: "/d/config.json".into(),
+            core,
+        }
+    }
+
+    #[test]
+    fn another_core_of_the_same_version_is_replaced() {
+        let ours = CoreIdentity::current().expect("this test's executable");
+        let v = omaflake_core::VERSION;
+        assert_eq!(replaced_because(&init(v, Some(ours.clone())), Some(&ours)), None);
+        let mut theirs = ours.clone();
+        theirs.size += 1;
+        assert_eq!(replaced_because(&init(v, Some(theirs.clone())), Some(&ours)), Some(Replace::OtherCore));
+        // A service without `core` (older than B165) is replaced only for its version
+        assert_eq!(replaced_because(&init(v, None), Some(&ours)), None);
+        assert_eq!(replaced_because(&init("0.0.1", None), Some(&ours)), Some(Replace::Older));
+        // A newer service stays, whatever its core
+        assert_eq!(replaced_because(&init("999.0.0", Some(theirs)), Some(&ours)), None);
+    }
 
     #[test]
     fn the_plist_runs_omaf_serve_on_the_socket() {

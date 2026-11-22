@@ -10,6 +10,8 @@ public enum ServerEvent: Sendable {
     case connected(InitializeResult)
     /// The server ended or could not be started; the client starts it again after a pause
     case disconnected(String)
+    /// The service runs another `omaf` than this client brings (plan B165, api.md §2) – after `.connected`
+    case coreHandover(CoreHandover)
 
     case vmsChanged(VmList)
     /// A running VM is off; `requested`: it was stopped through this server
@@ -30,6 +32,14 @@ public enum ServerEvent: Sendable {
     case unknown(method: String)
     /// A known event whose params did not decode
     case undecodable(method: String, error: String)
+
+    /// What happens with a service of another `omaf` (plan B165)
+    public enum CoreHandover: Sendable, Equatable {
+        /// It was asked to restart and ends once its `jobs` are done; then this client starts its own
+        case waiting(jobs: Int)
+        /// It came back after the restart (an installed agent of another omaf, which is left alone) – used as it is
+        case kept
+    }
 
     /// The topics `events.subscribe` takes
     public static let topics = ["vms", "images", "recipes", "jobs", "doctor", "messages"]

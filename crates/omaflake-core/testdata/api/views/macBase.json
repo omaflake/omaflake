@@ -29,6 +29,185 @@
     },
     "tone": "warning"
   },
+  "bases": [
+    {
+      "actions": [
+        {
+          "confirm": {
+            "button": {
+              "key": "Create Again",
+              "text": "Create Again"
+            },
+            "destructive": false,
+            "text": {
+              "args": [
+                "Work",
+                "mac-base-26A434"
+              ],
+              "key": "A new base is created with the credential “%@” and omaflake's own SSH key; once it is ready, “%@” is deleted. macOS images and VMs made from it stay – they are copies.",
+              "text": "A new base is created with the credential “Work” and omaflake's own SSH key; once it is ready, “mac-base-26A434” is deleted. macOS images and VMs made from it stay – they are copies."
+            },
+            "title": {
+              "args": [
+                "mac-base-26A434"
+              ],
+              "key": "Create “%@” again?",
+              "text": "Create “mac-base-26A434” again?"
+            }
+          },
+          "enabled": false,
+          "icon": "refresh",
+          "id": "recreate",
+          "label": {
+            "key": "Create Again …",
+            "text": "Create Again …"
+          },
+          "method": "macos.installBase",
+          "params": {
+            "credential": "c-1",
+            "replace": "mac-base-26A434"
+          },
+          "reason": {
+            "key": "A macOS base is being created – its progress is below",
+            "text": "A macOS base is being created – its progress is below"
+          }
+        },
+        {
+          "confirm": {
+            "button": {
+              "key": "Remove",
+              "text": "Remove"
+            },
+            "destructive": true,
+            "text": {
+              "key": "It is deleted and cannot be restored. macOS images and VMs made from it stay – they are copies. New macOS images need a base.",
+              "text": "It is deleted and cannot be restored. macOS images and VMs made from it stay – they are copies. New macOS images need a base."
+            },
+            "title": {
+              "args": [
+                "mac-base-26A434"
+              ],
+              "key": "Remove the macOS base “%@”?",
+              "text": "Remove the macOS base “mac-base-26A434”?"
+            }
+          },
+          "destructive": true,
+          "enabled": true,
+          "icon": "trash",
+          "id": "remove",
+          "label": {
+            "key": "Remove …",
+            "text": "Remove …"
+          },
+          "method": "macos.removeBase",
+          "params": {
+            "name": "mac-base-26A434"
+          }
+        }
+      ],
+      "build": "26A434",
+      "created": "2026-10-17T10:00:00Z",
+      "credential": "Work",
+      "name": "mac-base-26A434",
+      "ownKey": true,
+      "user": "alex",
+      "version": "27.0.1"
+    },
+    {
+      "actions": [
+        {
+          "confirm": {
+            "button": {
+              "key": "Create Again",
+              "text": "Create Again"
+            },
+            "destructive": false,
+            "text": {
+              "args": [
+                "Work",
+                "mac-base-25F71"
+              ],
+              "key": "A new base is created with the credential “%@” and omaflake's own SSH key; once it is ready, “%@” is deleted. macOS images and VMs made from it stay – they are copies.",
+              "text": "A new base is created with the credential “Work” and omaflake's own SSH key; once it is ready, “mac-base-25F71” is deleted. macOS images and VMs made from it stay – they are copies."
+            },
+            "title": {
+              "args": [
+                "mac-base-25F71"
+              ],
+              "key": "Create “%@” again?",
+              "text": "Create “mac-base-25F71” again?"
+            }
+          },
+          "enabled": false,
+          "icon": "refresh",
+          "id": "recreate",
+          "label": {
+            "key": "Create Again …",
+            "text": "Create Again …"
+          },
+          "method": "macos.installBase",
+          "params": {
+            "credential": "c-1",
+            "replace": "mac-base-25F71"
+          },
+          "reason": {
+            "key": "A macOS base is being created – its progress is below",
+            "text": "A macOS base is being created – its progress is below"
+          }
+        },
+        {
+          "confirm": {
+            "button": {
+              "key": "Remove",
+              "text": "Remove"
+            },
+            "destructive": true,
+            "text": {
+              "key": "It is deleted and cannot be restored. macOS images and VMs made from it stay – they are copies. New macOS images need a base.",
+              "text": "It is deleted and cannot be restored. macOS images and VMs made from it stay – they are copies. New macOS images need a base."
+            },
+            "title": {
+              "args": [
+                "mac-base-25F71"
+              ],
+              "key": "Remove the macOS base “%@”?",
+              "text": "Remove the macOS base “mac-base-25F71”?"
+            }
+          },
+          "destructive": true,
+          "enabled": false,
+          "icon": "trash",
+          "id": "remove",
+          "label": {
+            "key": "Remove …",
+            "text": "Remove …"
+          },
+          "method": "macos.removeBase",
+          "params": {
+            "name": "mac-base-25F71"
+          },
+          "reason": {
+            "key": "An image build uses it – wait until it ends",
+            "text": "An image build uses it – wait until it ends"
+          }
+        }
+      ],
+      "build": "25F71",
+      "created": "2026-09-01T10:00:00Z",
+      "credential": "Work",
+      "hint": {
+        "icon": "warning",
+        "text": {
+          "key": "Made before omaflake's own SSH key – its builds need your key in the ssh-agent. Create it again.",
+          "text": "Made before omaflake's own SSH key – its builds need your key in the ssh-agent. Create it again."
+        },
+        "tone": "warning"
+      },
+      "name": "mac-base-25F71",
+      "ownKey": false,
+      "user": "alex"
+    }
+  ],
   "fields": [
     {
       "choices": [

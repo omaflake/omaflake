@@ -12,7 +12,6 @@ use omaflake_core::{
 };
 
 use omaflake_core::api::client::Client;
-use omaflake_core::api::service::socket_path;
 use omaflake_core::api::types::{BuildResult, JobState};
 use omaflake_core::error::codes;
 use serde_json::{Value, json};
@@ -160,6 +159,7 @@ fn build_in_service(
     let mut params = json!({
         "recipe": recipe,
         "keepFailed": a.keep_failed,
+        "window": a.window,
         "credential": choice.credential.as_ref().map_or("", |c| c.id.as_str()),
         "look": choice.look.as_deref().unwrap_or(""),
         "locale": choice.locale.as_ref().map_or("", |l| l.id.as_str()),
@@ -243,27 +243,36 @@ pub fn build(a: &cli::Build) -> Outcome {
     let mut mac: Option<(MacImageBuilder, PathBuf, String, String)> = None;
     if d.kind == GuestKind::Macos {
         let builder = MacImageBuilder::new(env.paths.clone(), env.backends()?.vz()?.clone());
-        let Some(base) = a.base.as_deref().map(folder_path).or_else(|| builder.newest_base()) else {
+        // The chosen credential's newest base (plan B166)
+        let chosen = choice.credential.as_ref().map(|c| (c.id.clone(), c.name.clone()));
+        let Some(base) = a
+            .base
+            .as_deref()
+            .map(folder_path)
+            .or_else(|| MacImageBuilder::base_for_credential(&env.paths, chosen.as_ref().map(|c| c.0.as_str())))
+        else {
+            let name = chosen.map(|c| c.1).unwrap_or_default();
             return Err(Error::new(format!(
-                "No base in {} – create one with: omaf macos install",
+                "No macOS base for the credential “{name}” in {} – create one with: omaf macos install --credential \"{name}\"",
                 env.paths.bases().display()
             ))
             .into());
         };
         let login = omaflake_core::credentials::Credentials::new(env.paths.clone()).login_of_base(&base)?;
-        let user = d.user.clone().unwrap_or_else(|| login.user.clone());
+        // The base's user: each credential has its own base (plan B166)
+        let user = login.user.clone();
         choice.credential = Some(login.credential.clone());
         mac = Some((builder, base, user, login.password));
     }
     // With the core service running, the build is its job: the app and other clients see it, it waits in the same
     // queue (plan B120); this command follows its log. Not with VM_FLAKE: the service – started by the app or another
     // terminal – does not have this terminal's environment and would build with config.json's flake
-    let mut service = service::connect(&socket_path(&env.paths));
+    let mut service = service::connect_running(&env.paths);
     if service.is_some() && std::env::var("VM_FLAKE").is_ok_and(|v| !v.is_empty()) {
         eprintln!("VM_FLAKE is set: building here, not in the omaflake service (it builds with config.json's flake)");
         service = None;
     }
-    if let Some((client, _)) = service {
+    if let Some(service::Running { client, .. }) = service {
         // The service takes the base's credential itself
         let base = mac.as_ref().map(|(_, b, _, _)| b.to_string_lossy().into_owned());
         return build_in_service(&client, &env, &recipe, &choice, base, a);
@@ -287,6 +296,7 @@ pub fn build(a: &cli::Build) -> Outcome {
                 base: Some(base),
                 keep_failed: a.keep_failed,
                 choice: choice.clone(),
+                window: a.window,
             },
             &token,
             &log,

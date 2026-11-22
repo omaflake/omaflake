@@ -139,23 +139,21 @@ pub struct BuildValues {
     pub credential: Option<String>,
     pub look: Option<String>,
     pub locale: Option<String>,
+    /// macOS: the build VM in a window
+    pub window: Option<bool>,
 }
 
 /// The credential and look fields of the build form, and the values they have now (the user's, else the defaults)
 fn choice_fields(
     ctx: &Ctx,
     v: &BuildValues,
-    base: Option<&crate::api::types::BaseDto>,
+    mac: bool,
     suggested_look: Option<&str>,
 ) -> (Vec<Field>, String, String, String) {
     let default_credential = ctx.settings.default_credential.clone().unwrap_or_default();
+    // macOS too (plan B166): each credential has its own base, the build takes the chosen credential's
     let credential =
         v.credential.clone().filter(|id| ctx.credentials.iter().any(|c| &c.id == id)).unwrap_or(default_credential);
-    // macOS: the base's credential, fixed – its user and password are the base's account (plan B139)
-    let credential = match base {
-        Some(b) => b.credential.clone().unwrap_or_default(),
-        None => credential,
-    };
     // An installed look (plan B141): the chosen one while it is here, else the recipe's when it is here (B142), else
     // the default
     let look = v
@@ -174,12 +172,10 @@ fn choice_fields(
         .map(|x| Choice::new(json!(x.id), Text::verbatim(format!("{} – {}", x.name, x.user.as_deref().unwrap_or("–")))))
         .collect();
     c.help = Some(Text::new("Who you are in the guest: user, full name, e-mail (Credentials, the key at the top)"));
-    if let Some(b) = base {
-        c.help = Some(Text::new("macOS images are built with the credential of their base: its user and password"));
-        if b.credential.is_none() {
-            c.choices = vec![Choice::new(json!(""), Text::new("none yet – assign one to the base"))];
-        }
-        c = c.enabled_if(false, Some(tf!("The credential of %@", &b.name)));
+    if mac {
+        c.help = Some(Text::new(
+            "macOS images are built on this credential's base: its user and password (one base per credential)",
+        ));
     }
     let mut l = Field::new("look", FieldKind::Choice, Text::new("Look"), json!(look))
         .param("look")
@@ -256,11 +252,34 @@ pub(crate) fn page(ctx: &Ctx, p: &BuildParams) -> BuildPage {
         badges.push(Badge::new("lab", "lab", Text::new("Development recipe (developer mode)"), Tone::Warning));
     }
 
-    // macOS images are built on the newest base, with its credential (plan B139)
-    let base = if mac { ctx.bases.iter().find(|b| b.newest) } else { None };
     let parts = r.and_then(|r| r.parts.as_ref());
-    let (fields, credential, look, locale) =
-        choice_fields(ctx, &p.values, base, parts.and_then(|x| x.look_id.as_deref()));
+    let (mut fields, credential, look, locale) =
+        choice_fields(ctx, &p.values, mac, parts.and_then(|x| x.look_id.as_deref()));
+    // macOS images are built on the newest base of the chosen credential (plan B166) – else on a base without a
+    // credential yet, which asks to assign one (plan B139)
+    let base = if mac {
+        ctx.bases
+            .iter()
+            .find(|b| b.ready && b.newest && b.credential.as_deref() == Some(credential.as_str()))
+            .or_else(|| ctx.bases.iter().find(|b| b.ready && b.newest && b.credential.is_none()))
+    } else {
+        None
+    };
+    let credential_name = ctx
+        .credentials
+        .iter()
+        .find(|c| c.id == credential)
+        .map(|c| c.name.clone())
+        .unwrap_or_else(|| credential.clone());
+    // The build VM in a window (macOS only): to watch where it waits
+    let window = p.values.window.unwrap_or(false);
+    if mac {
+        let mut w = Field::new("window", FieldKind::Toggle, Text::new("Show the build VM"), json!(window))
+            .param("window")
+            .value_param("window");
+        w.help = Some(Text::new("Shows the build VM in a window – to see where a build waits; off: headless"));
+        fields.push(w);
+    }
     let missing = parts.is_some_and(|x| x.issues.iter().any(crate::composition::Issue::blocks));
     let mut notes = parts.map(|x| super::recipes::notes(ctx, &p.recipe, x)).unwrap_or_default();
     // A locale the recipe is not made for: a warning, the build stays possible (plan B141)
@@ -295,6 +314,9 @@ pub(crate) fn page(ctx: &Ctx, p: &BuildParams) -> BuildPage {
                 "images.build",
                 json!({"recipe": p.recipe, "credential": credential, "look": look, "locale": locale}),
             );
+            if mac {
+                build.params["window"] = json!(window);
+            }
             // No password is asked: NixOS needs none, macOS takes the base credential's (plan B139)
             build = build
                 .enabled_if(!no_credential, Some(Text::new("Create a credential first – the key at the top")))
@@ -309,6 +331,10 @@ pub(crate) fn page(ctx: &Ctx, p: &BuildParams) -> BuildPage {
                     Some(Text::new(
                         "No macOS base yet – it is needed for macOS images and is created from Apple's macOS once.",
                     )),
+                )
+                .enabled_if(
+                    !mac || !has_base || base.is_some(),
+                    Some(tf!("No macOS base for %@ yet", &credential_name)),
                 )
                 .primary();
             actions.push(build);
@@ -344,13 +370,17 @@ pub(crate) fn page(ctx: &Ctx, p: &BuildParams) -> BuildPage {
                     ),
                     Tone::Normal,
                 )
-                .action(Action::show(
-                    "macBase",
-                    Text::new("Create macOS Base …"),
-                    Some("macos"),
-                    "macBase",
-                    json!({}),
-                )),
+                .action(create_base_for(&credential, &credential_name)),
+            )
+        } else if base.is_none() {
+            // Other credentials have bases, this one has none (plan B166)
+            Some(
+                Hint::new(
+                    "macos",
+                    tf!("No macOS base for %@ yet – each credential has its own base with its user and password; it is created from Apple's macOS once.", &credential_name),
+                    Tone::Normal,
+                )
+                .action(create_base_for(&credential, &credential_name)),
             )
         } else {
             base_without.map(|b| {
@@ -376,6 +406,17 @@ pub(crate) fn page(ctx: &Ctx, p: &BuildParams) -> BuildPage {
         log,
         job,
     }
+}
+
+/// "Create Base for <credential> …": the macBase page with that credential chosen (plan B166)
+fn create_base_for(credential: &str, name: &str) -> Action {
+    Action::show(
+        "macBase",
+        tf!("Create Base for %@ …", name),
+        Some("macos"),
+        "macBase",
+        json!({"values": {"credential": credential}}),
+    )
 }
 
 /// A job's log as a page shows it: where to read it, the note on hidden lines once it ended, the whole file

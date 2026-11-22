@@ -19,6 +19,10 @@ final class AppModel {
     private(set) var session: InitializeResult?
     /// Why the core is not running (it is started again on its own)
     private(set) var coreProblem: String?
+    /// An older core service still runs (plan B165): what the app tells about it until its own takes over
+    private(set) var coreHandover: String?
+    /// The old service was asked to restart and has not ended yet
+    private var handingOver = false
 
     /// Texts of the views in the app's language (de.lproj, by the English source string as key)
     let renderer = ViewTextRenderer(translate: { Bundle.main.localizedString(forKey: $0, value: nil, table: nil) })
@@ -341,7 +345,9 @@ final class AppModel {
         } else {
             launcher = { _ in throw APIError(message: "omaf not found – it belongs next to the app (Contents/MacOS/omaf); for development set OMAF_BIN or run cargo build") }
         }
-        client = CoreClient(launcher: launcher, initialize: params, topics: ServerEvent.viewTopics)
+        // The bundled omaf: a service of another one is asked to restart, then the app's own takes over (plan B165)
+        let ownCore = CoreClient.locateServer().flatMap { CoreIdentity.of(executable: $0) }
+        client = CoreClient(launcher: launcher, initialize: params, topics: ServerEvent.viewTopics, ownCore: ownCore)
         if let saved = UserDefaults.standard.string(forKey: "homeTab").flatMap(HomeTab.init(rawValue:)) { tab = saved }
         if let saved = UserDefaults.standard.string(forKey: "menuTab").flatMap(HomeTab.init(rawValue:)) { menuTab = saved }
         // The first time, the window (menu or app window, plan B119) opens on the Doctor
@@ -389,17 +395,36 @@ final class AppModel {
         switch event {
         case .connected(let result):
             let restarted = session != nil || coreProblem != nil
-            if coreProblem != nil { toast(String(localized: "omaflake's core runs again")) }
+            if handingOver {
+                toast(String(localized: "This app's omaflake core took over"))
+            } else if coreProblem != nil {
+                toast(String(localized: "omaflake's core runs again"))
+            }
             session = result
             coreProblem = nil
+            // A handover still under way says so again right after this (`.coreHandover`)
+            coreHandover = nil
+            handingOver = false
             // A restarted server has lost its jobs (api.md §5); their logs stay in their files
             if restarted { jobLogs = [:] }
             subscribe(force: true)
             // The Doctor's checks at the start (the core runs them after actions and before builds, not while idle)
             if !restarted { checkDoctor() }
         case .disconnected(let reason):
-            if coreProblem == nil { toast(reason) }
+            // The old core ending after a handover is expected: no toast for it
+            if coreProblem == nil, !handingOver { toast(reason) }
             coreProblem = reason
+        case .coreHandover(.waiting(let jobs)):
+            let text = switch jobs {
+            case 0: String(localized: "An older omaflake core is still running – this one takes over now")
+            case 1: String(localized: "An older omaflake core is still running – it finishes 1 job, then this one takes over")
+            default: String(localized: "An older omaflake core is still running – it finishes \(jobs) jobs, then this one takes over")
+            }
+            coreHandover = text
+            handingOver = true
+            toast(text)
+        case .coreHandover(.kept):
+            coreHandover = String(localized: "The core service runs another omaflake (an installed service) – run “omaf service install” again to use this one")
         case .viewChanged(let page, let params, let model):
             let ref = PageRef(page, params)
             models[ref] = model
@@ -617,8 +642,10 @@ final class AppModel {
     /// A Settings field stored at once (`set`); typed text after a moment, an empty one back to the default
     func store(_ field: Field, _ value: JSONValue, typing: Bool = false) {
         guard let setter = field.set else { return }
-        storing[field.id]?.cancel()
-        storing[field.id] = Task {
+        // The same field of two VMs (`cpus`) are two settings
+        let key = "\(field.id) \(setter.method) \(setter.params)"
+        storing[key]?.cancel()
+        storing[key] = Task {
             if typing { try? await Task.sleep(for: .milliseconds(500)) }
             guard !Task.isCancelled else { return }
             var params = setter.params

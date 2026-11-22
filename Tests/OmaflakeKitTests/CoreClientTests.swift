@@ -30,8 +30,14 @@ final class FakeServer: @unchecked Sendable {
     var requests: [[String: Any]] { lock.withLock { _requests } }
     /// Handles one request; `initialize` and `events.subscribe` are answered before it is asked
     let respond: @Sendable (Instance, [String: Any]) -> Void
+    /// `initialize`'s `core` (plan B165); nil: left out, as an older core does
+    nonisolated(unsafe) let core: [String: Any]?
+    /// Hands the connection out as the service's on this socket path (plan B165)
+    let socket: String?
 
-    init(respond: @escaping @Sendable (Instance, [String: Any]) -> Void) {
+    init(core: [String: Any]? = nil, socket: String? = nil, respond: @escaping @Sendable (Instance, [String: Any]) -> Void) {
+        self.core = core
+        self.socket = socket
         self.respond = respond
     }
 
@@ -54,9 +60,11 @@ final class FakeServer: @unchecked Sendable {
                         self.lock.withLock { self._requests.append(request) }
                         switch request["method"] as? String {
                         case "initialize":
-                            instance.result(request["id"]!, ["apiVersion": 1, "omafVersion": "0.0.0-test", "dataFolder": "/tmp/data",
-                                                             "configFile": "/tmp/data/config.json",
-                                                             "host": ["system": "aarch64-darwin", "os": "macOS 27.0"]])
+                            var result: [String: Any] = ["apiVersion": 1, "omafVersion": "0.0.0-test", "dataFolder": "/tmp/data",
+                                                         "configFile": "/tmp/data/config.json",
+                                                         "host": ["system": "aarch64-darwin", "os": "macOS 27.0"]]
+                            if let core = self.core { result["core"] = core }
+                            instance.result(request["id"]!, result)
                         case "events.subscribe", "shutdown":
                             instance.result(request["id"]!, NSNull())
                         default:
@@ -66,7 +74,7 @@ final class FakeServer: @unchecked Sendable {
                 }
             }.start()
             return CoreClient.Connection(toServer: toServer.fileHandleForWriting, fromServer: fromServer.fileHandleForReading,
-                                         terminate: { try? fromServer.fileHandleForWriting.close() })
+                                         socket: socket, terminate: { try? fromServer.fileHandleForWriting.close() })
         }
     }
 }
@@ -215,6 +223,114 @@ struct CoreClientTests {
         c.stop()
     }
 
+    // MARK: Which core (plan B165)
+
+    static let own = CoreIdentity(executable: "/Applications/omaflake.app/Contents/MacOS/omaf", size: 1000,
+                                  modified: "2026-11-22T10:00:00Z")
+    nonisolated(unsafe) static let older: [String: Any] = ["executable": "/Applications/omaflake.app/Contents/MacOS/omaf", "size": 900,
+                                       "modified": "2026-11-01T10:00:00Z"]
+
+    @Test func coreIdentityComparison() throws {
+        let own = Self.own
+        #expect(own.isSame(as: own))
+        // A core before the check says nothing: a different one (that is the case to restart)
+        #expect(!own.isSame(as: nil))
+        var other = own
+        other.size = 999
+        #expect(!own.isSame(as: other))
+        other = own
+        other.executable = "/usr/local/bin/omaf"
+        #expect(!own.isSame(as: other))
+        other = own
+        other.modified = "2026-11-22T10:00:01Z"
+        #expect(!own.isSame(as: other))
+        // The same second, written with other fractions (Rust's nanoseconds, Foundation's milliseconds)
+        other.modified = "2026-11-22T10:00:00.123456789Z"
+        var mine = own
+        mine.modified = "2026-11-22T10:00:00.120Z"
+        #expect(mine.isSame(as: other))
+        other.modified = "2026-11-22T11:00:00+01:00"
+        #expect(own.isSame(as: other))
+        // Unreadable times are compared as they are
+        other.modified = "yesterday"
+        #expect(!own.isSame(as: other))
+    }
+
+    @Test func coreIdentityOfAFileResolvesLinks() throws {
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent("omaflake-core-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        let file = dir.appendingPathComponent("omaf")
+        try Data(repeating: 1, count: 42).write(to: file)
+        let link = dir.appendingPathComponent("link")
+        try FileManager.default.createSymbolicLink(at: link, withDestinationURL: file)
+        let a = try #require(CoreIdentity.of(executable: file))
+        let b = try #require(CoreIdentity.of(executable: link))
+        #expect(a.size == 42 && a == b && a.isSame(as: b))
+        #expect(CoreIdentity.of(executable: dir.appendingPathComponent("missing")) == nil)
+        // A core's answer with a path through a link is the same file
+        var viaLink = a
+        viaLink.executable = link.path
+        #expect(a.isSame(as: viaLink))
+        try? FileManager.default.removeItem(at: dir)   // the test's own temporary folder
+    }
+
+    @Test func initializeCarriesTheCore() throws {
+        let json = #"{"apiVersion":1,"omafVersion":"0.7.4","host":{"system":"aarch64-darwin","os":"macOS 27"},"dataFolder":"/d","configFile":"/d/c.json","core":{"executable":"/x/omaf","size":12,"modified":"2026-11-22T10:00:00.5Z"}}"#
+        let r = try JSONDecoder.api.decode(InitializeResult.self, from: Data(json.utf8))
+        #expect(r.core == CoreIdentity(executable: "/x/omaf", size: 12, modified: "2026-11-22T10:00:00.5Z"))
+    }
+
+    /// A service of another omaf: asked to restart once; when it ended, the client connects again – and a core that
+    /// comes back the same (an agent of another omaf) is used as it is, not asked again
+    @Test func anotherCoreIsAskedToRestartOnce() async throws {
+        let server = FakeServer(core: Self.older, socket: "/nonexistent-omaflake-test/service.sock") { s, r in
+            if r["method"] as? String == "service.restart" {
+                s.result(r["id"]!, ["jobs": 2])
+                // It ends once its jobs are done – after its answer has been read
+                DispatchQueue.global().asyncAfter(deadline: .now() + 0.2) { s.die() }
+            } else {
+                s.result(r["id"]!, NSNull())
+            }
+        }
+        let c = CoreClient(launcher: server.launcher, initialize: Self.params, restartDelays: [.milliseconds(50)],
+                           ownCore: Self.own, handoverPolls: [.milliseconds(10)])
+        let events = EventLog(c)
+        c.start()
+        try await events.wait("waiting") { if case .coreHandover(.waiting(jobs: 2)) = $0 { true } else { false } }
+        try await events.wait("kept") { if case .coreHandover(.kept) = $0 { true } else { false } }
+        #expect(server.launches == 2)
+        #expect(server.requests.filter { $0["method"] as? String == "service.restart" }.count == 1)
+        c.stop()
+    }
+
+    @Test func theSameCoreOrAPrivateServerIsLeftAlone() async throws {
+        let own: [String: Any] = ["executable": Self.own.executable, "size": Self.own.size, "modified": Self.own.modified]
+        for server in [FakeServer(core: own, socket: "/nonexistent-omaflake-test/service.sock") { s, r in s.result(r["id"]!, NSNull()) },
+                       FakeServer(core: Self.older, socket: nil) { s, r in s.result(r["id"]!, NSNull()) }] {
+            let c = CoreClient(launcher: server.launcher, initialize: Self.params, restartDelays: [.milliseconds(50)],
+                               ownCore: Self.own)
+            let events = EventLog(c)
+            c.start()
+            let _: Ignored = try await c.call("test.ping")
+            try await Task.sleep(for: .milliseconds(100))
+            #expect(!server.requests.contains { $0["method"] as? String == "service.restart" })
+            #expect(!events.all.contains { if case .coreHandover = $0 { true } else { false } })
+            c.stop()
+        }
+    }
+
+    @Test func waitingForTheOldSocketEnds() async throws {
+        let c = CoreClient(launcher: { _ in throw APIError(message: "unused") }, initialize: Self.params,
+                           handoverPolls: [.milliseconds(10)])
+        #expect(await c.waitUntilGone("/nonexistent-omaflake-test/service.sock"))
+        // A socket that still answers: bounded
+        let path = "/tmp/omf-test-\(UInt32.random(in: 0...UInt32.max)).sock"
+        let fd = try listenUnix(path)
+        defer { close(fd); unlink(path) }
+        #expect(CoreClient.answers(path))
+        #expect(await c.waitUntilGone(path, limit: .milliseconds(100)) == false)
+    }
+
     @Test func findsTheServerFromOMAF_BIN() {
         let url = CoreClient.locateServer(environment: ["OMAF_BIN": "/opt/omaf"])
         #expect(url?.path == "/opt/omaf")
@@ -227,4 +343,23 @@ final class Slow: @unchecked Sendable {
     private var id: Any?
     func hold(_ id: Any) { lock.withLock { self.id = id } }
     func take() -> Any? { lock.withLock { defer { id = nil }; return id } }
+}
+
+/// A Unix socket that accepts connections (the kernel queues them; nobody answers) – an old service still there
+private func listenUnix(_ path: String) throws -> Int32 {
+    let fd = socket(AF_UNIX, SOCK_STREAM, 0)
+    var addr = sockaddr_un()
+    addr.sun_family = sa_family_t(AF_UNIX)
+    let bytes = Array(path.utf8)
+    guard fd >= 0, bytes.count < MemoryLayout.size(ofValue: addr.sun_path) else { throw APIError(message: "socket \(path)") }
+    withUnsafeMutableBytes(of: &addr.sun_path) { raw in
+        raw.copyBytes(from: bytes)
+        raw[bytes.count] = 0
+    }
+    addr.sun_len = UInt8(MemoryLayout<sockaddr_un>.size)
+    let rc = withUnsafePointer(to: &addr) {
+        $0.withMemoryRebound(to: sockaddr.self, capacity: 1) { bind(fd, $0, socklen_t(MemoryLayout<sockaddr_un>.size)) }
+    }
+    guard rc == 0, listen(fd, 128) == 0 else { close(fd); throw APIError(message: "bind \(path)") }
+    return fd
 }

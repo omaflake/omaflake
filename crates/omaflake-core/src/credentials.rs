@@ -431,7 +431,15 @@ impl Credentials {
         {
             return Err(vm_err!("The base's user is {} – the credential \"{}\" has {}", user, c.name, login.user));
         }
-        let record = BaseRecord { credential: c.id.clone(), credential_name: c.name.clone(), user: login.user };
+        // What the base knew besides its credential stays (plan B166)
+        let previous = BaseRecord::of(dir);
+        let record = BaseRecord {
+            credential: c.id.clone(),
+            credential_name: c.name.clone(),
+            user: login.user,
+            own_key: previous.as_ref().is_some_and(|r| r.own_key),
+            version: previous.and_then(|r| r.version),
+        };
         record.write(dir)?;
         Ok(record)
     }

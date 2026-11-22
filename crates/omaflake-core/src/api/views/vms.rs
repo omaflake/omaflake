@@ -49,6 +49,9 @@ pub struct VmDetail {
     /// "Changes take effect at the next start." while it runs
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub switches_note: Option<Text>,
+    /// CPU cores and memory (plan B164): number fields whose `set` is `vms.set {name}` with the value at `cpus` /
+    /// `memoryGb`, enabled while the VM is stopped
+    pub fields: Vec<Field>,
     pub info: Vec<InfoLine>,
     /// Export on the left; stop listing, upgrade, reset, remove on the right
     pub actions: Vec<Action>,
@@ -315,6 +318,24 @@ fn detail(ctx: &Ctx, v: &Vm) -> VmDetail {
             .help(Text::new("This computer's MIDI devices in the VM, both ways")),
     ];
 
+    // Cores and memory from the next start, within what this computer has (plan B164)
+    let limits = ctx.vm_limits;
+    let resource = |id: &str, label: Text, value: u32, min: u32, max: u32| {
+        let mut f = Field::new(id, FieldKind::Number, label, json!(value)).range(min as i64, max.max(value) as i64, 1);
+        f.set = Some(Setter { method: "vms.set".into(), params: json!({"name": name}), param: id.into() });
+        f.enabled_if(!running && !v.busy, running.then(|| Text::new("Stop the VM to change it")))
+    };
+    let fields = vec![
+        resource("cpus", tf!("CPU cores: %lld", v.cpus), v.cpus, crate::platform::VmLimits::MIN_CPUS, limits.max_cpus),
+        resource(
+            "memoryGb",
+            tf!("RAM: %lld GB", v.memory_gb),
+            v.memory_gb,
+            crate::platform::VmLimits::MIN_MEMORY_GB,
+            limits.max_memory_gb,
+        ),
+    ];
+
     let n = ctx.recipes.id_lengths.vm;
     let mut info = Vec::new();
     let mut image = InfoLine::new("Image", Text::verbatim(&v.image)).full(&v.image);
@@ -454,6 +475,7 @@ fn detail(ctx: &Ctx, v: &Vm) -> VmDetail {
     VmDetail {
         switches,
         switches_note: running.then(|| Text::new("Changes take effect at the next start.")),
+        fields,
         info,
         actions,
     }

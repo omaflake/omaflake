@@ -437,8 +437,23 @@ public struct VmRow: Decodable, Sendable, Equatable, Identifiable {
     public struct Detail: Decodable, Sendable, Equatable {
         public var switches: [ViewAction]
         public var switchesNote: ViewText?
+        /// Settings of the VM drawn as fields (plan B164: `cpus`, `memoryGb`, stored with their `set`); empty from an
+        /// older core
+        public var fields: [Field]
         public var info: [InfoLine]
         public var actions: [ViewAction]
+
+        enum CodingKeys: String, CodingKey { case switches, switchesNote, fields, info, actions }
+
+        public init(from decoder: Decoder) throws {
+            let c = try decoder.container(keyedBy: CodingKeys.self)
+            switches = try c.decode([ViewAction].self, forKey: .switches)
+            switchesNote = try c.decodeIfPresent(ViewText.self, forKey: .switchesNote)
+            // A field this app cannot read is left out, not the whole VM
+            fields = ((try? c.decodeIfPresent([Lenient<Field>].self, forKey: .fields)) ?? []).compactMap(\.value)
+            info = try c.decode([InfoLine].self, forKey: .info)
+            actions = try c.decode([ViewAction].self, forKey: .actions)
+        }
     }
 
     public var id: String { name }
@@ -1215,15 +1230,89 @@ public struct MacBasePage: Decodable, Sendable, Equatable {
         public var actions: [ViewAction]
     }
 
+    /// One macOS base (plan B166): one per macOS build and credential
+    public struct Base: Decodable, Sendable, Equatable, Identifiable {
+        public var id: String { name }
+        /// "mac-base-26A434", "mac-base-26A434-work"
+        public var name: String
+        public var build: String?
+        public var version: String?
+        /// The name of the credential it was made with
+        public var credential: ViewText?
+        /// The guest user
+        public var user: String?
+        public var created: Date?
+        /// It knows omaflake's own SSH key (plan B160); false: its builds need the user's key in the ssh-agent
+        public var ownKey: Bool
+        /// Why to look at it: made before omaflake's own key, not installed completely, no credential
+        public var hint: Hint?
+        /// recreate, remove
+        public var actions: [ViewAction]
+
+        enum CodingKeys: String, CodingKey { case name, build, version, credential, user, created, ownKey, hint, actions }
+
+        public init(from decoder: Decoder) throws {
+            let c = try decoder.container(keyedBy: CodingKeys.self)
+            name = try c.decode(String.self, forKey: .name)
+            build = try c.decodeLenientString(.build)
+            version = try c.decodeLenientString(.version)
+            credential = try c.decodeLenientText(.credential)
+            user = try c.decodeLenientString(.user)
+            created = try? c.decodeIfPresent(Date.self, forKey: .created)
+            ownKey = try c.decode(.ownKey, or: true)
+            hint = try? c.decodeIfPresent(Hint.self, forKey: .hint)
+            actions = try c.decode(.actions, or: [])
+        }
+    }
+
     public var title: ViewText
     public var intro: ViewText
     public var base: Hint?
+    /// Every base, newest first (plan B166); empty from a core before that
+    public var bases: [Base]
     public var ipsw: IpswLine
     public var fields: [Field]
     public var installing: Bool
     public var actions: [ViewAction]
     /// The latest base creation's job log
     public var log: LogRef?
+
+    enum CodingKeys: String, CodingKey { case title, intro, base, bases, ipsw, fields, installing, actions, log }
+
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        title = try c.decode(ViewText.self, forKey: .title)
+        intro = try c.decode(ViewText.self, forKey: .intro)
+        base = try c.decodeIfPresent(Hint.self, forKey: .base)
+        bases = try c.decode(.bases, or: [])
+        ipsw = try c.decode(IpswLine.self, forKey: .ipsw)
+        fields = try c.decode([Field].self, forKey: .fields)
+        installing = try c.decode(Bool.self, forKey: .installing)
+        actions = try c.decode([ViewAction].self, forKey: .actions)
+        log = try c.decodeIfPresent(LogRef.self, forKey: .log)
+    }
+}
+
+/// An element that is skipped (nil) when it does not decode
+struct Lenient<T: Decodable>: Decodable {
+    let value: T?
+    init(from decoder: Decoder) throws { value = try? T(from: decoder) }
+}
+
+extension KeyedDecodingContainer {
+    /// A text the core may send as a plain string or as a view text
+    func decodeLenientText(_ key: Key) throws -> ViewText? {
+        if let text = try? decodeIfPresent(ViewText.self, forKey: key) { return text }
+        return try decodeLenientString(key).map(ViewText.init(verbatim:))
+    }
+
+    /// A value shown as it is: a string, or a number written as one
+    func decodeLenientString(_ key: Key) throws -> String? {
+        if let s = try? decodeIfPresent(String.self, forKey: key) { return s }
+        if let n = try? decodeIfPresent(Int64.self, forKey: key) { return String(n) }
+        if let t = try? decodeIfPresent(ViewText.self, forKey: key) { return t.text }
+        return nil
+    }
 }
 
 public struct SettingsPage: Decodable, Sendable, Equatable {
