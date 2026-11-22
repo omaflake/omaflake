@@ -50,6 +50,8 @@ timing.
 
 ### Fixed
 
+- macOS VMs with the German keyboard get the Mac's classic "German" layout (@ on Option+L) instead of "German –
+  Standard", where @ and other keys sit elsewhere. Needs an image built with this version.
 - A VM's own MIDI pair on this computer is named after the VM – macOS VMs all named it "omaflake vm", so two VMs with
   MIDI on had two pairs of the same name.
 - The Doctor shows every running setup step on its row with what it does now – installing Nix no longer looks like

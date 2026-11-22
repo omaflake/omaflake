@@ -502,6 +502,13 @@ maintainer tries 0.7.0–0.7.3 (clicks in the apps; a VM's loading screen and ke
 running guest or a real Linux desktop (docs/linux.md) – and **M12** once the Developer ID is there. GitHub Pages of omaflake and website already publish
 through Actions (checked 2026-11-04: `build_type` workflow, domains omaflake.dev and omaflake.app).
 
+**B163 (2026-11-22): the German keyboard in macOS guests.** The maintainer chose German with the German keyboard and
+got "˛" for @ in a macOS guest: `darwin-guest.nix` mapped XKB `de` to "German – Standard" (German-DIN-2137, −18133,
+BM24/B46 took it as macOS' default), whose keys differ from the Mac's classic "German" (@ = Option+L, as base.nix
+assumes; every other country already had its classic layout). Now `de` → "German" (ID 3, the classic layout number
+like French 1, British 2, Italian 4; the name checked in macOS 27's AppleKeyboardLayouts-L.dat). OPEN: checked in a
+guest built with it.
+
 **B162 (2026-11-22, idea of the maintainer – noted, not built): diagnostics for a VM's features, from the UI.**
 After testing MIDI by hand (MIDI Monitor in the guest; the workspace tool `_tools/miditest`, which copies itself into
 the VM over `omaf ssh`, runs there and echoes on the Mac, then writes a log): every feature of a VM should be testable

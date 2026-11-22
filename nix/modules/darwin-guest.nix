@@ -21,7 +21,9 @@ let
   knownLayouts = {
     us = { id = 252; name = "ABC"; };               # macOS default
     gb = { id = 2; name = "British"; };
-    de = { id = -18133; name = "German-DIN-2137"; }; # "German – Standard"
+    # The Mac's classic "German" (@ = Option+L, as base.nix says) – not "German – Standard" (German-DIN-2137, id
+    # -18133), where @ and other keys sit elsewhere (maintainer, 2026-11-22: @ came out as "˛")
+    de = { id = 3; name = "German"; };
     ch = { id = 19; name = "Swiss German"; };
     at = { id = 92; name = "Austrian"; };
     fr = { id = 1; name = "French"; };
