@@ -50,6 +50,8 @@ timing.
 
 ### Fixed
 
+- A VM's own MIDI pair on this computer is named after the VM – macOS VMs all named it "omaflake vm", so two VMs with
+  MIDI on had two pairs of the same name.
 - The Doctor shows every running setup step on its row with what it does now – installing Nix no longer looks like
   nothing happens. The installer's output streams into the job.
 - Errors of administrator steps come in plain words; "Operation not permitted" says to give omaflake Full Disk Access.

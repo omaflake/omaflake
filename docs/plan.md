@@ -564,7 +564,10 @@ what MIDI does not carry (a piano's USB audio, vendor tools). Implemented:
   and clippy (aarch64-unknown-linux-gnu), `midi-check` with the new agent (see below), flakes evaluate.
   **Checked by the maintainer (2026-11-22, release 0.7.4, a new macOS VM from a 0.7.4 image with MIDI on):** the
   Mac's stage piano → the guest – notes arrive in MIDI Monitor, so CoreMIDI from the SSH-started agent reaches the
-  guest's apps. **OPEN:** everything else with a running guest or Linux MIDI hardware – guest → Mac, Dorico, latency
+  guest's apps. `miditest vm music` (workspace tool, 2026-11-22): the agent 0.7.4 with 4 endpoints in the guest, round
+  trip 0.64 ms (median of 60), the Scarlett 4i4 mirrored by name; found: the Mac's pair was "omaflake vm" for every
+  macOS VM (the runner took the bundle's folder name) – fixed before 0.7.4 is out: `omaf-runner run --vm-name`. **OPEN:**
+  everything else with a running guest or Linux MIDI hardware – guest → Mac, Dorico, latency
   with the real piano; the ALSA sides (struct layout, subscriptions, the queue's time base,
   UMP client mode on the guest kernel – `SND_SEQ_UMP` in nixpkgs' config –, the byte order of ALSA's manufacturer id);
   UMP info with a real MIDI 2.0 device (none here); whether apps honour future time stamps on a virtual source.

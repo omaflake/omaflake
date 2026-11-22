@@ -175,7 +175,8 @@ impl VzBackend {
         // The omaflake agent's port, always (spec §11.9); in macOS guests the agent carries MIDI (plan B161)
         args.extend(["--agent-state".into(), path_string(&ip.agent_state())]);
         if c.midi_on() {
-            args.push("--midi".into());
+            // The VM's own pair on the Mac is "omaflake <name>" – the bundle's folder is "vm" for every VM
+            args.extend(["--midi".into(), "--vm-name".into(), c.name.clone()]);
         }
         // Camera: the Mac side and the port are ready; the guest's camera extension comes after M12 (plan B49)
         if c.camera_on() {
@@ -713,7 +714,7 @@ pub(crate) mod tests {
         c.midi = Some(true);
         let a = vz.runner_arguments(&c, StartOptions::new(DisplayMode::None)).unwrap();
         let at = a.iter().position(|x| x == "--agent-state").unwrap();
-        assert_eq!(a[at + 2], "--midi");
+        assert_eq!(a[at + 2..at + 5], ["--midi", "--vm-name", "m1"]);
     }
 
     #[test]

@@ -24,6 +24,8 @@ final class RunController: NSObject, NSApplicationDelegate, NSWindowDelegate, VZ
         var agentState: URL?
         /// The Mac's MIDI devices in the VM over the agent (plan B161)
         var midi = false
+        /// The VM's name for its MIDI pair "omaflake <name>" (nil: the instance's folder, the bundle's parent)
+        var vmName: String?
         var recovery: Bool
         var provisioning: Provisioning?
     }
@@ -81,7 +83,9 @@ final class RunController: NSObject, NSApplicationDelegate, NSWindowDelegate, VZ
                 // MIDI: the Mac side exists from the start (its "omaflake <VM>" pair is there for the Mac's apps);
                 // the guest's endpoints come once its agent's welcome enables MIDI
                 if request.midi {
-                    midi = MIDIBridge.start(vmName: request.bundle.dir.deletingPathExtension().lastPathComponent,
+                    // The bundle's own folder is "vm" for every VM: the name comes from omaflake, else the instance's folder
+                    let name = request.vmName ?? request.bundle.dir.deletingLastPathComponent().lastPathComponent
+                    midi = MIDIBridge.start(vmName: name,
                                             log: { text in log(text) })
                     if midi != nil { allowed.insert("midi") }
                 }
