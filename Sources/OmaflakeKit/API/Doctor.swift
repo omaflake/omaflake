@@ -6,6 +6,8 @@ public struct Prerequisite: Decodable, Sendable, Equatable, Identifiable {
     public enum Item: String, OpenEnum {
         // what the Mac brings
         case host, nix, flakes, nixDarwin, linuxBuilder, qemu, flake, sshKey, git
+        /// Nix in the user's login shells (plan B160, optional)
+        case shell
         /// At least one credential, the default (plan B139)
         case credential
         /// At least one installed look, the default (plan B141)

@@ -1,6 +1,36 @@
 {
   "actions": [
     {
+      "confirm": {
+        "button": {
+          "key": "Set Up",
+          "text": "Set Up"
+        },
+        "destructive": false,
+        "text": {
+          "key": "omaflake sets up what is missing, one step after the other: Nix (macOS asks for an administrator once), Nix in your terminal (~/.zshrc), omaflake's SSH key, its QEMU, a look and its Linux builder (as you, in the background). Steps that are done are skipped. The first time this takes a while – each row shows what happens. Then only your credential is left.",
+          "text": "omaflake sets up what is missing, one step after the other: Nix (macOS asks for an administrator once), Nix in your terminal (~/.zshrc), omaflake's SSH key, its QEMU, a look and its Linux builder (as you, in the background). Steps that are done are skipped. The first time this takes a while – each row shows what happens. Then only your credential is left."
+        },
+        "title": {
+          "key": "Set up omaflake for NixOS guests?",
+          "text": "Set up omaflake for NixOS guests?"
+        }
+      },
+      "enabled": false,
+      "icon": "install",
+      "id": "setup",
+      "label": {
+        "key": "Set Up for NixOS …",
+        "text": "Set Up for NixOS …"
+      },
+      "method": "setup.nixos",
+      "params": {},
+      "primary": true,
+      "reason": {
+        "text": "BuilderApply"
+      }
+    },
+    {
       "enabled": true,
       "icon": "refresh",
       "id": "check",
@@ -263,7 +293,7 @@
               }
             }
           ],
-          "busy": false,
+          "busy": true,
           "expandable": true,
           "expanded": true,
           "hint": {
@@ -281,6 +311,9 @@
             "title": "Linux builder answers"
           },
           "status": "missing",
+          "task": {
+            "text": "BuilderApply"
+          },
           "title": {
             "key": "Linux builder answers",
             "text": "Linux builder answers"

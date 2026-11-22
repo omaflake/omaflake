@@ -145,6 +145,13 @@ impl MacBaseInstaller {
     /// The Mac user's SSH public keys (`~/.ssh/*.pub`, sorted, trimmed, only "ssh-…" and "ecdsa-…") – the keys
     /// `omaf ssh` and the image build log in with.
     pub fn default_public_keys() -> Vec<String> {
+        // omaflake's own key first (plan B160), then the user's
+        let own = crate::ssh_identity::SshIdentity::standard().public_key();
+        own.into_iter().chain(Self::user_public_keys()).collect()
+    }
+
+    /// The user's keys in ~/.ssh (as `default_public_keys` before plan B160)
+    pub fn user_public_keys() -> Vec<String> {
         let dir = home_dir().join(".ssh");
         let mut names: Vec<String> = fs::read_dir(&dir)
             .map(|entries| entries.flatten().map(|e| e.file_name().to_string_lossy().into_owned()).collect())
@@ -646,9 +653,11 @@ fn file_name(p: &Path) -> String {
     p.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default()
 }
 
-/// `BuildVm::SSH_OPTIONS` followed by `rest`
+/// `BuildVm::ssh_options` (with omaflake's own key) followed by `rest`
 fn ssh_args(rest: &[&str]) -> Vec<String> {
-    BuildVm::SSH_OPTIONS.iter().chain(rest).map(|s| s.to_string()).collect()
+    let mut a = BuildVm::ssh_options();
+    a.extend(rest.iter().map(|s| s.to_string()));
+    a
 }
 
 /// Reports a percentage only when it changed (log lines in whole percent). Swift `LastPercent`.

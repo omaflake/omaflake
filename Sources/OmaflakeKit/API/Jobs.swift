@@ -9,9 +9,14 @@ public struct Job: Decodable, Sendable, Equatable, Identifiable {
         case builderApply = "builder-apply"
         case builderCleanUp = "builder-clean-up", `import`, export, dataMove = "data-move", recipeInstall = "recipe-install", lookInstall = "look-install"
         case cliInstall = "cli-install", nixCleanUp = "nix-clean-up"
+        /// Plan B160: remove a half-done Nix, trust the user, omaflake's QEMU, "Set Up for NixOS"
+        case builderUninstallNix = "builder-uninstall-nix", builderTrust = "builder-trust", qemuInstall = "qemu-install", setup
         case unknown
 
-        public var isBuilderTask: Bool { [.builderInstallNix, .builderMountNix, .builderSetup, .builderApply, .builderCleanUp].contains(self) }
+        public var isBuilderTask: Bool {
+            [.builderInstallNix, .builderMountNix, .builderUninstallNix, .builderTrust, .builderSetup, .builderApply, .builderCleanUp,
+             .qemuInstall, .setup].contains(self)
+        }
     }
 
     public enum State: String, OpenEnum {
@@ -54,6 +59,8 @@ public struct Job: Decodable, Sendable, Equatable, Identifiable {
     public var logLines: Int
     /// Routine lines left out of the log (still in logFile)
     public var hiddenLines: Int
+    /// The newest line – what the job does now (plan B160)
+    public var lastLine: String?
     /// Every line of the job, also the routine ones
     public var logFile: String?
     /// `jobs.cancel` would do something now

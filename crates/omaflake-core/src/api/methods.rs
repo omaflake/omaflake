@@ -28,6 +28,7 @@ use crate::guest_choices::GuestChoices;
 use crate::guest_settings::{BuildChoice, GuestSettings};
 use crate::image_store::ImageStore;
 use crate::ipsw_downloader::MacOsRelease;
+use crate::linux_builder::LinuxBuilder;
 use crate::mac_base_installer::{BaseOutcome, BaseRequest, MacBaseInstaller};
 use crate::mac_image_builder::{BuildRequest, MacImageBuilder};
 use crate::models::{DisplayMode, GlBackend, GuestKind, RecipeDefaults, RecipeId, VmStatus};
@@ -35,7 +36,7 @@ use crate::omaflake_id::OmaflakeId;
 use crate::packages::{Package, PackageKind};
 use crate::paths::{Paths, Settings};
 use crate::platform::{self, Platform};
-use crate::prerequisites::{PrerequisiteStatus, Prerequisites};
+use crate::prerequisites::Prerequisites;
 use crate::qemu_runtime::{InstanceLock, QemuRuntime, tail};
 use crate::recipe_sources::{RecipeLibrary, RecipeSource, SourceClient, SourceTokens};
 use crate::transfer::{Conflict, Transfer};
@@ -357,6 +358,23 @@ impl Server {
                 self.builder_job(JobKind::BuilderApply, params::<P>(p)?.force)
             }
             "builder.cleanUp" => self.builder_job(JobKind::BuilderCleanUp, false),
+            "builder.uninstallNix" => self.builder_job(JobKind::BuilderUninstallNix, false),
+            "builder.trust" => self.builder_job(JobKind::BuilderTrust, false),
+            "qemu.install" => {
+                #[derive(Deserialize)]
+                struct P {
+                    #[serde(default)]
+                    upgrade: bool,
+                }
+                self.qemu_install_job(params::<P>(p)?.upgrade)
+            }
+            "setup.nixos" => self.setup_job(),
+            "shell.add" => self.shell_change(true),
+            "shell.remove" => self.shell_change(false),
+            "doctor.createSshKey" => {
+                crate::ssh_identity::SshIdentity::new(&self.paths()).ensure().map_err(err)?;
+                Answer::of(model::doctor_report(&self.check_doctor()))
+            }
             "nix.cleanUp" => self.nix_clean_up(),
             // Jobs
             "jobs.list" => Answer::of(self.inner.jobs.list()),
@@ -2325,28 +2343,39 @@ impl Server {
         Ok(Answer::Job(self.inner.jobs.submit(spec)))
     }
 
-    /// The Linux builder's maintenance (`AppModel.installNix`, `setUpNixDarwin`, `applyBuilderSettings`,
-    /// `cleanUpBuilder`): each asks for an administrator through the system's own dialog; one at a time
+    /// The jobs that set up and keep up Nix and the Linux builder – one at a time
+    pub(crate) const SETUP_KINDS: [JobKind; 9] = [
+        JobKind::BuilderInstallNix,
+        JobKind::BuilderMountNix,
+        JobKind::BuilderUninstallNix,
+        JobKind::BuilderTrust,
+        JobKind::BuilderSetup,
+        JobKind::BuilderApply,
+        JobKind::BuilderCleanUp,
+        JobKind::QemuInstall,
+        JobKind::Setup,
+    ];
+
+    /// Nix and the Linux builder (`AppModel.installNix`, …): installing, mounting and removing Nix and trusting the
+    /// user ask for an administrator through the system's own dialog – the only root steps; omaflake's own builder
+    /// is set up, applied and cleaned up as the user (plan B160). A nix-darwin builder keeps its root steps.
     fn builder_job(&self, kind: JobKind, force: bool) -> Reply {
-        const KINDS: [JobKind; 5] = [
-            JobKind::BuilderInstallNix,
-            JobKind::BuilderMountNix,
-            JobKind::BuilderSetup,
-            JobKind::BuilderApply,
-            JobKind::BuilderCleanUp,
-        ];
-        if let Some(job) = self.inner.jobs.any_active(&KINDS) {
+        if let Some(job) = self.inner.jobs.any_active(&Self::SETUP_KINDS) {
             return Err(RpcError::from(crate::vm_err!(codes::IN_USE, "{} runs already", job.title)));
         }
         let maintenance = BuilderMaintenance::new(self.paths());
-        if kind == JobKind::BuilderApply && !force && !maintenance.system_is_omaflakes() {
+        let own = LinuxBuilder::new(self.paths());
+        let nix_darwin = !own.is_set_up() && own.system_has_builder();
+        if kind == JobKind::BuilderApply && nix_darwin && !force && !maintenance.system_is_omaflakes() {
             return Err(RpcError::from(crate::vm_err!(codes::PREREQUISITE, "This Mac's nix-darwin system does not come from omaflake's image flake yet. Applying replaces your current nix-darwin configuration with omaflake's Linux builder host (nix/hosts/linux-builder.nix and your local/darwin.nix). Only continue if you set up nix-darwin for omaflake."))
             .with_data("replacesConfiguration", json!(true)));
         }
         let title = match kind {
             JobKind::BuilderInstallNix => "Install Nix",
             JobKind::BuilderMountNix => "Mount the Nix Store",
-            JobKind::BuilderSetup => "Set up nix-darwin and the Linux builder",
+            JobKind::BuilderUninstallNix => "Remove Nix",
+            JobKind::BuilderTrust => "Allow omaflake's Linux builder",
+            JobKind::BuilderSetup => "Set up the Linux builder",
             JobKind::BuilderApply => "Apply the Linux builder settings",
             _ => "Clean up the Linux builder",
         };
@@ -2355,63 +2384,76 @@ impl Server {
             kind,
             title,
             Box::new(move |ctx: &JobCtx| {
-                let m = BuilderMaintenance::new(s.paths());
-                let log = ctx.log_sink();
-                let admin = |command: String, prompt: &str| -> crate::Result<String> {
-                    AdminShell::run(&m.root_script(&command)?, prompt)
-                };
-                let apply = |ctx: &JobCtx| -> crate::Result<()> {
-                    // Build as the user (root may not read the flake in ~/Documents), activate as root
-                    ctx.log("Building Linux builder settings …");
-                    let system = m.build_system("linux-builder", &*log)?;
-                    ctx.log("Applying Linux builder settings …");
-                    admin(
-                        BuilderMaintenance::activate_command(&system),
-                        "omaflake wants to apply the Linux builder settings (darwin-rebuild).",
-                    )?;
-                    s.wait_for_builder(ctx);
-                    Ok(())
-                };
                 let done = match kind {
-                    JobKind::BuilderInstallNix => {
-                        ctx.log("Installing Nix …");
-                        admin(BuilderMaintenance::install_nix_command(), "omaflake wants to install Nix.")?;
-                        "Nix installed".to_string()
-                    }
+                    JobKind::BuilderInstallNix => s.install_nix(ctx)?,
                     JobKind::BuilderMountNix => {
                         let Some(volume) = NixVolume::find() else {
                             return Err(crate::vm_err!(codes::NOT_FOUND, "No Nix Store volume on this Mac"));
                         };
                         ctx.log(&format!("Mounting the Nix Store at /nix ({}) …", volume.state()));
-                        admin(volume.repair_command(), "omaflake wants to mount the Nix Store at /nix.")?;
+                        s.admin(ctx, volume.repair_command(), "omaflake wants to mount the Nix Store at /nix.")?;
                         "Nix Store mounted at /nix".to_string()
                     }
-                    JobKind::BuilderSetup => {
-                        ctx.log("Building nix-darwin (stage 1 of 2) …");
-                        let first = m.build_system("linux-builder-bootstrap", &*log)?;
-                        ctx.log("Activating nix-darwin (stage 1 of 2) …");
-                        admin(
-                            BuilderMaintenance::first_activation_command(&first),
-                            "omaflake wants to set up nix-darwin and the Linux builder.",
+                    JobKind::BuilderUninstallNix => {
+                        ctx.log("Removing the Nix install …");
+                        s.admin(
+                            ctx,
+                            BuilderMaintenance::UNINSTALL_NIX_COMMAND.to_string(),
+                            "omaflake wants to remove the Nix install.",
                         )?;
-                        s.wait_for_builder(ctx);
-                        ctx.log("nix-darwin set up – applying omaflake's builder settings next");
-                        apply(ctx)?;
+                        "Nix removed – if /nix stays busy, restart the Mac before installing again".to_string()
+                    }
+                    JobKind::BuilderTrust => {
+                        ctx.log("Adding you to Nix's trusted-users …");
+                        s.admin(
+                            ctx,
+                            BuilderMaintenance::trust_command(&platform::user_name()),
+                            "omaflake wants to let you use its Linux builder (Nix's trusted-users).",
+                        )?;
+                        "You are one of Nix's trusted-users now".to_string()
+                    }
+                    JobKind::BuilderSetup => {
+                        s.set_up_builder(ctx)?;
+                        "The Linux builder runs".to_string()
+                    }
+                    JobKind::BuilderApply if !nix_darwin => {
+                        s.apply_own_builder(ctx)?;
                         "Linux builder settings applied".to_string()
                     }
                     JobKind::BuilderApply => {
-                        apply(ctx)?;
+                        let m = BuilderMaintenance::new(s.paths());
+                        ctx.log("Building Linux builder settings …");
+                        let system = m.build_system("linux-builder", &*ctx.log_sink())?;
+                        ctx.log("Applying Linux builder settings …");
+                        s.admin(
+                            ctx,
+                            BuilderMaintenance::activate_command(&system),
+                            "omaflake wants to apply the Linux builder settings (darwin-rebuild).",
+                        )?;
+                        s.wait_for_builder(ctx, 5)?;
                         "Linux builder settings applied".to_string()
                     }
-                    _ => {
+                    _ if !nix_darwin => {
                         ctx.log("Cleaning up the Linux builder …");
-                        let output = admin(
-                            BuilderMaintenance::CLEAN_UP_COMMAND.to_string(),
-                            "omaflake wants to clean up the Linux builder's disk.",
-                        )?;
+                        let b = LinuxBuilder::new(s.paths());
+                        let args = b.ssh_arguments(BuilderMaintenance::CLEAN_UP_REMOTE);
+                        let r = crate::shell::Shell::run("/usr/bin/ssh", &args, &Default::default())?;
+                        let output = format!("{}{}", r.stdout, r.stderr);
                         for line in output.lines() {
                             ctx.log(line);
                         }
+                        if r.status != 0 {
+                            return Err(crate::vm_err!("Cleaning up the Linux builder failed – does it run?"));
+                        }
+                        cleanup_summary(&output)
+                    }
+                    _ => {
+                        ctx.log("Cleaning up the Linux builder …");
+                        let output = s.admin(
+                            ctx,
+                            BuilderMaintenance::CLEAN_UP_COMMAND.to_string(),
+                            "omaflake wants to clean up the Linux builder's disk.",
+                        )?;
                         cleanup_summary(&output)
                     }
                 };
@@ -2419,12 +2461,239 @@ impl Server {
                 result(MessageResult { message: done })
             }),
         );
-        spec.cancellable = false;
+        spec.cancellable = matches!(kind, JobKind::BuilderSetup);
         let s = self.clone();
         // The admin scripts write logs/linux-builder.log themselves; the job's own lines go next to it
         spec.log_file = Some(self.paths().logs().join(format!("{}.log", job_kind_name(kind))));
         spec.on_end = Some(Box::new(move |_| s.check_doctor_later()));
         Ok(Answer::Job(self.inner.jobs.submit(spec)))
+    }
+
+    /// A root step through macOS' administrator dialog; its output streams into the job (plan B160)
+    fn admin(&self, ctx: &JobCtx, command: String, prompt: &str) -> crate::Result<String> {
+        let m = BuilderMaintenance::new(self.paths());
+        AdminShell::run_streaming(&m.root_script(&command)?, prompt, &m.log(), &*ctx.log_sink())
+    }
+
+    /// Nix with the pinned installer – the one root step of the setup (plan B160)
+    fn install_nix(&self, ctx: &JobCtx) -> crate::Result<String> {
+        ctx.log("Installing Nix …");
+        let installed = self.admin(
+            ctx,
+            BuilderMaintenance::install_nix_command(&platform::user_name()),
+            "omaflake wants to install Nix.",
+        );
+        if let Err(e) = installed {
+            // A failed installer leaves its receipt (and the volume): every retry would fail at
+            // "/nix/receipt.tmp: Read-only file system" – the Doctor offers to remove it
+            if Path::new("/nix/receipt.json").exists() {
+                return Err(crate::vm_err!(
+                    "{}\nThe installer left a half-done Nix behind. Remove it in the Doctor (Nix → Remove …), restart the Mac if /nix stays busy, then install again.",
+                    e.message()
+                ));
+            }
+            return Err(e);
+        }
+        Ok("Nix installed".to_string())
+    }
+
+    /// omaflake's own Linux builder, as the user (`LinuxBuilder::set_up`, plan B160)
+    fn set_up_builder(&self, ctx: &JobCtx) -> crate::Result<()> {
+        let s = self.clone();
+        LinuxBuilder::new(self.paths())
+            .set_up(&*ctx.log_sink(), &|| s.is_closing() || ctx.cancellation().is_cancelled())
+    }
+
+    fn apply_own_builder(&self, ctx: &JobCtx) -> crate::Result<()> {
+        let s = self.clone();
+        LinuxBuilder::new(self.paths()).apply(&*ctx.log_sink(), &|| s.is_closing() || ctx.cancellation().is_cancelled())
+    }
+
+    /// Waits for the Linux builder (`LinuxBuilder::wait`)
+    fn wait_for_builder(&self, ctx: &JobCtx, minutes: u64) -> crate::Result<()> {
+        let s = self.clone();
+        LinuxBuilder::new(self.paths())
+            .wait(minutes, &*ctx.log_sink(), &|| s.is_closing() || ctx.cancellation().is_cancelled())
+    }
+
+    /// omaflake's QEMU with `nix profile` as a job – its output streams (instead of Terminal, plan B160); `upgrade`
+    /// updates an older one
+    fn qemu_install_job(&self, upgrade: bool) -> Reply {
+        if let Some(job) = self.inner.jobs.any_active(&Self::SETUP_KINDS) {
+            return Err(RpcError::from(crate::vm_err!(codes::IN_USE, "{} runs already", job.title)));
+        }
+        let s = self.clone();
+        let title = if upgrade { "Update QEMU" } else { "Install QEMU" };
+        let mut spec = JobSpec::new(
+            JobKind::QemuInstall,
+            title,
+            Box::new(move |ctx: &JobCtx| {
+                s.install_qemu(ctx, upgrade)?;
+                let message = if upgrade { "QEMU updated" } else { "QEMU installed" }.to_string();
+                ctx.log(&message);
+                result(MessageResult { message })
+            }),
+        );
+        spec.cancellable = false;
+        spec.log_file = Some(self.paths().logs().join("qemu-install.log"));
+        let s = self.clone();
+        spec.on_end = Some(Box::new(move |_| s.check_doctor_later()));
+        Ok(Answer::Job(self.inner.jobs.submit(spec)))
+    }
+
+    fn install_qemu(&self, ctx: &JobCtx, upgrade: bool) -> crate::Result<()> {
+        let settings = Settings::load(&self.paths());
+        let nix =
+            Prerequisites::locate_nix(&settings).ok_or_else(|| crate::vm_err!(codes::PREREQUISITE, "nix not found"))?;
+        let command = if upgrade { Prerequisites::UPGRADE_QEMU } else { Prerequisites::INSTALL_QEMU };
+        ctx.log(if upgrade {
+            "Updating omaflake's QEMU (it may be built – about ten minutes) …"
+        } else {
+            "Installing omaflake's QEMU (it may be built – about ten minutes) …"
+        });
+        let mut args: Vec<&str> = vec!["--extra-experimental-features", "nix-command flakes"];
+        args.extend(command.split(' ').skip(1));
+        let log = ctx.log_sink();
+        let r = crate::shell::Shell::stream(&nix, &args, &crate::shell::StreamOptions::default(), &|l: &str| log(l))?;
+        if r.status != 0 {
+            return Err(crate::vm_err!("Installing QEMU failed – see the lines above"));
+        }
+        Ok(())
+    }
+
+    /// Adds or removes omaflake's lines that load Nix in the user's shells (plan B160)
+    fn shell_change(&self, add: bool) -> Reply {
+        let setup = crate::shell_setup::ShellSetup::current();
+        if add { setup.add() } else { setup.remove() }.map_err(err)?;
+        Answer::of(model::doctor_report(&self.check_doctor()))
+    }
+
+    /// Everything NixOS guests need, one step after the other, as one job with its steps (plan B160): Nix (the one
+    /// administrator question) → Nix in the shell → omaflake's SSH key → QEMU → a look → the Linux builder. Steps that
+    /// are done are skipped. Only the credential is left to the user (a form); IPSW and macOS base stay their own.
+    fn setup_job(&self) -> Reply {
+        if let Some(job) = self.inner.jobs.active(JobKind::Setup, None) {
+            return Ok(Answer::Job(job));
+        }
+        if let Some(job) = self.inner.jobs.any_active(&Self::SETUP_KINDS) {
+            return Err(RpcError::from(crate::vm_err!(codes::IN_USE, "{} runs already", job.title)));
+        }
+        let s = self.clone();
+        let mut spec = JobSpec::new(
+            JobKind::Setup,
+            "Set up for NixOS",
+            Box::new(move |ctx: &JobCtx| {
+                const STEPS: i64 = 6;
+                let step = |n: i64, title: &str| {
+                    ctx.job.set_progress(n - 1, STEPS, Some(title));
+                    ctx.log(&format!("Step {n} of {STEPS}: {title}"));
+                };
+                let paths = s.paths();
+                step(1, "Nix");
+                if Prerequisites::locate_nix(&Settings::load(&paths)).is_none() {
+                    if Path::new("/nix/receipt.json").exists() {
+                        return Err(crate::vm_err!(
+                            "A half-done Nix is on this Mac. Remove it in the Doctor (Nix → Remove …), restart the Mac if /nix stays busy, then set up again."
+                        ));
+                    }
+                    s.install_nix(ctx)?;
+                } else {
+                    ctx.log("Nix is there");
+                }
+                step(2, "Nix in your terminal");
+                let shell = crate::shell_setup::ShellSetup::current();
+                if shell.state() == crate::shell_setup::ShellState::Missing {
+                    for f in shell.add()? {
+                        ctx.log(&format!("Added omaflake's lines to {}", f.display()));
+                    }
+                } else {
+                    ctx.log("Your terminal finds Nix");
+                }
+                step(3, "SSH key");
+                let id = crate::ssh_identity::SshIdentity::new(&paths);
+                if id.exists() {
+                    ctx.log("omaflake's SSH key is there");
+                } else {
+                    id.ensure()?;
+                    ctx.log(&format!("Created omaflake's SSH key ({})", id.key().display()));
+                }
+                step(4, "QEMU");
+                if QemuRuntime::locate(&paths).is_ok() {
+                    ctx.log("QEMU is there");
+                } else {
+                    s.install_qemu(ctx, false)?;
+                }
+                step(5, "Look");
+                let looks = crate::looks::LookStore::new(paths.clone());
+                if looks.installed().is_empty() {
+                    s.install_recommended_looks(ctx)?;
+                } else {
+                    ctx.log("A look is installed");
+                }
+                step(6, "Linux builder");
+                let b = LinuxBuilder::new(paths.clone());
+                let mut skipped = None;
+                if b.system_has_builder() {
+                    ctx.log("Nix has a Linux builder already – omaflake uses that one");
+                } else if !LinuxBuilder::has_hypervisor() {
+                    ctx.log("Skipped: this Mac cannot run VMs (no hypervisor)");
+                    skipped = Some("the Linux builder: this Mac cannot run VMs (no hypervisor)");
+                } else {
+                    let settings = Settings::load(&paths);
+                    let nix = Prerequisites::locate_nix(&settings)
+                        .ok_or_else(|| crate::vm_err!(codes::PREREQUISITE, "nix not found"))?;
+                    let config = Prerequisites::nix_config(&nix);
+                    let user = platform::user_name();
+                    if !Prerequisites::is_trusted(&config, &user, &Prerequisites::user_groups()) {
+                        ctx.log("Adding you to Nix's trusted-users …");
+                        s.admin(
+                            ctx,
+                            BuilderMaintenance::trust_command(&user),
+                            "omaflake wants to let you use its Linux builder (Nix's trusted-users).",
+                        )?;
+                    }
+                    s.set_up_builder(ctx)?;
+                }
+                ctx.job.set_progress(STEPS, STEPS, Some("Done"));
+                let message = match skipped {
+                    Some(what) => format!("Set up for NixOS – except {what}. Next: create a credential."),
+                    None => "Set up for NixOS. Next: create a credential (who you are in the guests).".to_string(),
+                };
+                ctx.log(&message);
+                result(MessageResult { message })
+            }),
+        );
+        spec.cancellable = true;
+        spec.log_file = Some(self.paths().logs().join("setup.log"));
+        let s = self.clone();
+        spec.on_end = Some(Box::new(move |_| s.check_doctor_later()));
+        Ok(Answer::Job(self.inner.jobs.submit(spec)))
+    }
+
+    /// The recommended looks from the official catalog, inside another job
+    fn install_recommended_looks(&self, ctx: &JobCtx) -> crate::Result<()> {
+        let source = RecipeSource::official();
+        let client = SourceClient::new(source.clone(), None);
+        let cached = lock(&self.inner.catalogs).catalogs.get(&source.id()).cloned();
+        let catalog = match cached {
+            Some(c) => c,
+            None => client.catalog()?,
+        };
+        let store = crate::looks::LookStore::new(self.paths());
+        let mut any = false;
+        for id in crate::looks::LookStore::RECOMMENDED {
+            match store.install(id, &catalog, &client) {
+                Ok(look) => {
+                    ctx.log(&format!("Installed the look {}", look.title));
+                    any = true;
+                }
+                Err(e) => ctx.log(&format!("{id}: {}", e.message())),
+            }
+        }
+        if !any {
+            return Err(crate::vm_err!("No look could be installed – see the lines above"));
+        }
+        Ok(())
     }
 
     /// Removes what nothing uses from this computer's Nix Store (plan B149): `nix-collect-garbage` as the user – the
@@ -2495,18 +2764,6 @@ impl Server {
         spec.log_file = Some(self.paths().logs().join("cli-install.log"));
         spec.on_end = Some(Box::new(move |_| s.check_doctor_later()));
         Ok(Answer::Job(self.inner.jobs.submit(spec)))
-    }
-
-    /// Activation restarts the builder VM: up to two minutes until it answers
-    fn wait_for_builder(&self, ctx: &JobCtx) {
-        ctx.log("Waiting for the Linux builder …");
-        let pre = Prerequisites::new(self.paths());
-        for _ in 0..60 {
-            if pre.builder_running().status == PrerequisiteStatus::Ok || self.is_closing() {
-                return;
-            }
-            std::thread::sleep(Duration::from_secs(2));
-        }
     }
 }
 

@@ -234,7 +234,7 @@
               }
             }
           ],
-          "busy": false,
+          "busy": true,
           "expandable": true,
           "expanded": true,
           "hint": {
@@ -252,6 +252,9 @@
             "title": "Linux builder answers"
           },
           "status": "missing",
+          "task": {
+            "text": "BuilderApply"
+          },
           "title": {
             "key": "Linux builder answers",
             "text": "Linux builder answers"

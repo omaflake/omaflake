@@ -11,7 +11,7 @@ use chrono::Utc;
 use omaflake_core::builder_maintenance::BuilderMaintenance;
 use omaflake_core::cli_link::CliLink;
 use omaflake_core::guest_choices::GuestChoices;
-use omaflake_core::platform::is_executable_file;
+use omaflake_core::linux_builder::LinuxBuilder;
 use omaflake_core::qemu_command::Accel;
 use omaflake_core::{
     AgentState, DataFolder, DisplayMode, Error, GlBackend, GuestKind, GuestSettings, InstanceConfig, InstanceLock,
@@ -797,31 +797,30 @@ fn stderr_line(line: &str) {
     eprintln!("{line}");
 }
 
+fn stdout_line(line: &str) {
+    println!("{line}");
+}
+
+/// `omaf builder setup`: omaflake's own Linux builder, as the user – no nix-darwin, no sudo (plan B160). A builder
+/// of Nix's own (nix-darwin) is used as it is.
 pub fn builder_setup() -> Outcome {
-    let m = BuilderMaintenance::new(Env::new().paths);
-    if is_executable_file(Path::new("/run/current-system/sw/bin/darwin-rebuild")) {
-        return Err(Error::new("nix-darwin is already set up – use: omaf builder apply").into());
-    }
-    println!("Stage 1 of 2: nix-darwin with the standard builder …");
-    let first = m.build_system("linux-builder-bootstrap", &stderr_line)?;
-    sudo(&m.root_script(&BuilderMaintenance::first_activation_command(&first))?)?;
-    println!("Waiting for the Linux builder …");
-    let pre = Prerequisites::new(m.paths.clone());
-    for _ in 0..60 {
-        if pre.builder_running().status == PrerequisiteStatus::Ok {
-            break;
-        }
-        std::thread::sleep(Duration::from_secs(2));
-    }
-    println!("Stage 2 of 2: omaflake's builder settings …");
-    let second = m.build_system("linux-builder", &stderr_line)?;
-    sudo(&m.root_script(&BuilderMaintenance::activate_command(&second))?)?;
-    println!("nix-darwin and the Linux builder are set up.");
+    let b = LinuxBuilder::new(Env::new().paths);
+    b.set_up(&stdout_line, &|| false)?;
+    println!("The Linux builder runs.");
     Ok(())
 }
 
+/// `omaf builder apply`: omaflake's builder built again with its settings (as the user); with nix-darwin's builder
+/// darwin-rebuild of omaflake's builder host (sudo)
 pub fn builder_apply(force: bool) -> Outcome {
-    let m = BuilderMaintenance::new(Env::new().paths);
+    let paths = Env::new().paths;
+    let b = LinuxBuilder::new(paths.clone());
+    if b.is_set_up() || !b.system_has_builder() {
+        b.apply(&stdout_line, &|| false)?;
+        println!("Linux builder settings applied.");
+        return Ok(());
+    }
+    let m = BuilderMaintenance::new(paths);
     if !(m.system_is_omaflakes() || force) {
         return Err(Error::new(format!(
             "This Mac's nix-darwin system is not omaflake's builder host ({} is missing). Applying replaces your \
@@ -835,8 +834,21 @@ pub fn builder_apply(force: bool) -> Outcome {
     sudo(&m.root_script(&BuilderMaintenance::activate_command(&system))?)
 }
 
+/// `omaf builder clean-up`: unused paths in the builder – omaflake's as the user, nix-darwin's through sudo
 pub fn builder_clean_up() -> Outcome {
-    let m = BuilderMaintenance::new(Env::new().paths);
+    let paths = Env::new().paths;
+    let b = LinuxBuilder::new(paths.clone());
+    if b.is_set_up() && !b.system_has_builder() {
+        let status = std::process::Command::new("/usr/bin/ssh")
+            .args(b.ssh_arguments(BuilderMaintenance::CLEAN_UP_REMOTE))
+            .status()
+            .map_err(|e| Error::new(e.to_string()))?;
+        if !status.success() {
+            return Err(Error::new("Cleaning up the Linux builder failed – does it run?").into());
+        }
+        return Ok(());
+    }
+    let m = BuilderMaintenance::new(paths);
     sudo(&m.root_script(BuilderMaintenance::CLEAN_UP_COMMAND)?)
 }
 

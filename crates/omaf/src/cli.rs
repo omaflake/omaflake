@@ -848,9 +848,13 @@ pub struct Config {
 
 #[derive(Debug, Subcommand)]
 pub enum BuilderCommand {
-    #[command(about = "Set up nix-darwin with the Linux builder on a Mac without it (two stages, sudo).")]
+    #[command(
+        about = "Set up omaflake's Linux builder: runs as you (LaunchAgent), no nix-darwin, no sudo (two stages)."
+    )]
     Setup,
-    #[command(about = "darwin-rebuild switch with the image flake's #linux-builder host.")]
+    #[command(
+        about = "Build omaflake's Linux builder again with its settings (nix-darwin: darwin-rebuild of #linux-builder)."
+    )]
     Apply {
         #[arg(long, help = "Also when this Mac's nix-darwin system is not omaflake's (it gets replaced)")]
         force: bool,

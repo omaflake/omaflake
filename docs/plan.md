@@ -495,6 +495,63 @@ maintainer tries 0.7.0–0.7.3 (clicks in the apps; a VM's loading screen and ke
 running guest or a real Linux desktop (docs/linux.md) – and **M12** once the Developer ID is there. GitHub Pages of omaflake and website already publish
 through Actions (checked 2026-11-04: `build_type` workflow, domains omaflake.dev and omaflake.app).
 
+**B160 (2026-11-22): Setup by one click, user-level, always visible (release 0.7.4).** Found on a freshly reset Mac
+(maintainer, 2026-11-21, logs of that Mac): the Nix installer failed four times at "Rename /etc/fstab.tmp to
+/etc/fstab: Operation not permitted" – as root, from the administrator dialog – and left a half install (APFS volume
+mounted, /nix read-only: every retry failed, only a reboot freed /nix); "Mount the Nix Store" failed the same way;
+nix-darwin's first activation failed five times at "ln … /etc/pam.d/sudo_local: Operation not permitted" after
+`first_activation_command` had already moved /etc/zshrc, /etc/bashrc and /etc/nix/nix.conf aside – nothing put them
+back, so new shells had no Nix (the maintainer added the installer's lines to ~/.zshrc by hand); "Apply Settings" built
+before the builder answered (`failed to start SSH connection to 'linux-builder'`, `wait_for_builder` gives up after 2
+min without a word); the Doctor's Nix row showed nothing while the installer ran (only the Linux builder row is `busy`
+for builder jobs), the root script's output reached the job only at its end, errors came as raw osascript text
+("7:104: execution error: …") or empty ("Building the Linux builder host failed:"); QEMU and the SSH key were
+"Install …" in Terminal; the macOS base's SSH failed until the user's key was in the ssh-agent (BatchMode, B16); flakes
+had to be enabled by hand after a manual Nix install; macos-install.log is replaced by every attempt. Why root may not
+write /etc/fstab and /etc/pam.d from the dialog is OPEN – most likely macOS privacy protection (TCC, Full Disk Access
+of the app that opens the dialog; nix-installer's own help mentions "the interactive Full Disk Access prompt macOS
+requires"). Decisions (maintainer, 2026-11-22):
+- *Root once, for Nix only:* `nix-installer install --no-confirm --no-modify-profile --enable-flakes --extra-conf
+  "trusted-users = root <user>"` (flags checked with the pinned 2.35.3: `install macos --help`). Nothing else of
+  omaflake writes to /etc. `trusted-users` lets omaflake hand its builder to the Nix daemon per call (`--builders`).
+- *No nix-darwin for omaflake:* the Linux builder is nixpkgs' `darwin.linux-builder` run as the user – a LaunchAgent
+  (~/Library/LaunchAgents) runs its `run-builder` with `KEYS` and the disk in `<data>/builder/`; the builder key is
+  generated there (the guest reads `$KEYS` at start, checked in nixos/modules/profiles/nix-builder.nix); builds get
+  `--builders "ssh-ng://builder@localhost:31022 aarch64-linux <key> … - <host key>"` (Nix 2.34 takes the port in the
+  URL – checked: "connect to host localhost port 31022"; the host key is the public default of nix-builder.nix). Two
+  stages as before: nixpkgs' builder from the binary cache, then omaflake's (cores, memory, disk, min-free from
+  nix/hosts/builder-vm.nix) built by the first. A Mac whose Nix already has an aarch64-linux builder (nix-darwin,
+  /etc/nix/machines) keeps using it.
+- *Shell:* a marked block (`# omaflake: Nix` … `# omaflake: end`) in ~/.zshrc and ~/.bash_profile, only when a new
+  login shell does not find `nix`; the Doctor shows it and removes it. omaflake itself finds Nix by its paths.
+- *Own SSH key* (reverses B16): `<data>/ssh/id_ed25519` without a passphrase, created without Terminal, put into every
+  guest and offered first with `-i` (no IdentitiesOnly: bases made before keep working with the user's keys); the
+  user's ~/.ssh keys still go into guests as before.
+- *Always visible:* every row of a running job is `busy` with the job's last line; root output streams into the job;
+  waits end with a message; errors in plain words (Operation not permitted → Full Disk Access with a button to the
+  setting; a half Nix install → offer `/nix/nix-installer uninstall`); logs keep earlier attempts.
+- *One button:* "Set Up for NixOS" on the Doctor runs Nix → shell → SSH key → QEMU → builder → look as one job with
+  "Step n of m"; only the credential is asked. IPSW and macOS base stay their own step.
+- *Repair:* an /etc file moved aside by an earlier omaflake (`*.before-nix-darwin` without its original) can be put
+  back from the Doctor.
+- *No hypervisor* (`kern.hv_support` 0, a Mac VM without nested virtualization): the builder rows say so instead of
+  failing silently – such a Mac cannot run the builder or NixOS guests.
+
+*B160 done (2026-11-22, not released – with the MIDI work as 0.7.4):* `linux_builder.rs` (LinuxBuilder: key, two
+stages, LaunchAgent `app.omaflake.linux-builder`, `--builders` per call via `guest_arguments_for`, `set_up`/`apply`/
+`wait`, hypervisor check), flake output `linuxBuilders.aarch64-darwin.{bootstrap,omaflake}` and
+nix/hosts/builder-vm.nix (shared with the nix-darwin host), `shell_setup.rs` (ShellSetup), `ssh_identity.rs`
+(SshIdentity), Doctor: item `shell`, nix-darwin no longer checked or a build blocker, Set Up for NixOS (`setup.nixos`,
+job `setup` with steps), `builder.uninstallNix`, `builder.trust`, `qemu.install`, `shell.add`/`remove`,
+`doctor.createSshKey`, rows busy with the job's `lastLine`; `AdminShell::run_streaming` and `AdminShell::error`;
+`BuilderMaintenance::reason`; job logs appended; the CLI's `omaf builder setup|apply|clean-up` on the same code.
+Checked: cargo fmt/clippy/test (446 core tests), swift build/test, reuse lint, both flakes evaluate
+(`nix flake check --no-build`); `linuxBuilders…bootstrap` needs no Linux build (`nix build --dry-run`: only
+run-builder.drv, 587 paths fetched); the installer flags with the pinned 2.35.3; the app's pages in a macOS guest.
+OPEN – needs a Mac that can run VMs (this was built in a macOS guest without a hypervisor): the builder's two stages,
+the LaunchAgent, a NixOS build through `--builders`, Clean Up as the user; Nix install with the new flags and the
+shell block on a fresh Mac; whether macOS' "Operation not permitted" is Full Disk Access (TCC).
+
 **B159 (2026-11-22): `path:` references with a space.** Nix parses a `path:` flake reference as a URL: with the
 image flake in a macOS guest's share (`/Volumes/My Shared Files/…`) the Doctor's `flakeEval` failed ("getting status of
 …/path:/Volumes/My Shared Files/…") and so would every build. `ImageStore::path_ref` percent-encodes every byte outside

@@ -13,7 +13,30 @@ are collected under *Unreleased*. Releases: [GitHub](https://github.com/omaflake
 
 ## [Unreleased]
 
+### Changed
+
+- **Set Up for NixOS** – one button in the Doctor sets up what NixOS guests need, one step after the other: Nix, Nix in
+  your terminal, omaflake's SSH key, its QEMU, a look and the Linux builder. Steps that are done are skipped; each row
+  shows what happens. macOS asks for an administrator once, to install Nix; then only your credential is left.
+- omaflake no longer uses nix-darwin and no longer changes /etc/zshrc, /etc/bashrc or /etc/nix/nix.conf. It runs its
+  own Linux builder as you, in the background (a LaunchAgent; `omaf builder setup`), with its files in the data folder.
+  A Mac whose Nix already has a Linux builder (nix-darwin) keeps using it. See the Linux builder guide.
+- Nix is installed with flakes, without touching your shell files, and with you among Nix's trusted-users (so omaflake
+  can hand it its builder). "Nix in your terminal" adds the lines that load Nix to your ~/.zshrc instead.
+- omaflake has its own SSH key for its VMs (`<data folder>/ssh`, no passphrase), created with a click. Image builds and
+  macOS bases no longer need a key in ~/.ssh or an ssh-agent; your keys still go into the VMs.
+- QEMU installs and updates in the app with its progress, no longer in Terminal.
+
 ### Fixed
+
+- The Doctor shows every running setup step on its row with what it does now – installing Nix no longer looks like
+  nothing happens. The installer's output streams into the job.
+- Errors of administrator steps come in plain words; "Operation not permitted" says to give omaflake Full Disk Access.
+- A Nix install that stopped half way is recognised and can be removed from the Doctor (it made every new install fail).
+- Waiting for the Linux builder ends with a message instead of building on and failing; a failed builder build names its
+  first error.
+- The Doctor says when a Mac cannot run VMs (no hypervisor, e.g. a macOS VM) instead of a builder that never answers.
+- Job logs keep earlier attempts instead of replacing them.
 
 - An image flake, a recipe source or the data folder in a folder whose path has a space (such as an external disk or
   a macOS guest's "My Shared Files") no longer stops the Doctor and the builds: `path:` references for Nix are

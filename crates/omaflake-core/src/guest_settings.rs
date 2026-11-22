@@ -403,6 +403,8 @@ impl ImageStore {
                 ImageStore::path_ref(&dir.to_string_lossy()),
             ]);
         }
+        // omaflake's own Linux builder, handed to the Nix daemon for this call (plan B160)
+        args.extend(crate::linux_builder::LinuxBuilder::new(self.paths.clone()).arguments());
         if args.is_empty() {
             return args;
         }

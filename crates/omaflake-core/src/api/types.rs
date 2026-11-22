@@ -1020,6 +1020,14 @@ pub enum JobKind {
     BuilderSetup,
     BuilderApply,
     BuilderCleanUp,
+    /// Remove a Nix install the installer left half done (`builder.uninstallNix`, plan B160)
+    BuilderUninstallNix,
+    /// Add the user to Nix's trusted-users (`builder.trust`) – for a Nix omaflake did not install
+    BuilderTrust,
+    /// Install or update omaflake's QEMU (`qemu.install`, `nix profile`)
+    QemuInstall,
+    /// Set up everything NixOS guests need, one step after the other (`setup.nixos`, plan B160)
+    Setup,
     /// Remove what nothing uses from this computer's Nix Store (`nix.cleanUp`, `nix-collect-garbage`, plan B149)
     NixCleanUp,
     /// Install or uninstall the `omaf` command (`doctor.installCli`, `doctor.uninstallCli`)
@@ -1090,6 +1098,9 @@ pub struct JobDto {
     pub log_lines: usize,
     /// Routine lines left out of the log (still in `logFile`)
     pub hidden_lines: usize,
+    /// The newest line – what the job does now (the Doctor shows it in the row, plan B160)
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub last_line: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub log_file: Option<String>,
     /// It can still be cancelled
@@ -1268,6 +1279,7 @@ mod tests {
             last_output: None,
             log_lines: 0,
             hidden_lines: 0,
+            last_line: None,
             log_file: None,
             cancellable: true,
             result: None,

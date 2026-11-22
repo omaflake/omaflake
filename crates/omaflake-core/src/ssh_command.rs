@@ -38,6 +38,8 @@ impl SshCommand {
         let mut args =
             vec![crate::platform::host_tool("/usr/bin/ssh"), "-p".into(), port.unwrap_or(c.ssh_port).to_string()];
         args.extend(host_keys);
+        // omaflake's own key first (plan B160); ssh tries the user's keys and agent after it
+        args.extend(crate::ssh_identity::SshIdentity::new(paths).arguments());
         args.push(format!("{}@{host}", c.guest_user()));
         args.extend(command.iter().cloned());
         args

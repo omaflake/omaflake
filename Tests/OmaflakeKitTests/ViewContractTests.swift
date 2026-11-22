@@ -174,7 +174,7 @@ extension APIContractTests {
             "doctor": {
                 guard case .doctor(let p) = try page("doctor", as: "doctor") else { throw Unexpected() }
                 #expect(p.issues == 3 && p.sections.map(\.id) == ["requirements", "nixos", "macos"] && p.checked != nil)
-                #expect(p.versions.map(\.label.key) == ["omaflake"] && p.versions[0].value.args.count == 2 && p.actions.first?.method == "doctor.check")
+                #expect(p.versions.map(\.label.key) == ["omaflake"] && p.versions[0].value.args.count == 2 && p.actions.last?.method == "doctor.check" && p.actions.first?.method == "setup.nixos")
                 let nix = try #require(p.sections[0].items.first { $0.item == .nix })
                 #expect(nix.status == .ok && !nix.expanded && nix.actions.map(\.id) == ["install", "setPath"])
                 // The guide: its title, its page on omaflake.dev; no `path` outside omaflake.app

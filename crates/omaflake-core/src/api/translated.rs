@@ -86,6 +86,7 @@ fn every_check(host: crate::api::views::HostOs) -> Vec<crate::api::types::Prereq
         I::Kvm,
         I::Nix,
         I::Flakes,
+        I::Shell,
         I::NixDarwin,
         I::LinuxBuilder,
         I::Qemu,

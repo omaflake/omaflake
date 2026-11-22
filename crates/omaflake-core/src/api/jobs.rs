@@ -213,6 +213,7 @@ impl Job {
             last_output: d.last_output,
             log_lines: d.total,
             hidden_lines: d.hidden,
+            last_line: d.lines.back().cloned(),
             log_file: d.log_file.as_ref().map(|p| p.to_string_lossy().into_owned()),
             cancellable,
             result: d.result.clone(),
@@ -411,7 +412,12 @@ impl Jobs {
             if let Some(dir) = f.parent() {
                 let _ = std::fs::create_dir_all(dir);
             }
-            File::create(f).ok()
+            // Appended, a header per attempt: a failed attempt's lines stay for later (plan B160)
+            let mut file = std::fs::OpenOptions::new().create(true).append(true).open(f).ok()?;
+            let at_start = file.metadata().map(|m| m.len() == 0).unwrap_or(true);
+            let gap = if at_start { "" } else { "\n" };
+            let _ = writeln!(file, "{gap}=== {} {}", json::iso8601::format(&json::now()), spec.title);
+            Some(file)
         });
         let job = Arc::new(Job {
             id,
@@ -854,7 +860,9 @@ mod tests {
         assert!(lines[2].starts_with("(2 routine lines"));
         assert_eq!(end.log_lines, 3);
         let text = std::fs::read_to_string(&file).unwrap();
-        assert!(text.starts_with("one\nnoise 1\ntwo\nnoise 2\n"));
+        // a header per attempt, then every line (plan B160: earlier attempts stay in the file)
+        assert!(text.starts_with("=== "), "{text}");
+        assert!(text.contains("\none\nnoise 1\ntwo\nnoise 2\n"));
         assert_eq!(job.log(2).lines.len(), 1);
         assert_eq!(job.log(99), JobLog { lines: vec![], next: 3 });
     }

@@ -47,12 +47,12 @@ On a Linux host: Linux on x86_64 or aarch64 with KVM, Nix with flakes (or NixOS)
 key – details and install in [docs/linux.md](docs/linux.md). On a Mac:
 
 - Mac with Apple silicon and macOS 27
-- [Nix](https://nixos.org) with flakes and [nix-darwin](https://github.com/nix-darwin/nix-darwin) with
-  `nix.linux-builder` (builds NixOS images) – the app's Doctor sets both up by click, the CLI with
-  `omaf builder setup`; by hand: [docs/linux-builder.md](docs/linux-builder.md)
+- [Nix](https://nixos.org) with flakes and a Linux builder (builds NixOS images) – the app's Doctor sets up both with
+  **Set Up for NixOS** (Nix asks for an administrator once; the builder runs as you), the CLI with `omaf builder setup`;
+  details: [docs/linux-builder.md](docs/linux-builder.md)
 - QEMU for NixOS guests: omaflake's patched build as a Nix package, `nix build .#qemu` (3D); Homebrew QEMU works
   headless and 2D
-- An SSH key in `~/.ssh`
+- An SSH key – omaflake creates its own
 
 `omaf doctor` (or the app's Doctor) checks all of this and shows how to set up what is missing.
 - To build omaflake itself: Swift 6 toolchain (Xcode or Command Line Tools)
@@ -60,7 +60,7 @@ key – details and install in [docs/linux.md](docs/linux.md). On a Mac:
 ## Build
 
 ```sh
-swift build -c release            # omaf CLI
+cargo build --release -p omaf     # omaf CLI (Rust)
 swift test                        # unit tests
 scripts/sign-runner.sh release    # omaf-runner, signed with com.apple.security.virtualization
 scripts/bundle-app.sh             # build/omaflake.app (menu bar app; SIGN_IDENTITY=… for a Developer ID build)

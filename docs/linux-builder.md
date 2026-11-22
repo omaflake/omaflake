@@ -7,8 +7,35 @@ permalink: /linux-builder/
 # Linux builder on macOS
 
 NixOS guest images are `aarch64-linux` derivations. A Mac cannot build them natively, so Nix needs a
-Linux builder. The simplest option is nix-darwin's `nix.linux-builder`: a small NixOS VM that nix-darwin
-runs in the background and registers as a remote builder.
+Linux builder: a small NixOS VM that builds them – nixpkgs' `darwin.linux-builder`.
+
+## omaflake's own builder (since 0.7.4)
+
+The Doctor's **Set Up for NixOS** (or Linux builder → **Set Up …**, or `omaf builder setup`) runs omaflake's own
+builder – as you, without nix-darwin and without anything in /etc:
+
+- a LaunchAgent, `~/Library/LaunchAgents/app.omaflake.linux-builder.plist`, starts the builder when you log in and
+  keeps it running; its log is `<data folder>/logs/linux-builder-vm.log`;
+- its key, its disk (`nixos.qcow2`) and the builders live in `<data folder>/builder/`;
+- every build hands it to Nix (`--builders "ssh-ng://builder@localhost:31022 aarch64-linux …"`). Nix takes a
+  builder from you only when you are one of its `trusted-users`: omaflake's Nix install sets that; for a Nix
+  installed otherwise the Doctor offers **Allow …** (one line in /etc/nix/nix.conf, asks for an administrator once).
+
+Two stages: nixpkgs' default builder from the binary cache (about 430 MB), then omaflake's – more cores, memory and
+disk, [nix/hosts/builder-vm.nix](../nix/hosts/builder-vm.nix) – which the first one builds. **Apply Settings …**
+(`omaf builder apply`) builds it again after you changed that file; it gets a new disk. **Clean Up** removes unused
+data from its disk.
+
+The builder is a VM: a Mac that cannot run VMs (a macOS VM on a Mac without nested virtualization – the Doctor says
+"no hypervisor") cannot run it.
+
+If your Nix already has a Linux builder – nix-darwin's `nix.linux-builder` below, or one in /etc/nix/machines –
+omaflake uses that one and sets up none of its own.
+
+## nix-darwin's builder
+
+Until 0.7.3 omaflake set up nix-darwin for the builder. That still works – for a Mac that uses nix-darwin anyway.
+nix-darwin's `nix.linux-builder` runs the same VM as a system service and registers it as a remote builder.
 
 ## Configuration
 
@@ -41,10 +68,9 @@ Adjust cores, memory and disk to your machine. `min-free`/`max-free` make the bu
 when a build leaves it less than 20 GiB, Nix deletes unused store paths until 50 GiB are free (everything it
 deletes can be rebuilt or downloaded again). The builder's own defaults (1 and 3 GiB) are too small: a NixOS disk image alone needs ~9 GiB while it is written.
 
-## Activation
+## Activation (nix-darwin)
 
-The app does all of this by click (Doctor → Nix "Install …", nix-darwin "Set Up …"), the CLI with
-`omaf builder setup`; by hand:
+omaflake no longer does this for you (since 0.7.4 it runs its own builder, above); by hand:
 
 nix-darwin takes over `/etc/nix/nix.conf`; move the unmanaged one aside first (rename, don't delete).
 Do the same for any other file the activation reports as "unexpected" in `/etc` (e.g. `/etc/zshrc`, `/etc/bashrc`):

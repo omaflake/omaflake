@@ -508,7 +508,9 @@ impl MacImageBuilder {
             "nix-daemon setup",
         )?;
         let store = format!("ssh-ng://{}@{ip}?remote-program=/nix/var/nix/profiles/default/bin/nix-daemon", r.user);
-        let ssh_opts = BuildVm::SSH_OPTIONS.join(" ");
+        // NIX_SSHOPTS is split at spaces: omaflake's key only where its path has none
+        let ssh_opts = BuildVm::ssh_options().iter().filter(|o| !o.contains(' ')).cloned().collect::<Vec<_>>();
+        let ssh_opts = if ssh_opts.len() % 2 == 0 { ssh_opts.join(" ") } else { BuildVm::SSH_OPTIONS.join(" ") };
         let env = [("NIX_SSHOPTS", ssh_opts.as_str())];
         // The restarted daemon needs a moment; paths built on the Mac are unsigned and need a trusted user
         let mut trusted = false;
@@ -592,6 +594,13 @@ impl BuildVm {
         "LogLevel=ERROR",
     ];
 
+    /// `SSH_OPTIONS` and omaflake's own key first (`-i`, plan B160) – without a key in ~/.ssh or an ssh-agent
+    pub(crate) fn ssh_options() -> Vec<String> {
+        let mut o: Vec<String> = Self::SSH_OPTIONS.iter().map(|s| s.to_string()).collect();
+        o.extend(crate::ssh_identity::SshIdentity::standard().arguments());
+        o
+    }
+
     pub(crate) fn new(
         child: Pid,
         dir: &Path,
@@ -636,7 +645,8 @@ impl BuildVm {
     /// One command in the guest (remote shell line); stdout/stderr are appended to the build log.
     pub(crate) fn ssh(&self, command: &str, input: Option<&[u8]>) -> Result<ShellResult> {
         let target = format!("{}@{}", self.user, self.ip.as_deref().unwrap_or(""));
-        let args: Vec<&str> = Self::SSH_OPTIONS.iter().copied().chain([target.as_str(), command]).collect();
+        let mut args = Self::ssh_options();
+        args.extend([target.clone(), command.to_string()]);
         let r = Shell::run(
             &crate::platform::host_tool("/usr/bin/ssh"),
             &args,

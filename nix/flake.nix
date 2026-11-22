@@ -238,6 +238,16 @@
       # nix build path:$PWD#packages.<system>.<recipe>-image (same as images.<system>.<recipe>)
       packages = lib.mapAttrs (_: lib.mapAttrs' (f: vm: lib.nameValuePair "${f}-image" (imageOf vm))) vms;
 
+      # omaflake's own Linux builder, run as the user by a LaunchAgent – no nix-darwin, nothing in /etc (plan B160):
+      # `run-builder` of nixpkgs' darwin.linux-builder, first the default from the binary cache, then with omaflake's
+      # settings (hosts/builder-vm.nix) – itself a Linux build, done by the first one
+      linuxBuilders.aarch64-darwin =
+        let builder = nixpkgs.legacyPackages.aarch64-darwin.darwin.linux-builder; in
+        {
+          bootstrap = builder.passthru.run-builder;
+          omaflake = (builder.override { modules = [ ./hosts/builder-vm.nix ]; }).passthru.run-builder;
+        };
+
       darwinConfigurations =
         # nix-darwin host with a Linux builder for the images (docs/linux-builder.md)
         {

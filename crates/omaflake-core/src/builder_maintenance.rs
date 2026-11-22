@@ -33,8 +33,10 @@ impl BuilderMaintenance {
     pub const NIX_INSTALLER_VERSION: &'static str = "2.35.3";
     pub const NIX_INSTALLER_SHA256: &'static str = "c4991562a71a7ef2dc52d9760545c8541db4a468bbcc91dcafd57175638bf17e";
 
-    /// Unused store paths in the builder (everything can be rebuilt or downloaded again), with free space before/after.
-    /// `ssh linux-builder` works for root only (the key in /etc/nix is root's).
+    /// Unused store paths in the builder (everything can be rebuilt or downloaded again), with free space before/after
+    pub const CLEAN_UP_REMOTE: &'static str = "df -h / | tail -1; nix-store --gc 2>&1 | tail -1; df -h / | tail -1";
+    /// `CLEAN_UP_REMOTE` in nix-darwin's builder: `ssh linux-builder` works for root only (the key in /etc/nix is
+    /// root's). omaflake's own builder is cleaned up as the user (`LinuxBuilder::ssh_arguments`).
     pub const CLEAN_UP_COMMAND: &'static str =
         "ssh linux-builder 'df -h / | tail -1; nix-store --gc 2>&1 | tail -1; df -h / | tail -1'";
 
@@ -58,7 +60,7 @@ impl BuilderMaintenance {
     /// would write a root-owned flake.lock into the checkout. Swift default `host`: "linux-builder".
     /// `nix build --no-link --print-out-paths --no-write-lock-file --extra-experimental-features "nix-command flakes"
     /// path:<flake>#darwinConfigurations.<host>.system`; failure: "Building the Linux builder host failed:\n<last 1500
-    /// characters of stderr>" (the stream's stderr is empty – Swift quirk kept, OPEN: show the streamed lines instead).
+    /// characters of the cause>" – the first `error:` line the build streamed (`reason`, plan B160).
     pub fn build_system(&self, host: &str, on_line: &(dyn Fn(&str) + Send + Sync)) -> Result<String> {
         let settings = Settings::load(&self.paths);
         let flake = settings.flake_path()?;
@@ -73,12 +75,46 @@ impl BuilderMaintenance {
             "nix-command flakes",
             target.as_str(),
         ];
-        let r = Shell::stream(&nix, &args, &StreamOptions::default(), on_line)?;
+        // The streamed lines are the build's stderr (the stream's own stderr stays empty): keep the last ones for the
+        // error, so it says why (plan B160)
+        let tail = std::sync::Mutex::new(std::collections::VecDeque::<String>::new());
+        let r = Shell::stream(&nix, &args, &StreamOptions::default(), &|line: &str| {
+            let mut t = tail.lock().unwrap_or_else(|e| e.into_inner());
+            if t.len() == 12 {
+                t.pop_front();
+            }
+            t.push_back(line.to_string());
+            drop(t);
+            on_line(line)
+        })?;
         let out = r.stdout.trim();
         if r.status != 0 || !Self::is_system(out) {
-            return Err(vm_err!("Building the Linux builder host failed:\n{}", suffix(&r.stderr, 1500)));
+            let lines = tail.into_inner().unwrap_or_else(|e| e.into_inner());
+            let why = Self::reason(&lines.into_iter().collect::<Vec<_>>().join("\n"), &r.stderr);
+            return Err(vm_err!("Building the Linux builder host failed:\n{}", why));
         }
         Ok(out.to_string())
+    }
+
+    /// Why a build failed, for its error: the `error:` lines of what it streamed (the first one is the cause, the
+    /// rest "1 dependency failed"), else its last lines, else stderr's end
+    pub(crate) fn reason(streamed: &str, stderr: &str) -> String {
+        let errors: Vec<&str> = streamed.lines().filter(|l| l.trim_start().starts_with("error:")).collect();
+        let text = if let Some(first) = errors.first() {
+            let mut lines = vec![first.trim().to_string()];
+            // "cannot build on 'ssh-ng://…': error: failed to start SSH connection" names the builder
+            if let Some(ssh) = streamed.lines().find(|l| l.contains("failed to start SSH connection"))
+                && !lines.iter().any(|l| l == ssh.trim())
+            {
+                lines.push(ssh.trim().to_string());
+            }
+            lines.join("\n")
+        } else if !streamed.trim().is_empty() {
+            streamed.trim().to_string()
+        } else {
+            stderr.trim().to_string()
+        };
+        suffix(&text, 1500).to_string()
     }
 
     /// A nix-darwin system in the store (the only thing root gets to activate)
@@ -108,26 +144,35 @@ impl BuilderMaintenance {
     }
 
     /// Downloads the installer with curl into a temporary folder, checks its SHA-256 with `shasum -a 256 -c -`, runs
-    /// `install --no-confirm` (Swift `installNixCommand`)
-    pub fn install_nix_command() -> String {
+    /// `install --no-confirm` – the only root step of omaflake's setup (plan B160): `--no-modify-profile` leaves
+    /// /etc/zshrc and /etc/bashrc alone (omaflake puts its lines into the user's ~/.zshrc, `ShellSetup`),
+    /// `--enable-flakes`, and `trusted-users = root <user>` so omaflake can hand its own Linux builder to the daemon
+    /// (`--builders`, `LinuxBuilder`). Flags checked with the pinned release's `install macos --help`.
+    pub fn install_nix_command(user: &str) -> String {
         format!(
             "set -e; d=$(mktemp -d); curl -fsSL -o \"$d/nix-installer\" {}; \
              echo \"{}  $d/nix-installer\" | shasum -a 256 -c -; \
-             chmod +x \"$d/nix-installer\"; \"$d/nix-installer\" install --no-confirm",
+             chmod +x \"$d/nix-installer\"; \"$d/nix-installer\" install --no-confirm --no-modify-profile \
+             --enable-flakes --extra-conf {}",
             shell_quote(&Self::nix_installer_url()),
-            Self::NIX_INSTALLER_SHA256
+            Self::NIX_INSTALLER_SHA256,
+            shell_quote(&format!("trusted-users = root {user}"))
         )
     }
 
-    /// First activation of nix-darwin: it refuses to take over /etc files it did not write (the Nix installer's
-    /// nix.conf and shell rc files) – move them aside as docs/linux-builder.md says (rename, never delete), then
-    /// set the system profile and activate.
-    pub fn first_activation_command(system: &str) -> String {
-        let move_aside = ["/etc/nix/nix.conf", "/etc/bashrc", "/etc/zshrc", "/etc/zshenv"]
-            .map(|f| format!("if [ -f {f} ] && [ ! -L {f} ]; then mv {f} {f}.before-nix-darwin; fi"))
-            .join("; ");
-        format!("{move_aside}; {}", Self::activate_command(system))
+    /// Adds the user to Nix's trusted-users in /etc/nix/nix.conf (`extra-trusted-users`, once) and restarts the daemon –
+    /// for a Nix omaflake did not install. A nix.conf of nix-darwin (a link) is not touched: that is nix-darwin's.
+    pub fn trust_command(user: &str) -> String {
+        let u = shell_quote(user);
+        format!(
+            "f=/etc/nix/nix.conf; if [ -L \"$f\" ]; then echo \"$f belongs to nix-darwin – add yourself to nix.settings.trusted-users there\" >&2; exit 1; fi; \
+             grep -qxF \"extra-trusted-users = \"{u} \"$f\" 2>/dev/null || echo \"extra-trusted-users = \"{u} >> \"$f\"; \
+             launchctl kickstart -k system/org.nixos.nix-daemon"
+        )
     }
+
+    /// Removes a Nix install the installer left half done (its receipt at /nix/receipt.json; plan B160)
+    pub const UNINSTALL_NIX_COMMAND: &'static str = "/nix/nix-installer uninstall --no-confirm";
 
     /// Wraps a command for a root shell: Nix tools on PATH, root's HOME, output appended to `log` (created by the
     /// user first, so it stays theirs); a header line "=== <ISO 8601 time> <command>"; `set -o pipefail`.
@@ -315,7 +360,59 @@ impl AdminShell {
         .to_vec()
     }
 
-    /// osascript's result: its output, "Cancelled" for "User canceled." (-128), else its error text
+    /// `run`, and meanwhile every new line of `log` (the root script tees its output there, `root_script`) goes to
+    /// `on_line` – so the job shows what the installer does while macOS' dialog call blocks (plan B160)
+    pub fn run_streaming(
+        command: &str,
+        prompt: &str,
+        log: &Path,
+        on_line: &(dyn Fn(&str) + Send + Sync),
+    ) -> Result<String> {
+        use std::io::{Read, Seek, SeekFrom};
+        use std::sync::atomic::{AtomicBool, Ordering};
+        let start = fs::metadata(log).map(|m| m.len()).unwrap_or(0);
+        let done = AtomicBool::new(false);
+        std::thread::scope(|scope| {
+            let follow = scope.spawn(|| {
+                let mut at = start;
+                let mut rest = String::new();
+                loop {
+                    let finished = done.load(Ordering::Acquire);
+                    if let Ok(mut f) = fs::File::open(log)
+                        && f.seek(SeekFrom::Start(at)).is_ok()
+                    {
+                        let mut bytes = Vec::new();
+                        if let Ok(n) = f.read_to_end(&mut bytes) {
+                            at += n as u64;
+                            rest.push_str(&String::from_utf8_lossy(&bytes));
+                            while let Some(i) = rest.find(['\n', '\r']) {
+                                let line: String = rest.drain(..=i).collect();
+                                let line = line.trim_end();
+                                // the header line "=== <time> <command>" is for the log file, not the job
+                                if !line.is_empty() && !line.starts_with("=== ") {
+                                    on_line(line);
+                                }
+                            }
+                        }
+                    }
+                    if finished {
+                        let line = rest.trim();
+                        if !line.is_empty() && !line.starts_with("=== ") {
+                            on_line(line);
+                        }
+                        return;
+                    }
+                    std::thread::sleep(std::time::Duration::from_millis(300));
+                }
+            });
+            let result = Self::run(command, prompt);
+            done.store(true, Ordering::Release);
+            let _ = follow.join();
+            result
+        })
+    }
+
+    /// osascript's result: its output, "Cancelled" for "User canceled." (-128), else its error in plain words
     #[cfg_attr(not(target_os = "macos"), allow(dead_code))] // used on macOS only
     pub(crate) fn outcome(status: i32, stdout: &str, stderr: &str) -> Result<String> {
         if status != 0 {
@@ -323,9 +420,35 @@ impl AdminShell {
             if stderr.contains("(-128)") {
                 return Err(Error::cancelled());
             }
-            return Err(Error::new(stderr.trim()));
+            return Err(Self::error(stderr));
         }
         Ok(stdout.replace('\r', "\n"))
+    }
+
+    /// "7:104: execution error: <output> (1)" → the output's last lines, without osascript's position and exit code;
+    /// "Operation not permitted" gets what to do about it (plan B160: macOS refused root on /etc/fstab and
+    /// /etc/pam.d – most likely its privacy protection, OPEN)
+    pub(crate) fn error(stderr: &str) -> Error {
+        let mut text = stderr.replace('\r', "\n").trim().to_string();
+        if let Some(i) = text.find("execution error: ") {
+            text = text[i + "execution error: ".len()..].to_string();
+        }
+        if text.ends_with(')')
+            && let Some(i) = text.rfind(" (")
+            && text[i + 2..text.len() - 1].trim_start_matches('-').chars().all(|c| c.is_ascii_digit())
+        {
+            text.truncate(i);
+        }
+        let lines: Vec<&str> = text.lines().map(str::trim).filter(|l| !l.is_empty()).collect();
+        let last = lines[lines.len().saturating_sub(6)..].join("\n");
+        if text.contains("Operation not permitted") {
+            return vm_err!(
+                codes::PREREQUISITE,
+                "macOS did not let the administrator change a system file:\n{}\nGive omaflake Full Disk Access (System Settings → Privacy & Security → Full Disk Access), then try again.",
+                last
+            );
+        }
+        Error::new(last)
     }
 }
 
@@ -377,22 +500,42 @@ mod tests {
     }
 
     #[test]
-    fn first_activation_moves_unmanaged_etc_files_aside() {
-        let cmd = BuilderMaintenance::first_activation_command("/nix/store/x-darwin-system");
-        assert!(cmd.contains(
-            "if [ -f /etc/nix/nix.conf ] && [ ! -L /etc/nix/nix.conf ]; then mv /etc/nix/nix.conf \
-             /etc/nix/nix.conf.before-nix-darwin; fi"
-        ));
-        assert!(cmd.ends_with(
-            "nix-env -p /nix/var/nix/profiles/system --set '/nix/store/x-darwin-system' && \
-             '/nix/store/x-darwin-system'/activate"
-        ));
-        assert!(!cmd.contains("rm ")); // rename, never delete
+    fn trust_adds_the_user_once_and_leaves_nix_darwin_alone() {
+        let cmd = BuilderMaintenance::trust_command("some one");
+        assert!(cmd.starts_with("f=/etc/nix/nix.conf; if [ -L \"$f\" ]; then"));
+        assert!(cmd.contains("grep -qxF \"extra-trusted-users = \"'some one' \"$f\""));
+        assert!(cmd.ends_with("launchctl kickstart -k system/org.nixos.nix-daemon"));
+    }
+
+    #[test]
+    fn osascript_errors_come_in_plain_words() {
+        let e = AdminShell::error(
+            "0:104: execution error: line one\rln: /etc/pam.d/sudo_local: Operation not permitted (1)",
+        );
+        assert!(
+            e.message().contains("ln: /etc/pam.d/sudo_local: Operation not permitted\nGive omaflake Full Disk Access"),
+            "{}",
+            e.message()
+        );
+        assert!(!e.message().contains("execution error"));
+        let e = AdminShell::error("7:104: execution error: something broke (2)");
+        assert_eq!(e.message(), "something broke");
+    }
+
+    #[test]
+    fn a_failed_build_says_its_first_error() {
+        let streamed = "copying path …\ncannot build on 'ssh-ng://builder@linux-builder': error: failed to start SSH connection to 'linux-builder'\nerror: Cannot build '/nix/store/a.drv'.\nerror: Cannot build '/nix/store/b.drv'.";
+        let why = BuilderMaintenance::reason(streamed, "");
+        assert!(why.starts_with("error: Cannot build '/nix/store/a.drv'."));
+        assert!(why.contains("failed to start SSH connection"));
+        assert_eq!(BuilderMaintenance::reason("", "stderr text"), "stderr text");
     }
 
     #[test]
     fn installer_is_checked_before_it_runs() {
-        let cmd = BuilderMaintenance::install_nix_command();
+        let cmd = BuilderMaintenance::install_nix_command("someone");
+        assert!(cmd.ends_with("--enable-flakes --extra-conf 'trusted-users = root someone'"));
+        assert!(cmd.contains("--no-modify-profile")); // /etc/zshrc stays as it is (plan B160)
         let check = cmd.find("shasum -a 256 -c -").unwrap();
         let run = cmd.find("install --no-confirm").unwrap();
         assert!(check < run);
@@ -466,7 +609,8 @@ mod tests {
         let cancelled = AdminShell::outcome(1, "", "0:48: execution error: User canceled. (-128)\n").unwrap_err();
         assert!(cancelled.is_cancelled());
         let failed = AdminShell::outcome(1, "", "  boom (1)\n").unwrap_err();
-        assert_eq!((failed.message(), failed.code()), ("boom (1)", None));
+        // osascript's exit code goes, the text stays (plan B160)
+        assert_eq!((failed.message(), failed.code()), ("boom", None));
     }
 
     #[test]

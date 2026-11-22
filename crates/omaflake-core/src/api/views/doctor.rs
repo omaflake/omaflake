@@ -136,12 +136,27 @@ pub fn hint_on(p: &PrerequisiteDto, host: super::HostOs) -> Text {
         I::Nix if p.detail.starts_with(Prerequisites::NIX_NOT_MOUNTED) => {
             "Nix is installed, but its volume is not mounted at /nix – usually after a restart without its mount settings. Mount it; NixOS images, the Linux builder and omaflake's QEMU are back then."
         }
-        I::Nix => "Install Nix, or enter the path to the nix binary.",
+        I::Nix if p.detail == Prerequisites::NIX_HALF => {
+            "A Nix install stopped half way. Remove it, restart the Mac if /nix stays busy, then install again."
+        }
+        I::Nix => {
+            "Install Nix, or enter the path to the nix binary. omaflake's install asks for an administrator once."
+        }
         I::Flakes => {
-            "Add “nix-command flakes” to experimental-features (nix-darwin: nix.settings.experimental-features)."
+            "Add “nix-command flakes” to experimental-features in /etc/nix/nix.conf – omaflake's Nix install does it (nix-darwin: nix.settings.experimental-features)."
+        }
+        I::Shell if p.detail == "needs Nix" => "Install Nix first.",
+        I::Shell => {
+            "New terminals do not find nix. omaflake adds the lines that load Nix to your ~/.zshrc – nothing in /etc. omaflake itself does not need them."
         }
         I::NixDarwin => "Set up nix-darwin – it provides the Linux builder for NixOS images.",
-        I::LinuxBuilder => "Enable nix.linux-builder in your nix-darwin configuration (see the guide).",
+        I::LinuxBuilder if p.hint == "needs Nix" => "Install Nix first.",
+        I::LinuxBuilder if p.hint.contains("trusted-users") => {
+            "omaflake's Linux builder needs you among Nix's trusted-users. omaflake's Nix install sets that; for another Nix, Allow … asks for an administrator once."
+        }
+        I::LinuxBuilder => {
+            "Set up omaflake's Linux builder – it runs as you in the background, no administrator needed. The first time it downloads about 430 MB and builds omaflake's builder: several minutes."
+        }
         I::Qemu if limited && p.detail.contains(Prerequisites::QEMU_OLD_PATCHSET) => {
             "An older omaflake QEMU: NixOS VMs start without the loading screen – update it (builds QEMU, about ten minutes)."
         }
@@ -150,7 +165,9 @@ pub fn hint_on(p: &PrerequisiteDto, host: super::HostOs) -> Text {
         }
         I::Qemu => "Needed for NixOS guests: install omaflake's QEMU, or enter a path.",
         I::Flake => "Choose the folder with your recipes (flake.nix).",
-        I::SshKey => "Create a key – used for SSH into VMs, image builds and macOS bases.",
+        I::SshKey => {
+            "omaflake creates its own key for its VMs – no passphrase, only for omaflake. Your keys in ~/.ssh go into the VMs too."
+        }
         I::Look => {
             "Install a look – how the guests look: colours, terminal, editors. omaflake's own and Catppuccin are recommended; more are in the Looks tab."
         }
@@ -162,6 +179,13 @@ pub fn hint_on(p: &PrerequisiteDto, host: super::HostOs) -> Text {
             "Another omaf comes first on your PATH – install this omaflake's, or remove the other one."
         }
         I::Cli => "Optional: install the omaf command to use omaflake in a terminal.",
+        I::BuilderRunning if p.detail.starts_with("no hypervisor") => {
+            "This Mac cannot run VMs – it is probably itself a VM without nested virtualization. The Linux builder and NixOS guests need a Mac that can."
+        }
+        I::BuilderRunning if p.detail == "no Linux builder set up" => "Set up the Linux builder first.",
+        I::BuilderRunning if p.hint.contains("LaunchAgent") => {
+            "omaflake's Linux builder does not answer. It starts in the background when you log in; its first start takes a few minutes."
+        }
         I::BuilderRunning => {
             "The Linux builder VM does not answer – it is started by nix-darwin (launchd: org.nixos.linux-builder)."
         }
@@ -223,11 +247,40 @@ fn builder_task(ctx: &Ctx) -> Option<&JobDto> {
             j.kind,
             JobKind::BuilderInstallNix
                 | JobKind::BuilderMountNix
+                | JobKind::BuilderUninstallNix
+                | JobKind::BuilderTrust
                 | JobKind::BuilderSetup
                 | JobKind::BuilderApply
                 | JobKind::BuilderCleanUp
+                | JobKind::QemuInstall
+                | JobKind::Setup
         ) && j.state.is_active()
     })
+}
+
+/// The row a running setup job works on (plan B160: every row of a running job shows it, never a silent wait) –
+/// "Set up for NixOS" by its current step
+fn works_on(j: &JobDto, item: I) -> bool {
+    match j.kind {
+        JobKind::BuilderInstallNix | JobKind::BuilderMountNix | JobKind::BuilderUninstallNix => item == I::Nix,
+        JobKind::BuilderTrust | JobKind::BuilderSetup | JobKind::BuilderApply | JobKind::BuilderCleanUp => {
+            matches!(item, I::LinuxBuilder | I::BuilderRunning)
+        }
+        JobKind::QemuInstall => item == I::Qemu,
+        JobKind::Setup => {
+            let step = j.progress.as_ref().map(|p| p.title.as_str()).unwrap_or("");
+            match step {
+                "Nix" => item == I::Nix,
+                "Nix in your terminal" => item == I::Shell,
+                "SSH key" => item == I::SshKey,
+                "QEMU" => item == I::Qemu,
+                "Look" => item == I::Look,
+                "Linux builder" => matches!(item, I::LinuxBuilder | I::BuilderRunning),
+                _ => false,
+            }
+        }
+        _ => false,
+    }
 }
 
 /// The `omaf` command's hint: a file in the way, or the link's folder missing from the PATH; else as `hint`
@@ -298,9 +351,10 @@ fn item(ctx: &Ctx, p: &PrerequisiteDto) -> DoctorItem {
     let builder_actions = p.item == I::LinuxBuilder && p.status == S::Ok;
     let cli = report.and_then(|d| d.cli.as_ref()).filter(|_| p.item == I::Cli);
     let cli_installed = cli.is_some_and(|c| c.installed);
+    let working = task.filter(|t| works_on(t, p.item));
     let busy = (p.item == I::Ipsw && downloading.is_some())
         || (p.item == I::MacBase && installing)
-        || (p.item == I::LinuxBuilder && task.is_some())
+        || working.is_some()
         || (p.item == I::Cli && ctx.active_job(JobKind::CliInstall).is_some());
     let has_subline = p.status != S::Ok || p.settable_path || busy || builder_actions || cli_installed;
     let task_busy = task.map(|t| Text::verbatim(&t.title));
@@ -322,33 +376,87 @@ fn item(ctx: &Ctx, p: &PrerequisiteDto) -> DoctorItem {
         );
         a.help = p.install.as_ref().map(Text::verbatim);
         actions.push(a);
+    } else if p.item == I::Nix && p.status == S::Missing && p.detail == Prerequisites::NIX_HALF {
+        // An installer stopped half way: remove what it left, then install again (plan B160)
+        let mut a = no_task(
+            Action::call("uninstallNix", Text::new("Remove …"), Some("trash"), "builder.uninstallNix", json!({})).confirm(
+                Confirm::new(
+                    Text::new("Remove the half-done Nix install?"),
+                    Text::new("omaflake runs the installer's own uninstall (/nix/nix-installer uninstall): it removes the /nix volume, Nix's build users and its background service. Restart the Mac afterwards if /nix stays busy, then install again. macOS asks for an administrator."),
+                )
+                .button("Remove")
+                .destructive(),
+            ),
+        );
+        a.help = p.install.as_ref().map(Text::verbatim);
+        actions.push(a);
     } else if p.item == I::Nix && p.status == S::Missing && ctx.host == super::HostOs::Macos {
         let mut a = no_task(
             Action::call("installNix", Text::new("Install …"), Some("install"), "builder.installNix", json!({})).confirm(
                 Confirm::new(
                     Text::new("Install Nix?"),
-                    Text::new("omaflake installs Nix with the official installer of the NixOS community (nix-installer). It creates the /nix volume, Nix's build users and its background service, and needs the internet. Uninstall later with /nix/nix-installer uninstall."),
+                    Text::new("omaflake installs Nix with the official installer of the NixOS community (nix-installer): the /nix volume, Nix's build users and its background service, with flakes, and you among Nix's trusted-users (for omaflake's Linux builder). Your shell files stay as they are. It needs the internet; macOS asks for an administrator – the only time omaflake's setup does. Uninstall later with /nix/nix-installer uninstall."),
                 )
                 .button("Install"),
             ),
         );
         a.help = p.install.as_ref().map(Text::verbatim);
         actions.push(a);
-    } else if p.item == I::NixDarwin && p.status == S::Missing {
+    } else if p.item == I::Shell && p.detail != "needs Nix" {
+        if p.status == S::Missing {
+            actions.push(
+                Action::call("addShell", Text::new("Add"), Some("add"), "shell.add", json!({}))
+                    .help(Text::new("Adds omaflake's lines that load Nix to your ~/.zshrc"))
+                    .primary(),
+            );
+        } else if p.detail.starts_with("omaflake's lines") {
+            actions.push(
+                Action::call("removeShell", Text::new("Remove"), Some("trash"), "shell.remove", json!({}))
+                    .help(Text::new("Removes omaflake's lines from your ~/.zshrc")),
+            );
+        }
+    } else if p.item == I::LinuxBuilder && p.status == S::Missing && p.hint.contains("trusted-users") {
+        actions.push(no_task(
+            Action::call("trust", Text::new("Allow …"), Some("install"), "builder.trust", json!({})).confirm(
+                Confirm::new(
+                    Text::new("Allow omaflake's Linux builder?"),
+                    Text::new("omaflake adds you to Nix's trusted-users (a line in /etc/nix/nix.conf) and restarts Nix's background service. Then omaflake can hand Nix its Linux builder. Trusted users can tell Nix what it trusts – usual on a Mac with one user. macOS asks for an administrator."),
+                )
+                .button("Allow"),
+            ),
+        ));
+    } else if p.item == I::LinuxBuilder && p.status == S::Missing {
         let nix_missing =
             report.is_some_and(|d| d.prerequisites.iter().any(|x| x.item == I::Nix && x.status == S::Missing));
         actions.push(
             no_task(
                 Action::call("setUp", Text::new("Set Up …"), Some("install"), "builder.setup", json!({})).confirm(
                     Confirm::new(
-                        Text::new("Set up nix-darwin and the Linux builder?"),
-                        Text::new("omaflake sets up nix-darwin with its Linux builder host (nix/hosts/linux-builder.nix) – needed to build NixOS images. nix-darwin then manages /etc/nix/nix.conf; the files there that the Nix installer wrote are kept as *.before-nix-darwin. First the standard builder, then omaflake's settings; macOS asks for an administrator twice. This takes several minutes."),
+                        Text::new("Set up the Linux builder?"),
+                        Text::new("omaflake sets up its own Linux builder – a small Linux VM that builds NixOS images. It runs as you in the background (a LaunchAgent), its files are in the data folder; nothing in /etc, no administrator. The first time it downloads about 430 MB and then builds omaflake's builder: several minutes."),
                     )
                     .button("Set Up"),
                 ),
             )
             .enabled_if(!nix_missing, Some(Text::new("Nix"))),
         );
+    } else if p.item == I::SshKey && p.status == S::Missing {
+        actions.push(
+            Action::call("createKey", Text::new("Create"), Some("add"), "doctor.createSshKey", json!({}))
+                .help(Text::new("Creates omaflake's own SSH key in the data folder"))
+                .primary(),
+        );
+    } else if p.item == I::Qemu && p.install.is_some() && ctx.host == super::HostOs::Macos {
+        let upgrade = p.install.as_deref() == Some(Prerequisites::UPGRADE_QEMU);
+        let mut a = no_task(Action::call(
+            "install",
+            Text::new(if upgrade { "Update …" } else { "Install …" }),
+            Some(if upgrade { "update" } else { "install" }),
+            "qemu.install",
+            json!({"upgrade": upgrade}),
+        ));
+        a.help = p.install.as_ref().map(Text::verbatim);
+        actions.push(a);
     } else if p.item == I::Look && p.status != S::Ok {
         let installing = ctx.active_job(JobKind::LookInstall).is_some();
         actions.push(
@@ -380,7 +488,22 @@ fn item(ctx: &Ctx, p: &PrerequisiteDto) -> DoctorItem {
             .help(Text::verbatim(command)),
         );
     }
-    if builder_actions {
+    if builder_actions && p.detail.starts_with("omaflake's builder") {
+        // omaflake's own builder: as the user, no administrator (plan B160)
+        actions.push(no_task(
+            Action::call("cleanUp", Text::new("Clean Up"), Some("clean"), "builder.cleanUp", json!({}))
+                .help(Text::new("Removes unused data from the Linux builder's disk")),
+        ));
+        actions.push(no_task(
+            Action::call("apply", Text::new("Apply Settings …"), Some("apply"), "builder.apply", json!({})).confirm(
+                Confirm::new(
+                    Text::new("Apply Linux builder settings?"),
+                    Text::new("omaflake builds its Linux builder again with its settings (nix/hosts/builder-vm.nix and your changes), gives it a new disk and restarts it. This takes a few minutes; no administrator."),
+                )
+                .button("Apply"),
+            ),
+        ));
+    } else if builder_actions {
         actions.push(no_task(
             Action::call("cleanUp", Text::new("Clean Up …"), Some("clean"), "builder.cleanUp", json!({}))
                 .help(Text::new("Removes unused data from the Linux builder's disk (asks for an administrator)")),
@@ -491,7 +614,8 @@ fn item(ctx: &Ctx, p: &PrerequisiteDto) -> DoctorItem {
         expandable: has_subline,
         expanded: has_subline && (p.status != S::Ok || busy),
         busy,
-        task: if p.item == I::LinuxBuilder { task.map(|t| Text::verbatim(&t.title)) } else { None },
+        // What the job does now: its newest line, else its title
+        task: working.map(|t| Text::verbatim(t.last_line.as_deref().unwrap_or(&t.title))),
         download: if p.item == I::Ipsw { downloading.map(download) } else { None },
         actions,
         prerequisite: p.clone(),
@@ -521,11 +645,7 @@ pub(crate) fn page(ctx: &Ctx) -> DoctorPage {
         )),
         checking: ctx.checking,
         checked: report.map(|d| d.checked),
-        actions: vec![
-            Action::call("check", Text::new("Check Again"), Some("refresh"), "doctor.check", json!({}))
-                .busy(ctx.checking)
-                .enabled_if(!ctx.checking, None),
-        ],
+        actions: page_actions(ctx),
         sections: {
             let mut sections = vec![
                 section("requirements", "Requirements", report.map(|d| &d.prerequisites)),
@@ -539,6 +659,52 @@ pub(crate) fn page(ctx: &Ctx) -> DoctorPage {
         },
         issues: report.map(|d| d.issues).unwrap_or(0),
     }
+}
+
+/// "Set Up for NixOS" (while something for NixOS guests is missing on a Mac, plan B160) and Check Again. A running
+/// setup shows its step instead.
+fn page_actions(ctx: &Ctx) -> Vec<Action> {
+    let mut actions = Vec::new();
+    let setup = ctx.active_job(JobKind::Setup);
+    let missing = ctx.doctor.as_ref().is_some_and(|d| {
+        d.prerequisites.iter().chain(d.nixos_preflight.iter()).any(|p| {
+            p.status == S::Missing
+                && matches!(
+                    p.item,
+                    I::Nix | I::Flakes | I::Shell | I::SshKey | I::Qemu | I::Look | I::LinuxBuilder | I::BuilderRunning
+                )
+                && !p.detail.starts_with("no hypervisor")
+        })
+    });
+    if ctx.host == super::HostOs::Macos && (missing || setup.is_some()) {
+        let label = match setup.and_then(|j| j.progress.as_ref()) {
+            Some(p) if p.of > 0 => {
+                tf!("Setting up – step %@ of %@", (p.done + 1).min(p.of).to_string(), p.of.to_string())
+            }
+            _ if setup.is_some() => Text::new("Setting up …"),
+            _ => Text::new("Set Up for NixOS …"),
+        };
+        let other = builder_task(ctx).filter(|j| j.kind != JobKind::Setup);
+        actions.push(
+            Action::call("setup", label, Some("install"), "setup.nixos", json!({}))
+                .confirm(
+                    Confirm::new(
+                        Text::new("Set up omaflake for NixOS guests?"),
+                        Text::new("omaflake sets up what is missing, one step after the other: Nix (macOS asks for an administrator once), Nix in your terminal (~/.zshrc), omaflake's SSH key, its QEMU, a look and its Linux builder (as you, in the background). Steps that are done are skipped. The first time this takes a while – each row shows what happens. Then only your credential is left."),
+                    )
+                    .button("Set Up"),
+                )
+                .busy(setup.is_some())
+                .enabled_if(setup.is_none() && other.is_none(), other.map(|j| Text::verbatim(&j.title)))
+                .primary(),
+        );
+    }
+    actions.push(
+        Action::call("check", Text::new("Check Again"), Some("refresh"), "doctor.check", json!({}))
+            .busy(ctx.checking)
+            .enabled_if(!ctx.checking, None),
+    );
+    actions
 }
 
 fn update_line(ctx: &Ctx) -> UpdateLine {

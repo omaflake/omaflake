@@ -955,7 +955,11 @@ fn doctor_items_hints_and_actions() {
     assert_eq!(mac[2]["detail"]["key"], "%@ free, about %@ needed");
     assert_eq!(page["update"]["text"]["key"], "Up to date – checked %@");
     assert_eq!(ids(&page["update"]["actions"]), ["checkNow"]);
-    assert_eq!(ids(&page["actions"]), ["check"]);
+    // QEMU is missing: "Set Up for NixOS" comes first (plan B160)
+    assert_eq!(ids(&page["actions"]), ["setup", "check"]);
+    let setup = action(&page["actions"], "setup");
+    assert_eq!((setup["method"].clone(), setup["primary"].clone()), (json!("setup.nixos"), json!(true)));
+    assert!(setup["confirm"].is_object());
 }
 
 /// Nix installed, its volume not at /nix (a restart without /etc/fstab): Mount …, never Install …

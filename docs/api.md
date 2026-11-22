@@ -220,7 +220,8 @@ short as it can be).
   `description` in the session's language, `tags`, `license`, `lab`, `systems`, `modules`, `look?`, `keymaps` – as
   references with the versions they allow –, `homepage`, `version`, `files: [{path, size, sha256}]`) plus `source` and
   `runsHere`.
-- **Prerequisite** – `item` (`host`, `kvm`, `nix`, `flakes`, `nixDarwin`, `linuxBuilder`, `qemu`, `flake`, `sshKey`,
+- **Prerequisite** – `item` (`host`, `kvm`, `nix`, `flakes`, `shell` (Nix in the user's login shells – optional, plan B160), `linuxBuilder`, `qemu`, `flake`, `sshKey` (omaflake's own key, plan B160),
+  `nixDarwin` (no longer checked since plan B160),
   `credential` (at least one credential – the default; images and macOS bases are made with it, plan B139), `look` (at
   least one installed look – the default, plan B141; its action `looks.installRecommended`), `git`,
   `cli`, `builderRunning`, `flakeEval`, `nixSpace`, `ipsw`, `macBase`, `macSpace`; a Linux host checks `host`, `kvm`,
@@ -245,7 +246,7 @@ comes as events, and `jobs.*` ask and steer.
   "kind": "build",          // build | macos-install | ipsw-download | builder-install-nix | builder-mount-nix | builder-setup
                             // | builder-apply | builder-clean-up | nix-clean-up | cli-install | import | export | data-move
                             // | recipe-install | look-install | module-install
-                            // | recipe-install
+                            // | builder-uninstall-nix | builder-trust | qemu-install | setup (plan B160)
   "title": "Build dev",
   "recipe": "omaflake.nixos.dev@…",    // build, recipe-install
   "guestKind": "nixos",
@@ -256,6 +257,7 @@ comes as events, and `jobs.*` ask and steer.
   "lastOutput": "…",        // when it last wrote a line (a time)
   "cancellable": true,      // jobs.cancel would do something now
   "logLines": 412,          // lines so far (jobs.log reads them)
+  "lastLine": "…",          // the newest line – what the job does now (plan B160)
   "hiddenLines": 37,        // routine lines left out of the log (still in logFile)
   "logFile": "/…/logs/image-build-….log",  // every line of the job, also the routine ones
   "result": { … },          // when finished – per kind, below
@@ -277,7 +279,7 @@ move writes `data-move.log` next to config.json, as `logs/` moves along). Downlo
 | `data-move` | `{dataFolder}` |
 | `ipsw-download` | `{file, version}` |
 | `macos-install` | `{base, existing, ready}` |
-| `builder-install-nix`, `builder-mount-nix`, `builder-setup`, `builder-apply`, `builder-clean-up`, `nix-clean-up` | `{message}` – what it did, in English |
+| `builder-install-nix`, `builder-mount-nix`, `builder-uninstall-nix`, `builder-trust`, `builder-setup`, `builder-apply`, `builder-clean-up`, `nix-clean-up`, `qemu-install`, `setup` | `{message}` – what it did, in English |
 | `cli-install` | `{link, installed, message}` – the link, whether it is there now (install) or was removed; `message` in English |
 
 - **Builds** queue: one build per guest kind at a time, NixOS and macOS side by side (plan B60). Right before it
@@ -438,7 +440,13 @@ values (plan B141). A recipe whose modules or key binding sets are not here is r
 | `macos.downloadIpsw` | – | Job `ipsw-download` → `result: {file, version}` (cancel pauses; it continues from there) |
 | `macos.installBase` | `credential?, ipsw?` | Job `macos-install` → `result: {base, existing, ready}` – the guest user, full name and password from the credential (ID or name; default: the default credential), recorded in the base (plan B139); `user, fullName, password` directly still work (API version 1) |
 | `doctor.installCli` / `doctor.uninstallCli` | – | Job `cli-install` → `result: {link, installed, message}` – the `omaf` command (plan B122): a symlink to this omaflake's `omaf` (inside omaflake.app the bundled `Contents/MacOS/omaf`, else the running executable or the `omaf` next to it). macOS: `/usr/local/bin/omaf` through the administrator dialog (a dismissed dialog cancels the job); Linux: `~/.local/bin/omaf`, no root. Install replaces a link or an older `omaf` there and refuses another file (`exists`); Uninstall removes only omaflake's link (`not-found` otherwise); one at a time (`in-use`) |
-| `builder.installNix` / `builder.mountNix` / `builder.setup` / `builder.apply` (`force?`) / `builder.cleanUp` | – | Job → `result: {message}` – each asks for an administrator through the system's own dialog; one at a time (`in-use`); `builder.apply` on a nix-darwin system that is not omaflake's needs `force` (error data `replacesConfiguration`); a dismissed dialog cancels the job |
+| `builder.installNix` / `builder.mountNix` / `builder.uninstallNix` / `builder.trust` | – | Job → `result: {message}` – the only steps that ask for an administrator (the system's own dialog; their output streams into the job): Nix with `--no-modify-profile --enable-flakes` and the user among `trusted-users`; mount the Nix Store; remove a half-done install (`/nix/nix-installer uninstall`); add the user to `trusted-users` for a Nix omaflake did not install (plan B160). A dismissed dialog cancels the job |
+| `builder.setup` / `builder.apply` (`force?`) / `builder.cleanUp` | – | Job → `result: {message}` – omaflake's own Linux builder, as the user: set up (key, nixpkgs' builder from the binary cache, LaunchAgent, then omaflake's builder – docs/linux-builder.md), built again with its settings, unused data removed. With nix-darwin's builder (Nix has one of its own) apply and clean up keep their administrator steps, and `builder.apply` on a nix-darwin system that is not omaflake's needs `force` (error data `replacesConfiguration`) |
+| `qemu.install` | `upgrade?` | Job → `result: {message}` – omaflake's QEMU with `nix profile install` (or `upgrade`), its output in the job |
+| `setup.nixos` | – | Job `setup` → `result: {message}` – everything NixOS guests need, one step after the other (`progress`: step of 6 with the step's title): Nix, Nix in the shell, omaflake's SSH key, QEMU, a look, the Linux builder; done steps are skipped; on a Mac without a hypervisor the builder is skipped and the message says so |
+| `shell.add` / `shell.remove` | – | as `doctor.check` – omaflake's marked block that loads Nix in ~/.zshrc (and ~/.bash_profile for bash users) |
+| `doctor.createSshKey` | – | as `doctor.check` – creates omaflake's own SSH key (`<data>/ssh/id_ed25519`, no passphrase) |
+| *(every setup job)* | | one at a time (`in-use`) |
 | `nix.cleanUp` | – | Job (`nix-clean-up`) → `result: {message}` (plan B149): `nix-collect-garbage` as the user – removes what nothing uses from the Nix Store; profiles' generations stay; not while a build runs (`in-use`). The Doctor offers it at `nixSpace` ("Clean Up …", with a question) |
 
 ### Views (§10)
@@ -817,9 +825,13 @@ from `initialize`, plan B138) – shown with `update` as one block. `update: {la
 actions}` from the last `updates.check` (Download …, Check Now). An item: `{item, status, title, detail?, hint?,
 expandable, expanded, busy, task?, download?, actions, prerequisite}` – `detail` (paths and versions as found, or "%@
 free, about %@ needed"), `hint` while not ok, `expanded` the sub-line's first state (open while there is a problem or
-work runs). Actions as the app had them: Install … (Nix: `builder.installNix` with its question – Mount … (`builder.mountNix`) instead when Nix is installed
-but its volume is not at /nix, plan B145; nix-darwin:
-`builder.setup`; others: `ui.terminal` with the install command), Clean Up … and Apply Settings … (`builder.apply`,
+work runs; `busy` and `task` – the running job's newest line, `lastLine` – on every row a setup job works on, plan B160).
+The page's `actions`: Set Up for NixOS … (`setup.nixos`, while something for NixOS guests is missing on a Mac; while it
+runs "Setting up – step n of m") and Check Again. Item actions as the app had them: Install … (Nix: `builder.installNix` with its question – Mount … (`builder.mountNix`) instead when Nix is installed
+but its volume is not at /nix, plan B145; Remove … (`builder.uninstallNix`) after a half-done install; Nix in your
+terminal: Add / Remove (`shell.add` / `shell.remove`); Linux builder: Set Up … (`builder.setup`) or Allow …
+(`builder.trust`); SSH key: Create (`doctor.createSshKey`); QEMU: Install … / Update … (`qemu.install`); others:
+`ui.terminal` with the install command), Clean Up and Apply Settings … (`builder.apply`; with nix-darwin's builder
 `force` and "Replace and Apply" when this Mac's nix-darwin system is not omaflake's), Guide, Set Path … (asks a file
 or folder, `doctor.setPath`), Download / Continue Download / Pause (the IPSW, with `download: {done, of, text}`),
 Create … / Show … (`ui.show macBase`), the `omaf` command's Install … / Uninstall … (`doctor.installCli` /

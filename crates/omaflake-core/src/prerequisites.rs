@@ -22,6 +22,7 @@ use crate::builder_maintenance::{BuilderMaintenance, NixVolume, shell_quote};
 use crate::cli_link::{CliCheck, CliLink};
 use crate::image_store::ImageStore;
 use crate::ipsw_downloader::{IpswDownloader, MacOsRelease, free_space, gigabytes};
+use crate::linux_builder::{LinuxBuilder, Stage};
 use crate::mac_base_installer::MacBaseInstaller;
 use crate::mac_image_builder::MacImageBuilder;
 use crate::models::{GuestKind, RecipeId};
@@ -30,6 +31,7 @@ use crate::platform::{expand_tilde, home_dir, is_executable_file, kernel_release
 use crate::qemu_host::KvmState;
 use crate::qemu_runtime::QemuRuntime;
 use crate::shell::{RunOptions, Shell};
+use crate::shell_setup::ShellSetup;
 use crate::sockets::{DEFAULT_TIMEOUT, Ports};
 
 /// Swift `Prerequisite.Item`; serialized as Swift's raw value (camelCase: "nixDarwin", "linuxBuilder", …)
@@ -42,6 +44,8 @@ pub enum PrerequisiteItem {
     Kvm,
     Nix,
     Flakes,
+    /// Nix in the user's login shells (plan B160; optional – omaflake finds Nix by its paths)
+    Shell,
     NixDarwin,
     LinuxBuilder,
     Qemu,
@@ -72,6 +76,7 @@ impl PrerequisiteItem {
             PrerequisiteItem::Kvm => "kvm",
             PrerequisiteItem::Nix => "nix",
             PrerequisiteItem::Flakes => "flakes",
+            PrerequisiteItem::Shell => "shell",
             PrerequisiteItem::NixDarwin => "nixDarwin",
             PrerequisiteItem::LinuxBuilder => "linuxBuilder",
             PrerequisiteItem::Qemu => "qemu",
@@ -206,7 +211,7 @@ impl Prerequisite {
 
     /// Needed for every feature; `limited` items still allow some. git and the `omaf` command are optional.
     pub fn required(&self) -> bool {
-        !matches!(self.item, PrerequisiteItem::Git | PrerequisiteItem::Cli)
+        !matches!(self.item, PrerequisiteItem::Git | PrerequisiteItem::Cli | PrerequisiteItem::Shell)
     }
 }
 
@@ -244,14 +249,12 @@ impl Prerequisites {
 
     /// nix-darwin's documented flake setup in /etc/nix-darwin (README of nix-darwin)
     /// nix-darwin with omaflake's Linux builder host, in two stages (`omaf builder setup`; the app's "Set Up …")
-    pub const INSTALL_NIX_DARWIN: &'static str = "omaf builder setup";
     /// omaflake's patched QEMU from the flake (spec §11.2)
     pub const INSTALL_QEMU: &'static str = "nix profile install github:omaflake/omaflake#qemu";
     /// Updates an installed omaflake QEMU (the profile element is named after the flake output)
     pub const UPGRADE_QEMU: &'static str = "nix profile upgrade qemu";
     /// The Doctor's detail for an omaflake QEMU older than patchset 6 (plan B155)
     pub const QEMU_OLD_PATCHSET: &'static str = "older patchset";
-    pub const INSTALL_SSH_KEY: &'static str = "ssh-keygen -t ed25519";
     pub const INSTALL_GIT: &'static str = "xcode-select --install";
     /// Linux hosts (plan B124): nixpkgs' QEMU (with virglrenderer, GTK and QEMU's edk2 firmware), git, Nix's
     /// official multi-user installer (nixos.org/download)
@@ -271,12 +274,12 @@ impl Prerequisites {
     }
 
     /// The official installer of the NixOS community (also what the app runs through the administrator dialog):
-    /// `sudo sh -c '<BuilderMaintenance::install_nix_command()>'`; on Linux Nix's own installer
+    /// `sudo sh -c '<BuilderMaintenance::install_nix_command(<user>)>'`; on Linux Nix's own installer
     pub fn install_nix() -> String {
         if cfg!(target_os = "linux") {
             return Self::INSTALL_NIX_LINUX.into();
         }
-        format!("sudo sh -c '{}'", BuilderMaintenance::install_nix_command())
+        format!("sudo sh -c {}", shell_quote(&BuilderMaintenance::install_nix_command(&crate::platform::user_name())))
     }
 
     /// All checks, in the order shown: host, nix, flakes, nix-darwin, Linux builder, QEMU, flake, SSH key, git, the
@@ -315,7 +318,7 @@ impl Prerequisites {
             self.host(),
             self.nix_item(nix.as_deref()),
             self.flakes(nix.as_deref(), &config),
-            self.nix_darwin(),
+            self.shell(nix.as_deref()),
             self.linux_builder(nix.as_deref(), &config),
             self.qemu(),
             self.flake(&settings, nix.as_deref()),
@@ -456,6 +459,16 @@ impl Prerequisites {
             if let Some(v) = NixVolume::find().filter(|v| !v.at_nix() && !Path::new("/nix/store").exists()) {
                 return Self::nix_not_mounted(&v);
             }
+            // An installer that stopped half way left its receipt: installing again would fail – remove it first
+            if Path::new("/nix/receipt.json").exists() {
+                return Prerequisite::new(
+                    PrerequisiteItem::Nix,
+                    PrerequisiteStatus::Missing,
+                    Self::NIX_HALF,
+                    "Remove the half-done Nix install, then install again",
+                    Some(format!("sudo {}", BuilderMaintenance::UNINSTALL_NIX_COMMAND)),
+                );
+            }
             return Prerequisite::new(
                 PrerequisiteItem::Nix,
                 PrerequisiteStatus::Missing,
@@ -476,6 +489,8 @@ impl Prerequisites {
     pub const IPSW_PARTIAL: &'static str = "Partly downloaded – continues where it stopped";
 
     pub const NIX_NOT_MOUNTED: &'static str = "Nix Store volume not at /nix";
+    /// The Nix item's detail when an installer stopped half way (/nix/receipt.json without a nix; plan B160)
+    pub const NIX_HALF: &'static str = "half-done Nix install";
 
     pub(crate) fn nix_not_mounted(v: &NixVolume) -> Prerequisite {
         Prerequisite::new(
@@ -506,41 +521,75 @@ impl Prerequisites {
             } else if cfg!(target_os = "linux") {
                 "Add \"nix-command flakes\" to experimental-features (NixOS: nix.settings.experimental-features; else /etc/nix/nix.conf)"
             } else {
-                "Add \"nix-command flakes\" to experimental-features (nix-darwin: nix.settings.experimental-features)"
+                "Add \"nix-command flakes\" to experimental-features in /etc/nix/nix.conf (omaflake's Nix install does it; nix-darwin: nix.settings.experimental-features)"
             },
             None,
         )
     }
 
-    pub(crate) fn nix_darwin(&self) -> Prerequisite {
-        let rebuild = "/run/current-system/sw/bin/darwin-rebuild";
-        let ok = is_executable_file(Path::new(rebuild));
-        Prerequisite::new(
-            PrerequisiteItem::NixDarwin,
-            status(ok, PrerequisiteStatus::Missing),
-            if ok { rebuild } else { "not found" },
-            if ok { "" } else { "Set up nix-darwin (it provides the Linux builder for NixOS images)" },
-            (!ok).then(|| Self::INSTALL_NIX_DARWIN.to_string()),
-        )
+    /// Nix in the user's shells: omaflake's block, or another file that loads Nix (`ShellSetup`)
+    pub(crate) fn shell(&self, nix: Option<&str>) -> Prerequisite {
+        if nix.is_none() {
+            return Prerequisite::new(PrerequisiteItem::Shell, PrerequisiteStatus::Missing, "needs Nix", "", None);
+        }
+        let setup = ShellSetup::current();
+        let (ok, detail) = match setup.state() {
+            crate::shell_setup::ShellState::Added => (true, "omaflake's lines in ~/.zshrc"),
+            crate::shell_setup::ShellState::Elsewhere => (true, "loaded by your shell files"),
+            crate::shell_setup::ShellState::Missing => (false, "new terminals do not find nix"),
+        };
+        Prerequisite::new(PrerequisiteItem::Shell, status(ok, PrerequisiteStatus::Missing), detail, "", None)
     }
 
-    pub(crate) fn linux_builder(&self, _nix: Option<&str>, config: &HashMap<String, String>) -> Prerequisite {
+    /// Nix's own aarch64-linux builder (nix-darwin's `nix.linux-builder`, a line of `builders` or /etc/nix/machines):
+    /// its host
+    pub(crate) fn system_linux_builder(config: &HashMap<String, String>) -> Option<String> {
         let builders = config.get("builders").map(String::as_str).unwrap_or("");
         let machines = Self::builder_lines(builders, &|f| fs::read_to_string(f).ok());
-        let linux = machines.iter().find(|m| Self::is_linux_builder(m));
-        let detail = match linux {
-            Some(line) => line.split(' ').find(|f| !f.is_empty()).unwrap_or("").to_string(),
-            None => "no aarch64-linux builder".into(),
+        let line = machines.into_iter().find(|m| Self::is_linux_builder(m))?;
+        Some(line.split(' ').find(|f| !f.is_empty()).unwrap_or("").to_string())
+    }
+
+    /// The user is one of Nix's `trusted-users` (by name, `*`, or a group they are in: `@admin`, `@staff`, …) – only
+    /// then does the daemon take the builder omaflake hands it (`--builders`, plan B160)
+    pub(crate) fn is_trusted(config: &HashMap<String, String>, user: &str, groups: &[String]) -> bool {
+        let trusted = config.get("trusted-users").map(String::as_str).unwrap_or("");
+        trusted
+            .split_whitespace()
+            .any(|t| t == user || t == "*" || t.strip_prefix('@').is_some_and(|g| groups.iter().any(|m| m == g)))
+    }
+
+    /// The groups of the user (`id -Gn`)
+    pub(crate) fn user_groups() -> Vec<String> {
+        Shell::check("/usr/bin/id", &["-Gn"], &RunOptions::default())
+            .map(|g| g.split_whitespace().map(String::from).collect())
+            .unwrap_or_default()
+    }
+
+    pub(crate) fn linux_builder(&self, nix: Option<&str>, config: &HashMap<String, String>) -> Prerequisite {
+        if let Some(host) = Self::system_linux_builder(config) {
+            return Prerequisite::new(PrerequisiteItem::LinuxBuilder, PrerequisiteStatus::Ok, &host, "", None);
+        }
+        let own = LinuxBuilder::new(self.paths.clone());
+        if own.is_set_up() {
+            let detail = match own.stage() {
+                Some(Stage::Omaflake) => "omaflake's builder",
+                _ => "omaflake's builder (default settings)",
+            };
+            return Prerequisite::new(PrerequisiteItem::LinuxBuilder, PrerequisiteStatus::Ok, detail, "", None);
+        }
+        let hint = if nix.is_none() {
+            "needs Nix"
+        } else if !Self::is_trusted(config, &crate::platform::user_name(), &Self::user_groups()) {
+            "omaflake's Linux builder needs you among Nix's trusted-users – omaflake's Nix install sets that; else allow it here (asks for an administrator)"
+        } else {
+            "Set up omaflake's Linux builder – it runs as you, no administrator needed"
         };
         Prerequisite::new(
             PrerequisiteItem::LinuxBuilder,
-            status(linux.is_some(), PrerequisiteStatus::Missing),
-            &detail,
-            if linux.is_some() {
-                ""
-            } else {
-                "Enable nix.linux-builder in your nix-darwin configuration (docs/linux-builder.md)"
-            },
+            PrerequisiteStatus::Missing,
+            "no aarch64-linux builder",
+            hint,
             None,
         )
     }
@@ -643,19 +692,25 @@ impl Prerequisites {
     }
 
     pub(crate) fn ssh_key(&self) -> Prerequisite {
-        let keys = MacBaseInstaller::default_public_keys();
+        // omaflake's own key (plan B160) – the user's ~/.ssh keys go into guests too, but are not needed
+        let own = crate::ssh_identity::SshIdentity::new(&self.paths);
         let files: Vec<String> = sorted_names(&home_dir().join(".ssh"))
             .into_iter()
             .filter(|n| n.ends_with(".pub"))
             .map(|n| format!("~/.ssh/{n}"))
             .collect();
-        let none = keys.is_empty();
+        let ok = own.exists();
+        let mut found = Vec::new();
+        if ok {
+            found.push("omaflake's key".to_string());
+        }
+        found.extend(files);
         Prerequisite::new(
             PrerequisiteItem::SshKey,
-            status(!none, PrerequisiteStatus::Missing),
-            &if none { "no public key in ~/.ssh".to_string() } else { files.join(", ") },
-            if none { "Create a key (used for omaf ssh, image builds and macOS bases)" } else { "" },
-            none.then(|| Self::INSTALL_SSH_KEY.to_string()),
+            status(ok, PrerequisiteStatus::Missing),
+            &if found.is_empty() { "no key yet".to_string() } else { found.join(", ") },
+            if ok { "" } else { "omaflake creates its own key for its VMs (no passphrase, only for omaflake)" },
+            None,
         )
     }
 
@@ -738,24 +793,45 @@ impl Prerequisites {
     }
 
     pub fn builder_running(&self) -> Prerequisite {
-        let target = Self::builder_ssh_target(None);
+        if !LinuxBuilder::has_hypervisor() {
+            return Prerequisite::new(
+                PrerequisiteItem::BuilderRunning,
+                PrerequisiteStatus::Missing,
+                "no hypervisor (kern.hv_support 0)",
+                "This Mac cannot run VMs – it is probably itself a VM without nested virtualization. The Linux builder and NixOS guests need a Mac that can.",
+                None,
+            );
+        }
+        let own = LinuxBuilder::new(self.paths.clone());
+        let use_own = own.is_set_up() && !own.system_has_builder();
+        let target =
+            if use_own { Some(("localhost".to_string(), LinuxBuilder::PORT)) } else { Self::builder_ssh_target(None) };
         let up = target.as_ref().is_some_and(|(host, port)| {
             let host = if host == "localhost" { "127.0.0.1" } else { host.as_str() };
             Ports::ssh_banner(host, *port, DEFAULT_TIMEOUT).is_some()
         });
         let detail = match &target {
             Some((host, port)) => format!("{host}:{port}"),
-            None => "no linux-builder in /etc/ssh/ssh_config.d".into(),
+            None => "no Linux builder set up".into(),
+        };
+        let hint = if up {
+            String::new()
+        } else if use_own {
+            format!(
+                "omaflake's Linux builder does not answer – it starts with you (LaunchAgent {}); its first start takes a few minutes. Its log: {}",
+                LinuxBuilder::LABEL,
+                own.vm_log().display()
+            )
+        } else if target.is_some() {
+            "The Linux builder VM does not answer – it starts with nix-darwin (launchd org.nixos.linux-builder)".into()
+        } else {
+            "Set up the Linux builder first (Linux builder → Set Up …)".into()
         };
         Prerequisite::new(
             PrerequisiteItem::BuilderRunning,
             status(up, PrerequisiteStatus::Missing),
             &detail,
-            if up {
-                ""
-            } else {
-                "The Linux builder VM does not answer – it starts with nix-darwin (launchd org.nixos.linux-builder)"
-            },
+            &hint,
             None,
         )
     }
@@ -1192,7 +1268,7 @@ mod tests {
             assert_eq!(nixos, [FlakeEval, NixSpace]);
             assert!(pre.macos_preflight(None).is_empty());
         } else {
-            assert_eq!(items, [Host, Nix, Flakes, NixDarwin, LinuxBuilder, Qemu, Flake, SshKey, Credential, Look, Git]);
+            assert_eq!(items, [Host, Nix, Flakes, Shell, LinuxBuilder, Qemu, Flake, SshKey, Credential, Look, Git]);
             assert_eq!(nixos, [BuilderRunning, FlakeEval, NixSpace]);
             assert_eq!(pre.macos_preflight(None).len(), 3);
         }
@@ -1236,7 +1312,7 @@ mod tests {
             return;
         }
         assert!(cmd.starts_with("sudo sh -c 'set -e;"));
-        assert!(cmd.ends_with("install --no-confirm'"));
+        assert!(cmd.contains("install --no-confirm --no-modify-profile"));
     }
 
     #[test]

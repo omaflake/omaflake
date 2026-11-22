@@ -717,6 +717,7 @@ pub(crate) fn job(id: &str, kind: JobKind, state: JobState, result: Option<Value
         last_output: (state != JobState::Queued).then(|| date("2026-10-23T09:04:59Z")),
         log_lines: 3,
         hidden_lines: 0,
+        last_line: None,
         log_file: Some(format!("/data/logs/{id}.log")),
         cancellable: !ended,
         error: (state == JobState::Failed).then(|| "it went wrong".into()),
@@ -742,6 +743,7 @@ pub(crate) fn jobs() -> Vec<JobDto> {
                 fraction: 0.62,
             }),
             hidden_lines: 37,
+            last_line: None,
             ..job("j1", JobKind::Build, JobState::Running, None)
         },
         JobDto {

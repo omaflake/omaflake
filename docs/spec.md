@@ -347,7 +347,8 @@ interface (`omaf ui`, ratatui, macOS and Linux) only draw it.
 > **Review 2026-10-16** (details, evidence and revised milestones: plan §1.2, §4, §7):
 > NixOS track M0–M4 done. macOS: nix-darwin options for Dock/apps checked (BM1); tart replaced, Virtualization.framework API checked against the macOS 27 SDK (BM8–BM10).
 
-- **Linux builder:** a nix-darwin Linux builder is required to build NixOS images on the Mac; see `docs/linux-builder.md`.
+- **Linux builder:** a Linux builder is required to build NixOS images on the Mac – omaflake's own (as the user) or
+  nix-darwin's; see `docs/linux-builder.md`.
 - **M2 QEMU build:** DECIDED 2026-10-16 – own build with virglrenderer + ANGLE (plan B6). Template github.com/omacom/try-omarchy (MIT license, observe its license notices).
 - **UEFI firmware:** located per QEMU at `<prefix>/share/qemu/edk2-aarch64-code.fd`; the CLI derives the path from the binary.
 - **Clipboard (NixOS):** spice-vdagent is X11-oriented; under Hyprland possibly an own solution is needed (template: try-omarchy).
@@ -441,7 +442,7 @@ omaflake ships only itself (app, `omaf`, `omaf-runner`). The user's Mac brings:
 |---|---|---|
 | Apple silicon, macOS 27 | Virtualization.framework, guest provisioning for the automatic macOS base (BM11) | – |
 | Nix with flakes | recipes are evaluated and all images are built with Nix | nothing can be built |
-| nix-darwin with `nix.linux-builder` | Linux builder for NixOS images; required so that every feature works | – |
+| A Linux builder (omaflake's own since plan B160, or nix-darwin's `nix.linux-builder`) | builds NixOS images; required so that every feature works | – |
 | QEMU (NixOS guests) | runtime of NixOS guests; 3D needs omaflake's patched build | Homebrew/nixpkgs QEMU: headless and 2D only |
 | SSH key in `~/.ssh` | `omaf ssh`, image builds, base provisioning | – |
 
@@ -503,7 +504,13 @@ omaflake ships **no recipes**. It reads them from recipe sources:
 - **The base always works:** `omaf macos install` needs no flake and no recipe – a macOS base can be created on any
   Mac that meets §11.2, whatever recipes are installed.
 
-### 11.5 Admin tasks from the app (DECIDED 2026-10-17)
+### 11.5 Admin tasks from the app (DECIDED 2026-10-17; root only for Nix since 2026-11-22)
+
+**Since plan B160 (2026-11-22, release 0.7.4):** root is needed once – installing Nix (with `--no-modify-profile`,
+flakes and the user among `trusted-users`). omaflake no longer sets up nix-darwin: its Linux builder runs as the user
+(a LaunchAgent, files in the data folder, handed to Nix with `--builders`), Nix in the shell is a block in ~/.zshrc,
+its SSH key is its own. One button, "Set Up for NixOS", runs every step with visible progress (docs/linux-builder.md).
+A Mac with nix-darwin's builder keeps it. The text below is the state before.
 
 Installing Nix (APFS volume `/nix`, `/etc/synthetic.conf`, `nixbld` users, nix-daemon), activating nix-darwin and
 setting up or changing the Linux builder (a launchd system daemon whose SSH key only root can read) all need root.
