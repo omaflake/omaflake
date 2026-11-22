@@ -158,6 +158,12 @@ pub fn new(a: &cli::New) -> Outcome {
     if settings.kind == GuestKind::Macos && settings.camera == Some(true) {
         eprintln!("Note: macOS VMs get the camera port, but the guest's camera extension comes after M12 (plan B49).");
     }
+    if let Some(v) = cli::inverted(a.midi, a.no_midi) {
+        settings.midi = Some(v);
+    }
+    if settings.kind == GuestKind::Nixos && settings.midi == Some(true) {
+        eprintln!("Note: MIDI reaches macOS guests for now; NixOS guests get it later (plan B161).");
+    }
     if let Some(v) = cli::inverted(a.share, a.no_share) {
         settings.share = v;
     }
@@ -574,6 +580,16 @@ pub fn agent_lines(state: &AgentState, now: chrono::DateTime<Utc>) -> Vec<String
             out.push(format!("Reported: {} s ago", (now - at).num_seconds()));
         }
     }
+    if let Some(m) = &state.midi {
+        let mut line = format!("MIDI:     {} endpoints in the guest", m.endpoints);
+        if let Some(r) = &m.round_trip_ms {
+            line += &format!(", round trip {:.2} ms (median of {}, max {:.2})", r.median, r.samples, r.max);
+        }
+        out.push(line);
+        if !m.failed.is_empty() {
+            out.push(format!("          not created: {}", m.failed.join(", ")));
+        }
+    }
     if state.goodbye_at.is_some() {
         out.push("The agent said goodbye (the guest is shutting down).".into());
     }
@@ -613,22 +629,26 @@ pub fn set(a: &cli::Set) -> Outcome {
     if let Some(v) = cli::inverted(a.camera, a.no_camera) {
         c.camera = Some(v);
     }
+    if let Some(v) = cli::inverted(a.midi, a.no_midi) {
+        c.midi = Some(v);
+    }
     store.save(&c)?;
     drop(lock);
     println!("{}", set_line(&c));
     Ok(())
 }
 
-/// "<name>: sound on, microphone off, clipboard on, camera off (from the next start)"
+/// "<name>: sound on, microphone off, clipboard on, camera off, MIDI off (from the next start)"
 pub fn set_line(c: &InstanceConfig) -> String {
     let on = |b: bool| if b { "on" } else { "off" };
     format!(
-        "{}: sound {}, microphone {}, clipboard {}, camera {} (from the next start)",
+        "{}: sound {}, microphone {}, clipboard {}, camera {}, MIDI {} (from the next start)",
         c.name,
         on(c.sound_on()),
         on(c.microphone_on()),
         on(c.clipboard_on()),
-        on(c.camera_on())
+        on(c.camera_on()),
+        on(c.midi_on())
     )
 }
 
@@ -920,9 +940,16 @@ mod tests {
         assert_eq!(running_line(&c, 7), "dev is running (PID 7).");
         c.microphone = Some(true);
         c.camera = Some(true);
-        assert_eq!(set_line(&c), "dev: sound on, microphone on, clipboard on, camera on (from the next start)");
+        assert_eq!(
+            set_line(&c),
+            "dev: sound on, microphone on, clipboard on, camera on, MIDI off (from the next start)"
+        );
         c.audio = Some(false);
-        assert_eq!(set_line(&c), "dev: sound off, microphone off, clipboard on, camera on (from the next start)");
+        c.midi = Some(true);
+        assert_eq!(
+            set_line(&c),
+            "dev: sound off, microphone off, clipboard on, camera on, MIDI on (from the next start)"
+        );
     }
 
     #[test]
@@ -997,6 +1024,16 @@ mod tests {
             goodbye_at: None,
             problem: None,
             features: None,
+            midi: Some(omaflake_core::agent_protocol::AgentMidiState {
+                endpoints: 4,
+                failed: vec!["Piano".into()],
+                round_trip_ms: Some(omaflake_core::agent_protocol::RoundTrip {
+                    min: 0.2,
+                    median: 0.31,
+                    max: 1.5,
+                    samples: 60,
+                }),
+            }),
         };
         let lines = agent_lines(&state, now);
         assert_eq!(lines[0], format!("Agent:    omaflake-agent 0.2.0, protocol 1{}", older_note(&state)));
@@ -1010,6 +1047,8 @@ mod tests {
                 "Disk:     5.0 GB of 20.0 GB free (/)",
                 "Address:  10.0.2.15 (eth0)",
                 "Reported: 3 s ago",
+                "MIDI:     4 endpoints in the guest, round trip 0.31 ms (median of 60, max 1.50)",
+                "          not created: Piano",
             ]
         );
     }

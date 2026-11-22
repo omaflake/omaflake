@@ -49,6 +49,8 @@ public struct Vm: Decodable, Sendable, Equatable, Identifiable {
     public var microphone: Bool
     public var clipboard: Bool
     public var camera: Bool
+    /// The Mac's MIDI devices in the VM (plan B161); false from a core before it
+    public var midi: Bool
     /// How a plain start shows it
     public var display: DisplayMode
     public var created: Date
@@ -73,7 +75,7 @@ public struct Vm: Decodable, Sendable, Equatable, Identifiable {
 
     enum CodingKeys: String, CodingKey {
         case name, recipe, image, kind, system, status, busy, cpus, memoryGB, diskGB, network, share, sharePath, ephemeral
-        case sshPort, user, audio, microphone, clipboard, camera, display, created, identity, omaflakeId, label, address
+        case sshPort, user, audio, microphone, clipboard, camera, midi, display, created, identity, omaflakeId, label, address
         case agent, location, latestImage, upgradable
     }
 
@@ -99,6 +101,7 @@ public struct Vm: Decodable, Sendable, Equatable, Identifiable {
         microphone = try c.decode(Bool.self, forKey: .microphone)
         clipboard = try c.decode(Bool.self, forKey: .clipboard)
         camera = try c.decode(Bool.self, forKey: .camera)
+        midi = try c.decodeIfPresent(Bool.self, forKey: .midi) ?? false
         display = try c.decode(DisplayMode.self, forKey: .display)
         created = try c.decode(Date.self, forKey: .created)
         identity = try c.decodeIfPresent(String.self, forKey: .identity)

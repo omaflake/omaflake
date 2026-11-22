@@ -141,6 +141,9 @@
         },
         "camera": {
           "type": "boolean"
+        },
+        "midi": {
+          "type": "boolean"
         }
       },
       "description": "How a VM from it runs"

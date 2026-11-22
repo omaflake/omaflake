@@ -87,6 +87,9 @@
     "camera": {
       "type": "boolean"
     },
+    "midi": {
+      "type": "boolean"
+    },
     "display": {
       "enum": [
         "none",

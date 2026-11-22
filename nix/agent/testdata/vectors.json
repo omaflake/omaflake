@@ -55,5 +55,37 @@
       "types": [],
       "errors": 1
     }
+  ],
+  "midi": [
+    {
+      "name": "MIDI 1.0 note on from one source",
+      "hex": "0403020101000100643c9020",
+      "records": [
+        { "id": 16909060, "protocol": 1, "words": [546323556] }
+      ]
+    },
+    {
+      "name": "MIDI 2.0 note on, then a SysEx7 packet for another endpoint",
+      "hex": "0500000002000200003c90400000ffff06000000010002007f7e033000000009",
+      "records": [
+        { "id": 5, "protocol": 2, "words": [1083194368, 4294901760] },
+        { "id": 6, "protocol": 1, "words": [805535359, 150994944] }
+      ]
+    },
+    {
+      "name": "protocol 3 is malformed",
+      "hex": "0100000003000100643c9020",
+      "records": null
+    },
+    {
+      "name": "record cut off",
+      "hex": "0100000001000200643c9020",
+      "records": null
+    },
+    {
+      "name": "half a MIDI 2.0 message is malformed",
+      "hex": "0100000002000100003c9040",
+      "records": null
+    }
   ]
 }

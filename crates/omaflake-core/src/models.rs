@@ -211,6 +211,8 @@ pub struct RecipeDefaults {
     pub clipboard: Option<bool>,
     /// The Mac's camera in the VM (default off; NixOS guests – only while an app in the VM uses it)
     pub camera: Option<bool>,
+    /// The Mac's MIDI devices in the VM, both ways (default off; macOS guests – plan B161)
+    pub midi: Option<bool>,
     /// What the recipe is for (shown behind an "i"); `description_de` etc. in the app's language when present
     pub description: Option<String>,
     /// Language → description (only "de" is read and written, from `description_de`)
@@ -253,6 +255,8 @@ struct RecipeDefaultsJson {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     camera: Option<bool>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    midi: Option<bool>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     description: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     description_de: Option<String>,
@@ -290,6 +294,7 @@ impl From<RecipeDefaultsJson> for RecipeDefaults {
             microphone: j.microphone,
             clipboard: j.clipboard,
             camera: j.camera,
+            midi: j.midi,
             description: j.description,
             descriptions,
             lab: j.lab,
@@ -319,6 +324,7 @@ impl From<RecipeDefaults> for RecipeDefaultsJson {
             microphone: d.microphone,
             clipboard: d.clipboard,
             camera: d.camera,
+            midi: d.midi,
             description: d.description,
             description_de: d.descriptions.get("de").cloned(),
             lab: d.lab,
@@ -362,6 +368,7 @@ impl RecipeDefaults {
             microphone: None,
             clipboard: None,
             camera: None,
+            midi: None,
             description: None,
             descriptions: BTreeMap::new(),
             lab: None,
@@ -444,6 +451,9 @@ pub struct InstanceConfig {
     /// The Mac's camera; None = off
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub camera: Option<bool>,
+    /// The Mac's MIDI devices; None = off
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub midi: Option<bool>,
     /// How a plain start shows the VM (from the recipe); None = headless in the CLI, a window in the app
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub display: Option<DisplayMode>,
@@ -493,6 +503,7 @@ impl InstanceConfig {
             microphone: settings.microphone,
             clipboard: settings.clipboard,
             camera: settings.camera,
+            midi: settings.midi,
             display: settings.display,
             share_path: None,
             identity: None,
@@ -505,6 +516,10 @@ impl InstanceConfig {
 
     pub fn camera_on(&self) -> bool {
         self.camera.unwrap_or(false)
+    }
+
+    pub fn midi_on(&self) -> bool {
+        self.midi.unwrap_or(false)
     }
 
     pub fn sound_on(&self) -> bool {

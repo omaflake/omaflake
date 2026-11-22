@@ -151,6 +151,9 @@
               },
               "camera": {
                 "type": "boolean"
+              },
+              "midi": {
+                "type": "boolean"
               }
             }
           },
@@ -263,6 +266,9 @@
                 "type": "boolean"
               },
               "camera": {
+                "type": "boolean"
+              },
+              "midi": {
                 "type": "boolean"
               }
             },

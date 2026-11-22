@@ -431,6 +431,28 @@ pub struct AgentState {
     /// What the welcome enabled: offered by the agent and switched on for this VM
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub features: Option<Vec<String>>,
+    /// MIDI (macOS guests, plan B161; kept by omaf-runner): the guest's endpoints and the measured round trip
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub midi: Option<AgentMidiState>,
+}
+
+/// What a guest reported about its MIDI endpoints, and the round trip omaf-runner measured (spec §11.9)
+#[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
+pub struct AgentMidiState {
+    pub endpoints: u32,
+    #[serde(default)]
+    pub failed: Vec<String>,
+    /// Milliseconds Mac → guest agent → Mac of the last pings
+    #[serde(rename = "roundTripMs", default, skip_serializing_if = "Option::is_none")]
+    pub round_trip_ms: Option<RoundTrip>,
+}
+
+#[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
+pub struct RoundTrip {
+    pub min: f64,
+    pub median: f64,
+    pub max: f64,
+    pub samples: u32,
 }
 
 impl AgentState {

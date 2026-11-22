@@ -49,6 +49,7 @@ public struct Recipe: Decodable, Sendable, Equatable, Identifiable {
     public var microphone: Bool?
     public var clipboard: Bool?
     public var camera: Bool?
+    public var midi: Bool?
     /// In the session's language when the recipe has it
     public var description: String?
     public var lab: Bool
@@ -80,7 +81,7 @@ public struct Recipe: Decodable, Sendable, Equatable, Identifiable {
 
     enum CodingKeys: String, CodingKey {
         case kind, systems, cpus, memoryGB, diskGB, network, share, ephemeral, user, name, author, audio, microphone
-        case clipboard, camera, description, lab, display, tags, license, homepage, id, base, qualified, displayName
+        case clipboard, camera, midi, description, lab, display, tags, license, homepage, id, base, qualified, displayName
         case label, runsHere, source, line, distinction, folder, installed, image, outdated, versions
     }
 
@@ -100,6 +101,7 @@ public struct Recipe: Decodable, Sendable, Equatable, Identifiable {
         microphone = try c.decodeIfPresent(Bool.self, forKey: .microphone)
         clipboard = try c.decodeIfPresent(Bool.self, forKey: .clipboard)
         camera = try c.decodeIfPresent(Bool.self, forKey: .camera)
+        midi = try c.decodeIfPresent(Bool.self, forKey: .midi)
         description = try c.decodeIfPresent(String.self, forKey: .description)
         lab = try c.decode(Bool.self, forKey: .lab)
         display = try c.decodeIfPresent(DisplayMode.self, forKey: .display)
@@ -128,7 +130,7 @@ public struct Recipe: Decodable, Sendable, Equatable, Identifiable {
     public var settings: RecipeSettings {
         RecipeSettings(kind: kind, cpus: cpus, memoryGB: memoryGB, diskGB: diskGB, network: network, share: share,
                        ephemeral: ephemeral, user: user, audio: audio ?? true, microphone: microphone ?? false,
-                       clipboard: clipboard ?? true, camera: camera ?? false, display: display)
+                       clipboard: clipboard ?? true, camera: camera ?? false, midi: midi ?? false, display: display)
     }
 }
 
@@ -146,11 +148,12 @@ public struct RecipeSettings: Codable, Sendable, Equatable {
     public var microphone: Bool
     public var clipboard: Bool
     public var camera: Bool
+    public var midi: Bool
     public var display: DisplayMode?
 
     public init(kind: GuestKind = .nixos, cpus: Int = 4, memoryGB: Int = 4, diskGB: Int = 40, network: NetworkMode = .shared,
                 share: Bool = true, ephemeral: Bool = false, user: String? = nil, audio: Bool = true, microphone: Bool = false,
-                clipboard: Bool = true, camera: Bool = false, display: DisplayMode? = nil) {
+                clipboard: Bool = true, camera: Bool = false, midi: Bool = false, display: DisplayMode? = nil) {
         self.kind = kind
         self.cpus = cpus
         self.memoryGB = memoryGB
@@ -163,6 +166,7 @@ public struct RecipeSettings: Codable, Sendable, Equatable {
         self.microphone = microphone
         self.clipboard = clipboard
         self.camera = camera
+        self.midi = midi
         self.display = display
     }
 }

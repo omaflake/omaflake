@@ -43,6 +43,17 @@ pub const MSG_CAMERA_CREDIT: u16 = 0x0201; // guest → Mac, JSON {"credits": n}
 pub const MSG_CAMERA_FRAME: u16 = 0x0202; // Mac → guest, binary: one 1280×720 NV12 frame
 pub const MSG_CAMERA_STATUS: u16 = 0x0203; // Mac → guest, JSON {"status", "detail"}
 
+// MIDI (0x05xx): the Mac's MIDI endpoints as virtual endpoints in the guest, Universal MIDI Packets (MIDI 2.0) on the
+// wire – records in `ump.rs` (spec §11.9, plan B161). 0x03xx (tunnels) and 0x04xx (URL, notifications) stay reserved.
+pub const MSG_MIDI_ENDPOINTS: u16 = 0x0500; // Mac → guest, JSON {"endpoints": [...]}: the whole list, after each change
+pub const MSG_MIDI_DATA: u16 = 0x0501; // both, binary: MIDI records (ump.rs)
+pub const MSG_MIDI_STATUS: u16 = 0x0502; // guest → Mac, JSON {"endpoints": n, "failed": [names], "problem"?}
+pub const MSG_MIDI_PING: u16 = 0x0503; // Mac → guest, binary (at most MAX_MIDI_PING bytes): answered at once
+pub const MSG_MIDI_PONG: u16 = 0x0504; // guest → Mac, the ping's payload unchanged
+/// Largest MIDI data message – never chunked: a sender splits longer data into several messages
+pub const MAX_MIDI_MESSAGE: usize = 64 * 1024;
+pub const MAX_MIDI_PING: usize = 64;
+
 /// A message as frames: one frame, or chunks of CHUNK bytes with MORE on all but the last
 pub fn encode_message(kind: u16, payload: &[u8]) -> Vec<u8> {
     if payload.len() <= CHUNK {

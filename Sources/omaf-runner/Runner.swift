@@ -14,7 +14,7 @@ struct VMRunner: ParsableCommand {
     static let configuration = CommandConfiguration(
         commandName: "omaf-runner",
         abstract: "Install and run macOS VMs (one process per VM).",
-        subcommands: [Latest.self, Install.self, Clone.self, Run.self, Control.self, IP.self, Bridge.self]
+        subcommands: [Latest.self, Install.self, Clone.self, Run.self, Control.self, IP.self, Bridge.self, MIDICheck.self]
     )
 }
 
@@ -107,6 +107,7 @@ struct Run: ParsableCommand {
     @Flag(help: "Camera port org.omaflake.camera (macOS guests: the guest side comes after M12)") var camera = false
     @Option(help: "Attach the omaflake agent's port and keep what it reports in this file (spec §11.9)") var agentState: String?
     @Flag(help: "With --camera: a test pattern instead of the camera") var cameraTestPattern = false
+    @Flag(help: "With --agent-state: the Mac's MIDI devices in the VM, both ways (plan B161)") var midi = false
     @Flag(help: "Start into macOS Recovery") var recovery = false
     @Option(help: "First start after installation only: create a user (macOS 27 guest)") var user: String?
     @Option(help: "Full name for --user") var fullName: String?
@@ -132,7 +133,7 @@ struct Run: ParsableCommand {
             bundle: MacVMBundle(url(bundle)), window: window, socket: socket.map(url), pidFile: pidFile.map(url),
             share: share.map(url), network: !noNetwork, audio: audio, microphone: audio && microphone,
             clipboard: clipboard, camera: camera, cameraTestPattern: cameraTestPattern, agentState: agentState.map(url),
-            recovery: recovery, provisioning: provisioning)
+            midi: midi, recovery: recovery, provisioning: provisioning)
         MainActor.assumeIsolated {
             let app = NSApplication.shared
             app.setActivationPolicy(window ? .regular : .prohibited)
@@ -147,7 +148,7 @@ struct Run: ParsableCommand {
 struct Control: ParsableCommand {
     static let configuration = CommandConfiguration(commandName: "ctl", abstract: "Control a running omaf-runner.")
     @Argument(help: "Control socket") var socket: String
-    @Argument(help: "status | stop | kill | show") var command: String
+    @Argument(help: "status | stop | kill | show | midi") var command: String
 
     func run() throws {
         let reply = try RunnerClient.send(command, socket: url(socket))

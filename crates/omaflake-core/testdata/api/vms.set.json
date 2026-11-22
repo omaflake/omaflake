@@ -15,6 +15,7 @@
     "label": "work",
     "memoryGB": 16,
     "microphone": true,
+    "midi": true,
     "name": "work",
     "network": "isolated",
     "omaflakeId": "vm:work:?",

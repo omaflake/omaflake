@@ -165,7 +165,7 @@ while omaflake is not in front (menu window closed, app window hidden or in the 
 - Every row (VM, image, recipe) opens with a click into its details (plan B94). A VM's details: its switches as chips
   (clipboard | sound, microphone, camera), image, recipe, resources, network, SSH command, share folder, created, and
   reset, switch to the newer image (when there is one) and remove (red) – there is no "…" menu any more
-- Sound, microphone, shared clipboard and camera per VM: switches in "New VM …" and in the VM's details (from the next start). Clipboard: both guest kinds (text, PNG); camera: NixOS guests, on only while an app in the VM uses it
+- Sound, microphone, shared clipboard, camera and MIDI per VM: switches in "New VM …" and in the VM's details (from the next start). Clipboard: both guest kinds (text, PNG); camera: NixOS guests, on only while an app in the VM uses it; MIDI: macOS guests – the Mac's MIDI devices in the VM, both ways (plan B161)
 - Packages (spec §11.10, plan B108, B109): "Export …" in the details of a VM (stopped), an image and a recipe, into a
   folder the user picks (an external disk, a NAS, a local folder); the dialogs say who it is for (VMs and images stay
   with their person, recipes are shared). A VM's details have one action row: Export on the left; Stop Listing (external
