@@ -826,6 +826,9 @@ impl Server {
             if let Some(v) = p.camera {
                 c.camera = Some(v);
             }
+            if let Some(v) = p.midi {
+                c.midi = Some(v);
+            }
             backends.store.save(&c)?;
             Ok(backends.backend_for(&c).is_ok_and(|b| b.status(&c) == VmStatus::Running))
         })?;
@@ -2861,6 +2864,7 @@ fn recipe_defaults(s: &RecipeSettings) -> RecipeDefaults {
     d.microphone = s.microphone;
     d.clipboard = s.clipboard;
     d.camera = s.camera;
+    d.midi = s.midi;
     d.display = s.display;
     d
 }
@@ -3002,6 +3006,8 @@ struct SetParams {
     clipboard: Option<bool>,
     #[serde(default)]
     camera: Option<bool>,
+    #[serde(default)]
+    midi: Option<bool>,
 }
 
 #[derive(Deserialize)]

@@ -13,6 +13,15 @@ are collected under *Unreleased*. Releases: [GitHub](https://github.com/omaflake
 
 ## [Unreleased]
 
+### Added
+
+- **MIDI in macOS VMs:** this computer's MIDI devices – a stage piano, a keyboard, a synthesizer, Bluetooth or network
+  MIDI, another app's virtual port – appear in the VM as MIDI devices of the same name, both ways, while the computer's
+  own apps keep using them; devices plugged in or out come and go in the VM. MIDI 1.0 and MIDI 2.0 pass unchanged
+  (Universal MIDI Packets over the omaflake agent). Each VM also gets a pair "omaflake <VM>" on this computer, to
+  connect its apps with the VM's. Off by default: the VM's MIDI switch in the app, `omaf new/set --midi`, recipe.toml
+  `midi` (vm table). Needs an image built with this version; NixOS guests get MIDI later.
+
 ### Changed
 
 - **Set Up for NixOS** – one button in the Doctor sets up what NixOS guests need, one step after the other: Nix, Nix in

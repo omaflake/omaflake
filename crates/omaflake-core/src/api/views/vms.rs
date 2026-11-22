@@ -267,6 +267,9 @@ fn feature_badges(v: &Vm) -> Vec<Badge> {
     if v.camera && v.kind == GuestKind::Nixos {
         b.push(Badge::new("camera", "camera", Text::new("Camera on"), Tone::Warning));
     }
+    if v.midi && v.kind == GuestKind::Macos {
+        b.push(Badge::new("midi", "midi", Text::new("MIDI devices in the VM"), Tone::Normal));
+    }
     if v.ephemeral {
         b.push(Badge::new("ephemeral", "ephemeral", Text::new("Ephemeral instance"), Tone::Normal));
     }
@@ -299,6 +302,10 @@ fn detail(ctx: &Ctx, v: &Vm) -> VmDetail {
         set("microphone", "Microphone", "microphone", v.microphone, microphone),
         set("camera", "Camera", "camera", v.camera && !mac, json!({"name": name, "camera": !v.camera}))
             .enabled_if(!mac, Some(Text::new("The camera for macOS guests comes with a signed release"))),
+        // MIDI (plan B161): the guest side exists for macOS; NixOS (ALSA) comes later
+        set("midi", "MIDI", "midi", v.midi && mac, json!({"name": name, "midi": !v.midi}))
+            .help(Text::new("This computer's MIDI devices in the VM, both ways"))
+            .enabled_if(mac, Some(Text::new("MIDI for NixOS guests comes later"))),
     ];
 
     let n = ctx.recipes.id_lengths.vm;

@@ -495,6 +495,38 @@ maintainer tries 0.7.0–0.7.3 (clicks in the apps; a VM's loading screen and ke
 running guest or a real Linux desktop (docs/linux.md) – and **M12** once the Developer ID is there. GitHub Pages of omaflake and website already publish
 through Actions (checked 2026-11-04: `build_type` workflow, domains omaflake.dev and omaflake.app).
 
+**B161 (2026-11-22): MIDI in macOS guests.** The maintainer ran Dorico in a macOS guest (Steinberg download and
+licenser fine) and asked for the stage piano's MIDI. USB passthrough exists since macOS 27 (`VZUSBPassthroughDevice`
+with an `AAUSBAccessory`), but AccessoryAccess needs `com.apple.developer.accessory-access.usb`
+(`AAUSBAccessoryManager.h`, macOS 27.2 SDK) – a restricted entitlement, so after M12 – and it captures the device
+exclusively. Decided (maintainer): a MIDI bridge over the agent instead, as the default; passthrough later only for
+what MIDI does not carry (a piano's USB audio, vendor tools). Implemented:
+- *Protocol* (spec §11.9): `0x0500`–`0x0504` – endpoint list, data as Universal MIDI Packets in records
+  (`nix/agent/src/ump.rs`, `MIDIRecord` in AgentProtocol.swift, shared vectors "midi"), status, ping/pong.
+- *Mac* (`Sources/omaf-runner/MIDI.swift`, `omaf-runner run --midi`): all CoreMIDI endpoints except omaflake's own,
+  hot-plug through the client's notifications, one input port per protocol (MIDI 1.0 sources stay 1.0, 2.0 stay 2.0),
+  a pair "omaflake <VM>" for the Mac's apps; `AgentLink` checks what the guest sends (whole messages, 1 MiB/s, ids of
+  the list) and keeps `midi` (endpoints, failed, round trip) in agent.json; `omaf-runner ctl <socket> midi`.
+- *Guest* (`nix/agent/src/midi.rs`): CoreMIDI's C API without new crates – virtual sources and destinations with the
+  Mac's name, manufacturer, model, protocol and unique id; a destination's receive block is a hand-made global block
+  (Blocks ABI); data played in the guest go out from CoreMIDI's thread under the port's write lock. The agent sets raw
+  mode on the macOS port (a tty). In macOS guests the agent offers MIDI only – the clipboard stays with its helper
+  until the agent's pasteboard is checked there.
+- *Start*: darwin-guest.nix `omaflake-agent-start`, run over SSH with the clipboard helper (`guest_helpers_command`),
+  also re-checked at every look (B64) when MIDI is on.
+- *Switch*: instance/recipe `midi` (default off) – `omaf new/set --midi`, the VM's switches, New VM (macOS only),
+  recipe row; schemas instance v1, recipe v2, catalog v5 got the optional `midi` in place (an additive optional field;
+  whether that wants new schema versions is the maintainer's call – OPEN).
+- *Checked here* (a macOS VM without hypervisor, so no guest): Rust and Swift tests, the shared vectors, and
+  `omaf-runner midi-check --agent <omaflake-agent>` – the agent on a pseudo-terminal (`OMAFLAKE_AGENT_PORT`), the
+  runner's bridge on the other end, test endpoints as the device, CoreMIDI on both sides. With the agent built by Nix
+  for aarch64-darwin (links CoreMIDI): 500/500 notes each way, latency min 0.06 · median 0.12 · p99 0.25 ms (no
+  virtio, no guest scheduling – a lower bound), a 1,000-byte SysEx and a MIDI 2.0 note (16-bit velocity) identical.
+  The macOS recipe `minimal` evaluates with `omaflake-agent-start`. **OPEN:** in a macOS guest – CoreMIDI
+  from the SSH-started agent (the user's MIDI server), Dorico seeing the endpoints, latency with the real piano; NixOS
+  guests (ALSA sequencer); the Linux host (`omaf bridge`) does not offer MIDI; timestamps are "now" (no scheduling);
+  UMP endpoint / function block mirroring (CoreMIDI's MIDIUMPEndpoint, macOS 15+) – the data, MIDI-CI included, pass.
+
 **B160 (2026-11-22): Setup by one click, user-level, always visible (release 0.7.4).** Found on a freshly reset Mac
 (maintainer, 2026-11-21, logs of that Mac): the Nix installer failed four times at "Rename /etc/fstab.tmp to
 /etc/fstab: Operation not permitted" – as root, from the administrator dialog – and left a half install (APFS volume

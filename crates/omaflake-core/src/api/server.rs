@@ -616,7 +616,7 @@ impl Server {
             let c = &row.config;
             if c.kind != GuestKind::Macos
                 || row.status != VmStatus::Running
-                || !c.clipboard_on()
+                || !(c.clipboard_on() || c.midi_on())
                 || c.network == NetworkMode::None
             {
                 continue;

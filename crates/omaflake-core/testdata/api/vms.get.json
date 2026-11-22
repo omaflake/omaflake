@@ -40,6 +40,7 @@
   "location": "/Volumes/Disk/research.omaflake-vm",
   "memoryGB": 8,
   "microphone": false,
+  "midi": false,
   "name": "research",
   "network": "shared",
   "omaflakeId": "vm:research:amber-lake-quiet-otter-lamp-river-stone-cloud-maple-ocean-tiger-velvet",

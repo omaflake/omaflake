@@ -751,6 +751,7 @@
         "line": "omaflake.nixos.dev@github:omaflake/recipes@main",
         "memoryGB": 8,
         "microphone": false,
+        "midi": true,
         "name": "dev",
         "network": "shared",
         "outdated": true,

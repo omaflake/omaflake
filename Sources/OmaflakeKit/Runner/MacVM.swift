@@ -163,7 +163,7 @@ public enum DHCPLeases {
 
 /// Controls a running omaf-runner via its Unix socket (one JSON line out, one back).
 public enum RunnerClient {
-    public static let commands = ["status", "stop", "kill", "show"]
+    public static let commands = ["status", "stop", "kill", "show", "midi"]
 
     @discardableResult
     public static func send(_ command: String, socket: URL, timeout: TimeInterval = 5) throws -> [String: String] {

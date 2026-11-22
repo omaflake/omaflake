@@ -172,8 +172,11 @@ impl VzBackend {
         if c.clipboard_on() {
             args.push("--clipboard".into());
         }
-        // The omaflake agent's port, always (spec §11.9); the guest side for macOS starts with plan B106's follow-up
+        // The omaflake agent's port, always (spec §11.9); in macOS guests the agent carries MIDI (plan B161)
         args.extend(["--agent-state".into(), path_string(&ip.agent_state())]);
+        if c.midi_on() {
+            args.push("--midi".into());
+        }
         // Camera: the Mac side and the port are ready; the guest's camera extension comes after M12 (plan B49)
         if c.camera_on() {
             args.push("--camera".into());
@@ -262,10 +265,11 @@ impl VzBackend {
         run_ok(&self.ssh_arguments_to(c, host, &[command], true))
     }
 
-    /// Starts the guest's clipboard agent (darwin-guest.nix) – over SSH instead of a LaunchAgent, which macOS would
-    /// announce as a background item in every clone (BM25). Images without it simply have no shared clipboard.
+    /// Starts the guest's helpers (darwin-guest.nix) – over SSH instead of a LaunchAgent, which macOS would announce as
+    /// a background item in every clone (BM25): the clipboard helper, and the omaflake agent for MIDI (plan B161).
+    /// Each starts only once; images without one simply lack that feature.
     pub fn start_clipboard_agent(&self, c: &InstanceConfig, host: &str) -> bool {
-        run_ok(&self.ssh_arguments_to(c, host, &["/run/current-system/sw/bin/omaflake-clipboard-agent".into()], true))
+        run_ok(&self.ssh_arguments_to(c, host, &[guest_helpers_command(c)], true))
     }
 
     /// `SshCommand::arguments` to `host` port 22; `batch` adds `-o BatchMode=yes -o ConnectTimeout=10` after ssh
@@ -427,7 +431,7 @@ impl VmBackend for VzBackend {
                 && Ports::ssh_banner(&host, 22, sockets::DEFAULT_TIMEOUT).is_some()
             {
                 self.apply_host_name(c, &host);
-                if c.clipboard_on() {
+                if c.clipboard_on() || c.midi_on() {
                     self.start_clipboard_agent(c, &host);
                 }
                 return true;
@@ -458,6 +462,21 @@ impl VmBackend for VzBackend {
 
 fn path_string(p: &Path) -> String {
     p.to_string_lossy().into_owned()
+}
+
+/// The shell command that starts a macOS guest's helpers for `c`: the clipboard helper, and the omaflake agent for
+/// MIDI – the agent only where the image has it (older images: nothing to start, no error)
+fn guest_helpers_command(c: &InstanceConfig) -> String {
+    const CLIPBOARD: &str = "/run/current-system/sw/bin/omaflake-clipboard-agent";
+    const AGENT: &str = "/run/current-system/sw/bin/omaflake-agent-start";
+    let mut parts = Vec::new();
+    if c.clipboard_on() {
+        parts.push(CLIPBOARD.to_string());
+    }
+    if c.midi_on() {
+        parts.push(format!("[ ! -x {AGENT} ] || {AGENT}"));
+    }
+    parts.join("; ")
 }
 
 /// Runs `args` (program first); true when it exited with 0
@@ -690,6 +709,23 @@ pub(crate) mod tests {
             vz.runner_arguments(&mac_config("m1", NetworkMode::Shared), StartOptions::new(DisplayMode::None));
         let headless = headless.unwrap();
         assert!(!headless.contains(&"--window".to_string()) && headless.contains(&"--clipboard".to_string()));
+        assert!(!headless.contains(&"--midi".to_string()));
+        c.midi = Some(true);
+        let a = vz.runner_arguments(&c, StartOptions::new(DisplayMode::None)).unwrap();
+        let at = a.iter().position(|x| x == "--agent-state").unwrap();
+        assert_eq!(a[at + 2], "--midi");
+    }
+
+    #[test]
+    fn guest_helpers_follow_clipboard_and_midi() {
+        let mut c = mac_config("m1", NetworkMode::Shared);
+        assert_eq!(guest_helpers_command(&c), "/run/current-system/sw/bin/omaflake-clipboard-agent");
+        c.midi = Some(true);
+        c.clipboard = Some(false);
+        assert_eq!(
+            guest_helpers_command(&c),
+            "[ ! -x /run/current-system/sw/bin/omaflake-agent-start ] || /run/current-system/sw/bin/omaflake-agent-start"
+        );
     }
 
     #[test]

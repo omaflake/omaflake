@@ -224,6 +224,77 @@ struct AgentProtocolTests {
         #expect(got?.flags == 0 && got?.payload.count == AgentProtocol.cameraFrameBytes)
     }
 
+    /// MIDI records: the vectors shared with the Rust agent (plan B161)
+    @Test func midiVectors() throws {
+        let v = try JSONSerialization.jsonObject(with: Data(contentsOf: Self.vectorsFile)) as! [String: Any]
+        for case let c as [String: Any] in v["midi"] as! [Any] {
+            let wire = Data(Self.bytes(c["hex"] as! String))
+            if let want = c["records"] as? [[String: Any]] {
+                let records = want.map {
+                    MIDIRecord(id: UInt32($0["id"] as! Int), protocol: UInt8($0["protocol"] as! Int),
+                               words: ($0["words"] as! [Int]).map { UInt32($0) })
+                }
+                #expect(MIDIRecord.decode(wire) == records, "\(c["name"]!)")
+                #expect(MIDIRecord.encode(records) == [wire], "\(c["name"]!)")
+            } else {
+                #expect(MIDIRecord.decode(wire) == nil, "\(c["name"]!)")
+            }
+        }
+        // A long SysEx is split at message boundaries and comes back whole
+        let words = (0..<40_000).map { $0 % 2 == 0 ? UInt32(0x3016_0000) : UInt32($0) }
+        let parts = MIDIRecord.encode([MIDIRecord(id: 7, protocol: 1, words: words)])
+        #expect(parts.count > 1 && parts.allSatisfy { $0.count <= AgentProtocol.maxMIDIMessage })
+        #expect(parts.flatMap { MIDIRecord.decode($0)! }.flatMap(\.words) == words)
+    }
+
+    /// MIDI from the guest only once enabled, malformed data cost budget, the status lands in agent.json, a pong
+    /// gives a round trip
+    @Test func midiThroughTheLink() throws {
+        let offering = #"{"agent":"0.8.0","protocol":{"min":1,"max":1},"features":["status","midi"]}"#
+        let note = MIDIRecord.encode([MIDIRecord(id: 42, protocol: 1, words: [0x2090_3C64])])[0]
+        let got = Box<[MIDIRecord]>()
+        got.value = []
+
+        let off = try Harness()   // MIDI not switched on for this VM
+        off.link.onMIDI = { got.value?.append(contentsOf: $0) }
+        #expect(off.send(.hello, offering))
+        #expect(off.send(.midiData, note))
+        #expect(got.value == [])
+
+        let h = try Harness(allowed: ["midi"])
+        h.link.onMIDI = { got.value?.append(contentsOf: $0) }
+        #expect(h.send(.hello, offering))
+        #expect(h.send(.midiData, note))
+        #expect(got.value == [MIDIRecord(id: 42, protocol: 1, words: [0x2090_3C64])])
+        #expect(h.send(.midiData, Data([1, 2, 3])))   // malformed: dropped, one error
+        #expect(got.value?.count == 1)
+        #expect(h.send(.midiStatus, #"{"endpoints":3,"failed":["Piano\u0007"]}"#))
+        let state = try #require(AgentState.load(h.stateFile))
+        #expect(state.midi?.endpoints == 3 && state.midi?.failed == ["Piano"])
+        #expect(state.features == ["midi", "status"])
+        let sent = DispatchTime.now().uptimeNanoseconds - 2_000_000
+        #expect(h.send(.midiPong, withUnsafeBytes(of: sent.littleEndian) { Data($0) }))
+        #expect(h.send(.status, #"{"uptime":2}"#))
+        let rtt = try #require(AgentState.load(h.stateFile)?.midi?.roundTripMs)
+        #expect(rtt.samples == 1 && rtt.median >= 2 && rtt.median < 1000)
+        // the Mac's own messages from the guest are errors
+        #expect(h.send(.midiEndpoints, #"{"endpoints":[]}"#))
+    }
+
+    /// More than the burst at once: the rest is dropped (a guest flooding the Mac's devices)
+    @Test func midiRateLimit() throws {
+        let offering = #"{"agent":"0.8.0","protocol":{"min":1,"max":1},"features":["status","midi"]}"#
+        let h = try Harness(allowed: ["midi"])
+        let count = Box<Int>()
+        count.value = 0
+        h.link.onMIDI = { _ in count.value! += 1 }
+        #expect(h.send(.hello, offering))
+        let big = MIDIRecord.encode([MIDIRecord(id: 1, protocol: 1, words: Array(repeating: 0x2090_3C64, count: 16_000))])[0]
+        for _ in 0..<20 { _ = h.send(.midiData, big) }
+        let accepted = count.value!
+        #expect(accepted >= 7 && accepted <= 9)   // 512 KiB burst ≈ 8 of 64 KB, plus what refilled meanwhile
+    }
+
     @Test func runEndsWhenThePortCloses() throws {
         let h = try Harness()
         h.closeGuest()

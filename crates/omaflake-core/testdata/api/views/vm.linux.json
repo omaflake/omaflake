@@ -515,6 +515,29 @@
             "camera": true,
             "name": "research"
           }
+        },
+        {
+          "enabled": false,
+          "help": {
+            "key": "This computer's MIDI devices in the VM, both ways",
+            "text": "This computer's MIDI devices in the VM, both ways"
+          },
+          "icon": "midi",
+          "id": "midi",
+          "label": {
+            "key": "MIDI",
+            "text": "MIDI"
+          },
+          "method": "vms.set",
+          "on": false,
+          "params": {
+            "midi": true,
+            "name": "research"
+          },
+          "reason": {
+            "key": "MIDI for NixOS guests comes later",
+            "text": "MIDI for NixOS guests comes later"
+          }
         }
       ],
       "switchesNote": {
@@ -585,6 +608,7 @@
       "location": "/Volumes/Disk/research.omaflake-vm",
       "memoryGB": 8,
       "microphone": false,
+      "midi": false,
       "name": "research",
       "network": "shared",
       "omaflakeId": "vm:research:amber-lake-quiet-otter-lamp-river-stone-cloud-maple-ocean-tiger-velvet",

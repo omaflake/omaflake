@@ -66,6 +66,7 @@ enum Icons {
         case "sound": ("speaker.wave.2.fill", nil)
         case "microphone": ("mic.fill", nil)
         case "camera": ("camera.fill", nil)
+        case "midi": ("pianokeys", nil)
         case "ephemeral": ("sparkles", nil)
         case "network-isolated": ("lock.shield", nil)
         case "network-none": ("wifi.slash", nil)

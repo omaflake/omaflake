@@ -116,6 +116,8 @@ pub struct Vm {
     pub microphone: bool,
     pub clipboard: bool,
     pub camera: bool,
+    /// The Mac's MIDI devices in the VM (plan B161)
+    pub midi: bool,
     /// How a plain start (`vms.start` with `display: auto`) shows it
     pub display: DisplayMode,
     #[serde(with = "crate::json::iso8601")]
@@ -174,6 +176,8 @@ pub struct RecipeSettings {
     pub clipboard: Option<bool>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub camera: Option<bool>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub midi: Option<bool>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub display: Option<DisplayMode>,
 }
@@ -354,6 +358,8 @@ pub struct RecipeDto {
     pub clipboard: Option<bool>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub camera: Option<bool>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub midi: Option<bool>,
     /// In the session's language where the recipe has it
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub description: Option<String>,
@@ -1318,6 +1324,7 @@ mod tests {
             microphone: false,
             clipboard: true,
             camera: false,
+            midi: false,
             display: DisplayMode::Gpu,
             created: crate::json::parse_date("2026-10-20T08:00:00Z").unwrap(),
             identity: Some("amber-lake".into()),

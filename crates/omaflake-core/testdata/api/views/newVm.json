@@ -33,6 +33,7 @@
           "kind": "nixos",
           "memoryGB": 4,
           "microphone": false,
+          "midi": true,
           "network": "shared",
           "share": true,
           "user": "alex"

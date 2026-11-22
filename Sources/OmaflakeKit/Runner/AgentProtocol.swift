@@ -37,7 +37,20 @@ public enum AgentProtocol {
         case cameraCredit = 0x0201    // guest → Mac: {"credits": n}
         case cameraFrame = 0x0202     // Mac → guest: one NV12 frame
         case cameraStatus = 0x0203    // Mac → guest: {"status", "detail"}
+        case midiEndpoints = 0x0500   // Mac → guest: {"endpoints": [...]}, the whole list after each change
+        case midiData = 0x0501        // both: MIDI records (`MIDIRecord`)
+        case midiStatus = 0x0502      // guest → Mac: {"endpoints": n, "failed": [names]}
+        case midiPing = 0x0503        // Mac → guest: at most `maxMIDIPing` bytes, answered at once
+        case midiPong = 0x0504        // guest → Mac: the ping's payload unchanged
     }
+
+    /// MIDI: one data message at most (never chunked), a ping's payload at most
+    public static let maxMIDIMessage = 64 * 1024
+    public static let maxMIDIPing = 64
+    /// MIDI from the guest: bytes a second it may send on average, and the burst above that (a SysEx dump is fine,
+    /// a guest flooding the Mac's devices is cut off)
+    public static let midiRate = 1024 * 1024
+    public static let midiBurst = 512 * 1024
 
     /// A message as frames: one frame, or chunks of `chunk` bytes with MORE on all but the last
     public static func encodeMessage(_ type: UInt16, payload: Data) -> Data {
@@ -154,6 +167,143 @@ public struct AgentDecoder: Sendable {
     }
 }
 
+// MARK: MIDI
+
+/// MIDI data on the agent's port (spec §11.9, plan B161): Universal MIDI Packets (MIDI 2.0's format, which carries
+/// MIDI 1.0 too) in records naming their endpoint – `id u32, protocol u8 (1 | 2), 0 u8, words u16`, then the words
+/// (u32 little endian), whole UMP messages only. The same as nix/agent/src/ump.rs; both check the "midi" vectors.
+public struct MIDIRecord: Sendable, Equatable {
+    /// An endpoint of the Mac's list: Mac → guest the source the data came from, guest → Mac the destination
+    public var id: UInt32
+    /// 1 = MIDI 1.0 UMP, 2 = MIDI 2.0 UMP (CoreMIDI's MIDIProtocolID)
+    public var `protocol`: UInt8
+    public var words: [UInt32]
+
+    public init(id: UInt32, protocol: UInt8, words: [UInt32]) {
+        self.id = id
+        self.protocol = `protocol`
+        self.words = words
+    }
+
+    public static let headerLength = 8
+
+    /// Words of the UMP message starting with `first`, by its message type (UMP spec 1.1)
+    public static func messageWords(_ first: UInt32) -> Int {
+        switch first >> 28 {
+        case 0x0, 0x1, 0x2, 0x6, 0x7: 1
+        case 0x3, 0x4, 0x8, 0x9, 0xA: 2
+        case 0xB, 0xC: 3
+        default: 4   // 0x5, 0xD, 0xE, 0xF
+        }
+    }
+
+    /// How many of `words` form whole messages (a message cut off at the end is left out)
+    public static func wholeMessages<C: RandomAccessCollection>(_ words: C) -> Int where C.Element == UInt32, C.Index == Int {
+        var i = words.startIndex
+        while i < words.endIndex {
+            let n = messageWords(words[i])
+            if i + n > words.endIndex { break }
+            i += n
+        }
+        return i - words.startIndex
+    }
+
+    /// Records as payloads of at most `maxMIDIMessage` bytes; long records split at message boundaries
+    public static func encode(_ records: [MIDIRecord]) -> [Data] {
+        let maxWords = min((AgentProtocol.maxMIDIMessage - headerLength) / 4, Int(UInt16.max))
+        var out: [Data] = []
+        var cur = Data()
+        for r in records {
+            let words = r.words[0..<wholeMessages(r.words)]
+            var start = 0
+            while start < words.count {
+                var end = start
+                while end < words.count, end + messageWords(words[end]) - start <= maxWords { end += messageWords(words[end]) }
+                let part = words[start..<end]
+                if !cur.isEmpty, cur.count + headerLength + part.count * 4 > AgentProtocol.maxMIDIMessage {
+                    out.append(cur)
+                    cur = Data()
+                }
+                withUnsafeBytes(of: r.id.littleEndian) { cur.append(contentsOf: $0) }
+                cur.append(r.protocol)
+                cur.append(0)
+                withUnsafeBytes(of: UInt16(part.count).littleEndian) { cur.append(contentsOf: $0) }
+                for w in part { withUnsafeBytes(of: w.littleEndian) { cur.append(contentsOf: $0) } }
+                start = end
+            }
+        }
+        if !cur.isEmpty { out.append(cur) }
+        return out
+    }
+
+    /// The records of a payload; nil if it is malformed (too long, cut off, a protocol other than 1 or 2, or words
+    /// that are not whole messages)
+    public static func decode(_ payload: Data) -> [MIDIRecord]? {
+        guard payload.count <= AgentProtocol.maxMIDIMessage else { return nil }
+        let bytes = [UInt8](payload)
+        func u32(_ at: Int) -> UInt32 {
+            UInt32(bytes[at]) | UInt32(bytes[at + 1]) << 8 | UInt32(bytes[at + 2]) << 16 | UInt32(bytes[at + 3]) << 24
+        }
+        var records: [MIDIRecord] = []
+        var at = 0
+        while at < bytes.count {
+            guard at + headerLength <= bytes.count else { return nil }
+            let id = u32(at), proto = bytes[at + 4]
+            let count = Int(UInt16(bytes[at + 6]) | UInt16(bytes[at + 7]) << 8)
+            guard proto == 1 || proto == 2 else { return nil }
+            at += headerLength
+            guard at + count * 4 <= bytes.count else { return nil }
+            let words = (0..<count).map { u32(at + $0 * 4) }
+            guard wholeMessages(words) == words.count else { return nil }
+            at += count * 4
+            records.append(MIDIRecord(id: id, protocol: proto, words: words))
+        }
+        return records
+    }
+}
+
+/// One endpoint of the Mac as the guest gets it (`midiEndpoints`)
+public struct MIDIEndpointInfo: Codable, Sendable, Equatable {
+    public var id: UInt32
+    /// "in": a source on the Mac, its data come into the guest; "out": a destination, the guest plays to it
+    public var direction: String
+    public var name: String
+    public var manufacturer: String?
+    public var model: String?
+    public var `protocol`: UInt8
+
+    public init(id: UInt32, direction: String, name: String, manufacturer: String?, model: String?, protocol: UInt8) {
+        self.id = id
+        self.direction = direction
+        self.name = name
+        self.manufacturer = manufacturer
+        self.model = model
+        self.protocol = `protocol`
+    }
+}
+
+/// What the guest reported about its MIDI endpoints, and what the Mac measured (kept in agent.json)
+public struct AgentMIDIState: Codable, Sendable, Equatable {
+    /// Endpoints of the Mac the guest has as virtual endpoints, and those it could not create
+    public var endpoints: Int
+    public var failed: [String]
+    /// Round trip Mac → guest agent → Mac of the last pings, in milliseconds (transport only, without CoreMIDI)
+    public var roundTripMs: RoundTrip?
+
+    public struct RoundTrip: Codable, Sendable, Equatable {
+        public var min: Double
+        public var median: Double
+        public var max: Double
+        public var samples: Int
+    }
+
+    public init(endpoints: Int = 0, failed: [String] = [], roundTripMs: RoundTrip? = nil) {
+        self.endpoints = endpoints
+        self.failed = failed
+        self.roundTripMs = roundTripMs
+    }
+}
+
 // MARK: Messages
 
 /// The agent's hello. Everything in it comes from the guest – untrusted, cleaned by `sanitized()`.
@@ -243,6 +393,8 @@ public struct AgentState: Codable, Sendable, Equatable {
     public var problem: String?
     /// What the welcome enabled: offered by the agent and switched on for this VM
     public var features: [String]?
+    /// MIDI, when the welcome enabled it: the guest's endpoints and the measured round trip
+    public var midi: AgentMIDIState?
 
     public init() {}
 
@@ -319,6 +471,22 @@ public final class AgentLink: @unchecked Sendable {
 
     public enum CameraRequest: Sendable, Equatable { case start, stop, credits(Int) }
 
+    /// MIDI the guest's apps played to the Mac's destinations, when MIDI is enabled (checked: whole UMP messages,
+    /// within the rate limit); the receiver sends only to ids of its current list
+    public var onMIDI: (@Sendable ([MIDIRecord]) -> Void)?
+    /// MIDI from the guest: the token bucket (bytes) and when it was last filled
+    private var midiTokens = Double(AgentProtocol.midiBurst)
+    private var midiFilled = Date()
+    private var midiDropped = 0
+    private var roundTrips: [Double] = []
+
+    /// A ping for the MIDI round trip: its payload is the send time, the pong brings it back (`midiPong`)
+    @discardableResult
+    public func sendMIDIPing() -> Bool {
+        let now = DispatchTime.now().uptimeNanoseconds
+        return send(.midiPing, payload: withUnsafeBytes(of: now.littleEndian) { Data($0) })
+    }
+
     public init(fd: Int32, stateFile: URL, host: String = "omaflake", statusInterval: Int = 5,
                 allowed: Set<String> = ["status"], log: @escaping @Sendable (String) -> Void = { _ in }) {
         self.fd = fd
@@ -379,7 +547,7 @@ public final class AgentLink: @unchecked Sendable {
             errors += 1   // unknown to this version; a newer agent only sends what the welcome enabled
             return
         }
-        if [.hello, .status, .goodbye].contains(message),
+        if [.hello, .status, .goodbye, .midiStatus].contains(message),
            let last = lastAccepted[frame.type], now.timeIntervalSince(last) < Self.minInterval { return }
         switch message {
         case .hello:
@@ -434,7 +602,48 @@ public final class AgentLink: @unchecked Sendable {
             guard let c = try? JSONDecoder().decode(Credit.self, from: frame.payload), c.credits > 0 else { errors += 1; return }
             onCamera?(.credits(min(c.credits, AgentProtocol.maxCameraCredits)))
             return
-        case .welcome, .cameraFrame, .cameraStatus:
+        case .midiData:
+            guard enabled.contains("midi") else { return }
+            // Token bucket: `midiRate` bytes a second on average, `midiBurst` at once – beyond that dropped
+            midiTokens = min(Double(AgentProtocol.midiBurst),
+                             midiTokens + now.timeIntervalSince(midiFilled) * Double(AgentProtocol.midiRate))
+            midiFilled = now
+            guard Double(frame.payload.count) <= midiTokens else {
+                midiDropped += 1
+                if midiDropped == 1 || midiDropped % 1000 == 0 {
+                    log("agent: MIDI from the guest beyond \(AgentProtocol.midiRate / 1024) KiB/s dropped (\(midiDropped)×)")
+                }
+                return
+            }
+            midiTokens -= Double(frame.payload.count)
+            guard let records = MIDIRecord.decode(frame.payload) else { errors += 1; return }
+            onMIDI?(records)
+            return
+        case .midiStatus:
+            guard enabled.contains("midi") else { return }
+            struct Status: Decodable { var endpoints: Int; var failed: [String]? }
+            guard let s = try? JSONDecoder().decode(Status.self, from: frame.payload), s.endpoints >= 0 else {
+                errors += 1
+                return
+            }
+            var midi = state.midi ?? AgentMIDIState()
+            midi.endpoints = min(s.endpoints, 1024)
+            midi.failed = Array((s.failed ?? []).prefix(64)).map(Untrusted.text)
+            state.midi = midi
+        case .midiPong:
+            guard enabled.contains("midi"), frame.payload.count == 8 else { return }
+            let sent = frame.payload.withUnsafeBytes { UInt64(littleEndian: $0.loadUnaligned(as: UInt64.self)) }
+            let nowNs = DispatchTime.now().uptimeNanoseconds
+            guard sent <= nowNs, nowNs - sent < 10_000_000_000 else { return }   // a forged or stale time
+            roundTrips = Array((roundTrips + [Double(nowNs - sent) / 1e6]).suffix(60))
+            let sorted = roundTrips.sorted()
+            var midi = state.midi ?? AgentMIDIState()
+            midi.roundTripMs = .init(min: sorted.first!, median: sorted[sorted.count / 2], max: sorted.last!,
+                                     samples: sorted.count)
+            state.midi = midi
+            // kept with the next status; no file write per pong
+            return
+        case .welcome, .cameraFrame, .cameraStatus, .midiEndpoints, .midiPing:
             errors += 1   // the Mac's messages, never the guest's
             return
         }

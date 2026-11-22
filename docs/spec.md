@@ -650,8 +650,20 @@ the Mac over one channel.
   | `0x0202` | Mac → guest | camera frame | one 1280×720 NV12 frame (1,382,400 bytes), always one frame, never chunked |
   | `0x0203` | Mac → guest | camera status | `{"status", "detail"}` (ready, streaming, unavailable, stopped) |
   | `0x03xx`, `0x04xx` | | tunnels; open URL, notifications | later |
+  | `0x0500` | Mac → guest | MIDI endpoints | `{"endpoints": [{id, direction ("in" \| "out"), name, manufacturer?, model?, protocol (1 \| 2)}]}`: the whole list after each change |
+  | `0x0501` | both | MIDI data | records `id u32, protocol u8, 0 u8, words u16` + UMP words (u32), whole UMP messages only, at most 64 KiB, never chunked |
+  | `0x0502` | guest → Mac | MIDI status | `{"endpoints": n, "failed": [names]}` |
+  | `0x0503` / `0x0504` | Mac → guest / guest → Mac | MIDI ping / pong | at most 64 bytes, echoed at once (round trip, once a second) |
 
-  Implemented (B96, B106): `0x0001`–`0x0004`, `0x0100`, `0x0200`–`0x0203`. **Connection:** the guest says hello when the Mac side is there (Linux: the port's
+  Implemented (B96, B106, B161): `0x0001`–`0x0004`, `0x0100`, `0x0200`–`0x0203`, `0x0500`–`0x0504`. **MIDI (plan
+  B161):** every MIDI endpoint of the Mac (CoreMIDI, except omaflake's own: property `app.omaflake.mirror`) becomes a
+  virtual endpoint in the guest with its name, manufacturer, model, protocol and unique id; `id` is the Mac endpoint's
+  CoreMIDI unique id, `0` the VM's own pair ("omaflake <VM>" on the Mac, "omaflake Mac" in the guest). Mac → guest:
+  data from a source, read on an input port of the source's protocol (no conversion); guest → Mac: data the guest's
+  apps played to a virtual destination, sent to the Mac endpoint of that id only. Timestamps are "now". Limits on the
+  Mac side: whole UMP messages, 1 MiB/s on average with 512 KiB bursts, unknown ids dropped, the status rate-limited
+  like status. Guest: macOS through CoreMIDI's C API (virtual endpoints need no driver or entitlement); NixOS
+  (ALSA sequencer, UMP since Linux 6.5): OPEN. **Connection:** the guest says hello when the Mac side is there (Linux: the port's
   `POLLHUP` clears) and again every 5 s until a welcome comes; the Mac answers each hello with a welcome. Version: the
   highest both speak; with none in common there is no welcome, and the app shows why. **Flow control for the camera:**
   credits – the guest grants as many frames as it has buffers free (2) and returns one per frame written to

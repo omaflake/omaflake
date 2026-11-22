@@ -11,6 +11,7 @@
     "kind": "nixos",
     "memoryGB": 8,
     "microphone": false,
+    "midi": false,
     "network": "shared",
     "share": true,
     "user": "alex"

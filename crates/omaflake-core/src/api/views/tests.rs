@@ -334,7 +334,13 @@ fn vm_rows_say_what_the_app_said() {
     let camera = action(&work["detail"]["switches"], "camera");
     assert_eq!((camera["enabled"].clone(), camera["on"].clone()), (json!(false), json!(false)));
     let badges: Vec<&str> = work["badges"].as_array().unwrap().iter().map(|b| b["icon"].as_str().unwrap()).collect();
-    assert_eq!(badges, ["microphone", "ephemeral", "network-isolated"]);
+    assert_eq!(badges, ["microphone", "midi", "ephemeral", "network-isolated"]);
+    // MIDI reaches macOS guests (plan B161); for NixOS guests the switch is not available yet
+    let midi = action(&work["detail"]["switches"], "midi");
+    assert_eq!(midi["on"], true);
+    assert_eq!(midi["params"], json!({"name": "work", "midi": false}));
+    let midi = action(&d["switches"], "midi");
+    assert_eq!((midi["enabled"].clone(), midi["on"].clone()), (json!(false), json!(false)));
     let info = work["detail"]["info"].as_array().unwrap();
     let line = |label: &str| info.iter().find(|l| l["label"]["key"] == label).unwrap().clone();
     assert_eq!(line("SSH")["value"]["key"], "address while running");

@@ -66,6 +66,7 @@ pub struct NewVmValues {
     pub microphone: Option<bool>,
     pub clipboard: Option<bool>,
     pub camera: Option<bool>,
+    pub midi: Option<bool>,
     pub start: Option<bool>,
 }
 
@@ -76,19 +77,21 @@ pub struct NewVmParams {
     pub values: NewVmValues,
 }
 
-/// A recipe's values for a new VM; switches a recipe leaves open: sound and clipboard on, microphone and camera off
+/// A recipe's values for a new VM; switches a recipe leaves open: sound and clipboard on, microphone, camera and MIDI
+/// off
 pub fn recipe_settings(r: Option<&RecipeDto>, i: &ImageDto) -> Value {
     match r {
         Some(r) => json!({
             "kind": r.kind, "cpus": r.cpus, "memoryGB": r.memory_gb, "diskGB": r.disk_gb, "network": r.network,
             "share": r.share, "ephemeral": r.ephemeral, "user": r.user,
             "audio": r.audio.unwrap_or(true), "microphone": r.microphone.unwrap_or(false),
-            "clipboard": r.clipboard.unwrap_or(true), "camera": r.camera.unwrap_or(false), "display": r.display,
+            "clipboard": r.clipboard.unwrap_or(true), "camera": r.camera.unwrap_or(false),
+            "midi": r.midi.unwrap_or(false), "display": r.display,
         }),
         // A recipe that is gone: the app's RecipeSettings() defaults
         None => json!({
             "kind": i.kind, "cpus": 4, "memoryGB": 8, "diskGB": 64, "network": "shared", "share": false,
-            "ephemeral": false, "audio": true, "microphone": false, "clipboard": true, "camera": false,
+            "ephemeral": false, "audio": true, "microphone": false, "clipboard": true, "camera": false, "midi": false,
         }),
     }
 }
@@ -120,6 +123,7 @@ pub(crate) fn page(ctx: &Ctx, p: &NewVmParams) -> Option<NewVmPage> {
     take!(microphone, "microphone");
     take!(clipboard, "clipboard");
     take!(camera, "camera");
+    take!(midi, "midi");
     // The profile (plan B142): the chosen one, else the default; with one its CPU cores and RAM are the VM's
     let profile_id = v
         .profile
@@ -231,6 +235,14 @@ pub(crate) fn page(ctx: &Ctx, p: &NewVmParams) -> Option<NewVmPage> {
             Field::new("camera", FieldKind::Toggle, Text::new("Camera in the VM"), s["camera"].clone())
                 .param("settings.camera")
                 .value_param("camera"),
+        );
+    }
+    // MIDI (plan B161): macOS guests for now
+    if mac {
+        resources.push(
+            Field::new("midi", FieldKind::Toggle, Text::new("MIDI devices in the VM"), s["midi"].clone())
+                .param("settings.midi")
+                .value_param("midi"),
         );
     }
     let mut network = Field::new("network", FieldKind::Choice, Text::new("Network"), s["network"].clone())

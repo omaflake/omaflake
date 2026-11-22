@@ -68,7 +68,7 @@ pub enum Command {
     Images(Images),
     #[command(about = "Create an instance (NixOS: overlay on the current image; macOS: APFS clone of it).")]
     New(New),
-    #[command(about = "Change an instance's sound, microphone, clipboard and camera (from its next start).")]
+    #[command(about = "Change an instance's sound, microphone, clipboard, camera and MIDI (from its next start).")]
     Set(Set),
     #[command(about = "Start an instance (without a window by default).")]
     Start(Start),
@@ -654,6 +654,14 @@ pub struct New {
     pub no_camera: bool,
     #[arg(
         long,
+        overrides_with = "no_midi",
+        help = "This computer's MIDI devices in the VM, both ways, macOS (default off)"
+    )]
+    pub midi: bool,
+    #[arg(long, overrides_with = "midi", help = "Without this computer's MIDI devices")]
+    pub no_midi: bool,
+    #[arg(
+        long,
         value_name = "profile",
         help = "CPU cores and RAM from a profile (default: the default profile; omaf profiles); --cpus and --memory win"
     )]
@@ -702,6 +710,10 @@ pub struct Set {
     pub camera: bool,
     #[arg(long, overrides_with = "camera", help = "Without this computer's camera")]
     pub no_camera: bool,
+    #[arg(long, overrides_with = "no_midi", help = "This computer's MIDI devices in the VM, both ways (macOS)")]
+    pub midi: bool,
+    #[arg(long, overrides_with = "midi", help = "Without this computer's MIDI devices")]
+    pub no_midi: bool,
 }
 
 #[derive(Debug, Args)]

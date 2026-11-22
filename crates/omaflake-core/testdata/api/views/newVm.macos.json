@@ -32,6 +32,7 @@
           "kind": "macos",
           "memoryGB": 4,
           "microphone": false,
+          "midi": false,
           "network": "shared",
           "share": false
         },
@@ -229,6 +230,18 @@
           "param": "settings.clipboard",
           "value": true,
           "valueParam": "clipboard"
+        },
+        {
+          "enabled": true,
+          "id": "midi",
+          "kind": "toggle",
+          "label": {
+            "key": "MIDI devices in the VM",
+            "text": "MIDI devices in the VM"
+          },
+          "param": "settings.midi",
+          "value": false,
+          "valueParam": "midi"
         },
         {
           "choices": [

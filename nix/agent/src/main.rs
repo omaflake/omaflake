@@ -23,11 +23,14 @@ pub(crate) use concat_runtime;
 mod b64;
 mod camera;
 mod clip;
+mod midi;
 mod proto;
 mod session;
 mod status;
+mod ump;
 
 use camera::Camera;
+use midi::Midi;
 use proto::*;
 use serde::Deserialize;
 use std::fs::{File, OpenOptions};
@@ -35,6 +38,7 @@ use std::io::{ErrorKind, Read, Write};
 use std::os::fd::AsRawFd;
 use std::os::unix::fs::{OpenOptionsExt, PermissionsExt};
 use std::os::unix::net::{UnixListener, UnixStream};
+use std::sync::Mutex;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::{Duration, Instant};
 
@@ -49,6 +53,31 @@ const DEFAULT_INTERVAL: u64 = 5;
 const WELCOME_FILE: &str = concat_runtime!("welcome.json");
 
 static STOP: AtomicBool = AtomicBool::new(false);
+
+/// The port's writing end, shared: CoreMIDI's thread sends MIDI played in the guest straight away (no detour through
+/// the poll loop), so every frame is written whole under this lock
+static PORT_OUT: Mutex<Option<File>> = Mutex::new(None);
+/// The Mac enabled MIDI in its welcome – MIDI from the guest's apps goes out only then
+static MIDI_ON: AtomicBool = AtomicBool::new(false);
+
+fn write_port(bytes: &[u8]) {
+    let mut out = PORT_OUT.lock().unwrap_or_else(|e| e.into_inner());
+    if let Some(port) = out.as_mut()
+        && let Err(e) = port.write_all(bytes)
+    {
+        log(&format!("write failed: {e}"));
+    }
+}
+
+/// A guest app played to one of the virtual destinations (CoreMIDI's thread)
+fn midi_out(record: ump::Record) {
+    if !MIDI_ON.load(Ordering::SeqCst) {
+        return;
+    }
+    for payload in ump::encode(&[record]) {
+        write_port(&encode(MSG_MIDI_DATA, 0, &payload));
+    }
+}
 
 extern "C" fn on_signal(_: libc::c_int) {
     STOP.store(true, Ordering::SeqCst);
@@ -69,10 +98,18 @@ struct Welcome {
 }
 
 /// What this agent offers in its hello; the Mac enables a subset in its welcome
-fn offered() -> Vec<&'static str> {
-    let mut f = vec!["status", "clipboard"];
-    if cfg!(target_os = "linux") && std::path::Path::new(camera::DEVICE).exists() {
-        f.push("camera");
+/// What this agent offers in its hello; the Mac enables a subset in its welcome. macOS guests keep their clipboard
+/// helper until the agent's pasteboard is checked in a guest (PNG: OPEN, spec §11.9), so the agent there offers MIDI only
+fn offered(midi: bool) -> Vec<&'static str> {
+    let mut f = vec!["status"];
+    if cfg!(target_os = "linux") {
+        f.push("clipboard");
+        if std::path::Path::new(camera::DEVICE).exists() {
+            f.push("camera");
+        }
+    }
+    if midi {
+        f.push("midi");
     }
     f
 }
@@ -98,6 +135,8 @@ struct Agent {
     listener: Option<UnixListener>,
     sessions: Vec<Session>,
     camera: Option<Camera>,
+    /// The guest's MIDI endpoints for the Mac's (None: no MIDI here – see midi.rs)
+    midi: Option<Midi>,
     /// One read buffer for the agent's life: the Linux virtio port gives at most one 4 KiB buffer per read, so a
     /// camera frame takes ~340 reads – a fresh zeroed buffer each time cost more than the frames themselves
     chunk: Vec<u8>,
@@ -109,9 +148,7 @@ impl Agent {
     }
 
     fn send_raw(&mut self, bytes: &[u8]) {
-        if let Err(e) = self.port.write_all(bytes) {
-            log(&format!("write failed: {e}"));
-        }
+        write_port(bytes);
     }
 
     fn send(&mut self, kind: u16, json: &impl serde::Serialize) {
@@ -120,7 +157,8 @@ impl Agent {
     }
 
     fn hello(&mut self) {
-        self.send(MSG_HELLO, &status::hello(offered()));
+        let offer = offered(self.midi.is_some());
+        self.send(MSG_HELLO, &status::hello(offer));
         self.next_hello = Instant::now() + HELLO_RETRY;
     }
 
@@ -157,6 +195,24 @@ impl Agent {
         } else {
             self.camera = None; // off for this VM: the device stays black
         }
+        let midi = self.enabled("midi");
+        MIDI_ON.store(midi, Ordering::SeqCst);
+        if !midi && let Some(m) = self.midi.as_mut() {
+            m.clear(); // off for this VM: the Mac's devices leave the guest
+        }
+    }
+
+    /// The Mac's MIDI endpoints changed: the guest's follow, the Mac hears how many exist
+    fn midi_endpoints(&mut self, payload: &[u8]) {
+        let Some(m) = self.midi.as_mut() else { return };
+        let list = match serde_json::from_slice::<midi::EndpointList>(payload) {
+            Ok(l) if midi::valid(&l.endpoints) => l.endpoints,
+            Ok(_) => return log("MIDI: endpoint list rejected (too long, duplicate ids, unknown values)"),
+            Err(e) => return log(&format!("MIDI: malformed endpoint list: {e}")),
+        };
+        let (count, failed) = m.sync(&list);
+        log(&format!("MIDI: {count} endpoints from the Mac{}", if failed.is_empty() { "" } else { " (some failed)" }));
+        self.send(MSG_MIDI_STATUS, &serde_json::json!({ "endpoints": count, "failed": failed }));
     }
 
     /// A message from the Mac
@@ -192,6 +248,21 @@ impl Agent {
             }
             MSG_CAMERA_STATUS if self.enabled("camera") => {
                 log(&format!("Mac camera: {}", String::from_utf8_lossy(&frame.payload)));
+            }
+            MSG_MIDI_ENDPOINTS if self.enabled("midi") => self.midi_endpoints(&frame.payload),
+            MSG_MIDI_DATA if self.enabled("midi") => {
+                let Some(m) = self.midi.as_mut() else { return };
+                match ump::decode(&frame.payload) {
+                    Some(records) => {
+                        for r in &records {
+                            m.deliver(r); // an id no longer in the list: data that crossed a change, dropped
+                        }
+                    }
+                    None => log("MIDI: malformed data from the Mac"),
+                }
+            }
+            MSG_MIDI_PING if self.enabled("midi") && frame.payload.len() <= MAX_MIDI_PING => {
+                self.send_raw(&encode(MSG_MIDI_PONG, 0, &frame.payload));
             }
             // Unknown types, or a feature the Mac did not enable: skipped
             other => log(&format!("ignored message type {other:#06x}")),
@@ -305,6 +376,10 @@ impl Agent {
             }
             self.connected = false;
             self.welcomed = false;
+            MIDI_ON.store(false, Ordering::SeqCst);
+            if let Some(m) = self.midi.as_mut() {
+                m.clear(); // the Mac's list comes again with the next welcome
+            }
             self.decoder = Decoder::default();
             self.parts = Reassembler::default();
             // POLLHUP returns at once – wait a little before looking again
@@ -367,17 +442,20 @@ fn main() {
     match std::env::args().nth(1).as_deref() {
         Some("--print") => {
             // Diagnostics: what the agent would send, without a port
-            println!("{}", serde_json::to_string_pretty(&status::hello(offered())).unwrap());
+            let midi = Midi::new(midi_out).is_ok();
+            println!("{}", serde_json::to_string_pretty(&status::hello(offered(midi))).unwrap());
             println!("{}", serde_json::to_string_pretty(&status::status()).unwrap());
             return;
         }
         Some("session") => return session::run(),
         _ => {}
     }
-    let port = match OpenOptions::new().read(true).write(true).custom_flags(libc::O_NOCTTY).open(PORT) {
+    // OMAFLAKE_AGENT_PORT: another port, for checks on a Mac (`omaf-runner midi-check` hands it a pseudo-terminal)
+    let path = std::env::var("OMAFLAKE_AGENT_PORT").unwrap_or_else(|_| PORT.to_string());
+    let port = match OpenOptions::new().read(true).write(true).custom_flags(libc::O_NOCTTY).open(&path) {
         Ok(f) => f,
         Err(e) => {
-            log(&format!("{PORT}: {e} – not running under omaflake, nothing to do"));
+            log(&format!("{path}: {e} – not running under omaflake, nothing to do"));
             return;
         }
     };
@@ -387,8 +465,32 @@ fn main() {
         // A session that went away must not end the agent while it is written to
         libc::signal(libc::SIGPIPE, libc::SIG_IGN);
     }
+    // macOS names the port a serial tty (/dev/cu.…): without raw mode the line discipline would echo, translate
+    // newlines and eat control bytes of the binary frames (the clipboard helper does the same, plan B48)
+    if cfg!(target_os = "macos") {
+        // SAFETY: termios is plain data; tcgetattr fills it for the open port, cfmakeraw and tcsetattr change it
+        unsafe {
+            let mut t: libc::termios = std::mem::zeroed();
+            if libc::tcgetattr(port.as_raw_fd(), &mut t) == 0 {
+                libc::cfmakeraw(&mut t);
+                libc::tcsetattr(port.as_raw_fd(), libc::TCSANOW, &t);
+            }
+        }
+    }
+    match port.try_clone() {
+        Ok(out) => *PORT_OUT.lock().unwrap_or_else(|e| e.into_inner()) = Some(out),
+        Err(e) => return log(&format!("{path}: {e}")),
+    }
+    let midi = match Midi::new(midi_out) {
+        Ok(m) => Some(m),
+        Err(e) => {
+            log(&format!("no MIDI: {e}"));
+            None
+        }
+    };
     let now = Instant::now();
     let mut agent = Agent {
+        midi,
         port,
         decoder: Decoder::default(),
         parts: Reassembler::default(),
@@ -403,7 +505,7 @@ fn main() {
         camera: None,
         chunk: vec![0u8; 1 << 20],
     };
-    log(&format!("version {}, protocol {PROTOCOL_MIN}–{PROTOCOL_MAX}, port {PORT}", env!("CARGO_PKG_VERSION")));
+    log(&format!("version {}, protocol {PROTOCOL_MIN}–{PROTOCOL_MAX}, port {path}", env!("CARGO_PKG_VERSION")));
     while !STOP.load(Ordering::SeqCst) {
         agent.step();
     }

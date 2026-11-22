@@ -192,7 +192,8 @@ fn draws_the_vms_tab() {
         "omaflake.nixos.dev@cedar-mango-lift",
         "newer image available",
         "Runs from",
-        "9 ⇧ Export …",
+        // the detail actions; with the MIDI switch (plan B161) Export is the row's tenth action – menu `a`, no digit
+        "⇧ Export …",
         "Remove …",
     ] {
         assert!(s.contains(want), "missing {want:?} in\n{s}");

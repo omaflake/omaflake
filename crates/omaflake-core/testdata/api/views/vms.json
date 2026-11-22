@@ -670,6 +670,29 @@
               "camera": true,
               "name": "research"
             }
+          },
+          {
+            "enabled": false,
+            "help": {
+              "key": "This computer's MIDI devices in the VM, both ways",
+              "text": "This computer's MIDI devices in the VM, both ways"
+            },
+            "icon": "midi",
+            "id": "midi",
+            "label": {
+              "key": "MIDI",
+              "text": "MIDI"
+            },
+            "method": "vms.set",
+            "on": false,
+            "params": {
+              "midi": true,
+              "name": "research"
+            },
+            "reason": {
+              "key": "MIDI for NixOS guests comes later",
+              "text": "MIDI for NixOS guests comes later"
+            }
           }
         ],
         "switchesNote": {
@@ -739,6 +762,7 @@
         "location": "/Volumes/Disk/research.omaflake-vm",
         "memoryGB": 8,
         "microphone": false,
+        "midi": false,
         "name": "research",
         "network": "shared",
         "omaflakeId": "vm:research:amber-lake-quiet-otter-lamp-river-stone-cloud-maple-ocean-tiger-velvet",
@@ -763,6 +787,15 @@
           "icon": "microphone",
           "id": "microphone",
           "tone": "warning"
+        },
+        {
+          "help": {
+            "key": "MIDI devices in the VM",
+            "text": "MIDI devices in the VM"
+          },
+          "icon": "midi",
+          "id": "midi",
+          "tone": "normal"
         },
         {
           "help": {
@@ -1067,6 +1100,25 @@
               "key": "The camera for macOS guests comes with a signed release",
               "text": "The camera for macOS guests comes with a signed release"
             }
+          },
+          {
+            "enabled": false,
+            "help": {
+              "key": "This computer's MIDI devices in the VM, both ways",
+              "text": "This computer's MIDI devices in the VM, both ways"
+            },
+            "icon": "midi",
+            "id": "midi",
+            "label": {
+              "key": "MIDI",
+              "text": "MIDI"
+            },
+            "method": "vms.set",
+            "on": true,
+            "params": {
+              "midi": false,
+              "name": "work"
+            }
           }
         ]
       },
@@ -1105,6 +1157,7 @@
         "label": "work",
         "memoryGB": 16,
         "microphone": true,
+        "midi": true,
         "name": "work",
         "network": "isolated",
         "omaflakeId": "vm:work:?",

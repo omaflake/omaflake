@@ -6,6 +6,8 @@
 
 let
   user = settings.macUser;
+  # The omaflake agent (spec §11.9): in macOS guests it carries MIDI (plan B161)
+  omaflakeAgent = pkgs.callPackage ../agent/package.nix { };
 
   # Language and region from `locale` in local/settings.nix: "de_DE.UTF-8" → de_DE / de-DE
   localeId = builtins.head (lib.splitString "." settings.locale);
@@ -71,6 +73,14 @@ in
     (pkgs.writeShellScriptBin "omaflake-clipboard-agent" ''
       pgrep -f clipboard-agent-macos.py >/dev/null && exit 0
       nohup ${pkgs.python3}/bin/python3 ${./clipboard-agent-macos.py} >/tmp/omaflake-clipboard.log 2>&1 </dev/null &
+    '')
+    # The omaflake agent, for MIDI (plan B161): it makes the Mac's MIDI devices virtual endpoints here, which only the
+    # logged-in user's apps see when it runs in that user's session – so omaflake starts it over SSH like the clipboard
+    # helper (BM25), as the guest user. Whether CoreMIDI reaches the user's MIDI server from an SSH session: OPEN
+    # (pbpaste does reach the pasteboard). Exits at once when the VM runs without the agent port.
+    (pkgs.writeShellScriptBin "omaflake-agent-start" ''
+      pgrep -xq omaflake-agent && exit 0
+      nohup ${omaflakeAgent}/bin/omaflake-agent >/tmp/omaflake-agent.log 2>&1 </dev/null &
     '')
   ];
 

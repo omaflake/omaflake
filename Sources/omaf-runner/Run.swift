@@ -22,6 +22,8 @@ final class RunController: NSObject, NSApplicationDelegate, NSWindowDelegate, VZ
         var cameraTestPattern = false
         /// The omaflake agent's port, and where the link keeps what the agent reports (nil: no agent port)
         var agentState: URL?
+        /// The Mac's MIDI devices in the VM over the agent (plan B161)
+        var midi = false
         var recovery: Bool
         var provisioning: Provisioning?
     }
@@ -41,6 +43,7 @@ final class RunController: NSObject, NSApplicationDelegate, NSWindowDelegate, VZ
     private var clipboard: ClipboardBridge?
     private var camera: CameraBridge?
     private var agent: AgentLink?
+    private var midi: MIDIBridge?
 
     init(_ request: Request) {
         self.request = request
@@ -75,13 +78,27 @@ final class RunController: NSObject, NSApplicationDelegate, NSWindowDelegate, VZ
                 try? FileManager.default.removeItem(at: stateFile)   // an earlier run's report must not count
                 var allowed: Set<String> = ["status"]
                 if request.clipboard { allowed.insert("clipboard") }
+                // MIDI: the Mac side exists from the start (its "omaflake <VM>" pair is there for the Mac's apps);
+                // the guest's endpoints come once its agent's welcome enables MIDI
+                if request.midi {
+                    do {
+                        midi = try MIDIBridge(vmName: request.bundle.dir.deletingPathExtension().lastPathComponent,
+                                              log: { text in log(text) })
+                        allowed.insert("midi")
+                    } catch {
+                        log("MIDI: \(describe(error)) – the VM runs without MIDI")
+                    }
+                }
                 let link = AgentLink(fd: ourEnd, stateFile: stateFile, host: "omaflake", allowed: allowed,
                                      log: { text in log(text) })   // runner.log, like everything else here
-                let clip = clipboard
+                let clip = clipboard, midiBridge = midi
                 link.onWelcome = { [weak link] (features: Set<String>) in
-                    if let link, features.contains("clipboard") { clip?.useAgent(link) }
+                    guard let link else { return }
+                    if features.contains("clipboard") { clip?.useAgent(link) }
+                    if features.contains("midi") { midiBridge?.useAgent(link) }
                 }
                 link.onClipboard = { mime, data in clip?.apply(mime: mime, data: data) }
+                link.onMIDI = { records in midiBridge?.fromGuest(records) }
                 Thread.detachNewThread { _ = link.run() }   // ends when the VM goes; a misbehaving guest only loses its link
                 agent = link
                 log("Agent: port \(AgentProtocol.portName)")
@@ -182,6 +199,9 @@ final class RunController: NSObject, NSApplicationDelegate, NSWindowDelegate, VZ
             window?.makeKeyAndOrderFront(nil)
             NSApp.activate(ignoringOtherApps: true)
             return ["ok": "window in front"]
+        case "midi":
+            guard let midi else { return ["error": "this VM runs without MIDI (omaf set <name> --midi, then restart)"] }
+            return midi.describe()
         default:
             return ["error": "Unknown command \(command); available: \(RunnerClient.commands.joined(separator: ", "))"]
         }

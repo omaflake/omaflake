@@ -67,6 +67,7 @@ pub fn lucide(name: &str) -> Option<Icon> {
         "sound" => Icon::Volume2,
         "microphone" => Icon::Mic,
         "camera" => Icon::Camera,
+        "midi" => Icon::Piano,
         "ephemeral" => Icon::Sparkles,
         "network-isolated" => Icon::ShieldCheck,
         "network-none" => Icon::WifiOff,
