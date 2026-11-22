@@ -516,7 +516,7 @@ what MIDI does not carry (a piano's USB audio, vendor tools). Implemented:
   also re-checked at every look (B64) when MIDI is on.
 - *Switch*: instance/recipe `midi` (default off) – `omaf new/set --midi`, the VM's switches, New VM (macOS only),
   recipe row; schemas instance v1, recipe v2, catalog v5 got the optional `midi` in place (an additive optional field;
-  whether that wants new schema versions is the maintainer's call – OPEN).
+  maintainer, 2026-11-22: stays in place, no new schema versions).
 - *Checked here* (a macOS VM without hypervisor, so no guest): Rust and Swift tests, the shared vectors, and
   `omaf-runner midi-check --agent <omaflake-agent>` – the agent on a pseudo-terminal (`OMAFLAKE_AGENT_PORT`), the
   runner's bridge on the other end, test endpoints as the device, CoreMIDI on both sides. With the agent built by Nix

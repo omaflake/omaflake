@@ -700,15 +700,18 @@ impl Prerequisites {
             .map(|n| format!("~/.ssh/{n}"))
             .collect();
         let ok = own.exists();
-        let mut found = Vec::new();
-        if ok {
-            found.push("omaflake's key".to_string());
-        }
-        found.extend(files);
+        // omaflake's key says it all (a translated sentence); without it the user's keys as found
+        let detail = if ok {
+            "omaflake's key".to_string()
+        } else if files.is_empty() {
+            "no key yet".to_string()
+        } else {
+            files.join(", ")
+        };
         Prerequisite::new(
             PrerequisiteItem::SshKey,
             status(ok, PrerequisiteStatus::Missing),
-            &if found.is_empty() { "no key yet".to_string() } else { found.join(", ") },
+            &detail,
             if ok { "" } else { "omaflake creates its own key for its VMs (no passphrase, only for omaflake)" },
             None,
         )

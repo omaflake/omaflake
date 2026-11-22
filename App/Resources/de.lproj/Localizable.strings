@@ -1603,3 +1603,22 @@
 "Nix removed – if /nix stays busy, restart the Mac before installing again" = "Nix entfernt – falls /nix belegt bleibt, starte den Mac vor einer neuen Installation neu";
 "QEMU installed" = "QEMU installiert";
 "QEMU updated" = "QEMU aktualisiert";
+
+/* The Doctor's details that are words (plan B160) */
+"needs Nix" = "braucht Nix";
+"not found" = "nicht gefunden";
+"not set" = "nicht gesetzt";
+"no flake set" = "kein Flake gesetzt";
+"flakes not enabled" = "Flakes nicht eingeschaltet";
+"no aarch64-linux builder" = "kein aarch64-linux-Builder";
+"omaflake's builder" = "omaflakes Builder";
+"omaflake's builder (default settings)" = "omaflakes Builder (Standardeinstellungen)";
+"no Linux builder set up" = "kein Linux-Builder eingerichtet";
+"no hypervisor (kern.hv_support 0)" = "kein Hypervisor (kern.hv_support 0)";
+"loaded by your shell files" = "von deinen Shell-Dateien geladen";
+"omaflake's lines in ~/.zshrc" = "omaflakes Zeilen in ~/.zshrc";
+"new terminals do not find nix" = "neue Terminals finden nix nicht";
+"omaflake's key" = "omaflakes Schlüssel";
+"no key yet" = "noch kein Schlüssel";
+"half-done Nix install" = "halbe Nix-Installation";
+"no /dev/kvm – VMs run with TCG (slow)" = "kein /dev/kvm – VMs laufen mit TCG (langsam)";

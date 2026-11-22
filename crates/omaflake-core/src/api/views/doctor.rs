@@ -212,9 +212,32 @@ fn detail(p: &PrerequisiteDto) -> Text {
         (Some(free), Some(needed), None) => {
             Text::fmt("%@ free, about %@ needed", vec![Arg::bytes(free), Arg::bytes(needed)])
         }
+        // Sentences are translated, paths and versions stay as found (plan B160)
+        _ if TRANSLATED_DETAILS.contains(&p.detail.as_str()) => Text::new(&p.detail),
         _ => Text::verbatim(&p.detail),
     }
 }
+
+/// The checks' details that are words, not paths or versions – the UI shows them translated
+const TRANSLATED_DETAILS: &[&str] = &[
+    "needs Nix",
+    "not found",
+    "not set",
+    "no flake set",
+    "flakes not enabled",
+    "no aarch64-linux builder",
+    "omaflake's builder",
+    "omaflake's builder (default settings)",
+    "no Linux builder set up",
+    "no hypervisor (kern.hv_support 0)",
+    "loaded by your shell files",
+    "omaflake's lines in ~/.zshrc",
+    "new terminals do not find nix",
+    "omaflake's key",
+    "no key yet",
+    "half-done Nix install",
+    "no /dev/kvm – VMs run with TCG (slow)",
+];
 
 /// The last IPSW download's error when it failed and none runs now – it may end before a page shows it (plan B146)
 fn download_failure(ctx: &Ctx) -> Option<Text> {
