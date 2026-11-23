@@ -495,6 +495,12 @@ the diagnosis on NixOS guests and on a Linux host (B162), MIDI with the real pia
 the disk size of a VM (B164), upgrading a VM in place, why a macOS build VM once had no SSH (port 22 closed, 2026-11-22
 – watch it with the build window when it happens again), and M12 once the Developer ID is there.
 
+**B167 (2026-11-23, decided, next session): chrono → jiff.** After the push of 0.7.4 `cargo deny` failed on
+RUSTSEC-2026-0543 ("chrono is unmaintained", no safe upgrade; jiff or time suggested) – CI on main is red for that
+alone (fmt, clippy, tests, Linux host, flakes, licences pass). Maintainer: replace chrono with jiff completely (core,
+omaf, TUI, the Linux app), not ignore the advisory. Also seen: async-executor 1.14.0 is yanked (through zbus) – a
+warning, `cargo update -p async-executor` with the age rule (scripts/check-age.py).
+
 **Release 0.7.4 (2026-11-23):** B159 (`path:` references with a space), B160 (setup by one click, user-level: Nix with
 one administrator question, omaflake's own Linux builder as a LaunchAgent, Nix in ~/.zshrc, omaflake's SSH key, every
 step visible), B161 (MIDI in macOS and NixOS guests on both hosts, timestamps, UMP endpoints, the pair named after the
