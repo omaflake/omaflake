@@ -242,6 +242,8 @@ impl QemuRuntime {
         }
         let mut cmd = QemuCommand::new(&self.firmware, ip.clone(), share, display);
         cmd.networks = crate::networks::Networks::new(self.paths.clone()).prepare(&config.name)?;
+        // Which network has which port while it runs (plan B179: joining and leaving while it runs)
+        crate::networks::live::LiveCards::new(&self.paths, &config.name).started(&cmd.networks)?;
         cmd.target = target;
         cmd.gl = gl;
         cmd.capabilities = caps;

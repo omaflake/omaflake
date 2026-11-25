@@ -48,7 +48,16 @@ impl QmpClient {
     /// Sends `{"execute": command}` and returns `return` (an empty object when missing); QMP errors are errors
     /// ("QMP <command>: <desc>").
     pub fn execute(&mut self, command: &str) -> Result<Value> {
-        let mut line = serde_json::to_vec(&serde_json::json!({ "execute": command }))?;
+        self.execute_with(command, None)
+    }
+
+    /// `execute` with `arguments`
+    pub fn execute_with(&mut self, command: &str, arguments: Option<Value>) -> Result<Value> {
+        let mut message = serde_json::json!({ "execute": command });
+        if let Some(a) = arguments {
+            message["arguments"] = a;
+        }
+        let mut line = serde_json::to_vec(&message)?;
         line.push(b'\n');
         self.stream.write_all(&line).map_err(|_| vm_err!("QMP: send failed"))?;
         loop {
@@ -63,6 +72,11 @@ impl QmpClient {
             }
             return Ok(msg.remove("return").unwrap_or_else(|| Value::Object(Map::new())));
         }
+    }
+
+    /// The events seen so far (names), oldest first – taken out
+    pub fn take_events(&mut self) -> Vec<String> {
+        std::mem::take(&mut self.events)
     }
 
     /// `query-status` → e.g. "running", "paused", "shutdown" ("unknown" without a status)

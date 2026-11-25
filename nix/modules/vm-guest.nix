@@ -77,6 +77,20 @@ in
       options = [ "umask=077" ];
     };
 
+    # Names in omaflake's networks (plan B179): the switch answers mDNS for "<vm>.<network>.local"; glibc asks over
+    # mDNS through nss-mdns (macOS guests do it by themselves)
+    services.avahi = {
+      enable = lib.mkDefault true;
+      nssmdns4 = lib.mkDefault true;
+    };
+    # mdns4_minimal resolves only "<host>.local" (two labels, nss-mdns util.c `label_count(name) == 2`); the full
+    # module after DNS takes any name in .local that /etc/mdns.allow allows
+    system.nssDatabases.hosts = lib.mkAfter [ "mdns4" ];
+    environment.etc."mdns.allow".text = ''
+      .local.
+      .local
+    '';
+
     # Upgrading a running VM in place (plan B178): omaflake copies the newer image's system in over SSH and switches to
     # it – these two commands, and only these, without a password for wheel (its user could do it with one anyway)
     security.sudo.extraRules = [{

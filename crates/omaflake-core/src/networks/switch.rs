@@ -482,6 +482,14 @@ impl Switch {
             self.table.insert(src, from);
         }
         let own = self.network.switch_mac();
+        // Names of the network's VMs (plan B179): "<vm>.<network>.local" over mDNS – the query still goes to all
+        if dst == packets::MDNS_MAC
+            && let Some(reply) = self.mdns(frame)
+        {
+            for i in 0..self.ports.len() {
+                self.send(i, &reply);
+            }
+        }
         if dst == BROADCAST || dst == own {
             if let Some(reply) = self.answer(frame) {
                 self.send(from, &reply);
@@ -539,6 +547,26 @@ impl Switch {
             broadcast: self.network.address(255),
         };
         Some(answer.frame(&m, reply))
+    }
+
+    /// The switch's answer to an mDNS query for "<vm>.<network>.local" of one of the network's VMs (plan B179)
+    fn mdns(&self, frame: &[u8]) -> Option<Vec<u8>> {
+        let q = packets::mdns_query(frame)?;
+        let suffix = format!(".{}.local", self.network.name.to_lowercase());
+        let answers: Vec<(String, std::net::Ipv4Addr)> = q
+            .questions
+            .iter()
+            .filter(|(_, kind)| packets::asks_address(*kind))
+            .filter_map(|(name, _)| {
+                let vm = name.strip_suffix(&suffix)?;
+                let (_, host) = self.network.members.iter().find(|(m, _)| m.to_lowercase() == vm)?;
+                Some((name.clone(), self.network.address(*host)))
+            })
+            .collect();
+        if answers.is_empty() {
+            return None;
+        }
+        Some(packets::mdns_answer(&q, &answers, self.network.switch_address(), self.network.switch_mac()))
     }
 
     /// Indices shift when a port goes: the table is rebuilt from the ports' own MACs
@@ -751,6 +779,36 @@ mod tests {
         v1.send(&raw(BROADCAST, m_mac1, "all"));
         assert_eq!(q.frames(wait).len(), 1);
         assert_eq!(v2.frames(wait).len(), 1);
+
+        // A name over mDNS (plan B179): mac1 asks for "Docker.dev.local", the switch answers with docker's address
+        let mut dns = vec![0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0];
+        dns.extend_from_slice(&packets::dns_name_bytes("Docker.dev.local"));
+        dns.extend_from_slice(&[0, 1, 0, 1]);
+        let mut udp = vec![0x14, 0xe9, 0x14, 0xe9];
+        udp.extend_from_slice(&((8 + dns.len()) as u16).to_be_bytes());
+        udp.extend_from_slice(&[0, 0]);
+        udp.extend_from_slice(&dns);
+        let mut query = packets::ethernet_header(packets::MDNS_MAC, m_mac1, packets::ETHERTYPE_IPV4);
+        query.extend_from_slice(&packets::ipv4_header_ttl(
+            Ipv4Addr::new(10, 231, 1, 11),
+            packets::MDNS_GROUP,
+            17,
+            udp.len(),
+            255,
+        ));
+        query.extend_from_slice(&udp);
+        v1.send(&query);
+        let answer = v1.frames(wait).into_iter().find(|f| f[6..12] == net.switch_mac()).expect("an answer");
+        assert_eq!(&answer[answer.len() - 4..], &[10, 231, 1, 10]);
+        // The others see the query and the answer; a name of no member gets none
+        assert_eq!(q.frames(wait).len(), 2);
+        let _ = v2.frames(wait);
+        let mut other = query.clone();
+        let at = 14 + 20 + 8 + 12 + 1;
+        other[at..at + 6].copy_from_slice(b"nobody");
+        v1.send(&other);
+        assert!(v1.frames(Duration::from_millis(200)).is_empty());
+        let _ = (q.frames(wait), v2.frames(wait));
 
         std::thread::sleep(Duration::from_millis(2100));
         // The switch runs in this test's process – its pid file names the test binary

@@ -1839,3 +1839,4 @@
 "The password of your user in the guests, kept in the keychain: omaflake creates macOS bases and builds macOS images with it, so you never type it there. Copy it from Credentials whenever a guest asks." = "Das Passwort deines Benutzers in den Gästen, im Schlüsselbund aufbewahrt: omaflake legt damit macOS-Bases an und baut macOS-Images, du tippst es dort also nie. Kopiere es unter Zugangsdaten, wann immer ein Gast danach fragt.";
 "Guided Setup …" = "Geführte Einrichtung …";
 "NixOS and macOS VMs" = "NixOS- und macOS-VMs";
+"The VM did not let its card in \"%@\" go: %@" = "Die VM hat ihre Karte in „%1$@“ nicht freigegeben: %2$@";

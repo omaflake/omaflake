@@ -937,10 +937,19 @@ Bind mounts: `/Volumes/My Shared Files` in the Docker VM links to `/mnt/share`, 
 macOS VM works when both VMs share the same host folder. Ports published by containers are reached at the Docker VM's
 address, not at the client's `localhost`.
 
+**Names (plan B179).** The switch answers mDNS queries (224.0.0.251:5353, RFC 6762) for `<vm>.<network>.local` of
+its members with their addresses – the guests' own DNS stays as it is. macOS resolves any `.local` name over mDNS by
+itself; NixOS guests get Avahi with nss-mdns (vm-guest.nix), and since `mdns4_minimal` takes only two-label names, the
+full `mdns4` after DNS with `/etc/mdns.allow` (`.local`).
+
+**Joining while it runs (plan B179).** QEMU starts every NixOS VM with four `pcie-root-port`s on the network slots
+(the root bus takes no card while running); joining plugs a card into a free one over QMP (`netdev_add`,
+`device_add`), leaving unplugs it; `<instance>/run/lan.json` keeps which network has which port. macOS VMs change their
+cards at the next start (Virtualization.framework takes no device while a VM runs).
+
 **Later (OPEN).** Rules per network (internet, host access) and `isolated` for macOS VMs (BM27) – a gateway on the
-switch (e.g. gvproxy as one port); DNS names for members (`<vm>.<network>.omaf`); ports forwarded to a client's
-`localhost`; a VM joining while it runs (today: from its next start); the graph's editing by dragging; throughput
-measured against VZ's NAT.
+switch (e.g. gvproxy as one port); ports forwarded to a client's `localhost`; the graph's editing by dragging;
+throughput measured against VZ's NAT.
 
 ### 11.4 Prerequisites for release
 

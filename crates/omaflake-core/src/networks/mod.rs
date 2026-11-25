@@ -14,6 +14,7 @@
 //! membership is kept (a VM's package does not carry it: a network belongs to this computer). Runtime files live in
 //! `<data>/run/net/<name>/`: `qemu.sock`, `vz.sock`, `switch.pid`, `switch.log`, `status.json`.
 
+pub mod live;
 pub mod packets;
 pub mod switch;
 
@@ -333,12 +334,28 @@ impl Networks {
         if cards.is_empty() {
             return Ok(cards);
         }
-        let omaf = crate::cli_link::CliLink::running_omaf()
+        self.ensure_switches(vm, &Self::omaf()?)?;
+        Ok(cards)
+    }
+
+    /// The `omaf` that serves the switches (this omaflake's own CLI)
+    fn omaf() -> Result<String> {
+        crate::cli_link::CliLink::running_omaf()
             .map(|p| path_text(&p))
             .or_else(|| crate::shell::Shell::which("omaf").ok())
-            .ok_or_else(|| vm_err!(codes::PREREQUISITE, "omaf not found – it runs the networks' switches"))?;
-        self.ensure_switches(vm, &omaf)?;
-        Ok(cards)
+            .ok_or_else(|| vm_err!(codes::PREREQUISITE, "omaf not found – it runs the networks' switches"))
+    }
+
+    /// A running NixOS VM that joined `name` gets its card now (plan B179): the switch started, the card plugged in
+    pub fn plug(&self, name: &str, vm: &str) -> Result<()> {
+        let Some(card) = self.attachments(vm).into_iter().find(|c| c.network == name) else { return Ok(()) };
+        self.ensure_switch(name, &Self::omaf()?)?;
+        live::LiveCards::new(&self.paths, vm).attach(&card)
+    }
+
+    /// A running NixOS VM that left `name` loses its card now (plan B179)
+    pub fn unplug(&self, name: &str, vm: &str) -> Result<()> {
+        live::LiveCards::new(&self.paths, vm).detach(name)
     }
 
     pub fn ensure_switch(&self, name: &str, omaf: &str) -> Result<()> {

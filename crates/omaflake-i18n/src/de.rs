@@ -1309,6 +1309,7 @@ pub static DE: &[(&str, &str)] = &[
     ("The Linux builder still refuses this Mac's builds after a new disk – the cause is elsewhere (OPEN, plan B175)", "Der Linux-Builder lehnt die Builds dieses Macs auch mit neuer Festplatte ab – die Ursache liegt woanders (OFFEN, Plan B175)"),
     ("The VM", "Die VM"),
     ("The VM and its disk are deleted and cannot be restored. Its share folder is kept if it holds files.", "Die VM und ihre Festplatte werden gelöscht und können nicht wiederhergestellt werden. Ihr Freigabe-Ordner bleibt, wenn Dateien darin liegen."),
+    ("The VM did not let its card in \"%@\" go: %@", "Die VM hat ihre Karte in „%1$@“ nicht freigegeben: %2$@"),
     ("The VM runs from %@ – it is deleted there and cannot be restored. Its share folder is kept if it holds files. To keep it there, choose Stop Listing instead.", "Die VM läuft von %@ – sie wird dort gelöscht und kann nicht wiederhergestellt werden. Ihr Freigabe-Ordner bleibt, wenn er Dateien enthält. Um sie dort zu behalten, wähle stattdessen „Nicht mehr anzeigen“."),
     ("The VM's image %@ is missing – import the image (or a package with it) first", "Die Vorlage der VM, %@, fehlt – importiere zuerst die Vorlage (oder ein Paket mit ihr)"),
     ("The accent hardly stands out from the background (contrast %@ – at least 3)", "Der Akzent hebt sich kaum vom Hintergrund ab (Kontrast %@ – mindestens 3)"),

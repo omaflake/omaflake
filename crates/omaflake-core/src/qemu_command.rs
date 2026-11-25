@@ -318,9 +318,14 @@ impl QemuCommand {
             ]),
             NetworkMode::None => a.extend(["-nic".into(), "none".into()]),
         }
+        // A port per network slot (plan B179): the root bus takes no card while the VM runs ("Bus 'pcie.0' does not
+        // support hotplugging", QEMU 11.1.2), a pcie-root-port does – so a VM can join a network while it runs
+        for (i, at) in slot::NETWORKS.iter().enumerate() {
+            a.extend(["-device".into(), format!("pcie-root-port,id=lanport{i},chassis={},addr={at}", 10 + i)]);
+        }
         // A second card per network: a stream socket to the network's switch, which may come up after QEMU (it is
         // started first; reconnect-ms covers a switch that restarts – QEMU 11.1.2 qapi/net.json, since 9.2)
-        for (i, (n, at)) in self.networks.iter().zip(slot::NETWORKS).enumerate() {
+        for (i, n) in self.networks.iter().take(slot::NETWORKS.len()).enumerate() {
             a.extend([
                 "-netdev".into(),
                 format!(
@@ -328,7 +333,7 @@ impl QemuCommand {
                     n.qemu_socket.to_string_lossy().replace(',', ",,")
                 ),
                 "-device".into(),
-                format!("virtio-net-pci,netdev=lan{i},mac={},addr={at}", mac_text(&n.mac)),
+                format!("virtio-net-pci,netdev=lan{i},mac={},bus=lanport{i},id=lancard{i}", mac_text(&n.mac)),
             ]);
         }
 
@@ -497,8 +502,12 @@ mod tests {
             ],
             "the VM's own NAT can be off; a comma in the path is doubled"
         );
-        assert!(has(&a, "-device", "virtio-net-pci,netdev=lan0,mac=02:6f:6d:01:0a:00,addr=0xa"));
-        assert!(has(&a, "-device", "virtio-net-pci,netdev=lan1,mac=02:6f:6d:02:0a:00,addr=0xb"));
+        assert!(has(&a, "-device", "virtio-net-pci,netdev=lan0,mac=02:6f:6d:01:0a:00,bus=lanport0,id=lancard0"));
+        assert!(has(&a, "-device", "virtio-net-pci,netdev=lan1,mac=02:6f:6d:02:0a:00,bus=lanport1,id=lancard1"));
+        // Four ports, used or not: a network joined while the VM runs takes a free one (plan B179)
+        for (i, at) in ["0xa", "0xb", "0xc", "0xd"].iter().enumerate() {
+            assert!(has(&a, "-device", &format!("pcie-root-port,id=lanport{i},chassis={},addr={at}", 10 + i)));
+        }
         assert_eq!(values(&a, "-nic"), ["none"]);
     }
 
@@ -687,6 +696,15 @@ mod tests {
             "user,id=n0,hostfwd=tcp:127.0.0.1:2230-:22",
             "-device",
             "virtio-net-pci,netdev=n0,addr=0x4",
+            // The network slots' ports, empty until a VM joins one (plan B179)
+            "-device",
+            "pcie-root-port,id=lanport0,chassis=10,addr=0xa",
+            "-device",
+            "pcie-root-port,id=lanport1,chassis=11,addr=0xb",
+            "-device",
+            "pcie-root-port,id=lanport2,chassis=12,addr=0xc",
+            "-device",
+            "pcie-root-port,id=lanport3,chassis=13,addr=0xd",
             "-fsdev",
             "local,id=fs0,path=/vm/share/t1,security_model=mapped-xattr",
             "-device",

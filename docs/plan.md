@@ -488,6 +488,21 @@ Lume (trycua) only after a license review (OPEN).
 
 ## 8. Next steps (as of 2026-11-25)
 
+**B179 (2026-11-25, built for 0.8.0; the guests OPEN): names in networks, joining while running.** From spec §11.12's
+"later". *Names:* the switch answers mDNS queries for `<vm>.<network>.local` (`packets::mdns_query`/`mdns_answer`:
+names with compression pointers, A and ANY, TTL 120, to the group with cache-flush from port 5353, a legacy query from
+another port to the asker with its ID and question, IP TTL 255); members come from networks.json, which the switch
+reads every 5 s. NixOS guests: Avahi with nss-mdns; read in nss-mdns' source (util.c): `mdns4_minimal` takes only
+`<host>.local` (`label_count(name) == 2`) and returns UNAVAIL for other names, so `mdns4` after DNS with
+`/etc/mdns.allow` (`.local`) resolves three labels. Tests: the packets, and a switch with three cards (a query from a
+macOS card answered with the Docker VM's address; no answer for a name of no member). *Joining while running:* every
+NixOS VM starts with four `pcie-root-port`s (0xa–0xd, chassis 10–13) and its cards behind them (`bus=lanport<i>,
+id=lancard<i>`); `networks.join`/`leave` of a running NixOS VM plug and unplug over QMP (`LiveCards`, run/lan.json; the
+answer says `now`), a macOS VM still at its next start. Checked against QEMU 11.1.2 (TCG, no guest, in this macOS VM):
+`device_add` on `pcie.0` is refused ("does not support hotplugging"), on a root port taken; `LiveCards::attach`/`detach`
+against a real QEMU (`OMAF_TEST_QEMU`). OPEN: both in running guests (NetworkManager bringing up a plugged card, the
+names from a macOS and a NixOS guest).
+
 **B178 (2026-11-25, built for 0.8.0; the Mac OPEN): upgrade a VM in place.** Until now an upgrade gave a VM a fresh
 disk from the new image – everything in it gone. Now `vms.upgrade {keep: true}` (a job, `vm-upgrade`; "Upgrade, Keep
 Files …" in a running VM's details; `omaf upgrade --keep`): `InPlace` (`in_place.rs`) builds the new image's system

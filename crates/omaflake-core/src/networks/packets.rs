@@ -55,7 +55,7 @@ pub fn is_group(mac: &Mac) -> bool {
     mac[0] & 1 == 1
 }
 
-fn ethernet_header(dst: Mac, src: Mac, ethertype: u16) -> Vec<u8> {
+pub(crate) fn ethernet_header(dst: Mac, src: Mac, ethertype: u16) -> Vec<u8> {
     let mut f = Vec::with_capacity(342);
     f.extend_from_slice(&dst);
     f.extend_from_slice(&src);
@@ -77,11 +77,15 @@ pub fn checksum(data: &[u8]) -> u16 {
 }
 
 fn ipv4_header(src: Ipv4Addr, dst: Ipv4Addr, protocol: u8, payload_len: usize) -> [u8; 20] {
+    ipv4_header_ttl(src, dst, protocol, payload_len, 64)
+}
+
+pub(crate) fn ipv4_header_ttl(src: Ipv4Addr, dst: Ipv4Addr, protocol: u8, payload_len: usize, ttl: u8) -> [u8; 20] {
     let total = (20 + payload_len) as u16;
     let mut h = [0u8; 20];
     h[0] = 0x45;
     h[2..4].copy_from_slice(&total.to_be_bytes());
-    h[8] = 64;
+    h[8] = ttl;
     h[9] = protocol;
     h[12..16].copy_from_slice(&src.octets());
     h[16..20].copy_from_slice(&dst.octets());
@@ -319,6 +323,132 @@ pub fn dhcp_reply(m: &DhcpMessage, server: Ipv4Addr, client: Ipv4Addr) -> Option
     }
 }
 
+// MARK: mDNS (plan B179)
+
+/// mDNS (RFC 6762): the group 224.0.0.251, its Ethernet address and port 5353
+pub const MDNS_GROUP: Ipv4Addr = Ipv4Addr::new(224, 0, 0, 251);
+pub const MDNS_MAC: Mac = [0x01, 0x00, 0x5e, 0x00, 0x00, 0xfb];
+pub const MDNS_PORT: u16 = 5353;
+const DNS_TYPE_A: u16 = 1;
+const DNS_TYPE_ANY: u16 = 255;
+
+/// The questions of an mDNS query: each name (lowercase, without the final dot) and its type
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct MdnsQuery {
+    pub id: u16,
+    pub questions: Vec<(String, u16)>,
+    pub src_ip: Ipv4Addr,
+    pub src_port: u16,
+    pub src_mac: Mac,
+}
+
+/// The name at `at` of a DNS message (labels, compression pointers) and where it ends; None for a broken one
+fn dns_name(msg: &[u8], mut at: usize) -> Option<(String, usize)> {
+    let mut labels: Vec<String> = Vec::new();
+    let mut end = None;
+    for _ in 0..64 {
+        let len = *msg.get(at)? as usize;
+        if len == 0 {
+            return Some((labels.join("."), end.unwrap_or(at + 1)));
+        }
+        if len & 0xc0 == 0xc0 {
+            let to = (len & 0x3f) << 8 | *msg.get(at + 1)? as usize;
+            end.get_or_insert(at + 2);
+            at = to;
+            continue;
+        }
+        let label = msg.get(at + 1..at + 1 + len)?;
+        labels.push(String::from_utf8_lossy(label).to_lowercase());
+        at += 1 + len;
+    }
+    None
+}
+
+/// An mDNS query in a frame: UDP to port 5353, a query (QR 0) with questions; None for anything else
+pub fn mdns_query(frame: &[u8]) -> Option<MdnsQuery> {
+    let (_dst, src, ethertype) = ethernet(frame)?;
+    if ethertype != ETHERTYPE_IPV4 {
+        return None;
+    }
+    let (src_ip, _dst_ip, protocol, udp) = ipv4(frame)?;
+    if protocol != IPPROTO_UDP || udp.len() < 8 + 12 {
+        return None;
+    }
+    let src_port = u16::from_be_bytes([udp[0], udp[1]]);
+    if u16::from_be_bytes([udp[2], udp[3]]) != MDNS_PORT {
+        return None;
+    }
+    let msg = &udp[8..];
+    if msg[2] & 0x80 != 0 {
+        return None; // a response
+    }
+    let count = u16::from_be_bytes([msg[4], msg[5]]);
+    let mut at = 12;
+    let mut questions = Vec::new();
+    for _ in 0..count {
+        let (name, end) = dns_name(msg, at)?;
+        let kind = u16::from_be_bytes([*msg.get(end)?, *msg.get(end + 1)?]);
+        questions.push((name, kind));
+        at = end + 4;
+    }
+    Some(MdnsQuery { id: u16::from_be_bytes([msg[0], msg[1]]), questions, src_ip, src_port, src_mac: src })
+}
+
+/// Whether a question asks for an address (A or ANY)
+pub fn asks_address(kind: u16) -> bool {
+    kind == DNS_TYPE_A || kind == DNS_TYPE_ANY
+}
+
+pub(crate) fn dns_name_bytes(name: &str) -> Vec<u8> {
+    let mut b = Vec::with_capacity(name.len() + 2);
+    for label in name.split('.').filter(|l| !l.is_empty()) {
+        let l = &label.as_bytes()[..label.len().min(63)];
+        b.push(l.len() as u8);
+        b.extend_from_slice(l);
+    }
+    b.push(0);
+    b
+}
+
+/// The switch's answer to `q`: an A record per (name, address), TTL 120. To the group from port 5353 (cache-flush set),
+/// or – a legacy query from another port – to the asker with its ID and its questions (RFC 6762 §6.7)
+pub fn mdns_answer(q: &MdnsQuery, answers: &[(String, Ipv4Addr)], server_ip: Ipv4Addr, server_mac: Mac) -> Vec<u8> {
+    let legacy = q.src_port != MDNS_PORT;
+    let mut m = Vec::new();
+    m.extend_from_slice(&(if legacy { q.id } else { 0 }).to_be_bytes());
+    m.extend_from_slice(&[0x84, 0x00]); // response, authoritative
+    let asked: Vec<&(String, u16)> = if legacy { q.questions.iter().collect() } else { vec![] };
+    m.extend_from_slice(&(asked.len() as u16).to_be_bytes());
+    m.extend_from_slice(&(answers.len() as u16).to_be_bytes());
+    m.extend_from_slice(&[0, 0, 0, 0]);
+    for (name, kind) in asked {
+        m.extend_from_slice(&dns_name_bytes(name));
+        m.extend_from_slice(&kind.to_be_bytes());
+        m.extend_from_slice(&[0, 1]);
+    }
+    for (name, ip) in answers {
+        m.extend_from_slice(&dns_name_bytes(name));
+        m.extend_from_slice(&DNS_TYPE_A.to_be_bytes());
+        m.extend_from_slice(&(if legacy { 0x0001u16 } else { 0x8001 }).to_be_bytes());
+        m.extend_from_slice(&120u32.to_be_bytes());
+        m.extend_from_slice(&[0, 4]);
+        m.extend_from_slice(&ip.octets());
+    }
+    let (dst_ip, dst_port, dst_mac) =
+        if legacy { (q.src_ip, q.src_port, q.src_mac) } else { (MDNS_GROUP, MDNS_PORT, MDNS_MAC) };
+    let mut udp = Vec::with_capacity(8 + m.len());
+    udp.extend_from_slice(&MDNS_PORT.to_be_bytes());
+    udp.extend_from_slice(&dst_port.to_be_bytes());
+    udp.extend_from_slice(&((8 + m.len()) as u16).to_be_bytes());
+    udp.extend_from_slice(&[0, 0]); // no UDP checksum (allowed over IPv4)
+    udp.extend_from_slice(&m);
+    let mut f = ethernet_header(dst_mac, server_mac, ETHERTYPE_IPV4);
+    // mDNS packets carry TTL 255 (RFC 6762 §11)
+    f.extend_from_slice(&ipv4_header_ttl(server_ip, dst_ip, IPPROTO_UDP, udp.len(), 255));
+    f.extend_from_slice(&udp);
+    f
+}
+
 #[cfg(test)]
 pub(crate) mod tests {
     use super::*;
@@ -492,5 +622,50 @@ pub(crate) mod tests {
         assert_eq!(checksum(payload), 0, "ICMP checksum");
         assert_eq!(&payload[4..], &icmp[4..]);
         assert_eq!(ethernet(&r).unwrap().0, VM);
+    }
+
+    /// An mDNS query for "Docker.lab.local" (A) as macOS sends it, and the switch's answer to the group
+    #[test]
+    fn mdns_query_and_answer() {
+        let vm: Mac = [0x02, 0x6f, 0x6d, 1, 11, 0];
+        let mut dns = vec![0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0];
+        dns.extend_from_slice(&super::dns_name_bytes("Docker.lab.local"));
+        dns.extend_from_slice(&[0, 1, 0x80, 1]); // A, IN with the unicast-response bit
+        let mut udp = vec![0x14, 0xe9, 0x14, 0xe9];
+        udp.extend_from_slice(&((8 + dns.len()) as u16).to_be_bytes());
+        udp.extend_from_slice(&[0, 0]);
+        udp.extend_from_slice(&dns);
+        let mut f = super::ethernet_header(MDNS_MAC, vm, ETHERTYPE_IPV4);
+        f.extend_from_slice(&super::ipv4_header_ttl(Ipv4Addr::new(10, 231, 1, 11), MDNS_GROUP, 17, udp.len(), 255));
+        f.extend_from_slice(&udp);
+        let q = mdns_query(&f).unwrap();
+        assert_eq!(q.questions, [("docker.lab.local".to_string(), 1)]);
+        assert_eq!((q.src_port, q.src_mac), (MDNS_PORT, vm));
+        let docker = [("docker.lab.local".to_string(), Ipv4Addr::new(10, 231, 1, 10))];
+        let a = mdns_answer(&q, &docker, Ipv4Addr::new(10, 231, 1, 1), SERVER);
+        assert_eq!(&a[0..6], &MDNS_MAC);
+        let (src, dst, proto, payload) = ipv4(&a).unwrap();
+        assert_eq!((src, dst, proto, a[14 + 8]), (Ipv4Addr::new(10, 231, 1, 1), MDNS_GROUP, 17, 255));
+        let msg = &payload[8..];
+        assert_eq!(&msg[0..12], &[0, 0, 0x84, 0, 0, 0, 0, 1, 0, 0, 0, 0]);
+        assert_eq!(&msg[msg.len() - 4..], &[10, 231, 1, 10]);
+        assert!(mdns_query(&a).is_none(), "a response is no query");
+        // A legacy query (another port): answered to the asker, with its ID and question
+        let mut legacy = f.clone();
+        let at = 14 + 20;
+        legacy[at..at + 2].copy_from_slice(&40000u16.to_be_bytes());
+        legacy[at + 8..at + 10].copy_from_slice(&0x1234u16.to_be_bytes());
+        let lq = mdns_query(&legacy).unwrap();
+        let la = mdns_answer(&lq, &docker, Ipv4Addr::new(10, 231, 1, 1), SERVER);
+        assert_eq!(&la[0..6], &vm);
+        let (_, dst, _, payload) = ipv4(&la).unwrap();
+        assert_eq!((dst, u16::from_be_bytes([payload[2], payload[3]])), (Ipv4Addr::new(10, 231, 1, 11), 40000));
+        assert_eq!(&payload[8..12], &[0x12, 0x34, 0x84, 0]);
+        // Compression pointers in a name
+        let mut c = vec![0u8; 12];
+        c.extend_from_slice(&super::dns_name_bytes("lab.local"));
+        let p = c.len();
+        c.extend_from_slice(&[6, b'd', b'o', b'c', b'k', b'e', b'r', 0xc0, 12]);
+        assert_eq!(super::dns_name(&c, p), Some(("docker.lab.local".to_string(), p + 9)));
     }
 }

@@ -136,13 +136,32 @@ impl Server {
                 if !crate::instance_store::InstanceStore::new(self.paths(), "qemu-img").exists(&p.vm) {
                     return Err(err(crate::vm_err!(codes::NOT_FOUND, "Instance \"{}\" does not exist", p.vm)));
                 }
-                let address = crate::networks::Networks::new(self.paths()).join(&p.network, &p.vm).map_err(err)?;
+                let networks = crate::networks::Networks::new(self.paths());
+                let address = networks.join(&p.network, &p.vm).map_err(err)?;
+                // A running NixOS VM gets its card now (plan B179); a macOS VM at its next start
+                let now = self.runs_nixos(&p.vm) && {
+                    match networks.plug(&p.network, &p.vm) {
+                        Ok(()) => true,
+                        Err(e) => {
+                            self.events()
+                                .message(Level::Warning, format!("{}: {} – from its next start", p.vm, e.message()));
+                            false
+                        }
+                    }
+                };
                 self.poke();
-                Answer::of(json!({"address": address.to_string()}))
+                Answer::of(json!({"address": address.to_string(), "now": now}))
             }
             "networks.leave" => {
                 let p: NetworkMember = params(p)?;
-                crate::networks::Networks::new(self.paths()).leave(&p.network, &p.vm).map_err(err)?;
+                let networks = crate::networks::Networks::new(self.paths());
+                if self.runs_nixos(&p.vm)
+                    && let Err(e) = networks.unplug(&p.network, &p.vm)
+                {
+                    self.events()
+                        .message(Level::Warning, format!("{}: {} – gone at its next start", p.vm, e.message()));
+                }
+                networks.leave(&p.network, &p.vm).map_err(err)?;
                 self.poke();
                 Answer::of(Value::Null)
             }
@@ -964,6 +983,15 @@ impl Server {
         let s = self.clone();
         spec.on_end = Some(Box::new(move |_| s.poke()));
         Ok(Answer::Job(self.inner.jobs.submit(spec)))
+    }
+
+    /// `vm` is a NixOS VM and runs (plan B179: its cards change while it runs)
+    fn runs_nixos(&self, vm: &str) -> bool {
+        let Ok(backends) = crate::backend::Backends::new(self.paths()) else { return false };
+        backends.store.load(vm).is_ok_and(|c| {
+            c.guest_kind() == GuestKind::Nixos
+                && backends.backend_for(&c).is_ok_and(|b| b.status(&c) == VmStatus::Running)
+        })
     }
 
     fn vms_set(&self, p: SetParams) -> Reply {
