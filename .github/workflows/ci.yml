@@ -107,6 +107,8 @@ jobs:
       - name: Build
         run: swift build
       - name: Test
+        # A test that waits forever held a macOS runner for six hours and every release behind it (plan B176)
+        timeout-minutes: 15
         run: swift test
       # The bundle carries the Rust `omaf` (the app's core, `omaf serve`)
       - name: Rust toolchain from rust-toolchain.toml

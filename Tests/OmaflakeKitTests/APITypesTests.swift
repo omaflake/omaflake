@@ -5,6 +5,8 @@ import Testing
 
 /// How the DTOs decode beyond the shapes the golden files pin (APIContractTests): required fields are required, enums
 /// stay open (api.md §2), errors and events.
+/// A test that hangs fails after a minute instead of holding a CI runner for six hours (plan B176)
+@Suite(.timeLimit(.minutes(1)))
 struct APITypesTests {
     func decode<T: Decodable>(_ type: T.Type, _ json: String) throws -> T {
         try JSONDecoder.api.decode(T.self, from: Data(json.utf8))

@@ -6,6 +6,8 @@ import Testing
 @testable import OmaflakeKit
 
 /// The camera's H.264 over the agent (plan B174)
+/// A test that hangs fails after a minute instead of holding a CI runner for six hours (plan B176)
+@Suite(.timeLimit(.minutes(1)))
 struct CameraEncoderTests {
     @Test func lengthPrefixedUnitsGetStartCodesAndTheParameterSetsFirst() throws {
         let avcc: [UInt8] = [0, 0, 0, 2, 0x65, 0xAA, 0, 0, 0, 1, 0x06]

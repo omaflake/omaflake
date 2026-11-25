@@ -488,6 +488,16 @@ Lume (trycua) only after a license review (OPEN).
 
 ## 8. Next steps (as of 2026-11-25)
 
+**B176 (2026-11-25, fixed for 0.8.0): CI's macOS job hung for six hours since 0.7.4.** Every run since 2026-11-22
+stayed in `swift test` until GitHub ended it after six hours (the default limit) – and held one of the few `xcode-27`
+runners meanwhile, so the release of 0.7.6 waited behind four of them. Reproduced with
+`LIBDISPATCH_COOPERATIVE_POOL_STRICT=1` (a cooperative pool of one thread, like a runner with few cores):
+`CoreClientTests.blockingCallsForPanelDelegates` called `callBlocking` – a semaphore wait – from a task of the pool,
+so the request it waited for found no thread. The app calls it from the main thread (an open panel's delegate); the
+test now does it from a thread of its own. With a pool of one thread a few CoreClient and Diagnosis tests still wait
+for good (no thread blocked – OPEN whether that is the strict mode itself); against any hang every suite has
+`.timeLimit(.minutes(1))` and CI's Test step `timeout-minutes: 15`, so a hanging test fails by name.
+
 **Release 0.7.6 (2026-11-25):** B175 (the Linux builder that refuses the Mac's builds: recognized, checked, repaired
 – the new disk checked on the Mac) together with the camera fixes B173 (asked again after a stop) and B174 (H.264
 through VideoToolbox; vsock measured in the guest). Maintainer: "Mach zusammen mit dem Kamera-Fix … einen Release

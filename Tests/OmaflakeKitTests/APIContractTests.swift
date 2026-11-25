@@ -6,6 +6,8 @@ import Testing
 /// The contract with the Rust core: every golden file the server's tests write (crates/omaflake-core/testdata/api/,
 /// `api::contract`) decodes with this app's DTOs – strictly, required fields are never defaulted – and the values that
 /// matter arrive. The params files go the other way: what this app encodes, the server's tests parse.
+/// A test that hangs fails after a minute instead of holding a CI runner for six hours (plan B176)
+@Suite(.timeLimit(.minutes(1)))
 struct APIContractTests {
     static let folder = URL(fileURLWithPath: #filePath).deletingLastPathComponent()
         .appendingPathComponent("../../crates/omaflake-core/testdata/api").standardizedFileURL

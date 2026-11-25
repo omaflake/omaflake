@@ -6,6 +6,8 @@ import Testing
 
 /// The VM's diagnosis (plan B162): the agent link's request and answer (spec §11.9, `0x0600`/`0x0601`), the relay
 /// over a control socket, and the page model (api.md "diagnostics").
+/// A test that hangs fails after a minute instead of holding a CI runner for six hours (plan B176)
+@Suite(.timeLimit(.minutes(1)))
 struct DiagnosisTests {
     typealias Harness = AgentProtocolTests.Harness
 

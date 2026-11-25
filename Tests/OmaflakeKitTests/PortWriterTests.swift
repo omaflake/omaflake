@@ -5,6 +5,8 @@ import Testing
 @testable import OmaflakeKit
 
 /// Writing into a guest port whose writes time out: whole messages or none (plan B168).
+/// A test that hangs fails after a minute instead of holding a CI runner for six hours (plan B176)
+@Suite(.timeLimit(.minutes(1)))
 struct PortWriterTests {
     /// A socket pair as the runner makes it: our end with a send timeout (here short) and a small send buffer
     static func pair(timeout: Int32 = 100_000, buffer: Int32 = 8192) -> (ours: Int32, guest: Int32) {

@@ -100,6 +100,8 @@ final class EventLog: @unchecked Sendable {
     }
 }
 
+/// A test that hangs fails after a minute instead of holding a CI runner for six hours (plan B176)
+@Suite(.timeLimit(.minutes(1)))
 struct CoreClientTests {
     static let params = InitializeParams(client: "omaflake-macos", clientVersion: "0.3.0", language: "de",
                                          updateFeed: "https://x/update.json")
@@ -218,7 +220,11 @@ struct CoreClientTests {
         let c = client(server)
         c.start()
         struct Inspect: Decodable, Sendable { let kind: String; let valid: Bool }
-        let result = try await Task.detached { try c.callBlocking("packages.inspect", ["path": "/x"], as: Inspect.self) }.value
+        // From a thread of its own, as from the main thread of an open panel: a task of the cooperative pool must not
+        // block – with few cores (CI) the pool has no thread left for the request it waits for, and every test hangs
+        let result = try await withCheckedThrowingContinuation { (k: CheckedContinuation<Inspect, Error>) in
+            Thread { k.resume(with: Result { try c.callBlocking("packages.inspect", ["path": "/x"], as: Inspect.self) }) }.start()
+        }
         #expect(result.valid && result.kind == "vm")
         c.stop()
     }

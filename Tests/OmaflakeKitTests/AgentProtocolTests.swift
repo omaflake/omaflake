@@ -5,6 +5,8 @@ import Testing
 @testable import OmaflakeKit
 
 /// The agent protocol (spec §11.9): frames shared with the Rust agent, and the Mac side's link.
+/// A test that hangs fails after a minute instead of holding a CI runner for six hours (plan B176)
+@Suite(.timeLimit(.minutes(1)))
 struct AgentProtocolTests {
     static let vectorsFile = URL(fileURLWithPath: #filePath)
         .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
