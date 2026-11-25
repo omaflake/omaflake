@@ -572,7 +572,9 @@ no dispatch worker thread left at all (so not even the time limits fired). `Port
 on threads of the cooperative pool – that waited on a semaphore for a reader started with
 `DispatchQueue.global().asyncAfter`; with the CoreClient tests alongside, that reader found no thread. Now the reader is
 a thread of its own and every PortWriter test runs off the pool (`offPool`, shared with DiagnosisTests in
-OffPool.swift): 10 of 10 parallel runs pass.
+OffPool.swift): 10 of 10 parallel runs pass. On CI one run in two still hung afterwards (4e0917b; swift test's output
+comes only at the end there, so it does not say which test) – CI runs `swift test --no-parallel` now (0 of 6 hung here
+serially even before the fix); which test still waits in parallel on 3 cores: OPEN.
 
 **Release 0.7.6 (2026-11-25):** B175 (the Linux builder that refuses the Mac's builds: recognized, checked, repaired
 – the new disk checked on the Mac) together with the camera fixes B173 (asked again after a stop) and B174 (H.264
