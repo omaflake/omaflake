@@ -242,7 +242,7 @@ mod tests {
         assert_eq!(WORDS[2047], "zoo");
         let file = WORDS.join("\n") + "\n";
         assert_eq!(
-            hex::encode(Sha256::digest(file.as_bytes())),
+            crate::encoding::hex(Sha256::digest(file.as_bytes())),
             "2f5eed53a4727b4bf8880d8f3f199efc90e58503646d9ff8eff3a2ed3b24dbda"
         );
         assert!(WORDS.windows(2).all(|w| w[0] < w[1]), "sorted, for binary search");

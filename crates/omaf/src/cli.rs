@@ -799,6 +799,12 @@ pub struct Set {
         help = "Displays from the next start, each in a window of its own (NixOS; 1 to 4; the VM must be stopped)"
     )]
     pub displays: Option<u32>,
+    #[arg(
+        long,
+        value_name = "GB",
+        help = "A larger disk in GB (only larger; the VM must be stopped; the guest takes the space at its next start)"
+    )]
+    pub disk: Option<u32>,
 }
 
 #[derive(Debug, Args)]

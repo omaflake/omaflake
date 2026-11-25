@@ -195,7 +195,7 @@ final class CameraBridge: NSObject, AVCaptureVideoDataOutputSampleBufferDelegate
 
     /// Moving gray bars instead of the camera, at 15 fps or OMAFLAKE_CAMERA_TEST_FPS (throughput tests)
     private func startPattern() {
-        let fps = ProcessInfo.processInfo.environment["OMAFLAKE_CAMERA_TEST_FPS"].flatMap(Double.init) ?? 15
+        let fps = ProcessInfo.processInfo.environment["OMAFLAKE_CAMERA_TEST_FPS"].flatMap { Double($0) } ?? 15
         let t = DispatchSource.makeTimerSource(queue: queue)
         t.schedule(deadline: .now(), repeating: 1.0 / max(1, min(fps, 60)))
         var tick = 0

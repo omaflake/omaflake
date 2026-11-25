@@ -721,7 +721,7 @@ impl BuildVm {
 /// socket path stays within the 103 bytes a Unix socket allows
 fn build_run_folder(paths: &Paths, name: &str) -> PathBuf {
     use sha2::{Digest, Sha256};
-    let hash = hex::encode(Sha256::digest(name.as_bytes()));
+    let hash = crate::encoding::hex(Sha256::digest(name.as_bytes()));
     paths.run().join(format!("build-{}", &hash[..16]))
 }
 

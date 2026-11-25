@@ -1,5 +1,4 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-import ArgumentParser
 import Darwin
 import Foundation
 import OmaflakeKit
@@ -8,13 +7,23 @@ import OmaflakeKit
 /// on a pseudo-terminal instead of the virtio port (as in `midi-check`), an AgentLink on the other end, and a control
 /// socket in front of it as `run` and `bridge --control` have one. Each check goes through the socket
 /// (`{"command": "diagnose", "check", "args"?}`) and prints the agent's answer.
-struct DiagnoseCheck: ParsableCommand {
-    static let configuration = CommandConfiguration(
-        commandName: "diagnose-check",
-        abstract: "Check the diagnosis relay on this Mac: guest agent on a pseudo-terminal, checks over a control socket (development).")
-    @Option(help: "The omaflake-agent binary (nix/agent, cargo build)") var agent: String
-    @Option(help: "The checks to ask, comma-separated") var checks = "info,network,nonexistent-check"
-    @Option(help: "Args for every check, as a JSON object") var args: String?
+struct DiagnoseCheck: RunnerCommand {
+    static let name = "diagnose-check"
+    static let abstract = "Check the diagnosis relay on this Mac: guest agent on a pseudo-terminal, checks over a control socket (development)."
+    static let options: [Option] = [
+        .value("agent", "The omaflake-agent binary (nix/agent, cargo build)"),
+        .value("checks", "The checks to ask, comma-separated (info,network,nonexistent-check)"),
+        .value("args", "Args for every check, as a JSON object"),
+    ]
+    let agent: String
+    let checks: String
+    let args: String?
+
+    init(_ a: inout Arguments) throws {
+        agent = try a.required("agent")
+        checks = a.string("checks") ?? "info,network,nonexistent-check"
+        args = a.string("args")
+    }
 
     func run() throws {
         var argsObject: [String: Any]?

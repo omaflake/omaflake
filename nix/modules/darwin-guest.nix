@@ -138,6 +138,39 @@ in
     RunAtLoad = true;
   };
 
+  # A larger disk (plan B164): omaflake grows the VM's disk.img while it is stopped; at the next boot the system
+  # container takes the new space. A macOS VM's disk is ISC container, system container, then the fallback recovery
+  # container (Apple_APFS_Recovery, 5.4 GB, checked in a macOS 27 guest) – it sits behind the system container, so it
+  # is removed first; the paired recovery volume inside the system container stays. Only when there is new space
+  # (more than 1 GiB not in any partition). OPEN: checked on a Mac with a grown VM.
+  launchd.daemons.omaflake-grow-disk.serviceConfig = {
+    ProgramArguments = [ "/bin/sh" "${pkgs.writeText "omaflake-grow-disk.sh" ''
+      set -u
+      exec >> /var/log/omaflake-grow-disk.log 2>&1
+      x() { plutil -extract "$1" raw -o - - 2>/dev/null; }
+      container=$(diskutil info -plist / | x APFSContainerReference) || exit 0
+      store=$(diskutil apfs list -plist "$container" | x Containers.0.PhysicalStores.0.DeviceIdentifier) || exit 0
+      disk=$(diskutil info -plist "$store" | x ParentWholeDisk) || exit 0
+      total=$(diskutil info -plist "$disk" | x TotalSize) || exit 0
+      used=0; recovery=""; i=0
+      while size=$(diskutil list -plist "$disk" | x "AllDisksAndPartitions.0.Partitions.$i.Size"); do
+        used=$((used + size))
+        if [ "$(diskutil list -plist "$disk" | x "AllDisksAndPartitions.0.Partitions.$i.Content")" = Apple_APFS_Recovery ]; then
+          recovery=$(diskutil list -plist "$disk" | x "AllDisksAndPartitions.0.Partitions.$i.DeviceIdentifier")
+        fi
+        i=$((i + 1))
+      done
+      [ $((total - used)) -gt 1073741824 ] || exit 0
+      echo "$(date): $disk has $(( (total - used) >> 20 )) MiB new space; growing $store"
+      yes | diskutil repairDisk "$disk"
+      if [ -n "$recovery" ]; then
+        diskutil eraseVolume free free "$recovery" || exit 1
+      fi
+      diskutil apfs resizeContainer "$store" 0
+    ''}" ];
+    RunAtLoad = true;
+  };
+
   # Images are rebuilt deliberately – no automatic macOS updates in the guest
   system.defaults.SoftwareUpdate.AutomaticallyInstallMacOSUpdates = false;
 

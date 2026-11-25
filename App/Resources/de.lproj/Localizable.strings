@@ -1797,3 +1797,12 @@
 "Linux builder restarted with a new disk" = "Linux-Builder mit neuer Festplatte neu gestartet";
 "omaflake wants to give the Linux builder a new disk." = "omaflake möchte dem Linux-Builder eine neue Festplatte geben.";
 "Set up the Linux builder first (Linux builder → Set Up …)" = "Richte zuerst den Linux-Builder ein (Linux-Builder → Einrichten …)";
+
+/* Plan B164: a larger disk */
+"Disk: %lld GB" = "Festplatte: %lld GB";
+"Only larger. The VM takes the new space at its next start (images built with omaflake 0.8.0 or later)." = "Nur größer. Die VM nimmt den neuen Platz beim nächsten Start (Images ab omaflake 0.8.0).";
+"Only larger. The VM takes the new space at its next start." = "Nur größer. Die VM nimmt den neuen Platz beim nächsten Start.";
+"%@ is running – stop it to change its disk" = "%@ läuft – stoppe die VM, um ihre Festplatte zu ändern";
+"A disk only grows – %@ has %@ GB, %@ GB would lose data" = "Eine Festplatte wird nur größer – %1$@ hat %2$@ GB, mit %3$@ GB gingen Daten verloren";
+"%@ GB are not possible – at most %@ GB" = "%1$@ GB sind nicht möglich – höchstens %2$@ GB";
+"Growing the disk of %@ failed: %@" = "Die Festplatte von %1$@ zu vergrößern ist fehlgeschlagen: %2$@";

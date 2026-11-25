@@ -234,7 +234,6 @@ mod tests {
     use super::clipboard::tests::FakeClipboard;
     use super::*;
     use crate::agent_protocol::{AgentDecoder, AgentFrame, AgentMessage, AgentProtocol, AgentReassembler, AgentState};
-    use base64::Engine;
     use std::io::{Read, Write};
 
     /// The guest's end of the agent port
@@ -346,11 +345,11 @@ mod tests {
         clip.copy(clipboard::PNG, &png);
         let m = guest.json(AgentMessage::Clipboard);
         assert_eq!(m["mime"], clipboard::PNG);
-        assert_eq!(base64::engine::general_purpose::STANDARD.decode(m["data"].as_str().unwrap()).unwrap(), png);
+        assert_eq!(crate::encoding::from_base64(m["data"].as_str().unwrap()).unwrap(), png);
 
         // guest → host: written, and its echo (the clipboard reports the change) not sent back
         let text = "Grüße aus dem Gast";
-        let b64 = base64::engine::general_purpose::STANDARD.encode(text);
+        let b64 = crate::encoding::base64(text);
         guest.send(AgentMessage::Clipboard, serde_json::json!({"mime": clipboard::TEXT, "data": b64}));
         let deadline = Instant::now() + Duration::from_secs(5);
         while clip.written.lock().unwrap().is_empty() {
@@ -360,7 +359,7 @@ mod tests {
         assert_eq!(clip.written.lock().unwrap()[0], (clipboard::TEXT.to_string(), text.as_bytes().to_vec()));
         clip.copy(clipboard::TEXT, b"next");
         let m = guest.json(AgentMessage::Clipboard);
-        assert_eq!(m["data"], base64::engine::general_purpose::STANDARD.encode("next"), "the echo was skipped");
+        assert_eq!(m["data"], crate::encoding::base64("next"), "the echo was skipped");
     }
 
     #[test]

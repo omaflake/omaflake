@@ -1,5 +1,4 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-import ArgumentParser
 import CoreMIDI
 import Darwin
 import Foundation
@@ -10,15 +9,29 @@ import OmaflakeKit
 /// device. Notes go Mac → guest and guest → Mac through CoreMIDI on both sides; prints what arrived and how long it
 /// took. Then the timestamps (plan B161, C7): notes stamped at an even spacing but sent with up to 1.5 ms of extra jitter
 /// must arrive with time stamps that keep the spacing – the receiving side's clock mapping takes up to 2 ms of jitter.
-struct MIDICheck: ParsableCommand {
-    static let configuration = CommandConfiguration(
-        commandName: "midi-check",
-        abstract: "Check the MIDI bridge on this Mac: guest agent on a pseudo-terminal, notes both ways (development).")
-    @Option(help: "The omaflake-agent binary (nix/agent, cargo build)") var agent: String
-    @Option(help: "Notes per direction") var count = 200
-    @Option(help: "Milliseconds between notes") var interval = 5
-    @Option(help: "Notes per direction for the timestamp check") var stampedCount = 100
-    @Option(help: "Extra jitter (microseconds, at most) the timestamp check adds before sending each note") var jitter = 500
+struct MIDICheck: RunnerCommand {
+    static let name = "midi-check"
+    static let abstract = "Check the MIDI bridge on this Mac: guest agent on a pseudo-terminal, notes both ways (development)."
+    static let options: [Option] = [
+        .value("agent", "The omaflake-agent binary (nix/agent, cargo build)"),
+        .value("count", "Notes per direction (200)"),
+        .value("interval", "Milliseconds between notes (5)"),
+        .value("stamped-count", "Notes per direction for the timestamp check (100)"),
+        .value("jitter", "Extra jitter (microseconds, at most) the timestamp check adds before sending each note (500)"),
+    ]
+    let agent: String
+    let count: Int
+    let interval: Int
+    let stampedCount: Int
+    let jitter: Int
+
+    init(_ a: inout Arguments) throws {
+        agent = try a.required("agent")
+        count = try a.int("count", default: 200)
+        interval = try a.int("interval", default: 5)
+        stampedCount = try a.int("stamped-count", default: 100)
+        jitter = try a.int("jitter", default: 500)
+    }
 
     func run() throws {
         let check = try Check(agent: url(agent).path, count: count, interval: interval, stampedCount: stampedCount, jitter: jitter)

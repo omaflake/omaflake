@@ -16,9 +16,6 @@ let package = Package(
         .executable(name: "omaf-runner", targets: ["omaf-runner"]),
         .executable(name: "OmaflakeApp", targets: ["OmaflakeApp"]),
     ],
-    dependencies: [
-        .package(url: "https://github.com/apple/swift-argument-parser.git", from: "1.8.0"),
-    ],
     targets: [
         // The Swift side of omaflake: the client of the Rust core (`omaf serve`, docs/api.md) with its types, what
         // omaf-runner needs (agent protocol, macOS VM bundle, sockets) and the brand images. The logic lives in the
@@ -27,10 +24,8 @@ let package = Package(
         // One process per macOS guest (Virtualization.framework); sign with scripts/sign-runner.sh
         .executableTarget(
             name: "omaf-runner",
-            dependencies: [
-                "OmaflakeKit",
-                .product(name: "ArgumentParser", package: "swift-argument-parser"),
-            ],
+            // No packages of others: its command line is its own (Arguments.swift, plan B177)
+            dependencies: ["OmaflakeKit"],
             linkerSettings: [
                 .linkedFramework("Virtualization"), .linkedFramework("AppKit"), .linkedFramework("AVFoundation"),
                 .linkedFramework("CoreMedia"), .linkedFramework("CoreVideo"),

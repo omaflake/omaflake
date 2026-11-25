@@ -28,9 +28,7 @@ SECURITY_FIXES: dict = {
 # omaflake's own exceptions: a version younger than two weeks that the code needs, with the reason and the date it is
 # two weeks old – remove the entry then.
 NEEDED: dict = {
-    ("ureq", "3.5.0"): "timeout_per_read (ipsw_downloader.rs: a stall timeout for the IPSW download) – 2026-11-04",
-    ("ureq-proto", "0.6.5"): "required by ureq 3.5.0 – 2026-10-31",
-    ("webpki-roots", "1.0.11"): "ureq 3.5.0 requires >= 1.0.10, also young – 2026-11-06",
+    # ("crate", "1.2.3"): "why the code needs it – the date it is two weeks old",
 }
 HEADERS = {"User-Agent": "omaflake check-age (https://github.com/omaflake/omaflake)"}
 

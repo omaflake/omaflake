@@ -23,9 +23,6 @@ use std::process::{Child, ChildStdout, Command, Stdio};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
-use base64::Engine;
-use base64::engine::general_purpose::STANDARD as BASE64;
-
 use crate::Log;
 use crate::agent_protocol::{AgentMessage, AgentProtocol, AgentSender};
 
@@ -106,7 +103,7 @@ impl ClipboardBridge {
             s.sent = Some(fp);
             sender
         };
-        let json = serde_json::json!({ "mime": mime, "data": BASE64.encode(&data) });
+        let json = serde_json::json!({ "mime": mime, "data": crate::encoding::base64(&data) });
         if sender.send(AgentMessage::Clipboard, json.to_string().as_bytes()) && debug() {
             (self.log)(&format!("clipboard: sent {mime} {} bytes", data.len()));
         }

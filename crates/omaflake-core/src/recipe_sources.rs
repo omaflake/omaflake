@@ -99,7 +99,7 @@ impl RecipeSource {
 
     /// Swift `tag(forKey:)`
     pub fn tag_for_key(key: &str) -> String {
-        hex::encode(&Sha256::digest(key.as_bytes())[..4])
+        crate::encoding::hex(&Sha256::digest(key.as_bytes())[..4])
     }
 
     pub fn is_enabled(&self) -> bool {
@@ -314,13 +314,13 @@ pub(crate) fn uuid() -> String {
     }
     b[6] = (b[6] & 0x0f) | 0x40;
     b[8] = (b[8] & 0x3f) | 0x80;
-    let h = hex::encode_upper(b);
+    let h = crate::encoding::hex_upper(b);
     format!("{}-{}-{}-{}-{}", &h[..8], &h[8..12], &h[12..16], &h[16..20], &h[20..])
 }
 
 /// SHA-256 as lowercase hex
 fn sha256_hex(data: &[u8]) -> String {
-    hex::encode(Sha256::digest(data))
+    crate::encoding::hex(Sha256::digest(data))
 }
 
 /// Swift's `.whitespaces` (spaces and tabs, no line breaks)
@@ -415,7 +415,7 @@ impl CatalogRecipe {
             hasher.update([0u8]);
             hasher.update(Self::bytes(&f.sha256.to_lowercase()));
         }
-        hex::encode(hasher.finalize())
+        crate::encoding::hex(hasher.finalize())
     }
 
     /// Hex → bytes, pair by pair (Swift `bytes(hex:)`): a pair that is not hex is skipped, a single last digit ignored
@@ -1232,7 +1232,7 @@ impl RecipeLibrary {
             hasher.update([0u8]);
             hasher.update(Sha256::digest(&data));
         }
-        Ok(hex::encode(hasher.finalize()))
+        Ok(crate::encoding::hex(hasher.finalize()))
     }
 
     /// A recipe version this omaflake builds
@@ -1532,7 +1532,7 @@ impl RecipeLibrary {
             hasher.update(Sha256::digest(&data));
             contents.push((rel, data));
         }
-        let hash = hex::encode(&hasher.finalize()[..10]);
+        let hash = crate::encoding::hex(&hasher.finalize()[..10]);
         let root = self.paths.cache().join("recipes");
         let target = root.join(&hash);
         if target.exists() {

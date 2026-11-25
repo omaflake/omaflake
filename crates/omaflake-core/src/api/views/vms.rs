@@ -340,6 +340,21 @@ fn detail(ctx: &Ctx, v: &Vm) -> VmDetail {
             limits.max_memory_gb,
         ),
     ];
+    // A larger disk (plan B164): only up, never down; the guest takes the space at its next boot
+    fields.push(
+        resource(
+            "diskGb",
+            tf!("Disk: %lld GB", v.disk_gb),
+            v.disk_gb,
+            v.disk_gb,
+            crate::instance_store::InstanceStore::MAX_DISK_GB,
+        )
+        .help(Text::new(if mac {
+            "Only larger. The VM takes the new space at its next start (images built with omaflake 0.8.0 or later)."
+        } else {
+            "Only larger. The VM takes the new space at its next start."
+        })),
+    );
     // More monitors, each in a window of its own (plan B171); macOS VMs have one (Virtualization.framework)
     if !mac {
         fields.push(

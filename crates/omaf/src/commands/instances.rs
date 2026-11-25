@@ -635,7 +635,7 @@ pub fn set(a: &cli::Set) -> Outcome {
     let env = Env::new();
     // Cores and memory (plan B164) through the API: it checks the host's limits, that the VM is stopped, and writes a
     // macOS VM's folder too
-    if a.cpus.is_some() || a.memory.is_some() || a.displays.is_some() {
+    if a.cpus.is_some() || a.memory.is_some() || a.displays.is_some() || a.disk.is_some() {
         let mut params = serde_json::json!({"name": a.name});
         if let Some(n) = a.cpus {
             params["cpus"] = n.into();
@@ -644,6 +644,9 @@ pub fn set(a: &cli::Set) -> Outcome {
             params["memoryGb"] = n.into();
         }
         // Displays (plan B171): NixOS only, while stopped – the API checks both
+        if let Some(n) = a.disk {
+            params["diskGb"] = n.into();
+        }
         if let Some(n) = a.displays {
             params["displays"] = n.into();
         }

@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 import AppKit
 import Darwin
-import ArgumentParser
 import Foundation
 import Virtualization
 import OmaflakeKit
@@ -10,16 +9,20 @@ import OmaflakeKit
 // Requires the entitlement com.apple.security.virtualization (App/omaf-runner.entitlements, scripts/sign-runner.sh).
 
 @main
-struct VMRunner: ParsableCommand {
-    static let configuration = CommandConfiguration(
-        commandName: "omaf-runner",
-        abstract: "Install and run macOS VMs (one process per VM).",
-        subcommands: [Latest.self, Install.self, Clone.self, Run.self, Control.self, IP.self, Bridge.self, MIDICheck.self, DiagnoseCheck.self]
-    )
+enum VMRunner {
+    static func main() {
+        CommandLineTool.main(
+            [Latest.self, Install.self, Clone.self, Run.self, Control.self, IP.self, Bridge.self, MIDICheck.self, DiagnoseCheck.self],
+            abstract: "Install and run macOS VMs (one process per VM).",
+            argv: Array(CommandLine.arguments.dropFirst()))
+    }
 }
 
-struct Latest: ParsableCommand {
-    static let configuration = CommandConfiguration(abstract: "Show the latest IPSW supported by this Mac (without downloading).")
+struct Latest: RunnerCommand {
+    static let name = "latest"
+    static let abstract = "Show the latest IPSW supported by this Mac (without downloading)."
+
+    init(_ a: inout Arguments) throws {}
 
     func run() throws {
         _ = MainActor.assumeIsolated {
@@ -44,14 +47,32 @@ struct Latest: ParsableCommand {
     }
 }
 
-struct Install: ParsableCommand {
-    static let configuration = CommandConfiguration(abstract: "Install macOS from an IPSW into a new VM folder.")
-    @Argument(help: "New VM folder, e.g. ~/.omaflake/bases/mac-base-test") var target: String
-    @Option(help: "Local IPSW file") var ipsw: String?
-    @Flag(help: "Download the latest supported IPSW from Apple (stored in ~/.omaflake/ipsw/)") var latest = false
-    @Option(help: "CPU cores") var cpus = 4
-    @Option(help: "Memory in GiB") var memoryGb = 8
-    @Option(help: "Disk size in GiB (thin-provisioned)") var diskGb = 80
+struct Install: RunnerCommand {
+    static let name = "install"
+    static let abstract = "Install macOS from an IPSW into a new VM folder."
+    static let arguments = "<target>   (new VM folder, e.g. ~/.omaflake/bases/mac-base-test)"
+    static let options: [Option] = [
+        .value("ipsw", "Local IPSW file"),
+        .flag("latest", "Download the latest supported IPSW from Apple (stored in ~/.omaflake/ipsw/)"),
+        .value("cpus", "CPU cores (4)"),
+        .value("memory-gb", "Memory in GiB (8)"),
+        .value("disk-gb", "Disk size in GiB, thin-provisioned (80)"),
+    ]
+    let target: String
+    let ipsw: String?
+    let latest: Bool
+    let cpus: Int
+    let memoryGb: Int
+    let diskGb: Int
+
+    init(_ a: inout Arguments) throws {
+        target = try a.argument("target")
+        ipsw = a.string("ipsw")
+        latest = a.flag("latest")
+        cpus = try a.int("cpus", default: 4)
+        memoryGb = try a.int("memory-gb", default: 8)
+        diskGb = try a.int("disk-gb", default: 80)
+    }
 
     func run() throws {
         let request = Installer.Request(
@@ -72,11 +93,17 @@ struct Install: ParsableCommand {
     }
 }
 
-struct Clone: ParsableCommand {
-    static let configuration = CommandConfiguration(
-        abstract: "APFS clone of a stopped VM with a new identity (machine identifier, MAC address).")
-    @Argument(help: "Source VM folder, e.g. ~/.omaflake/bases/mac-base-26A434") var source: String
-    @Argument(help: "New VM folder") var target: String
+struct Clone: RunnerCommand {
+    static let name = "clone"
+    static let abstract = "APFS clone of a stopped VM with a new identity (machine identifier, MAC address)."
+    static let arguments = "<source> <target>   (a stopped VM folder, the new one)"
+    let source: String
+    let target: String
+
+    init(_ a: inout Arguments) throws {
+        source = try a.argument("source")
+        target = try a.argument("target")
+    }
 
     func run() throws {
         let src = MacVMBundle(url(source))
@@ -93,31 +120,84 @@ struct Clone: ParsableCommand {
     }
 }
 
-struct Run: ParsableCommand {
-    static let configuration = CommandConfiguration(abstract: "Start a VM; returns when it is off.")
-    @Argument(help: "VM folder") var bundle: String
-    @Flag(help: "Show a window (headless otherwise)") var window = false
-    @Option(help: "Control socket (status/stop/kill/show)") var socket: String?
-    @Option(help: "PID file") var pidFile: String?
-    @Option(help: "Share a folder with the guest (appears under /Volumes/My Shared Files)") var share: String?
-    @Flag(help: "Without a network card") var noNetwork = false
-    @Flag(help: "Sound from the VM to the Mac") var audio = false
-    @Flag(help: "The Mac's microphone in the VM (with --audio; macOS asks for permission the first time)") var microphone = false
-    @Flag(help: "Clipboard shared with the Mac (guest agent omaflake-clipboard)") var clipboard = false
-    @Flag(help: "Camera port org.omaflake.camera (images before 0.7.5; newer ones carry it over the agent)") var camera = false
-    @Option(help: "Attach the omaflake agent's port and keep what it reports in this file (spec §11.9)") var agentState: String?
-    @Flag(help: "With --camera: a test pattern instead of the camera") var cameraTestPattern = false
-    @Flag(help: "With --agent-state: the Mac's MIDI devices in the VM, both ways (plan B161)") var midi = false
-    @Option(help: "The VM's name: its own MIDI pair on the Mac is \"omaflake <name>\" (default: the bundle's folder)") var vmName: String?
-    @Option(help: "A card on one of omaflake's networks: its MAC (with --lan-socket and --lan-switch, once per network)") var lanMac: [String] = []
-    @Option(help: "The card's own datagram socket (the switch answers to it)") var lanSocket: [String] = []
-    @Option(help: "The network switch's datagram socket (vz.sock)") var lanSwitch: [String] = []
-    @Flag(help: "Start into macOS Recovery") var recovery = false
-    @Option(help: "First start after installation only: create a user (macOS 27 guest)") var user: String?
-    @Option(help: "Full name for --user") var fullName: String?
-    @Flag(help: "Read the password for --user from stdin (one line)") var passwordStdin = false
-    @Flag(help: "With --user: automatic login") var autoLogin = false
-    @Flag(help: "With --user: enable Remote Login (SSH)") var ssh = false
+struct Run: RunnerCommand {
+    static let name = "run"
+    static let abstract = "Start a VM; returns when it is off."
+    static let arguments = "<bundle>   (VM folder)"
+    static let options: [Option] = [
+        .flag("window", "Show a window (headless otherwise)"),
+        .value("socket", "Control socket (status/stop/kill/show)"),
+        .value("pid-file", "PID file"),
+        .value("share", "Share a folder with the guest (appears under /Volumes/My Shared Files)"),
+        .flag("no-network", "Without a network card"),
+        .flag("audio", "Sound from the VM to the Mac"),
+        .flag("microphone", "The Mac's microphone in the VM (with --audio; macOS asks for permission the first time)"),
+        .flag("clipboard", "Clipboard shared with the Mac (guest agent omaflake-clipboard)"),
+        .flag("camera", "Camera port org.omaflake.camera (images before 0.7.5; newer ones carry it over the agent)"),
+        .value("agent-state", "Attach the omaflake agent's port and keep what it reports in this file (spec §11.9)"),
+        .flag("camera-test-pattern", "With --camera: a test pattern instead of the camera"),
+        .flag("midi", "With --agent-state: the Mac's MIDI devices in the VM, both ways (plan B161)"),
+        .value("vm-name", "The VM's name: its own MIDI pair on the Mac is \"omaflake <name>\" (default: the bundle's folder)"),
+        .value("lan-mac", "A card on one of omaflake's networks: its MAC (with --lan-socket and --lan-switch, once per network)"),
+        .value("lan-socket", "The card's own datagram socket (the switch answers to it)"),
+        .value("lan-switch", "The network switch's datagram socket (vz.sock)"),
+        .flag("recovery", "Start into macOS Recovery"),
+        .value("user", "First start after installation only: create a user (macOS 27 guest)"),
+        .value("full-name", "Full name for --user"),
+        .flag("password-stdin", "Read the password for --user from stdin (one line)"),
+        .flag("auto-login", "With --user: automatic login"),
+        .flag("ssh", "With --user: enable Remote Login (SSH)"),
+    ]
+    let bundle: String
+    let window: Bool
+    let socket: String?
+    let pidFile: String?
+    let share: String?
+    let noNetwork: Bool
+    let audio: Bool
+    let microphone: Bool
+    let clipboard: Bool
+    let camera: Bool
+    let agentState: String?
+    let cameraTestPattern: Bool
+    let midi: Bool
+    let vmName: String?
+    let lanMac: [String]
+    let lanSocket: [String]
+    let lanSwitch: [String]
+    let recovery: Bool
+    let user: String?
+    let fullName: String?
+    let passwordStdin: Bool
+    let autoLogin: Bool
+    let ssh: Bool
+
+    init(_ a: inout Arguments) throws {
+        bundle = try a.argument("bundle")
+        window = a.flag("window")
+        socket = a.string("socket")
+        pidFile = a.string("pid-file")
+        share = a.string("share")
+        noNetwork = a.flag("no-network")
+        audio = a.flag("audio")
+        microphone = a.flag("microphone")
+        clipboard = a.flag("clipboard")
+        camera = a.flag("camera")
+        agentState = a.string("agent-state")
+        cameraTestPattern = a.flag("camera-test-pattern")
+        midi = a.flag("midi")
+        vmName = a.string("vm-name")
+        lanMac = a.strings("lan-mac")
+        lanSocket = a.strings("lan-socket")
+        lanSwitch = a.strings("lan-switch")
+        recovery = a.flag("recovery")
+        user = a.string("user")
+        fullName = a.string("full-name")
+        passwordStdin = a.flag("password-stdin")
+        autoLogin = a.flag("auto-login")
+        ssh = a.flag("ssh")
+        try validate()
+    }
 
     func validate() throws {
         if user != nil && !passwordStdin { throw ValidationError("--user requires --password-stdin") }
@@ -154,12 +234,25 @@ struct Run: ParsableCommand {
     }
 }
 
-struct Control: ParsableCommand {
-    static let configuration = CommandConfiguration(commandName: "ctl", abstract: "Control a running omaf-runner.")
-    @Argument(help: "Control socket") var socket: String
-    @Argument(help: "status | stop | kill | show | midi | diagnose") var command: String
-    @Option(help: "diagnose: the check (info, network, clipboard-read, …)") var check: String?
-    @Option(help: "diagnose: the check's args as a JSON object, e.g. '{\"text\":\"x\"}'") var args: String?
+struct Control: RunnerCommand {
+    static let name = "ctl"
+    static let abstract = "Control a running omaf-runner."
+    static let arguments = "<socket> <command>   (control socket; status | stop | kill | show | midi | diagnose)"
+    static let options: [Option] = [
+        .value("check", "diagnose: the check (info, network, clipboard-read, …)"),
+        .value("args", "diagnose: the check's args as a JSON object, e.g. '{\"text\":\"x\"}'"),
+    ]
+    let socket: String
+    let command: String
+    let check: String?
+    let args: String?
+
+    init(_ a: inout Arguments) throws {
+        socket = try a.argument("socket")
+        command = try a.argument("command")
+        check = a.string("check")
+        args = a.string("args")
+    }
 
     func run() throws {
         var request: [String: Any] = ["command": command]
@@ -182,9 +275,15 @@ struct Control: ParsableCommand {
     }
 }
 
-struct IP: ParsableCommand {
-    static let configuration = CommandConfiguration(abstract: "IP address of the VM (NAT, from /var/db/dhcpd_leases).")
-    @Argument(help: "VM folder") var bundle: String
+struct IP: RunnerCommand {
+    static let name = "ip"
+    static let abstract = "IP address of the VM (NAT, from /var/db/dhcpd_leases)."
+    static let arguments = "<bundle>   (VM folder)"
+    let bundle: String
+
+    init(_ a: inout Arguments) throws {
+        bundle = try a.argument("bundle")
+    }
 
     func run() throws {
         let cfg = try MacVMBundle(url(bundle)).loadConfig()

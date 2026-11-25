@@ -246,9 +246,9 @@ impl PartStore {
         let mut text = String::new();
         for (rel, path) in files {
             let data = fs::read(path).ok()?;
-            text.push_str(&format!("{rel}\0{}\n", hex::encode(Sha256::digest(&data))));
+            text.push_str(&format!("{rel}\0{}\n", crate::encoding::hex(Sha256::digest(&data))));
         }
-        Some(hex::encode(Sha256::digest(text.as_bytes())))
+        Some(crate::encoding::hex(Sha256::digest(text.as_bytes())))
     }
 
     /// The installed parts whose files are not what was installed any more – changed by hand, or mixed up by the
@@ -349,7 +349,7 @@ impl PartStore {
                 let data = client.fetch(&format!("{}/{}", part.path, f.path))?;
                 let sha = {
                     use sha2::{Digest, Sha256};
-                    hex::encode(Sha256::digest(&data))
+                    crate::encoding::hex(Sha256::digest(&data))
                 };
                 if data.len() as u64 != f.size || sha != f.sha256.to_lowercase() {
                     return Err(vm_err!(

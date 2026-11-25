@@ -342,6 +342,37 @@
         {
           "enabled": false,
           "help": {
+            "key": "Only larger. The VM takes the new space at its next start.",
+            "text": "Only larger. The VM takes the new space at its next start."
+          },
+          "id": "diskGb",
+          "kind": "number",
+          "label": {
+            "args": [
+              64
+            ],
+            "key": "Disk: %lld GB",
+            "text": "Disk: 64 GB"
+          },
+          "max": 4096,
+          "min": 64,
+          "reason": {
+            "key": "Stop the VM to change it",
+            "text": "Stop the VM to change it"
+          },
+          "set": {
+            "method": "vms.set",
+            "param": "diskGb",
+            "params": {
+              "name": "research"
+            }
+          },
+          "step": 1,
+          "value": 64
+        },
+        {
+          "enabled": false,
+          "help": {
             "key": "Each display in a window of its own",
             "text": "Each display in a window of its own"
           },

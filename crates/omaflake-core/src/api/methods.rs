@@ -911,6 +911,36 @@ impl Server {
         }
         let running = self.act(&p.name, true, |backends, _| {
             let mut c = backends.store.load(&p.name)?;
+            // A larger disk (plan B164): only while stopped, never smaller (a file system does not shrink safely)
+            if let Some(n) = p.disk_gb
+                && n != c.disk_gb
+            {
+                if backends.backend_for(&c).is_ok_and(|b| b.status(&c) == VmStatus::Running) {
+                    return Err(vm_err!(codes::VM_RUNNING, "{} is running – stop it to change its disk", p.name));
+                }
+                if n < c.disk_gb {
+                    return Err(vm_err!(
+                        codes::UNSUPPORTED_SYSTEM,
+                        "A disk only grows – {} has {} GB, {} GB would lose data",
+                        p.name,
+                        c.disk_gb,
+                        n
+                    ));
+                }
+                if n > crate::instance_store::InstanceStore::MAX_DISK_GB {
+                    return Err(vm_err!(
+                        codes::UNSUPPORTED_SYSTEM,
+                        "{} GB are not possible – at most {} GB",
+                        n,
+                        crate::instance_store::InstanceStore::MAX_DISK_GB
+                    ));
+                }
+                c.disk_gb = n;
+                match c.kind {
+                    GuestKind::Macos => crate::vz_backend::VzBackend::apply_resources(&backends.store.paths, &c)?,
+                    GuestKind::Nixos => backends.store.grow_disk(&c)?,
+                }
+            }
             if let Some(n) = p.displays {
                 if c.kind != GuestKind::Nixos {
                     return Err(vm_err!(
@@ -3289,6 +3319,9 @@ struct SetParams {
     displays: Option<u32>,
     #[serde(default, rename = "memoryGb", alias = "memoryGB")]
     memory_gb: Option<u32>,
+    /// Only larger, while stopped (plan B164)
+    #[serde(default, rename = "diskGb", alias = "diskGB")]
+    disk_gb: Option<u32>,
 }
 
 #[derive(Deserialize)]

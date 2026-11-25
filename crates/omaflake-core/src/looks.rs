@@ -375,7 +375,7 @@ bright = ["#4c566a", "#bf616a", "#a3be8c", "#ebcb8b", "#81a1c1", "#b48ead", "#8f
         let data = fs::read(src.path().join("looks/alice/nord/look.toml")).unwrap();
         let sha = {
             use sha2::{Digest, Sha256};
-            hex::encode(Sha256::digest(&data))
+            crate::encoding::hex(Sha256::digest(&data))
         };
         let entry = |path: &str, files: Vec<CatalogFile>| CatalogLook {
             id: "alice.look.nord".into(),

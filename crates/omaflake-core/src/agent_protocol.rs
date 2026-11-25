@@ -21,8 +21,6 @@ use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
-use base64::Engine;
-use base64::engine::general_purpose::STANDARD as BASE64;
 use serde::{Deserialize, Serialize};
 
 use crate::Log;
@@ -1324,7 +1322,7 @@ impl AgentLink {
         if !["text/plain;charset=utf-8", "image/png"].contains(&mime.as_str()) {
             return None;
         }
-        let data = BASE64.decode(obj.get("data")?).ok()?;
+        let data = crate::encoding::from_base64(obj.get("data")?)?;
         (data.len() <= AgentProtocol::MAX_CLIPBOARD).then(|| (mime.clone(), data))
     }
 
@@ -1557,7 +1555,7 @@ mod tests {
         assert_eq!(h.link.enabled(), &enabled);
         let content = "x".repeat(600_000).into_bytes(); // more than two chunks
         let message = serde_json::to_vec(
-            &serde_json::json!({"mime": "text/plain;charset=utf-8", "data": BASE64.encode(&content)}),
+            &serde_json::json!({"mime": "text/plain;charset=utf-8", "data": crate::encoding::base64(&content)}),
         )
         .unwrap();
         assert!(h.send(AgentMessage::Clipboard, &message));

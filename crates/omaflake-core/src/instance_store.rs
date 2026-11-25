@@ -257,6 +257,25 @@ impl InstanceStore {
         Ok(())
     }
 
+    /// The most a disk may grow to (plan B164) – thin, so it takes only what the guest writes
+    pub const MAX_DISK_GB: u32 = 4096;
+
+    /// A NixOS VM's disk grows to `disk_gb` (plan B164): `qemu-img resize` of its overlay – only larger, never
+    /// smaller. The guest grows its partition and root file system at the next boot (vm-guest.nix:
+    /// `boot.growPartition`, `fileSystems."/".autoResize`). A VM without an overlay yet (ephemeral, or never started)
+    /// gets it with the new size when it is created.
+    pub fn grow_disk(&self, config: &InstanceConfig) -> Result<()> {
+        let disk = self.paths.instance(&config.name).disk();
+        if !disk.exists() {
+            return Ok(());
+        }
+        let d = disk.to_string_lossy().into_owned();
+        let size = format!("{}G", config.disk_gb);
+        Shell::check(&self.qemu_img, &["resize", "-q", &d, &size], &RunOptions::default())
+            .map(|_| ())
+            .map_err(|e| vm_err!("Growing the disk of {} failed: {}", config.name, e.message()))
+    }
+
     /// Reset: the old state is deleted, a fresh overlay from the same image.
     pub fn reset(&self, name: &str) -> Result<()> {
         let config = self.load(name)?;
@@ -494,6 +513,47 @@ mod tests {
             .unwrap();
         fs::set_permissions(&fake, fs::Permissions::from_mode(0o755)).unwrap();
         fake.to_string_lossy().into_owned()
+    }
+
+    /// A larger disk (plan B164): `qemu-img resize -q <overlay> <n>G`; nothing to grow without an overlay yet
+    #[test]
+    fn grow_disk_resizes_the_overlay() {
+        let t = tempfile::tempdir().unwrap();
+        let p = Paths::new(t.path().join("data"), None);
+        let fake = p.root.join("qemu-img.sh");
+        fs::create_dir_all(&p.root).unwrap();
+        let log = p.root.join("calls");
+        fs::write(&fake, format!("#!/bin/sh\necho \"$@\" >> '{}'\n", log.display())).unwrap();
+        fs::set_permissions(&fake, fs::Permissions::from_mode(0o755)).unwrap();
+        let store = InstanceStore::new(p.clone(), &fake.to_string_lossy());
+        let mut c = crate::models::InstanceConfig::new(
+            "dev",
+            "omaflake.nixos.dev",
+            "img",
+            "/x",
+            "aarch64-linux",
+            &crate::models::RecipeDefaults::new(
+                GuestKind::Nixos,
+                None,
+                2,
+                4,
+                20,
+                crate::models::NetworkMode::Shared,
+                false,
+                false,
+                None,
+            ),
+            2222,
+            crate::json::now(),
+        );
+        c.disk_gb = 120;
+        store.grow_disk(&c).unwrap();
+        assert!(!log.exists(), "no overlay yet: nothing to resize");
+        let disk = p.instance("dev").disk();
+        fs::create_dir_all(disk.parent().unwrap()).unwrap();
+        fs::write(&disk, "qcow").unwrap();
+        store.grow_disk(&c).unwrap();
+        assert_eq!(fs::read_to_string(&log).unwrap().trim(), format!("resize -q {} 120G", disk.display()));
     }
 
     #[test]

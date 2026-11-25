@@ -21,6 +21,7 @@ pub mod composition;
 pub mod credentials;
 pub mod data_folder;
 pub mod diagnostics;
+pub mod encoding;
 pub mod file_format;
 pub mod guest_choices;
 pub mod guest_settings;

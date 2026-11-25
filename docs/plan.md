@@ -488,6 +488,19 @@ Lume (trycua) only after a license review (OPEN).
 
 ## 8. Next steps (as of 2026-11-25)
 
+**B177 (2026-11-25, for 0.8.0): the dependencies looked through.** Maintainer: look at every dependency like chrono –
+newer, better, or our own. *Own instead:* `hex` and `base64` (a dozen calls; `encoding.rs`, the same Base64 as the
+agent's `b64.rs`, RFC 4648 vectors); `swift-argument-parser` – only `omaf-runner` used it, a tool omaf starts with a
+fixed command line: `Arguments.swift` (`--name value`/`--name=value`, repeated options, flags, positional arguments,
+unknown options refused with the usage, exit 64), so the Swift package has no dependencies at all (Package.resolved
+gone). *Newer* (each the newest release at least 14 days old): libc 0.2.191, toml 1.2.1, ureq 3.5.1, rfd 0.18.0, ksni
+0.3.7, lucide-icons 1.71.0, async-executor 1.14.1 (1.14.0 was yanked). *Kept, with reason:* serde/serde_json, sha2 (no
+own cryptography), ureq (HTTPS with stall timeouts for the IPSW), security-framework / objc2 (Keychain, Touch ID),
+secret-service (the Secret Service on Linux; 6.0 too young), zune-jpeg, clap, ratatui/crossterm, iced/wgpu (wgpu stays
+at 27: iced 0.14 is built on it), image; tempfile only in tests. notify-rust stays at 4.18.2: 4.19 brings zbus 6 next to
+zbus 5 (secret-service, ksni). jiff → 1.0 once it is 14 days old (B167). `scripts/check-age.py`: the expired NEEDED
+entries removed; six young transitive crates set back (jiff-core, pollster, zbus …).
+
 **B176 (2026-11-25, fixed for 0.8.0): CI's macOS job hung for six hours since 0.7.4.** Every run since 2026-11-22
 stayed in `swift test` until GitHub ended it after six hours (the default limit) – and held one of the few `xcode-27`
 runners meanwhile, so the release of 0.7.6 waited behind four of them. Reproduced with
@@ -839,7 +852,22 @@ base per build a second credential cannot make macOS images. Wanted: bases named
 "Create Again" for a base (e.g. one from before omaflake's own SSH key, B160 – its builds still need the user's key in
 the ssh-agent) and "Remove", the existing base assigned to its credential once.
 
-**B164 (2026-11-22, cores and memory built for 0.7.4; the disk OPEN): a VM's resources cannot be changed.** Built: `vms.set {cpus, memoryGb}` for a stopped VM (limits from the host; macOS VMs also write the bundle's config.json, which the runner reads), the VM's details fields, `omaf set --cpus --memory`. `omaf set` and the VM's details change
+**B164 (2026-11-22, cores and memory built for 0.7.4; the disk built 2026-11-25 for 0.8.0): a VM's resources cannot be changed.**
+*The disk (2026-11-25):* `vms.set {diskGb}` / `omaf set --disk` / a number field in the VM's details (smallest value
+= what it has, at most 4096 GB); only larger, only while stopped. NixOS: `qemu-img resize` of the overlay
+(`InstanceStore::grow_disk`; an ephemeral VM's overlay is made with the size at its start); the guest grows partition
+and root file system at boot (vm-guest.nix `boot.growPartition`, `fileSystems."/".autoResize`, both set already).
+macOS: disk.img (raw, sparse) set to the size, config.json says so (`VzBackend::apply_resources`, also after every
+clone, so ephemeral VMs keep it). In the guest the system container cannot simply grow: the layout, read in this macOS
+27 VM (`diskutil list`), is ISC container (disk1s1, 524 MB), system container (disk1s2), fallback recovery
+(Apple_APFS_Recovery, disk1s3, 5.4 GB) at the end – 40 KB short of the disk's size. darwin-guest.nix's boot daemon
+`omaflake-grow-disk` finds the system container's physical store, adds up the partitions; with more than 1 GiB not in
+any of them it runs `diskutil repairDisk` (the GPT's backup header to the new end), removes the fallback recovery
+(`diskutil eraseVolume free free`; the paired recovery volume inside the system container stays) and
+`diskutil apfs resizeContainer <store> 0`; log /var/log/omaflake-grow-disk.log. Its reading part ran in this VM (no new
+space → nothing done); `sh -n` and shellcheck clean. OPEN, on a Mac: a NixOS VM grown and booted; a macOS VM from a
+0.8.0 image grown – whether `eraseVolume free free` takes the recovery container, whether Recovery still starts.
+Before: Built: `vms.set {cpus, memoryGb}` for a stopped VM (limits from the host; macOS VMs also write the bundle's config.json, which the runner reads), the VM's details fields, `omaf set --cpus --memory`. `omaf set` and the VM's details change
 sound, microphone, clipboard, camera, MIDI and the window, but not CPU cores, memory or the disk size – a VM keeps what
 it was created with (the maintainer's development VM: 4 cores, 8 GB, 75 GB, too small for builds). Cores and memory
 are a line in the instance's config (VZ and QEMU read them at start); a larger disk needs the image grown and the

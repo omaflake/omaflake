@@ -58,7 +58,7 @@ fn fits(path: &Path) -> bool {
 /// data folders (`VM_HOME`) apart
 fn fallback_socket(root: &Path, base: Option<PathBuf>) -> PathBuf {
     use sha2::{Digest, Sha256};
-    let hash = hex::encode(Sha256::digest(root.as_os_str().as_encoded_bytes()));
+    let hash = crate::encoding::hex(Sha256::digest(root.as_os_str().as_encoded_bytes()));
     let hash = &hash[..16];
     if let Some(base) = base.filter(|b| !b.as_os_str().is_empty()) {
         let path = base.join(format!("omaflake-{hash}.sock"));

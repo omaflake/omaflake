@@ -22,15 +22,15 @@ serde_json.workspace = true
 jiff.workspace = true
 libc.workspace = true
 iced = { version = "=0.14.0", features = ["image", "tokio"] }
-rfd = "=0.17.2"
+rfd = "=0.18.0"
 notify-rust = { version = "=4.18.2", default-features = false, features = ["z-with-tokio"] }
-lucide-icons = "=1.57.0"
+lucide-icons = "=1.71.0"
 # iced's own wgpu (same version): which Vulkan adapters there are, before the window opens (src/gpu.rs)
 wgpu = { version = "=27.0.1", default-features = false, features = ["std"] }
 
 [target.'cfg(target_os = "linux")'.dependencies]
 wgpu = { version = "=27.0.1", default-features = false, features = ["std", "vulkan"] }
-ksni = { version = "=0.3.6", features = ["blocking"] }
+ksni = { version = "=0.3.7", features = ["blocking"] }
 image = { version = "=0.25.10", default-features = false, features = ["png"] }
 
 [dev-dependencies]

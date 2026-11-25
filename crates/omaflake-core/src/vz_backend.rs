@@ -15,12 +15,13 @@
 //! `.build/{debug,release}/omaf-runner`. `start` is split into checks and `run_runner` (spawn and wait) so the latter
 //! can be tested with a stand-in runner.
 
+use std::fs;
 use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
 
 use crate::agent_protocol::AgentState;
 use crate::backend::{StartOptions, VmBackend};
-use crate::error::{Error, Result, codes};
+use crate::error::{Error, IoContext, Result, codes};
 use crate::image_store::Image;
 use crate::instance_store::InstanceStore;
 use crate::json;
@@ -129,20 +130,30 @@ impl VzBackend {
             &["clone".into(), path_string(&source), path_string(&ip.vm())],
             &RunOptions::default(),
         )?;
-        let vm = MacVmBundle::new(ip.vm());
-        let mut cfg = vm.load_config()?;
-        cfg.cpus = c.cpus;
-        cfg.memory_mb = c.memory_gb * 1024;
-        vm.save(&cfg)
+        Self::apply_resources(&self.paths, c)
     }
 
-    /// Cores and memory of a stopped macOS VM into its folder's config.json – the runner reads them at start (plan
-    /// B164)
+    /// Cores, memory and disk of a stopped macOS VM into its folder (config.json, disk.img) – the runner reads them at
+    /// start (plan B164). The disk only grows: disk.img (raw, sparse) gets the new size; the guest's
+    /// `omaflake-grow-disk` (darwin-guest.nix) moves its system container into the new space at the next boot.
     pub(crate) fn apply_resources(paths: &Paths, c: &InstanceConfig) -> Result<()> {
         let vm = MacVmBundle::new(paths.instance(&c.name).vm());
+        // Not cloned yet (ephemeral, or never started): the clone gets them when it is made (`clone_image`)
+        if !vm.config().exists() {
+            return Ok(());
+        }
         let mut cfg = vm.load_config()?;
         cfg.cpus = c.cpus;
         cfg.memory_mb = c.memory_gb * 1024;
+        let disk = vm.disk();
+        if let Ok(have) = fs::metadata(&disk).map(|m| m.len()) {
+            let want = u64::from(c.disk_gb) << 30;
+            if want > have {
+                let f = fs::OpenOptions::new().write(true).open(&disk).with_path(&disk)?;
+                f.set_len(want).with_path(&disk)?;
+            }
+            cfg.disk_gb = cfg.disk_gb.max((want.max(have) >> 30) as u32);
+        }
         vm.save(&cfg)
     }
 
@@ -815,6 +826,33 @@ pub(crate) mod tests {
         assert!(p.instance("m1").vm().join("config.json").exists());
     }
 
+    /// A larger disk (plan B164): disk.img grows (sparse) to the instance's size, config.json says so; never smaller
+    #[test]
+    fn a_macos_disk_only_grows() {
+        let (_t, p) = temp_paths();
+        let mut c = mac_config("m2", NetworkMode::Shared);
+        // Not cloned yet: nothing to change, no error
+        VzBackend::apply_resources(&p, &c).unwrap();
+        mac_image(&p, &c.image);
+        let dir = p.instance("m2").vm();
+        std::fs::create_dir_all(&dir).unwrap();
+        for f in ["config.json", "disk.img"] {
+            std::fs::copy(p.image_dir(&c.image).join(f), dir.join(f)).unwrap_or_else(|_| {
+                std::fs::write(dir.join(f), "").unwrap();
+                0
+            });
+        }
+        let disk = dir.join("disk.img");
+        std::fs::OpenOptions::new().write(true).open(&disk).unwrap().set_len(80 << 30).unwrap();
+        c.disk_gb = 120;
+        VzBackend::apply_resources(&p, &c).unwrap();
+        assert_eq!(std::fs::metadata(&disk).unwrap().len(), 120 << 30);
+        assert_eq!(MacVmBundle::new(&dir).load_config().unwrap().disk_gb, 120);
+        c.disk_gb = 40;
+        VzBackend::apply_resources(&p, &c).unwrap();
+        assert_eq!(std::fs::metadata(&disk).unwrap().len(), 120 << 30, "never smaller");
+    }
+
     #[test]
     fn runner_arguments_follow_the_settings() {
         let (_t, p) = temp_paths();
@@ -899,6 +937,13 @@ pub(crate) mod tests {
         });
         let pid = vz.run_runner(&c, &["run".into()], Duration::from_secs(10)).unwrap();
         assert!(spawn::is_alive(pid));
+        // The socket may say "running" before the script got to its first line (a busy machine): wait for the line
+        let deadline = Instant::now() + Duration::from_secs(5);
+        while !std::fs::read_to_string(ip.runner_log()).unwrap_or_default().starts_with("starting\n")
+            && Instant::now() < deadline
+        {
+            std::thread::sleep(Duration::from_millis(20));
+        }
         spawn::send_signal(pid, libc::SIGKILL);
         let deadline = Instant::now() + Duration::from_secs(5);
         while !spawn::reap_if_exited(pid) && Instant::now() < deadline {

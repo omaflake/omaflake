@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 import AppKit
-import ArgumentParser
 import Darwin
 import Foundation
 import OmaflakeKit
@@ -15,16 +14,38 @@ import OmaflakeKit
 /// Mac): the same CoreMIDI bridge as `run --midi`, over the agent once its welcome enables "midi"; the VM's own pair
 /// on the Mac is "omaflake <--vm-name>". Control (plan B162, --control): the instance's bridge.sock, with the same
 /// request and answer format as `run`'s control socket (`ControlServer`) – `status`, `diagnose`, `midi`.
-struct Bridge: ParsableCommand {
-    static let configuration = CommandConfiguration(abstract: "Agent, clipboard and camera bridge between the Mac and a VM (started by omaf).")
-    @Option(help: "Unix socket of the VM's agent port") var agent: String?
-    @Option(help: "File for what the agent reports (with --agent)") var agentState: String?
-    @Option(help: "Unix socket of the VM's clipboard port") var clipboard: String?
-    @Option(help: "Unix socket of the VM's camera port") var camera: String?
-    @Flag(help: "Send a test pattern instead of the camera") var cameraTestPattern = false
-    @Flag(help: "The Mac's MIDI devices in the VM over the agent (with --agent and --vm-name)") var midi = false
-    @Option(help: "The VM's name: its own MIDI pair on the Mac is \"omaflake <name>\"") var vmName: String?
-    @Option(help: "Control socket (status, diagnose, midi), e.g. <instance>/run/bridge.sock") var control: String?
+struct Bridge: RunnerCommand {
+    static let name = "bridge"
+    static let abstract = "Agent, clipboard and camera bridge between the Mac and a VM (started by omaf)."
+    static let options: [Option] = [
+        .value("agent", "Unix socket of the VM's agent port"),
+        .value("agent-state", "File for what the agent reports (with --agent)"),
+        .value("clipboard", "Unix socket of the VM's clipboard port"),
+        .value("camera", "Unix socket of the VM's camera port"),
+        .flag("camera-test-pattern", "Send a test pattern instead of the camera"),
+        .flag("midi", "The Mac's MIDI devices in the VM over the agent (with --agent and --vm-name)"),
+        .value("vm-name", "The VM's name: its own MIDI pair on the Mac is \"omaflake <name>\""),
+        .value("control", "Control socket (status, diagnose, midi), e.g. <instance>/run/bridge.sock"),
+    ]
+    let agent: String?
+    let agentState: String?
+    let clipboard: String?
+    let camera: String?
+    let cameraTestPattern: Bool
+    let midi: Bool
+    let vmName: String?
+    let control: String?
+
+    init(_ a: inout Arguments) throws {
+        agent = a.string("agent")
+        agentState = a.string("agent-state")
+        clipboard = a.string("clipboard")
+        camera = a.string("camera")
+        cameraTestPattern = a.flag("camera-test-pattern")
+        midi = a.flag("midi")
+        vmName = a.string("vm-name")
+        control = a.string("control")
+    }
 
     func run() throws {
         // The process ends when the VM closes a port (it is going away)

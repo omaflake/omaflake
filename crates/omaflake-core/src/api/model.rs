@@ -1133,7 +1133,7 @@ mod tests {
 
     fn hash(r: &CatalogRecipe) -> String {
         // Stands in for CatalogRecipe::content_hash: version-dependent hex
-        format!("{:0<64}", hex::encode(r.version.as_bytes()))
+        format!("{:0<64}", crate::encoding::hex(r.version.as_bytes()))
     }
 
     #[test]
