@@ -8,6 +8,7 @@ use std::path::Path;
 use std::time::{Duration, Instant};
 
 use chrono::Utc;
+use omaflake_core::builder_health::{BuilderHealth, Trust};
 use omaflake_core::builder_maintenance::BuilderMaintenance;
 use omaflake_core::cli_link::CliLink;
 use omaflake_core::guest_choices::GuestChoices;
@@ -912,6 +913,58 @@ pub fn builder_clean_up() -> Outcome {
     }
     let m = BuilderMaintenance::new(paths);
     sudo(&m.root_script(BuilderMaintenance::CLEAN_UP_COMMAND)?)
+}
+
+/// `omaf builder check`: does the Linux builder accept this Mac's builds? (plan B175)
+pub fn builder_check() -> Outcome {
+    println!("Checking whether the Linux builder accepts this Mac's builds …");
+    match BuilderHealth::new(Env::new().paths).probe() {
+        Trust::Accepted => {
+            println!("✓ The Linux builder accepts this Mac's builds.");
+            Ok(())
+        }
+        Trust::Refused => Err(Error::new(
+            "The Linux builder refuses what this Mac built (it no longer trusts it). Repair it: omaf builder repair",
+        )
+        .into()),
+        Trust::Failed(why) => Err(Error::new(format!("Checking the Linux builder failed:\n{why}")).into()),
+    }
+}
+
+/// `omaf builder repair`: a new disk for a builder that refuses the Mac's builds – omaflake's as the user,
+/// nix-darwin's through sudo (plan B175)
+pub fn builder_repair(force: bool) -> Outcome {
+    let paths = Env::new().paths;
+    let health = BuilderHealth::new(paths.clone());
+    if !force {
+        println!("Checking whether the Linux builder accepts this Mac's builds …");
+        match health.probe() {
+            Trust::Accepted => {
+                println!(
+                    "✓ The Linux builder accepts this Mac's builds – nothing to repair (--force gives it a new disk anyway)."
+                );
+                return Ok(());
+            }
+            Trust::Refused => println!("The Linux builder refuses this Mac's builds – giving it a new disk."),
+            Trust::Failed(why) => {
+                return Err(Error::new(format!(
+                    "Checking the Linux builder failed:\n{why}\nA new disk only helps when it refuses the builds (--force to do it anyway)."
+                ))
+                .into());
+            }
+        }
+    }
+    let builder = LinuxBuilder::new(paths);
+    let message = health.repair(
+        &stdout_line,
+        &|command| {
+            sudo(command).map_err(|_| Error::new("Giving the Linux builder a new disk failed (sudo)"))?;
+            Ok(String::new())
+        },
+        &|| builder.wait(10, &stdout_line, &|| false),
+    )?;
+    println!("✓ {message}.");
+    Ok(())
 }
 
 #[cfg(test)]

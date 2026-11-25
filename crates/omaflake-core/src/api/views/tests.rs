@@ -1627,6 +1627,37 @@ fn doctor_cleans_up_the_nix_store() {
     assert!(clean["confirm"].is_object(), "asks first");
 }
 
+/// A builder that refuses the Mac's builds (plan B175): Repair … with a question, red; a running one offers a test build
+#[test]
+fn doctor_repairs_a_builder_that_refuses_the_builds() {
+    use crate::prerequisites::{PrerequisiteItem as I, PrerequisiteStatus as S, Prerequisites};
+    let find = |page: &Value| {
+        page["sections"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .flat_map(|s| s["items"].as_array().unwrap().clone())
+            .find(|i| i["item"] == "builderRunning")
+            .unwrap()
+    };
+    let mut c = ctx();
+    c.host = super::HostOs::Macos;
+    let mut running = crate::api::contract::prerequisite(I::BuilderRunning, S::Missing);
+    running.detail = Prerequisites::BUILDER_REFUSES.into();
+    c.doctor.as_mut().unwrap().nixos_preflight = vec![running];
+    let item = find(&get(&c, "doctor", json!({})));
+    let repair = action(&item["actions"], "repair");
+    assert_eq!(repair["method"], "builder.repair");
+    assert_eq!(repair["confirm"]["title"]["key"], "Give the Linux builder a new disk?");
+    assert!(!ids(&item["actions"]).contains(&"check".to_string()));
+
+    let mut c = ctx();
+    c.host = super::HostOs::Macos;
+    c.doctor.as_mut().unwrap().nixos_preflight = vec![crate::api::contract::prerequisite(I::BuilderRunning, S::Ok)];
+    let item = find(&get(&c, "doctor", json!({})));
+    assert_eq!(action(&item["actions"], "check")["method"], "builder.check");
+}
+
 /// The look studio (plan B150): starts from omaflake's colours without a look here; colours are fields with the colour
 /// kind; what was chosen goes into the look Save writes; hard-to-read colours are said
 #[test]

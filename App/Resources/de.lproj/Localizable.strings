@@ -1767,3 +1767,33 @@
 "%@ is running – stop it to change its displays" = "%@ läuft – stoppe die VM, um ihre Bildschirme zu ändern";
 "%@ displays are not possible – 1 to %@" = "%@ Bildschirme sind nicht möglich – 1 bis %@";
 "An older omaflake QEMU: a VM's further displays get no window of their own – update it (builds QEMU, about ten minutes)." = "Ein älteres QEMU von omaflake: weitere Bildschirme einer VM bekommen kein eigenes Fenster – aktualisiere es (baut QEMU, etwa zehn Minuten).";
+
+/* Plan B175: the Linux builder refuses the Mac's builds – check and repair */
+"refuses this Mac's builds" = "lehnt die Builds dieses Macs ab";
+"The Linux builder runs but refuses what this Mac built (it no longer trusts it – its Nix store is probably damaged). Repair gives it a new disk." = "Der Linux-Builder läuft, lehnt aber ab, was dieser Mac gebaut hat (er vertraut ihm nicht mehr – sein Nix-Store ist vermutlich beschädigt). Reparieren gibt ihm eine neue Festplatte.";
+"%@\nThe Linux builder refuses what this Mac built (it no longer trusts it). Repair it in the Doctor (Linux builder running → Repair …)." = "%@\nDer Linux-Builder lehnt ab, was dieser Mac gebaut hat (er vertraut ihm nicht mehr). Repariere ihn im Doktor (Linux-Builder läuft → Reparieren …).";
+"The Linux builder refuses what this Mac built (it no longer trusts it). Repair gives it a new disk." = "Der Linux-Builder lehnt ab, was dieser Mac gebaut hat (er vertraut ihm nicht mehr). Reparieren gibt ihm eine neue Festplatte.";
+"The Linux builder refuses what this Mac built (it no longer trusts it). Repair it: omaf builder repair" = "Der Linux-Builder lehnt ab, was dieser Mac gebaut hat (er vertraut ihm nicht mehr). Repariere ihn: omaf builder repair";
+"Checking the Linux builder failed:\n%@" = "Die Prüfung des Linux-Builders ist fehlgeschlagen:\n%@";
+"Checking the Linux builder failed:\n%@\nA new disk only helps when it refuses the builds (--force to do it anyway)." = "Die Prüfung des Linux-Builders ist fehlgeschlagen:\n%@\nEine neue Festplatte hilft nur, wenn er die Builds ablehnt (--force, um es trotzdem zu tun).";
+"The Linux builder still refuses this Mac's builds after a new disk – the cause is elsewhere (OPEN, plan B175)" = "Der Linux-Builder lehnt die Builds dieses Macs auch mit neuer Festplatte ab – die Ursache liegt woanders (OFFEN, Plan B175)";
+"Giving the Linux builder a new disk failed (sudo)" = "Dem Linux-Builder eine neue Festplatte zu geben ist fehlgeschlagen (sudo)";
+"The Linux builder accepts this Mac's builds" = "Der Linux-Builder nimmt die Builds dieses Macs an";
+"The Linux builder accepts this Mac's builds again" = "Der Linux-Builder nimmt die Builds dieses Macs wieder an";
+"Check the Linux builder" = "Linux-Builder prüfen";
+"Repair the Linux builder" = "Linux-Builder reparieren";
+"Test Build" = "Test-Build";
+"Repair …" = "Reparieren …";
+"Repair" = "Reparieren";
+"Give the Linux builder a new disk?" = "Dem Linux-Builder eine neue Festplatte geben?";
+"omaflake stops its Linux builder, deletes its disk and starts it with a new one: a fresh Nix store, built paths in it are gone (they are built or downloaded again). Then it checks that the builder accepts this Mac's builds. No administrator." = "omaflake stoppt seinen Linux-Builder, löscht seine Festplatte und startet ihn mit einer neuen: ein frischer Nix-Store, die darin gebauten Pfade sind weg (sie werden neu gebaut oder geladen). Danach prüft omaflake, dass der Builder die Builds dieses Macs annimmt. Kein Administrator nötig.";
+"omaflake stops nix-darwin's Linux builder, deletes its disk and starts it with a new one: a fresh Nix store, built paths in it are gone (they are built or downloaded again). Then it checks that the builder accepts this Mac's builds. macOS asks for an administrator." = "omaflake stoppt den Linux-Builder von nix-darwin, löscht seine Festplatte und startet ihn mit einer neuen: ein frischer Nix-Store, die darin gebauten Pfade sind weg (sie werden neu gebaut oder geladen). Danach prüft omaflake, dass der Builder die Builds dieses Macs annimmt. macOS fragt nach einem Administrator.";
+"Checks that the Linux builder accepts this Mac's builds (a tiny test build)" = "Prüft, dass der Linux-Builder die Builds dieses Macs annimmt (ein winziger Test-Build)";
+"Checking whether the Linux builder accepts this Mac's builds …" = "Prüfe, ob der Linux-Builder die Builds dieses Macs annimmt …";
+"Checking whether the builder accepts this Mac's builds …" = "Prüfe, ob der Builder die Builds dieses Macs annimmt …";
+"Stopping omaflake's Linux builder and removing its disk …" = "Stoppe omaflakes Linux-Builder und entferne seine Festplatte …";
+"Starting it with a new disk …" = "Starte ihn mit einer neuen Festplatte …";
+"Giving nix-darwin's Linux builder a new disk …" = "Gebe dem Linux-Builder von nix-darwin eine neue Festplatte …";
+"Linux builder restarted with a new disk" = "Linux-Builder mit neuer Festplatte neu gestartet";
+"omaflake wants to give the Linux builder a new disk." = "omaflake möchte dem Linux-Builder eine neue Festplatte geben.";
+"Set up the Linux builder first (Linux builder → Set Up …)" = "Richte zuerst den Linux-Builder ein (Linux-Builder → Einrichten …)";

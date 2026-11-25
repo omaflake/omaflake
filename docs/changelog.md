@@ -22,6 +22,12 @@ are collected under *Unreleased*. Releases: [GitHub](https://github.com/omaflake
 
 ### Fixed
 
+- **NixOS image builds failed with "lacks a signature by a trusted key":** a Linux builder whose Nix store got
+  damaged stops trusting the Mac and refuses everything the Mac built itself. omaflake now recognizes it – a failed
+  build says so, and the Doctor's "Linux builder running" turns red – and repairs it: **Repair …** gives the builder a
+  new disk (omaflake's own builder as you, nix-darwin's with an administrator) and checks it again. **Test Build** in
+  the Doctor and `omaf builder check` / `omaf builder repair` do the same by hand; `scripts/repair-linux-builder.sh`
+  works without the new version.
 - **Camera in macOS VMs stayed black when OBS started slowly:** the Mac stops the camera when the VM takes no frame for
   2 s, and nothing started it again while OBS kept reading. The agent now asks the Mac again (after 1 s, then up to
   every 8 s), and also when OBS reconnects. Needs an image built with this version.

@@ -171,7 +171,13 @@ pub fn job_ended(job: &JobDto) -> Option<(Level, Text, Option<Notification>)> {
             (Level::Info, tf!("Data folder: %@", folder), None)
         }
         (
-            K::BuilderInstallNix | K::BuilderMountNix | K::BuilderSetup | K::BuilderApply | K::BuilderCleanUp,
+            K::BuilderInstallNix
+            | K::BuilderMountNix
+            | K::BuilderSetup
+            | K::BuilderApply
+            | K::BuilderCleanUp
+            | K::BuilderCheck
+            | K::BuilderRepair,
             S::Failed,
         ) => {
             let first = match &job.log_file {
@@ -183,6 +189,9 @@ pub fn job_ended(job: &JobDto) -> Option<(Level, Text, Option<Notification>)> {
         }
         (K::BuilderInstallNix, S::Finished) => (Level::Info, Text::new("Nix installed"), None),
         (K::BuilderMountNix, S::Finished) => (Level::Info, Text::new("Nix Store mounted at /nix"), None),
+        (K::BuilderCheck | K::BuilderRepair, S::Finished) => {
+            (Level::Info, Text::new("The Linux builder accepts this Mac's builds"), None)
+        }
         (K::BuilderSetup | K::BuilderApply, S::Finished) => {
             (Level::Info, Text::new("Linux builder settings applied"), None)
         }
@@ -331,7 +340,7 @@ pub fn call_done(method: &str, params: &Value, outcome: &Result<Value, RpcError>
 }
 
 /// The methods a page's actions send whose refusal goes into the activity list (besides `vms.*`)
-const ACTIONS: [&str; 21] = [
+const ACTIONS: [&str; 23] = [
     "images.remove",
     "recipes.install",
     "recipes.installSuggested",
@@ -352,6 +361,8 @@ const ACTIONS: [&str; 21] = [
     "builder.setup",
     "builder.apply",
     "builder.cleanUp",
+    "builder.check",
+    "builder.repair",
     "jobs.cancel",
 ];
 

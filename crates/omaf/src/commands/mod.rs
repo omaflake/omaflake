@@ -125,6 +125,8 @@ pub fn run(command: Command) -> Outcome {
             BuilderCommand::Setup => instances::builder_setup(),
             BuilderCommand::Apply { force } => instances::builder_apply(force),
             BuilderCommand::CleanUp => instances::builder_clean_up(),
+            BuilderCommand::Check => instances::builder_check(),
+            BuilderCommand::Repair { force } => instances::builder_repair(force),
         },
         Command::Serve(a) => service::serve(&a),
         Command::Service { command } => service::run(&command),

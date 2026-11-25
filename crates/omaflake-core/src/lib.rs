@@ -13,6 +13,7 @@ pub mod agent_protocol;
 pub mod api;
 pub mod backend;
 pub mod build_progress;
+pub mod builder_health;
 pub mod builder_maintenance;
 pub mod cancellation;
 pub mod cli_link;

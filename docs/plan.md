@@ -488,6 +488,32 @@ Lume (trycua) only after a license review (OPEN).
 
 ## 8. Next steps (as of 2026-11-25)
 
+**B175 (2026-11-25, built – unreleased): NixOS image builds failed with "lacks a signature by a trusted key".** The
+maintainer's build of `neovim-minimal` with 0.7.5 (after B172's fix: the agent built and its tests passed) failed in
+`system-units`: nix-darwin's builder refused `…-unit-console-getty.service-disabled`, a path the Mac had built earlier
+(unsigned). Checked on the Mac: `sudo nix store info --store ssh-ng://builder@linux-builder --json` → `"trusted":
+false`; in the builder `/run/current-system` is exactly the system `darwinConfigurations.linux-builder` evaluates to
+here (`hdlaxw96…`), whose nix.conf has `trusted-users = root builder` and `require-sigs = true` (`nix eval` of the
+`nix/nix.conf` derivation) – but `grep -E "trusted|require-sigs" /etc/nix/nix.conf` in the builder found **nothing**.
+So the file the builder reads is not what its system says: most likely a damaged store on its disk (the disk survives
+restarts, `ephemeral = false`; the store is an overlay of the store image over the disk; the root's
+`binary-cache-v7.sqlite` there is "not a database"; B172's `nix-store --verify` had removed six stale entries). Why it
+got damaged: **OPEN** (a hard stop of the VM? GC through Clean Up?). Also seen: the disk is 20 GB, not builder-vm.nix's
+100 GiB – it was created before the setting and is only created when missing. *Built:* `BuilderHealth`
+(`builder_health.rs`) – a probe (a tiny aarch64-linux build whose aarch64-darwin input the Mac builds just before,
+with a nonce: unsigned, so only a trusting builder takes it; through the daemon as the user, so it works for
+nix-darwin's builder whose key is root's), a marker `<data>/builder/refused` set when an image build's output shows
+the refusal (the build then says to repair it) and cleared by a passing probe or a built image; the Doctor's
+`builderRunning` probes again while the marker is set and reports `refuses this Mac's builds` with **Repair …**
+(`builder.repair`: a new disk – omaflake's own builder as the user, nix-darwin's through the administrator dialog –,
+waits, probes). **Test Build** (`builder.check`) on a running builder; `omaf builder check` / `repair [--force]`;
+`scripts/repair-linux-builder.sh` for 0.7.5 (moves the old disk aside instead of deleting it). *Checked on the Mac
+(2026-11-25):* after a new disk for nix-darwin's builder the same `neovim-minimal` build went through – the paths it
+had refused were copied (`copying 130 paths…`), `system-units`, `etc` and the disk image built, image ready. So a new
+disk ends the refusal. Not tried on the Mac yet: the app's Doctor (Repair …, Test Build) and `omaf builder
+check`/`repair` – they need a build of this version; this Mac VM has no hypervisor, so only the probe's Mac half ran
+here.
+
 **B174 (2026-11-25, built – unreleased; the Mac OPEN): the camera as H.264, and vsock measured.** From B173: the
 console carries ~25 raw frames a second; the maintainer: Camo is smooth in the same VM. Decided (maintainer): H.264
 through VideoToolbox, and test vsock too.

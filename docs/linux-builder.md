@@ -97,6 +97,11 @@ Afterwards, every NixOS image build (`omaf build`, the app) runs on the Linux bu
 - **Disk full ("No space left on device").** Happens with the default `min-free`/`max-free` (above). One-off clean-up:
   the app's Doctor → Linux builder → "Clean Up …", `omaf builder clean-up`, or `sudo ssh linux-builder 'nix-store --gc'`.
   Changed builder settings: Doctor → "Apply Settings …" or `omaf builder apply` (both run the `darwin-rebuild` above).
+- **"lacks a signature by a trusted key".** The builder no longer trusts the Mac – its Nix store is damaged (its
+  `/etc/nix/nix.conf` lost `trusted-users = root builder`; `sudo nix store info --store ssh-ng://builder@linux-builder
+  --json` says `"trusted": false`) – and refuses everything the Mac built itself. A new disk fixes it: the Doctor's
+  "Linux builder running" → **Repair …**, `omaf builder repair`, or `scripts/repair-linux-builder.sh` from the
+  repository (moves the old disk aside). **Test Build** / `omaf builder check` checks it (plan B175).
 - **Disk is not resized automatically.** The builder disk (`nixos.qcow2` in the builder's `workingDirectory`)
   is only created if it is missing. To apply a new `diskSize`, move the old disk away and restart the builder;
   it needs about a minute before it accepts connections:

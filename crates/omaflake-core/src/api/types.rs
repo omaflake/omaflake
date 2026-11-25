@@ -1104,6 +1104,10 @@ pub enum JobKind {
     BuilderUninstallNix,
     /// Add the user to Nix's trusted-users (`builder.trust`) – for a Nix omaflake did not install
     BuilderTrust,
+    /// Does the Linux builder accept this Mac's builds? (`builder.check`, plan B175)
+    BuilderCheck,
+    /// Give the Linux builder a new disk when it refuses the Mac's builds (`builder.repair`, plan B175)
+    BuilderRepair,
     /// Install or update omaflake's QEMU (`qemu.install`, `nix profile`)
     QemuInstall,
     /// Set up everything NixOS guests need, one step after the other (`setup.nixos`, plan B160)

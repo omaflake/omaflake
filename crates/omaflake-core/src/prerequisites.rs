@@ -491,6 +491,8 @@ impl Prerequisites {
     pub const NIX_NOT_MOUNTED: &'static str = "Nix Store volume not at /nix";
     /// The Nix item's detail when an installer stopped half way (/nix/receipt.json without a nix; plan B160)
     pub const NIX_HALF: &'static str = "half-done Nix install";
+    /// The builder-running item's detail when the builder refuses the Mac's builds (plan B175)
+    pub const BUILDER_REFUSES: &'static str = "refuses this Mac's builds";
 
     pub(crate) fn nix_not_mounted(v: &NixVolume) -> Prerequisite {
         Prerequisite::new(
@@ -827,6 +829,17 @@ impl Prerequisites {
             Some((host, port)) => format!("{host}:{port}"),
             None => "no Linux builder set up".into(),
         };
+        // A build saw the builder refuse the Mac's paths (plan B175): check again – only then, it takes seconds
+        let health = crate::builder_health::BuilderHealth::new(self.paths.clone());
+        if up && health.is_marked() && health.probe() == crate::builder_health::Trust::Refused {
+            return Prerequisite::new(
+                PrerequisiteItem::BuilderRunning,
+                PrerequisiteStatus::Missing,
+                Self::BUILDER_REFUSES,
+                "The Linux builder runs but refuses what this Mac built (it no longer trusts it – its Nix store is probably damaged). Repair gives it a new disk.",
+                None,
+            );
+        }
         let hint = if up {
             String::new()
         } else if use_own {

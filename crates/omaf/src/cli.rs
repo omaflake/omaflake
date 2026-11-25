@@ -964,6 +964,15 @@ pub enum BuilderCommand {
     },
     #[command(name = "clean-up", about = "Remove unused store paths in the builder (free space before and after).")]
     CleanUp,
+    #[command(about = "Check that the Linux builder accepts this Mac's builds (a tiny test build).")]
+    Check,
+    #[command(
+        about = "Give the Linux builder a new disk when it refuses this Mac's builds (nix-darwin's: through sudo)."
+    )]
+    Repair {
+        #[arg(long, help = "Also when the check passes")]
+        force: bool,
+    },
 }
 
 // MARK: - Packages

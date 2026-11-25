@@ -19,6 +19,7 @@ use super::server::{Answer, Reply, Server, lock};
 use super::types::*;
 use crate::backend::{Readiness, StartOptions};
 use crate::build_progress::BuildLog;
+use crate::builder_health::{BuilderHealth, Trust};
 use crate::builder_maintenance::{AdminShell, BuilderMaintenance, NixVolume};
 use crate::cli_link::CliLink;
 use crate::credentials::{CredentialChange, Credentials};
@@ -406,6 +407,8 @@ impl Server {
             "builder.cleanUp" => self.builder_job(JobKind::BuilderCleanUp, false),
             "builder.uninstallNix" => self.builder_job(JobKind::BuilderUninstallNix, false),
             "builder.trust" => self.builder_job(JobKind::BuilderTrust, false),
+            "builder.check" => self.builder_job(JobKind::BuilderCheck, false),
+            "builder.repair" => self.builder_job(JobKind::BuilderRepair, false),
             "qemu.install" => {
                 #[derive(Deserialize)]
                 struct P {
@@ -1272,7 +1275,32 @@ impl Server {
             }
             GuestKind::Nixos => {
                 ctx.log(&format!("nix build .#images.{recipe}"));
-                ImageStore::new(paths.clone()).build(recipe, &flake, choice, None, cancel, &*log)?
+                // The builder refusing the Mac's paths: noted for the Doctor, said in plain words (plan B175)
+                let refused = std::sync::atomic::AtomicBool::new(false);
+                let watch = |line: &str| {
+                    if BuilderHealth::refused_in(line) {
+                        refused.store(true, std::sync::atomic::Ordering::Relaxed);
+                    }
+                    log(line);
+                };
+                let built = ImageStore::new(paths.clone()).build(recipe, &flake, choice, None, cancel, &watch);
+                let health = BuilderHealth::new(paths.clone());
+                match built {
+                    Ok(image) => {
+                        health.clear();
+                        image
+                    }
+                    Err(e) if refused.load(std::sync::atomic::Ordering::Relaxed) => {
+                        let _ = health.mark_refused();
+                        self.check_doctor_later();
+                        return Err(vm_err!(
+                            codes::PREREQUISITE,
+                            "{}\nThe Linux builder refuses what this Mac built (it no longer trusts it). Repair it in the Doctor (Linux builder running → Repair …).",
+                            e.message()
+                        ));
+                    }
+                    Err(e) => return Err(e),
+                }
             }
         };
         ctx.log(&format!("✓ Image {} ready", OmaflakeId::image(&image, 3)));
@@ -2553,11 +2581,13 @@ impl Server {
     }
 
     /// The jobs that set up and keep up Nix and the Linux builder – one at a time
-    pub(crate) const SETUP_KINDS: [JobKind; 9] = [
+    pub(crate) const SETUP_KINDS: [JobKind; 11] = [
         JobKind::BuilderInstallNix,
         JobKind::BuilderMountNix,
         JobKind::BuilderUninstallNix,
         JobKind::BuilderTrust,
+        JobKind::BuilderCheck,
+        JobKind::BuilderRepair,
         JobKind::BuilderSetup,
         JobKind::BuilderApply,
         JobKind::BuilderCleanUp,
@@ -2584,6 +2614,8 @@ impl Server {
             JobKind::BuilderMountNix => "Mount the Nix Store",
             JobKind::BuilderUninstallNix => "Remove Nix",
             JobKind::BuilderTrust => "Allow omaflake's Linux builder",
+            JobKind::BuilderCheck => "Check the Linux builder",
+            JobKind::BuilderRepair => "Repair the Linux builder",
             JobKind::BuilderSetup => "Set up the Linux builder",
             JobKind::BuilderApply => "Apply the Linux builder settings",
             _ => "Clean up the Linux builder",
@@ -2621,6 +2653,28 @@ impl Server {
                         )?;
                         "You are one of Nix's trusted-users now".to_string()
                     }
+                    JobKind::BuilderCheck => {
+                        ctx.log("Checking whether the Linux builder accepts this Mac's builds …");
+                        match BuilderHealth::new(s.paths()).probe() {
+                            Trust::Accepted => "The Linux builder accepts this Mac's builds".to_string(),
+                            Trust::Refused => {
+                                return Err(crate::vm_err!(
+                                    codes::PREREQUISITE,
+                                    "The Linux builder refuses what this Mac built (it no longer trusts it). Repair gives it a new disk."
+                                ));
+                            }
+                            Trust::Failed(why) => {
+                                return Err(crate::vm_err!("Checking the Linux builder failed:\n{}", why));
+                            }
+                        }
+                    }
+                    JobKind::BuilderRepair => BuilderHealth::new(s.paths()).repair(
+                        &*ctx.log_sink(),
+                        &|command| {
+                            s.admin(ctx, command.to_string(), "omaflake wants to give the Linux builder a new disk.")
+                        },
+                        &|| s.wait_for_builder(ctx, 10),
+                    )?,
                     JobKind::BuilderSetup => {
                         s.set_up_builder(ctx)?;
                         "The Linux builder runs".to_string()

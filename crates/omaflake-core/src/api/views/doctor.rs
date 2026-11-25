@@ -272,6 +272,8 @@ fn builder_task(ctx: &Ctx) -> Option<&JobDto> {
                 | JobKind::BuilderMountNix
                 | JobKind::BuilderUninstallNix
                 | JobKind::BuilderTrust
+                | JobKind::BuilderCheck
+                | JobKind::BuilderRepair
                 | JobKind::BuilderSetup
                 | JobKind::BuilderApply
                 | JobKind::BuilderCleanUp
@@ -286,7 +288,12 @@ fn builder_task(ctx: &Ctx) -> Option<&JobDto> {
 fn works_on(j: &JobDto, item: I) -> bool {
     match j.kind {
         JobKind::BuilderInstallNix | JobKind::BuilderMountNix | JobKind::BuilderUninstallNix => item == I::Nix,
-        JobKind::BuilderTrust | JobKind::BuilderSetup | JobKind::BuilderApply | JobKind::BuilderCleanUp => {
+        JobKind::BuilderTrust
+        | JobKind::BuilderCheck
+        | JobKind::BuilderRepair
+        | JobKind::BuilderSetup
+        | JobKind::BuilderApply
+        | JobKind::BuilderCleanUp => {
             matches!(item, I::LinuxBuilder | I::BuilderRunning)
         }
         JobKind::QemuInstall => item == I::Qemu,
@@ -463,6 +470,31 @@ fn item(ctx: &Ctx, p: &PrerequisiteDto) -> DoctorItem {
             )
             .enabled_if(!nix_missing, Some(Text::new("Nix"))),
         );
+    } else if p.item == I::BuilderRunning && p.detail == Prerequisites::BUILDER_REFUSES {
+        // The builder runs but refuses the Mac's paths (plan B175): a new disk
+        let own = !report.is_some_and(|d| {
+            d.prerequisites.iter().any(|x| x.item == I::LinuxBuilder && !x.detail.starts_with("omaflake's builder"))
+        });
+        let text = if own {
+            "omaflake stops its Linux builder, deletes its disk and starts it with a new one: a fresh Nix store, built paths in it are gone (they are built or downloaded again). Then it checks that the builder accepts this Mac's builds. No administrator."
+        } else {
+            "omaflake stops nix-darwin's Linux builder, deletes its disk and starts it with a new one: a fresh Nix store, built paths in it are gone (they are built or downloaded again). Then it checks that the builder accepts this Mac's builds. macOS asks for an administrator."
+        };
+        actions.push(
+            no_task(
+                Action::call("repair", Text::new("Repair …"), Some("reset"), "builder.repair", json!({})).confirm(
+                    Confirm::new(Text::new("Give the Linux builder a new disk?"), Text::new(text))
+                        .button("Repair")
+                        .destructive(),
+                ),
+            )
+            .primary(),
+        );
+    } else if p.item == I::BuilderRunning && p.status == S::Ok && ctx.host == super::HostOs::Macos {
+        actions.push(no_task(
+            Action::call("check", Text::new("Test Build"), Some("ok"), "builder.check", json!({}))
+                .help(Text::new("Checks that the Linux builder accepts this Mac's builds (a tiny test build)")),
+        ));
     } else if p.item == I::SshKey && p.status == S::Missing {
         actions.push(
             Action::call("createKey", Text::new("Create"), Some("add"), "doctor.createSshKey", json!({}))

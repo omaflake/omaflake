@@ -11,11 +11,13 @@ public struct Job: Decodable, Sendable, Equatable, Identifiable {
         case cliInstall = "cli-install", nixCleanUp = "nix-clean-up"
         /// Plan B160: remove a half-done Nix, trust the user, omaflake's QEMU, "Set Up for NixOS"
         case builderUninstallNix = "builder-uninstall-nix", builderTrust = "builder-trust", qemuInstall = "qemu-install", setup
+        /// Plan B175: does the Linux builder accept this Mac's builds; a new disk when it refuses them
+        case builderCheck = "builder-check", builderRepair = "builder-repair"
         case unknown
 
         public var isBuilderTask: Bool {
-            [.builderInstallNix, .builderMountNix, .builderUninstallNix, .builderTrust, .builderSetup, .builderApply, .builderCleanUp,
-             .qemuInstall, .setup].contains(self)
+            [.builderInstallNix, .builderMountNix, .builderUninstallNix, .builderTrust, .builderCheck, .builderRepair, .builderSetup,
+             .builderApply, .builderCleanUp, .qemuInstall, .setup].contains(self)
         }
     }
 
