@@ -244,6 +244,12 @@ pub struct Bridge {
     pub vm_name: Option<String>,
     #[arg(long, value_name = "socket", help = "Control socket: status, the VM's diagnosis, MIDI state")]
     pub control: Option<std::path::PathBuf>,
+    #[arg(
+        long = "forward",
+        value_name = "port=address:port",
+        help = "A port of another VM on the guest's localhost (again for more)"
+    )]
+    pub forwards: Vec<String>,
 }
 
 #[derive(Debug, Args)]
@@ -807,6 +813,12 @@ pub struct Set {
         help = "A larger disk in GB (only larger; the VM must be stopped; the guest takes the space at its next start)"
     )]
     pub disk: Option<u32>,
+    #[arg(
+        long,
+        value_name = "ports",
+        help = "Ports of other VMs on its localhost, e.g. \"5432=docker:5432, 2375=docker\" (\"\" for none; from the next start)"
+    )]
+    pub forwards: Option<String>,
 }
 
 #[derive(Debug, Args)]

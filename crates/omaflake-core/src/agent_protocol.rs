@@ -315,6 +315,35 @@ pub struct AgentWelcome {
     #[serde(rename = "statusInterval")]
     pub status_interval: u32,
     pub host: String,
+    /// Ports of other VMs on the guest's localhost (feature "forward", plan B180); left out when there are none
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub forwards: Vec<AgentForward>,
+}
+
+/// A port of another VM on the guest's localhost: 127.0.0.1:<port> → <to> ("10.231.1.10:5432", plan B180)
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct AgentForward {
+    pub port: u16,
+    pub to: String,
+}
+
+impl AgentForward {
+    /// "<port>=<address>:<port>" – how omaf passes it to a bridge (`--forward`)
+    pub fn argument(&self) -> String {
+        format!("{}={}", self.port, self.to)
+    }
+
+    /// The other way; None for anything else
+    pub fn parse(text: &str) -> Option<AgentForward> {
+        let (port, to) = text.split_once('=')?;
+        let port: u16 = port.parse().ok().filter(|p| *p > 0)?;
+        let (host, to_port) = to.rsplit_once(':')?;
+        let _: u16 = to_port.parse().ok().filter(|p| *p > 0)?;
+        if host.is_empty() {
+            return None;
+        }
+        Some(AgentForward { port, to: to.to_string() })
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -946,6 +975,8 @@ pub struct AgentLink {
     clipboard_times: Vec<Instant>,
     /// Features the Mac side allows for this VM (its switches); the welcome enables those the agent offers too
     allowed: HashSet<String>,
+    /// Ports of other VMs on the guest's localhost (plan B180): with any, the feature "forward" is allowed
+    pub forwards: Vec<AgentForward>,
     /// What the welcome enabled – messages of other features are dropped
     enabled: HashSet<String>,
     /// Called on the link's thread: the welcome went out with these features (also again after a new hello)
@@ -998,6 +1029,7 @@ impl AgentLink {
             last_accepted: HashMap::new(),
             clipboard_times: Vec::new(),
             allowed,
+            forwards: Vec::new(),
             enabled: HashSet::new(),
             on_welcome: None,
             on_clipboard: None,
@@ -1295,7 +1327,11 @@ impl AgentLink {
             .unwrap_or_else(|| vec!["status".to_string()])
             .into_iter()
             .collect();
-        self.enabled = self.allowed.intersection(&offered).cloned().collect();
+        let mut allows = self.allowed.clone();
+        if !self.forwards.is_empty() {
+            allows.insert("forward".to_string());
+        }
+        self.enabled = allows.intersection(&offered).cloned().collect();
         self.enabled.insert("status".to_string());
         let mut features: Vec<String> = self.enabled.iter().cloned().collect();
         features.sort();
@@ -1306,6 +1342,7 @@ impl AgentLink {
             features,
             status_interval: self.status_interval,
             host: self.host.clone(),
+            forwards: if self.enabled.contains("forward") { self.forwards.clone() } else { vec![] },
         };
         let Ok(json) = serde_json::to_vec(&w) else { return };
         self.sender.send(AgentMessage::Welcome, &json);

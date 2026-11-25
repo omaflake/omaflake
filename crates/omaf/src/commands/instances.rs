@@ -643,13 +643,17 @@ pub fn set(a: &cli::Set) -> Outcome {
     let env = Env::new();
     // Cores and memory (plan B164) through the API: it checks the host's limits, that the VM is stopped, and writes a
     // macOS VM's folder too
-    if a.cpus.is_some() || a.memory.is_some() || a.displays.is_some() || a.disk.is_some() {
+    if a.cpus.is_some() || a.memory.is_some() || a.displays.is_some() || a.disk.is_some() || a.forwards.is_some() {
         let mut params = serde_json::json!({"name": a.name});
         if let Some(n) = a.cpus {
             params["cpus"] = n.into();
         }
         if let Some(n) = a.memory {
             params["memoryGb"] = n.into();
+        }
+        // Ports of other VMs on its localhost (plan B180)
+        if let Some(text) = &a.forwards {
+            params["forwards"] = text.clone().into();
         }
         // A larger disk (plan B164): only larger, while stopped – the API checks both
         if let Some(n) = a.disk {

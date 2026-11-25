@@ -355,6 +355,17 @@ fn detail(ctx: &Ctx, v: &Vm) -> VmDetail {
             "Only larger. The VM takes the new space at its next start."
         })),
     );
+    // Ports of other VMs on its localhost (plan B180), over its agent – from the next start, also while it runs
+    {
+        let mut f = Field::new("forwards", FieldKind::Text, Text::new("Ports of other VMs"), json!(v.forwards))
+            .help(Text::new(
+                "On this VM's localhost: 5432=docker:5432 makes localhost:5432 reach port 5432 of the VM docker – a VM in a network with this one. Apart by commas; from the next start; images built with omaflake 0.8.0 or later.",
+            ))
+            .enabled_if(!v.busy, None);
+        f.placeholder = Some(Text::new("none"));
+        f.set = Some(Setter { method: "vms.set".into(), params: json!({"name": name}), param: "forwards".into() });
+        fields.push(f);
+    }
     // More monitors, each in a window of its own (plan B171); macOS VMs have one (Virtualization.framework)
     if !mac {
         fields.push(

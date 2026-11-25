@@ -488,6 +488,17 @@ Lume (trycua) only after a license review (OPEN).
 
 ## 8. Next steps (as of 2026-11-25)
 
+**B180 (2026-11-25, built for 0.8.0; the guests OPEN): ports of other VMs on a VM's localhost.** From spec §11.12's
+"later". `InstanceConfig::forwards` ([{port, vm, to}], schema v1 optional field), `PortForward::parse_list` /
+`list_text` ("5432=docker:5432, 2375=docker"); `Networks::forward_targets` turns them into `AgentForward {port, to:
+"<address>:<port>"}` with the target's address in a network both VMs are in (a VM with none shared is left out). The
+agent's welcome carries them (`forwards`, feature `forward` – allowed when there are any, the agent offers it from
+0.8.0 on, an older one gets no list): Swift `AgentLink.forwards` (omaf-runner `run`/`bridge --forward`), Rust
+`AgentLink.forwards` (Linux `omaf bridge --forward`), the core passes them at the start. The agent (forward.rs)
+listens on 127.0.0.1:<port> and passes each connection on (a port stays bound, its target looked up per connection).
+Tests: the agent's round trip through a real listener, the welcome with and without "forward" (Swift), parsing,
+targets, the VM's details field (a text stored as typed; "" clears – `vms.set` takes null as "none"). OPEN: in guests.
+
 **B179 (2026-11-25, built for 0.8.0; the guests OPEN): names in networks, joining while running.** From spec §11.12's
 "later". *Names:* the switch answers mDNS queries for `<vm>.<network>.local` (`packets::mdns_query`/`mdns_answer`:
 names with compression pointers, A and ANY, TTL 120, to the group with cache-flush from port 5353, a legacy query from

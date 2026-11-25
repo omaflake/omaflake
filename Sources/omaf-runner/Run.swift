@@ -28,6 +28,8 @@ final class RunController: NSObject, NSApplicationDelegate, NSWindowDelegate, VZ
         var vmName: String?
         /// Cards on omaflake's networks (spec §11.12)
         var networks: [NetworkCard] = []
+        /// Ports of other VMs on the guest's localhost, over the agent (plan B180)
+        var forwards: [AgentForward] = []
         var recovery: Bool
         var provisioning: Provisioning?
     }
@@ -101,6 +103,7 @@ final class RunController: NSObject, NSApplicationDelegate, NSWindowDelegate, VZ
                 }
                 let link = AgentLink(fd: ourEnd, stateFile: stateFile, host: "omaflake", allowed: allowed,
                                      log: { text in log(text) })   // runner.log, like everything else here
+                link.forwards = request.forwards
                 let clip = clipboard, cam = camera, midiBridge = midi
                 link.onWelcome = { [weak link] (features: Set<String>) in
                     guard let link else { return }

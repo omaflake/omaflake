@@ -188,6 +188,14 @@ fn bridge(a: &Bridge) -> Outcome {
         midi: a.midi,
         vm_name: a.vm_name.clone().unwrap_or_default(),
         control: a.control.clone(),
+        forwards: a
+            .forwards
+            .iter()
+            .map(|f| {
+                omaflake_core::agent_protocol::AgentForward::parse(f)
+                    .ok_or_else(|| Error::new(format!("--forward {f}: <port>=<address>:<port>")))
+            })
+            .collect::<Result<_, _>>()?,
     };
     match omaflake_core::host_bridge::run(&options) {
         Ok(end) => {

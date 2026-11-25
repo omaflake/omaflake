@@ -33,6 +33,7 @@
   "display": "gpu",
   "displays": 2,
   "ephemeral": false,
+  "forwards": "5432=docker:5432",
   "identity": "amber",
   "image": "omaflake.nixos.dev@cedar-mango-lift",
   "kind": "nixos",

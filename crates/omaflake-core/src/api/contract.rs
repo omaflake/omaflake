@@ -264,6 +264,7 @@ pub(crate) fn vm_full() -> Vm {
         location: Some("/Volumes/Disk/research.omaflake-vm".into()),
         latest_image: Some("omaflake.nixos.dev@mint-river-cloud".into()),
         upgradable: true,
+        forwards: "5432=docker:5432".into(),
     }
 }
 
@@ -303,6 +304,7 @@ pub(crate) fn vm_mac() -> Vm {
         location: None,
         latest_image: None,
         upgradable: false,
+        forwards: String::new(),
     }
 }
 

@@ -1101,6 +1101,19 @@ impl Server {
             if let Some(v) = p.midi {
                 c.midi = Some(v);
             }
+            if let Some(v) = &p.forwards {
+                let text = v.as_str().unwrap_or_default();
+                c.forwards = crate::models::PortForward::parse_list(text).map_err(|item| {
+                    vm_err!(
+                        codes::UNSUPPORTED_SYSTEM,
+                        "\"{}\" is no port: <port>=<vm>[:<port>], e.g. 5432=docker:5432",
+                        item
+                    )
+                })?;
+                if let Some(f) = c.forwards.iter().find(|f| f.vm == c.name) {
+                    return Err(vm_err!(codes::UNSUPPORTED_SYSTEM, "{} cannot forward to itself", f.vm));
+                }
+            }
             backends.store.save(&c)?;
             Ok(backends.backend_for(&c).is_ok_and(|b| b.status(&c) == VmStatus::Running))
         })?;
@@ -3502,6 +3515,15 @@ struct SetParams {
     /// Only larger, while stopped (plan B164)
     #[serde(default, rename = "diskGb", alias = "diskGB")]
     disk_gb: Option<u32>,
+    /// Ports of other VMs on its localhost, "5432=docker:5432, 2375=docker" (plan B180); from the next start. Given as
+    /// null or "" (an emptied field): none
+    #[serde(default, deserialize_with = "given")]
+    forwards: Option<Value>,
+}
+
+/// A param that was given, also as null (Some(Null)) – absent stays None
+fn given<'de, D: serde::Deserializer<'de>>(d: D) -> Result<Option<Value>, D::Error> {
+    Value::deserialize(d).map(Some)
 }
 
 #[derive(Deserialize)]

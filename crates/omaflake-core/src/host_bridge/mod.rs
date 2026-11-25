@@ -47,6 +47,8 @@ pub struct BridgeOptions {
     pub vm_name: String,
     /// The control socket (`--control`, plan B162): the core's diagnosis and MIDI state go through it
     pub control: Option<PathBuf>,
+    /// Ports of other VMs on the guest's localhost (`--forward`, plan B180)
+    pub forwards: Vec<crate::agent_protocol::AgentForward>,
 }
 
 /// The Mac side's host name in the welcome, as Bridge.swift sends it
@@ -108,7 +110,8 @@ pub fn run(options: &BridgeOptions) -> Result<LinkEnd, String> {
             None
         }
     };
-    let bridge = Bridge::new(stream, &options.agent_state, clipboard, camera, midi, log.clone())?;
+    let mut bridge = Bridge::new(stream, &options.agent_state, clipboard, camera, midi, log.clone())?;
+    bridge.link.forwards = options.forwards.clone();
     if let Some(path) = &options.control
         && let Err(why) = control::serve(path, bridge.control(), log.clone())
     {

@@ -179,6 +179,9 @@ pub struct Vm {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub latest_image: Option<String>,
     pub upgradable: bool,
+    /// Ports of other VMs on its localhost, "5432=docker:5432, 2375=docker" (plan B180); "" for none
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub forwards: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -1421,6 +1424,7 @@ mod tests {
             location: None,
             latest_image: Some("omaflake.nixos.dev@c".into()),
             upgradable: true,
+            forwards: String::new(),
         };
         let v = s(&vm);
         for key in ["memoryGB", "diskGB", "sshPort", "sharePath", "omaflakeId", "latestImage"] {

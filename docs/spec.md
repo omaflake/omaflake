@@ -947,9 +947,15 @@ full `mdns4` after DNS with `/etc/mdns.allow` (`.local`).
 `device_add`), leaving unplugs it; `<instance>/run/lan.json` keeps which network has which port. macOS VMs change their
 cards at the next start (Virtualization.framework takes no device while a VM runs).
 
+**Ports of other VMs on localhost (plan B180).** A VM's `forwards` (instance.json; `vms.set {forwards}`, "5432=docker:5432,
+2375=docker"; the VM's details; `omaf set --forwards`) go into the agent's welcome as `forwards: [{port, to}]` – the
+target's address in a network both VMs are in – with the feature `forward`; the agent listens on 127.0.0.1:<port>
+and passes each connection on (nix/agent forward.rs). The Mac side: `omaf-runner run|bridge --forward
+<port>=<address>:<port>`, `omaf bridge --forward` on Linux. From the next start; images from 0.8.0 on (an older agent
+offers no `forward` and gets no list).
+
 **Later (OPEN).** Rules per network (internet, host access) and `isolated` for macOS VMs (BM27) – a gateway on the
-switch (e.g. gvproxy as one port); ports forwarded to a client's `localhost`; the graph's editing by dragging;
-throughput measured against VZ's NAT.
+switch (e.g. gvproxy as one port); the graph's editing by dragging; throughput measured against VZ's NAT.
 
 ### 11.4 Prerequisites for release
 

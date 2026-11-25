@@ -20,6 +20,9 @@ are collected under *Unreleased*. Releases: [GitHub](https://github.com/omaflake
   version, which moves its system into the new space (it removes the fallback recovery behind it; the recovery inside
   the system stays). Not yet tried on a Mac.
 
+- **Ports of other VMs on localhost:** "Ports of other VMs" in a VM's details (`omaf set --forwards "5432=docker:5432"`)
+  makes `localhost:5432` in the VM reach port 5432 of the VM docker in a shared network – handy for tools that only
+  talk to localhost. From the next start; images built with this version.
 - **Names and live joins in networks:** a VM reaches the others of a network by name – `<vm>.<network>.local` (macOS
   VMs at once, NixOS VMs with an image built with this version) – and a running NixOS VM joins or leaves a network at
   once instead of at its next start.

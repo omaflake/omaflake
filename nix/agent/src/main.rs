@@ -27,6 +27,7 @@ mod b64;
 mod camera;
 mod clip;
 mod diagnose;
+mod forward;
 mod midi;
 #[cfg(any(not(target_os = "macos"), test))]
 mod midi1;
@@ -113,13 +114,17 @@ struct Welcome {
     features: Vec<String>,
     status_interval: Option<u64>,
     host: Option<String>,
+    /// Ports of other VMs on this VM's localhost (feature "forward", plan B180)
+    #[serde(default)]
+    forwards: Vec<forward::Forward>,
 }
 
 /// What this agent offers in its hello; the Mac enables a subset in its welcome. macOS guests keep their clipboard
 /// helper until the agent's pasteboard is checked in a guest (PNG: OPEN, spec §11.9), so the agent there offers the
 /// camera (plan B169), MIDI and the diagnosis. The diagnosis is offered always, on every guest kind (plan B162)
 fn offered(midi: bool) -> Vec<&'static str> {
-    let mut f = vec!["status", "diagnose"];
+    // Ports of other VMs on localhost (plan B180) – every guest kind
+    let mut f = vec!["status", "diagnose", "forward"];
     if cfg!(target_os = "linux") {
         f.push("clipboard");
     }
@@ -174,6 +179,8 @@ struct Agent {
     camera_retry: CameraRetry,
     /// macOS: OBS's scene collection for the camera (obs.rs), as last looked at
     obs: Option<obs::State>,
+    /// The ports forwarded from localhost (plan B180)
+    forwards: forward::Forwards,
     /// Why there is no MIDI here (Midi::new failed), for the diagnosis
     midi_error: Option<String>,
     /// MIDI endpoints mirrored from the Mac's list and the names that failed, as last reported to the Mac
@@ -217,6 +224,8 @@ impl Agent {
         self.interval = Duration::from_secs(w.status_interval.unwrap_or(DEFAULT_INTERVAL).clamp(1, 60));
         self.welcomed = true;
         self.features = w.features;
+        let forwards = if self.enabled("forward") { w.forwards } else { vec![] };
+        self.forwards.set(&forwards, log);
         self.next_status = Instant::now();
         // What is on for this VM, for the guest's own tools (e.g. the lab recipe's "omaflake Test")
         let _ = std::fs::write(WELCOME_FILE, serde_json::json!({ "features": self.features }).to_string());
@@ -883,6 +892,7 @@ fn main() {
         camera_status: None,
         camera_retry: CameraRetry::default(),
         obs: None,
+        forwards: forward::Forwards::default(),
         midi_error,
         midi_state: (0, vec![]),
         diag_queue: VecDeque::new(),

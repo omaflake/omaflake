@@ -1455,17 +1455,24 @@ fn a_vm_shows_its_cores_and_memory_as_fields() {
         let fields = row["detail"]["fields"].as_array().unwrap();
         // NixOS VMs: their displays too (plan B171); macOS VMs have one
         if row["vm"]["kind"] == "nixos" {
-            assert_eq!(ids(&row["detail"]["fields"]), ["cpus", "memoryGb", "diskGb", "displays"]);
-            assert_eq!((fields[3]["min"].clone(), fields[3]["max"].clone()), (json!(1), json!(4)));
+            assert_eq!(ids(&row["detail"]["fields"]), ["cpus", "memoryGb", "diskGb", "forwards", "displays"]);
+            assert_eq!((fields[4]["min"].clone(), fields[4]["max"].clone()), (json!(1), json!(4)));
         } else {
-            assert_eq!(ids(&row["detail"]["fields"]), ["cpus", "memoryGb", "diskGb"]);
+            assert_eq!(ids(&row["detail"]["fields"]), ["cpus", "memoryGb", "diskGb", "forwards"]);
         }
+        // Ports of other VMs (plan B180): a text, stored as it is typed, also while the VM runs
+        let forwards = &fields[3];
+        assert_eq!(
+            (forwards["kind"].clone(), forwards["value"].clone()),
+            (json!("text"), row["vm"]["forwards"].clone().as_str().map_or(json!(""), |s| json!(s)))
+        );
+        assert_eq!(forwards["set"]["param"], "forwards");
         // The disk only grows (plan B164): its smallest value is what it has
         assert_eq!(fields[2]["min"], row["vm"]["diskGB"]);
         assert_eq!(fields[2]["max"], json!(crate::instance_store::InstanceStore::MAX_DISK_GB));
         let name = row["name"].clone();
         let running = row["vm"]["status"] == "running";
-        for f in fields {
+        for f in fields.iter().filter(|f| f["id"] != "forwards") {
             assert_eq!(f["kind"], "number");
             assert_eq!(f["set"]["method"], "vms.set");
             assert_eq!(f["set"]["params"], json!({"name": name}));

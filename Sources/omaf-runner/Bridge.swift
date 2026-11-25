@@ -26,6 +26,7 @@ struct Bridge: RunnerCommand {
         .flag("midi", "The Mac's MIDI devices in the VM over the agent (with --agent and --vm-name)"),
         .value("vm-name", "The VM's name: its own MIDI pair on the Mac is \"omaflake <name>\""),
         .value("control", "Control socket (status, diagnose, midi), e.g. <instance>/run/bridge.sock"),
+        .value("forward", "A port of another VM on the guest's localhost, <port>=<address>:<port> (again for more; with --agent)"),
     ]
     let agent: String?
     let agentState: String?
@@ -35,6 +36,7 @@ struct Bridge: RunnerCommand {
     let midi: Bool
     let vmName: String?
     let control: String?
+    let forwards: [AgentForward]
 
     init(_ a: inout Arguments) throws {
         agent = a.string("agent")
@@ -45,6 +47,10 @@ struct Bridge: RunnerCommand {
         midi = a.flag("midi")
         vmName = a.string("vm-name")
         control = a.string("control")
+        forwards = try a.strings("forward").map { text in
+            guard let f = AgentForward(argument: text) else { throw ValidationError("--forward \(text): <port>=<address>:<port>") }
+            return f
+        }
     }
 
     func run() throws {
@@ -71,6 +77,7 @@ struct Bridge: RunnerCommand {
             if midiBridge != nil { allowed.insert("midi") }
             let link = AgentLink(fd: fd, stateFile: URL(fileURLWithPath: agentState), host: "omaflake", allowed: allowed,
                                  log: log)
+            link.forwards = forwards
             // An image whose agent carries the clipboard and the camera: they move from the old ports to the agent
             link.onWelcome = { [weak link] features in
                 guard let link else { return }

@@ -405,6 +405,31 @@
           "value": 64
         },
         {
+          "enabled": true,
+          "help": {
+            "key": "On this VM's localhost: 5432=docker:5432 makes localhost:5432 reach port 5432 of the VM docker – a VM in a network with this one. Apart by commas; from the next start; images built with omaflake 0.8.0 or later.",
+            "text": "On this VM's localhost: 5432=docker:5432 makes localhost:5432 reach port 5432 of the VM docker – a VM in a network with this one. Apart by commas; from the next start; images built with omaflake 0.8.0 or later."
+          },
+          "id": "forwards",
+          "kind": "text",
+          "label": {
+            "key": "Ports of other VMs",
+            "text": "Ports of other VMs"
+          },
+          "placeholder": {
+            "key": "none",
+            "text": "none"
+          },
+          "set": {
+            "method": "vms.set",
+            "param": "forwards",
+            "params": {
+              "name": "research"
+            }
+          },
+          "value": "5432=docker:5432"
+        },
+        {
           "enabled": false,
           "help": {
             "key": "Each display in a window of its own",
@@ -750,6 +775,7 @@
       "display": "gpu",
       "displays": 2,
       "ephemeral": false,
+      "forwards": "5432=docker:5432",
       "identity": "amber",
       "image": "omaflake.nixos.dev@cedar-mango-lift",
       "kind": "nixos",

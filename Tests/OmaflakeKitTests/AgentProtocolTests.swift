@@ -121,6 +121,27 @@ struct AgentProtocolTests {
         #expect(state.status?.users == ["alice"])
     }
 
+    /// Ports of other VMs on localhost (plan B180): `--forward` parsed; the welcome lists them when the agent offers
+    /// "forward", and leaves them out otherwise
+    @Test func forwardsInTheWelcome() throws {
+        #expect(AgentForward(argument: "5432=10.231.1.10:5432") == AgentForward(port: 5432, to: "10.231.1.10:5432"))
+        for bad in ["5432", "x=10.231.1.10:5432", "5432=10.231.1.10", "0=a:1", "5432=:22", "5432=a:99999"] {
+            #expect(AgentForward(argument: bad) == nil, "\(bad)")
+        }
+        let offers = #"{"agent":"0.8.0","protocol":{"min":1,"max":1},"os":"linux","features":["status","forward"]}"#
+        let h = try Harness()
+        h.link.forwards = [AgentForward(port: 5432, to: "10.231.1.10:5432")]
+        #expect(h.send(.hello, offers))
+        let w = try JSONDecoder().decode(AgentWelcome.self, from: try #require(h.reply().first).payload)
+        #expect(w.features.contains("forward") && w.forwards == [AgentForward(port: 5432, to: "10.231.1.10:5432")])
+        // An older agent: no feature, no list
+        let old = try Harness()
+        old.link.forwards = [AgentForward(port: 5432, to: "10.231.1.10:5432")]
+        #expect(old.send(.hello, Self.hello))
+        let ow = try JSONDecoder().decode(AgentWelcome.self, from: try #require(old.reply().first).payload)
+        #expect(!ow.features.contains("forward") && ow.forwards == nil)
+    }
+
     @Test func noCommonVersion() throws {
         let h = try Harness()
         #expect(h.send(.hello, #"{"agent":"9.0","protocol":{"min":7,"max":8}}"#))

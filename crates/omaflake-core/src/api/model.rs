@@ -713,6 +713,7 @@ impl View<'_> {
             location: row.location.clone(),
             upgradable: latest.as_ref().is_some_and(|l| l != c.system_image.as_ref().unwrap_or(&c.image)),
             latest_image: latest,
+            forwards: crate::models::PortForward::list_text(&c.forwards),
         }
     }
 

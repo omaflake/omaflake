@@ -290,7 +290,9 @@ impl QemuRuntime {
                 && qmp.status().is_ok()
             {
                 let midi = config.midi_on().then_some(config.name.as_str());
-                self.start_bridge(&ip, config.clipboard_on(), config.camera_on(), midi);
+                // Ports of other VMs on its localhost (plan B180): each target's address in a network both are in
+                let forwards = crate::networks::Networks::new(self.paths.clone()).forward_targets(config);
+                self.start_bridge(&ip, config.clipboard_on(), config.camera_on(), midi, &forwards);
                 return Ok(self.pid(&config.name).unwrap_or(child));
             }
             std::thread::sleep(Duration::from_millis(200));
@@ -333,12 +335,22 @@ impl QemuRuntime {
     /// runs without them (readiness then by SSH). `midi`: the VM's name when its MIDI switch is on (plan B161 – the
     /// host's "omaflake <VM>" pair is named after it). OMAFLAKE_CAMERA_TEST_PATTERN=1 sends a test pattern instead of
     /// the camera (tests without camera permission).
-    pub(crate) fn start_bridge(&self, ip: &InstancePaths, clipboard: bool, camera: bool, midi: Option<&str>) {
+    pub(crate) fn start_bridge(
+        &self,
+        ip: &InstancePaths,
+        clipboard: bool,
+        camera: bool,
+        midi: Option<&str>,
+        forwards: &[crate::agent_protocol::AgentForward],
+    ) {
         let program =
             if cfg!(target_os = "linux") { Self::locate_omaf() } else { VzBackend::locate_runner(&self.paths).ok() };
         let Some(program) = program else { return };
         let test_pattern = std::env::var("OMAFLAKE_CAMERA_TEST_PATTERN").as_deref() == Ok("1");
-        let args = bridge_arguments(ip, cfg!(target_os = "linux"), clipboard, camera, test_pattern, midi);
+        let mut args = bridge_arguments(ip, cfg!(target_os = "linux"), clipboard, camera, test_pattern, midi);
+        for f in forwards {
+            args.extend(["--forward".into(), f.argument()]);
+        }
         let _ = spawn_detached(&program, &args, &ip.bridge_log(), &[]);
     }
 

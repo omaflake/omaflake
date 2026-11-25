@@ -338,6 +338,25 @@ impl Networks {
         Ok(cards)
     }
 
+    /// The welcome's forwards of `c` (plan B180): each target VM's address in a network both are in – one whose VM shares
+    /// no network with it is left out
+    pub fn forward_targets(&self, c: &crate::models::InstanceConfig) -> Vec<crate::agent_protocol::AgentForward> {
+        if c.forwards.is_empty() {
+            return vec![];
+        }
+        let networks = self.of_vm(&c.name);
+        c.forwards
+            .iter()
+            .filter_map(|f| {
+                let n = networks.iter().find(|n| n.members.contains_key(&f.vm))?;
+                Some(crate::agent_protocol::AgentForward {
+                    port: f.port,
+                    to: format!("{}:{}", n.member_address(&f.vm)?, f.to),
+                })
+            })
+            .collect()
+    }
+
     /// The `omaf` that serves the switches (this omaflake's own CLI)
     fn omaf() -> Result<String> {
         crate::cli_link::CliLink::running_omaf()
@@ -467,6 +486,24 @@ mod tests {
         assert_eq!(n.get("ops").unwrap().member_address("vm1"), Some(Ipv4Addr::new(10, 231, 2, 10)));
         n.forget_vm("vm1").unwrap();
         assert!(n.of_vm("vm1").is_empty());
+    }
+
+    /// The welcome's forwards (plan B180): the target's address in a network both are in; none without a shared one
+    #[test]
+    fn forward_targets_in_a_shared_network() {
+        let (_t, n) = networks();
+        n.create("lab").unwrap();
+        n.join("lab", "mac").unwrap();
+        let docker = n.join("lab", "docker").unwrap();
+        let mut c = crate::models::tests::config("mac");
+        c.forwards = vec![
+            crate::models::PortForward { port: 5432, vm: "docker".into(), to: 5432 },
+            crate::models::PortForward { port: 80, vm: "elsewhere".into(), to: 80 },
+        ];
+        let t = n.forward_targets(&c);
+        assert_eq!(t, [crate::agent_protocol::AgentForward { port: 5432, to: format!("{docker}:5432") }]);
+        assert_eq!(t[0].argument(), format!("5432={docker}:5432"));
+        assert_eq!(crate::agent_protocol::AgentForward::parse(&t[0].argument()), Some(t[0].clone()));
     }
 
     #[test]

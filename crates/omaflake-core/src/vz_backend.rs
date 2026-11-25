@@ -207,6 +207,10 @@ impl VzBackend {
             // The VM's own pair on the Mac is "omaflake <name>" – the bundle's folder is "vm" for every VM
             args.extend(["--midi".into(), "--vm-name".into(), c.name.clone()]);
         }
+        // Ports of other VMs on its localhost, over the agent (plan B180)
+        for f in crate::networks::Networks::new(self.paths.clone()).forward_targets(c) {
+            args.extend(["--forward".into(), f.argument()]);
+        }
         // Camera: over the agent from images of 0.7.5 on (plan B169), the port org.omaflake.camera for older ones
         if c.camera_on() {
             args.push("--camera".into());

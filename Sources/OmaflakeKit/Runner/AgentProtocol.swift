@@ -490,6 +490,25 @@ public struct AgentWelcome: Codable, Sendable, Equatable {
     public var features: [String]
     public var statusInterval: Int
     public var host: String
+    /// Ports of other VMs on the guest's localhost (feature "forward", plan B180); left out when there are none
+    public var forwards: [AgentForward]?
+}
+
+/// A port of another VM on the guest's localhost: 127.0.0.1:<port> → <to> ("10.231.1.10:5432", plan B180)
+public struct AgentForward: Codable, Sendable, Equatable {
+    public var port: Int
+    public var to: String
+    public init(port: Int, to: String) { self.port = port; self.to = to }
+
+    /// "<port>=<address>:<port>" as omaf passes it (`--forward`); nil for anything else
+    public init?(argument: String) {
+        let parts = argument.split(separator: "=", maxSplits: 1).map(String.init)
+        guard parts.count == 2, let port = Int(parts[0]), (1...65535).contains(port),
+              let colon = parts[1].lastIndex(of: ":"), let to = Int(parts[1][parts[1].index(after: colon)...]),
+              (1...65535).contains(to), colon != parts[1].startIndex else { return nil }
+        self.port = port
+        self.to = parts[1]
+    }
 }
 
 /// The agent's periodic status (guest view; untrusted, cleaned by `sanitized()`).
@@ -647,6 +666,8 @@ public final class AgentLink: @unchecked Sendable {
 
     /// Features the Mac side allows for this VM (its switches); the welcome enables those the agent offers too
     let allowed: Set<String>
+    /// Ports of other VMs on the guest's localhost (plan B180): with any, the feature "forward" is allowed
+    public var forwards: [AgentForward] = []
     /// What the welcome enabled – messages of other features are dropped
     public private(set) var enabled: Set<String> = []
 
@@ -848,10 +869,12 @@ public final class AgentLink: @unchecked Sendable {
     func welcome(_ version: Int) {
         // What the agent offers and this VM allows
         let offered = Set(state.hello?.features ?? ["status"])
-        enabled = allowed.intersection(offered).union(["status"])
+        let allows = forwards.isEmpty ? allowed : allowed.union(["forward"])
+        enabled = allows.intersection(offered).union(["status"])
         state.features = enabled.sorted()
         sharedLock.withLock { welcomed = enabled }
-        let w = AgentWelcome(protocol: version, features: enabled.sorted(), statusInterval: statusInterval, host: host)
+        let w = AgentWelcome(protocol: version, features: enabled.sorted(), statusInterval: statusInterval, host: host,
+                             forwards: enabled.contains("forward") ? forwards : nil)
         guard let json = try? JSONEncoder().encode(w) else { return }
         send(.welcome, payload: json)
         onWelcome?(enabled)

@@ -474,6 +474,56 @@ pub struct InstanceConfig {
     /// base.
     #[serde(rename = "systemImage", default, skip_serializing_if = "Option::is_none")]
     pub system_image: Option<String>,
+    /// Ports of other VMs on this VM's localhost (plan B180), over its agent – the target in a network both are in
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub forwards: Vec<PortForward>,
+}
+
+/// localhost:<port> in a VM → <vm>:<to> (plan B180)
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct PortForward {
+    pub port: u16,
+    pub vm: String,
+    pub to: u16,
+}
+
+impl PortForward {
+    /// "5432=docker:5432, 2375=docker" – each "<port>=<vm>[:<port>]" (the VM's port is the same when left out), apart
+    /// by commas or spaces; an empty text is none
+    pub fn parse_list(text: &str) -> std::result::Result<Vec<PortForward>, String> {
+        let mut out: Vec<PortForward> = Vec::new();
+        for item in text.split([',', ' ', '\n']).map(str::trim).filter(|s| !s.is_empty()) {
+            let (port, target) = item.split_once('=').ok_or_else(|| item.to_string())?;
+            let port: u16 = port.trim().parse().ok().filter(|p| *p > 0).ok_or_else(|| item.to_string())?;
+            let (vm, to) = match target.split_once(':') {
+                Some((vm, to)) => {
+                    (vm.trim(), to.trim().parse().ok().filter(|p: &u16| *p > 0).ok_or_else(|| item.to_string())?)
+                }
+                None => (target.trim(), port),
+            };
+            if vm.is_empty() || out.iter().any(|f| f.port == port) {
+                return Err(item.to_string());
+            }
+            out.push(PortForward { port, vm: vm.to_string(), to });
+        }
+        Ok(out)
+    }
+
+    /// The list as `parse_list` reads it
+    pub fn list_text(list: &[PortForward]) -> String {
+        list.iter()
+            .map(
+                |f| {
+                    if f.port == f.to {
+                        format!("{}={}", f.port, f.vm)
+                    } else {
+                        format!("{}={}:{}", f.port, f.vm, f.to)
+                    }
+                },
+            )
+            .collect::<Vec<_>>()
+            .join(", ")
+    }
 }
 
 impl InstanceConfig {
@@ -519,6 +569,7 @@ impl InstanceConfig {
             identity: None,
             displays: None,
             system_image: None,
+            forwards: vec![],
         }
     }
 
@@ -841,6 +892,25 @@ pub(crate) mod tests {
             2230,
             parse_date("1970-01-01T00:00:00Z").unwrap(),
         )
+    }
+
+    /// Ports of other VMs (plan B180): "<port>=<vm>[:<port>]" apart by commas or spaces, written back the same way
+    #[test]
+    fn port_forwards_as_text() {
+        let list = PortForward::parse_list("5432=docker:5432, 2375=docker 8080=web:80").unwrap();
+        assert_eq!(
+            list,
+            [
+                PortForward { port: 5432, vm: "docker".into(), to: 5432 },
+                PortForward { port: 2375, vm: "docker".into(), to: 2375 },
+                PortForward { port: 8080, vm: "web".into(), to: 80 },
+            ]
+        );
+        assert_eq!(PortForward::list_text(&list), "5432=docker, 2375=docker, 8080=web:80");
+        assert_eq!(PortForward::parse_list("  ").unwrap(), []);
+        for bad in ["5432", "x=docker", "0=docker", "5432=docker:0", "5432=", "1=a, 1=b"] {
+            assert!(PortForward::parse_list(bad).is_err(), "{bad}");
+        }
     }
 
     #[test]

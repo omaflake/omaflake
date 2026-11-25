@@ -1840,3 +1840,9 @@
 "Guided Setup …" = "Geführte Einrichtung …";
 "NixOS and macOS VMs" = "NixOS- und macOS-VMs";
 "The VM did not let its card in \"%@\" go: %@" = "Die VM hat ihre Karte in „%1$@“ nicht freigegeben: %2$@";
+
+/* Plan B180: ports of other VMs on a VM's localhost */
+"Ports of other VMs" = "Ports anderer VMs";
+"On this VM's localhost: 5432=docker:5432 makes localhost:5432 reach port 5432 of the VM docker – a VM in a network with this one. Apart by commas; from the next start; images built with omaflake 0.8.0 or later." = "Auf localhost dieser VM: 5432=docker:5432 macht localhost:5432 zu Port 5432 der VM docker – einer VM im selben Netz. Durch Kommas getrennt; ab dem nächsten Start; Images ab omaflake 0.8.0.";
+"\"%@\" is no port: <port>=<vm>[:<port>], e.g. 5432=docker:5432" = "„%@“ ist kein Port: <Port>=<VM>[:<Port>], z. B. 5432=docker:5432";
+"%@ cannot forward to itself" = "%@ kann nicht auf sich selbst weiterleiten";

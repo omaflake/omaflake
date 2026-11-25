@@ -141,6 +141,7 @@ struct Run: RunnerCommand {
         .value("lan-mac", "A card on one of omaflake's networks: its MAC (with --lan-socket and --lan-switch, once per network)"),
         .value("lan-socket", "The card's own datagram socket (the switch answers to it)"),
         .value("lan-switch", "The network switch's datagram socket (vz.sock)"),
+        .value("forward", "A port of another VM on the guest's localhost, <port>=<address>:<port> (again for more; over the agent)"),
         .flag("recovery", "Start into macOS Recovery"),
         .value("user", "First start after installation only: create a user (macOS 27 guest)"),
         .value("full-name", "Full name for --user"),
@@ -165,6 +166,7 @@ struct Run: RunnerCommand {
     let lanMac: [String]
     let lanSocket: [String]
     let lanSwitch: [String]
+    let forwards: [AgentForward]
     let recovery: Bool
     let user: String?
     let fullName: String?
@@ -190,6 +192,10 @@ struct Run: RunnerCommand {
         lanMac = a.strings("lan-mac")
         lanSocket = a.strings("lan-socket")
         lanSwitch = a.strings("lan-switch")
+        forwards = try a.strings("forward").map { text in
+            guard let f = AgentForward(argument: text) else { throw ValidationError("--forward \(text): <port>=<address>:<port>") }
+            return f
+        }
         recovery = a.flag("recovery")
         user = a.string("user")
         fullName = a.string("full-name")
@@ -222,7 +228,7 @@ struct Run: RunnerCommand {
             clipboard: clipboard, camera: camera, cameraTestPattern: cameraTestPattern, agentState: agentState.map(url),
             midi: midi, vmName: vmName,
             networks: try NetworkCard.parse(macs: lanMac, sockets: lanSocket, switches: lanSwitch),
-            recovery: recovery, provisioning: provisioning)
+            forwards: forwards, recovery: recovery, provisioning: provisioning)
         MainActor.assumeIsolated {
             let app = NSApplication.shared
             app.setActivationPolicy(window ? .regular : .prohibited)
