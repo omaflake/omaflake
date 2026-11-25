@@ -197,6 +197,8 @@ impl QemuRuntime {
             gl: Self::has_gl(&self.qemu),
             guest_owner: contains(b"guest_owner_uid"),
             loading_image: contains(b"OMAFLAKE_LOADING_IMAGE"),
+            // the name of the display windows' listener (patch qemu-cocoa-displays)
+            displays: contains(b"cocoa-display-gl"),
         }
     }
 
@@ -851,11 +853,11 @@ mod tests {
         let (_t, p) = temp_paths();
         let with = fake_qemu(&p.root, true, true);
         let caps = QemuRuntime::new(p.clone(), &with.to_string_lossy(), "/fw.fd").capabilities();
-        assert_eq!(caps, QemuCapabilities { gl: true, guest_owner: true, loading_image: false });
+        assert_eq!(caps, QemuCapabilities { gl: true, guest_owner: true, loading_image: false, displays: false });
         let (_t, p) = temp_paths();
         let without = fake_qemu(&p.root, false, true);
         let caps = QemuRuntime::new(p.clone(), &without.to_string_lossy(), "/fw.fd").capabilities();
-        assert_eq!(caps, QemuCapabilities { gl: true, guest_owner: false, loading_image: false });
+        assert_eq!(caps, QemuCapabilities { gl: true, guest_owner: false, loading_image: false, displays: false });
         let caps = QemuRuntime::new(p.clone(), "/nonexistent/qemu", "/fw.fd").capabilities();
         assert_eq!(caps, QemuCapabilities::default());
     }
@@ -877,8 +879,17 @@ mod tests {
 
         let mut text = std::fs::read_to_string(&qemu).unwrap();
         text.push_str("# OMAFLAKE_LOADING_IMAGE\n");
-        std::fs::write(&qemu, text).unwrap();
+        std::fs::write(&qemu, &text).unwrap();
         assert!(QemuRuntime::new(p.clone(), &qemu.to_string_lossy(), "/fw.fd").capabilities().loading_image);
+        // Patchset 6: the loading image, but no display windows (plan B171) – still an update
+        let six = Prerequisites::new(p.clone()).qemu();
+        assert_eq!(six.status, crate::prerequisites::PrerequisiteStatus::Limited);
+        assert!(six.detail.ends_with("(3D, older patchset)"), "{}", six.detail);
+        assert!(six.hint.contains("further displays"), "{}", six.hint);
+
+        text.push_str("# cocoa-display-gl\n");
+        std::fs::write(&qemu, text).unwrap();
+        assert!(QemuRuntime::new(p.clone(), &qemu.to_string_lossy(), "/fw.fd").capabilities().displays);
         let current = Prerequisites::new(p).qemu();
         assert_eq!((current.status, current.install), (crate::prerequisites::PrerequisiteStatus::Ok, None));
         assert!(current.detail.ends_with(" (3D)"), "{}", current.detail);

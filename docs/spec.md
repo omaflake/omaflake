@@ -251,6 +251,14 @@ qemu-system-aarch64 \
 
 Minimal boot probe with these arguments: `scripts/bootprobe.sh`.
 
+**Several displays** (plan B171; `instance.json` `displays`, 1 to 4, NixOS only – Virtualization.framework gives a macOS
+guest one display): the GPU gets `max_outputs=<n>` in window starts (headless keeps one output), so the guest sees `n`
+monitors. omaflake's Cocoa (patch `qemu-cocoa-displays`, patchset 7) opens a window per further output, on the screen of
+its number when there is one; a shown window connects its output at its size (suggested right of the ones before it),
+closing it disconnects the output, View → its console brings it back. The one USB tablet takes positions on the guest's
+desktop of all outputs side by side, in output order – the guests' default layout (a guest arranging its monitors
+otherwise: OPEN). GTK (Linux hosts) shows the outputs as tabs (`show-tabs=on`), each can be detached into a window.
+
 On a **Linux host** (plan B124, `qemu_command::Target`) the same list with the host's machine, accelerator, window and
 sound – everything else (disk, network, share, agent ports, QMP, serial log, pid file) is word for word the same:
 
@@ -260,7 +268,7 @@ sound – everything else (disk, network, share, agent ports, QMP, serial log, p
 | `-machine` | `q35` (plus `-vga none`) | `virt,highmem=on,gic-version=host` (KVM) / `gic-version=max` (TCG) |
 | `-accel` / `-cpu` | `kvm` / `host` when `/dev/kvm` opens read-write, else `tcg` / `max` | same |
 | firmware | `edk2-x86_64-code.fd`; the VM's `efivars.fd` is a copy of `edk2-i386-vars.fd` | `edk2-aarch64-code.fd`, blank 64 MiB store |
-| window (2D / 3D) | `virtio-vga` / `virtio-vga-gl`, `-display gtk[,gl=on],zoom-to-fit=on` | `virtio-gpu-pci` / `virtio-gpu-gl-pci`, GTK |
+| window (2D / 3D) | `virtio-vga` / `virtio-vga-gl`, `-display gtk[,gl=on],zoom-to-fit=on` (`,show-tabs=on` with several displays) | `virtio-gpu-pci` / `virtio-gpu-gl-pci`, GTK |
 | sound | `-audiodev pipewire` (socket `$XDG_RUNTIME_DIR/pipewire-0`), else `pa`, else no sound device | same |
 | share | `security_model=mapped-xattr` (the guest-owner patch is the Mac build's) | same |
 

@@ -67,6 +67,8 @@ pub struct NewVmValues {
     pub clipboard: Option<bool>,
     pub camera: Option<bool>,
     pub midi: Option<bool>,
+    /// NixOS guests (plan B171)
+    pub displays: Option<u32>,
     pub start: Option<bool>,
 }
 
@@ -124,6 +126,9 @@ pub(crate) fn page(ctx: &Ctx, p: &NewVmParams) -> Option<NewVmPage> {
     take!(clipboard, "clipboard");
     take!(camera, "camera");
     take!(midi, "midi");
+    if !mac {
+        take!(displays, "displays");
+    }
     // The profile (plan B142): the chosen one, else the default; with one its CPU cores and RAM are the VM's
     let profile_id = v
         .profile
@@ -212,6 +217,15 @@ pub(crate) fn page(ctx: &Ctx, p: &NewVmParams) -> Option<NewVmPage> {
                 .param("settings.diskGB")
                 .value_param("diskGB")
                 .range(10, 500, 10),
+        );
+        // More monitors, each in a window of its own (plan B171); macOS VMs have one (Virtualization.framework)
+        let displays = s["displays"].as_i64().unwrap_or(1);
+        resources.push(
+            Field::new("displays", FieldKind::Number, tf!("Displays: %lld", displays), json!(displays))
+                .param("settings.displays")
+                .value_param("displays")
+                .range(1, crate::models::InstanceConfig::MAX_DISPLAYS as i64, 1)
+                .help(Text::new("Each display in a window of its own")),
         );
     }
     resources.push(

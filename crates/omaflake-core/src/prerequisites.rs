@@ -619,6 +619,16 @@ impl Prerequisites {
                 Some(Self::UPGRADE_QEMU.into()),
             );
         }
+        // … from before 0.7.5 (patchset 6): one window only, further displays in its View menu (plan B171)
+        if gl && !caps.displays {
+            return Prerequisite::new(
+                PrerequisiteItem::Qemu,
+                PrerequisiteStatus::Limited,
+                &format!("{} (3D, {})", rt.qemu, Self::QEMU_OLD_PATCHSET),
+                "An older omaflake QEMU: a VM's further displays get no window of their own – update it (builds QEMU, about ten minutes)",
+                Some(Self::UPGRADE_QEMU.into()),
+            );
+        }
         Prerequisite::new(
             PrerequisiteItem::Qemu,
             status(gl, PrerequisiteStatus::Limited),

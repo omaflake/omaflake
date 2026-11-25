@@ -90,6 +90,12 @@
     "midi": {
       "type": "boolean"
     },
+    "displays": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 4,
+      "description": "NixOS VMs: monitors, each in a window of its own (missing = 1)"
+    },
     "display": {
       "enum": [
         "none",

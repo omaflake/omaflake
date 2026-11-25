@@ -701,6 +701,7 @@ impl View<'_> {
             clipboard: c.clipboard_on(),
             camera: c.camera_on(),
             midi: c.midi_on(),
+            displays: c.displays_count(),
             display: start_display(c, self.recipes.gl, None),
             created: c.created,
             identity: c.identity.as_deref().map(|w| OmaflakeId::short(w, n)),

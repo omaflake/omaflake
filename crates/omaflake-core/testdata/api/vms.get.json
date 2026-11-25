@@ -31,6 +31,7 @@
   "created": "2026-10-20T08:00:00Z",
   "diskGB": 64,
   "display": "gpu",
+  "displays": 2,
   "ephemeral": false,
   "identity": "amber",
   "image": "omaflake.nixos.dev@cedar-mango-lift",

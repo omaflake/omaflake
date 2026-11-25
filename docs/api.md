@@ -173,6 +173,7 @@ sizes in bytes, paths absolute.
   "sshPort": 2201,                      // NixOS only
   "user": "alex",                       // guest user (SSH)
   "audio": true, "microphone": false, "clipboard": true, "camera": false, "midi": false,
+  "displays": 1,                        // NixOS: monitors, each in a window of its own (plan B171); macOS: 1
   "display": "gpu",                     // none | window | gpu (how a plain start shows it)
   "created": "2026-10-20T08:00:00Z",
   "identity": "amber",                  // its omaflake ID words (spec §11.11), as many as idLengths.vm
@@ -221,7 +222,8 @@ newest), `live` (in a local folder source, edited in place), `images` (built fro
 short as it can be).
 
 `RecipeSettings` (what `vms.create` takes): the runtime values of a recipe – `kind`, `cpus`, `memoryGB`, `diskGB`,
-`network`, `share`, `ephemeral`, `user`, `audio`, `microphone`, `clipboard`, `camera`, `midi`, `display`.
+`network`, `share`, `ephemeral`, `user`, `audio`, `microphone`, `clipboard`, `camera`, `midi`, `display`, `displays?`
+(NixOS, 1 to 4; another number or a macOS VM: `unsupported-system`).
 
 ### 4.4 Others
 
@@ -397,7 +399,7 @@ Params and results in short; the types are those of §4.
 | `vms.stop` | `name, timeout? (s, 60)` | `{result}` – `alreadyStopped`, `powerdown`, `quit`, `forcedOff`, `killed`; anything but `powerdown`/`alreadyStopped` is an activity line ("… forced off – the clean shutdown did not take") |
 | `vms.reset` / `vms.remove` | `name` | `null` – refused while running |
 | `vms.upgrade` | `name, image?` | `Vm` – to its line's newest image unless `image` is named; refused while running |
-| `vms.set` | `name, audio?, microphone?, clipboard?, camera?, midi?, cpus?, memoryGb?` | `{vm, takesEffectAtNextStart}` – `cpus`/`memoryGb` (plan B164) only while stopped (`vm-running`), 1 to this computer's cores and 2 GB to its memory less 2 GB (`unsupported-system` beyond) |
+| `vms.set` | `name, audio?, microphone?, clipboard?, camera?, midi?, cpus?, memoryGb?, displays?` | `{vm, takesEffectAtNextStart}` – `cpus`/`memoryGb` (plan B164) only while stopped (`vm-running`), 1 to this computer's cores and 2 GB to its memory less 2 GB (`unsupported-system` beyond); `displays` (plan B171) NixOS only, 1 to 4, while stopped |
 | `vms.ssh` | `name, command?: [string]` | `{argv, shellLine}` – what to run in a terminal |
 | `vms.agent` | `name, wait? (s)` | the agent's report (spec §11.9; agent.json) or `null` – `wait`: up to that long for a report that says the agent is up |
 | `vms.log` | `name, lines? (200), qemu?` | `{lines: [string]}` – NixOS: the serial console (`qemu`: QEMU's own log); macOS: the runner's log |
@@ -812,7 +814,8 @@ the "not reviewed" warning for recipes not from omaflake/catalog), `unreadable`,
 
 **newVm** – `{image, recipe, kind, subtitle, description?, lab, blockers?, sections: [{title?, fields}], warnings,
 valid, actions: [cancel, create]}`. Params `{image, values?: {name, profile, cpus, memoryGB, diskGB, network, share,
-sharePath, ephemeral, audio, microphone, clipboard, camera, midi, start}}`; with a profile (plan B142: the chosen one, else
+sharePath, ephemeral, audio, microphone, clipboard, camera, midi, displays, start}}` (`displays`: NixOS, a number field
+after the disk); with a profile (plan B142: the chosen one, else
 the default; `""` = custom values) CPU cores and RAM are the profile's and those fields disabled; a field `profile`
 (the profiles and "Custom values") comes first in the resources while there are profiles, and less than the recipe
 needs adds a warning. Missing values are the recipe's (sound and clipboard on,

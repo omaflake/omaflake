@@ -31,7 +31,9 @@ use crate::ipsw_downloader::MacOsRelease;
 use crate::linux_builder::LinuxBuilder;
 use crate::mac_base_installer::{BaseOutcome, BaseRequest, MacBaseInstaller};
 use crate::mac_image_builder::{BuildRequest, MacImageBuilder};
-use crate::models::{DisplayMode, GlBackend, GuestKind, RecipeDefaults, RecipeId, StopResult, VmStatus};
+use crate::models::{
+    DisplayMode, GlBackend, GuestKind, InstanceConfig, RecipeDefaults, RecipeId, StopResult, VmStatus,
+};
 use crate::omaflake_id::OmaflakeId;
 use crate::packages::{Package, PackageKind};
 use crate::paths::{Paths, Settings};
@@ -709,6 +711,16 @@ impl Server {
     fn vms_create(&self, p: CreateParams) -> Reply {
         let settings = recipe_defaults(&p.settings);
         let kind = settings.kind;
+        let displays = p.settings.displays.filter(|n| *n != 1);
+        if let Some(n) = displays {
+            check_displays(n)?;
+            if kind != GuestKind::Nixos {
+                return Err(RpcError::from(vm_err!(
+                    codes::UNSUPPORTED_SYSTEM,
+                    "macOS VMs have one display – Virtualization.framework allows no more"
+                )));
+            }
+        }
         let mut start = p.start;
         if start
             && kind == GuestKind::Macos
@@ -730,6 +742,9 @@ impl Server {
                 && let Some(share) = &p.share_path
             {
                 c.share_path = Some(share.clone());
+            }
+            c.displays = displays;
+            if c.share_path.is_some() || c.displays.is_some() {
                 backends.store.save(&c)?;
             }
             if start {
@@ -888,8 +903,23 @@ impl Server {
                 limits.max_memory_gb
             )));
         }
+        if let Some(n) = p.displays {
+            check_displays(n)?;
+        }
         let running = self.act(&p.name, true, |backends, _| {
             let mut c = backends.store.load(&p.name)?;
+            if let Some(n) = p.displays {
+                if c.kind != GuestKind::Nixos {
+                    return Err(vm_err!(
+                        codes::UNSUPPORTED_SYSTEM,
+                        "macOS VMs have one display – Virtualization.framework allows no more"
+                    ));
+                }
+                if backends.backend_for(&c).is_ok_and(|b| b.status(&c) == VmStatus::Running) {
+                    return Err(vm_err!(codes::VM_RUNNING, "{} is running – stop it to change its displays", p.name));
+                }
+                c.displays = (n > 1).then_some(n);
+            }
             if p.cpus.is_some() || p.memory_gb.is_some() {
                 let running = backends.backend_for(&c).is_ok_and(|b| b.status(&c) == VmStatus::Running);
                 if running {
@@ -3024,6 +3054,19 @@ fn is_default_data_folder(paths: &Paths) -> bool {
     platform::standardize(&paths.root) == platform::standardize(&Paths::default_home())
 }
 
+/// A VM's displays (plan B171): 1 to `InstanceConfig::MAX_DISPLAYS`
+fn check_displays(n: u32) -> Result<(), RpcError> {
+    if (1..=InstanceConfig::MAX_DISPLAYS).contains(&n) {
+        return Ok(());
+    }
+    Err(RpcError::from(vm_err!(
+        codes::UNSUPPORTED_SYSTEM,
+        "{} displays are not possible – 1 to {}",
+        n,
+        InstanceConfig::MAX_DISPLAYS
+    )))
+}
+
 fn recipe_defaults(s: &RecipeSettings) -> RecipeDefaults {
     let mut d = RecipeDefaults::new(
         s.kind,
@@ -3187,6 +3230,9 @@ struct SetParams {
     /// From the next start, while stopped (plan B164)
     #[serde(default)]
     cpus: Option<u32>,
+    /// NixOS guests, from the next start, while stopped (plan B171)
+    #[serde(default)]
+    displays: Option<u32>,
     #[serde(default, rename = "memoryGb", alias = "memoryGB")]
     memory_gb: Option<u32>,
 }

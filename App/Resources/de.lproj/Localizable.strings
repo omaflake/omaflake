@@ -1759,3 +1759,11 @@
 "The switch of network \"%@\" did not start: %@" = "Der Switch des Netzes „%1$@“ ist nicht gestartet: %2$@";
 "The switch of network \"%@\" is running already (pid %@)" = "Der Switch des Netzes „%1$@“ läuft schon (PID %2$@)";
 "poll: %@" = "poll: %@";
+
+/* Several displays for NixOS VMs (plan B171) */
+"Displays: %lld" = "Bildschirme: %lld";
+"Each display in a window of its own" = "Jeder Bildschirm in einem eigenen Fenster";
+"macOS VMs have one display – Virtualization.framework allows no more" = "macOS-VMs haben einen Bildschirm – Virtualization.framework erlaubt nicht mehr";
+"%@ is running – stop it to change its displays" = "%@ läuft – stoppe die VM, um ihre Bildschirme zu ändern";
+"%@ displays are not possible – 1 to %@" = "%@ Bildschirme sind nicht möglich – 1 bis %@";
+"An older omaflake QEMU: a VM's further displays get no window of their own – update it (builds QEMU, about ten minutes)." = "Ein älteres QEMU von omaflake: weitere Bildschirme einer VM bekommen kein eigenes Fenster – aktualisiere es (baut QEMU, etwa zehn Minuten).";

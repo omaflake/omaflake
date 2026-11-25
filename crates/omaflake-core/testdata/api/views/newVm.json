@@ -223,6 +223,28 @@
         },
         {
           "enabled": true,
+          "help": {
+            "key": "Each display in a window of its own",
+            "text": "Each display in a window of its own"
+          },
+          "id": "displays",
+          "kind": "number",
+          "label": {
+            "args": [
+              1
+            ],
+            "key": "Displays: %lld",
+            "text": "Displays: 1"
+          },
+          "max": 4,
+          "min": 1,
+          "param": "settings.displays",
+          "step": 1,
+          "value": 1,
+          "valueParam": "displays"
+        },
+        {
+          "enabled": true,
           "id": "audio",
           "kind": "toggle",
           "label": {

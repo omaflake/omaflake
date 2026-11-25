@@ -488,8 +488,9 @@ Lume (trycua) only after a license review (OPEN).
 
 ## 8. Next steps (as of 2026-11-22)
 
-**0.7.5 (planned):** B169 (camera in macOS VMs through OBS) and B170 (networks between VMs, Docker VM) – both to be
-tried on the Mac before the release.
+**0.7.5 (planned):** B169 (camera in macOS VMs through OBS), B170 (networks between VMs, Docker VM) and B171 (several
+displays for NixOS VMs, QEMU patchset 7) – all to be tried on the Mac before the release; B172 (the agent test that
+broke every NixOS image build of 0.7.4) makes it urgent.
 
 **Next (2026-11-23, after release 0.7.4):** the maintainer's tests on the Mac – a fresh Mac with Set Up for NixOS
 (the Linux builder's two stages, Nix's one administrator question, Full Disk Access: OPEN, B160), creating and
@@ -498,7 +499,19 @@ the diagnosis on NixOS guests and on a Linux host (B162), MIDI with the real pia
 the disk size of a VM (B164), upgrading a VM in place, why a macOS build VM once had no SSH (port 22 closed, 2026-11-22
 – watch it with the build window when it happens again), and M12 once the Developer ID is there.
 
-**B171 (2026-11-25, findings; nothing built): several monitors for a VM, each in a window of its own.** Question
+**B172 (2026-11-25, fixed for 0.7.5): NixOS images did not build with 0.7.4.** The maintainer's build of
+`neovim-minimal` failed in the Linux builder: the agent's checkPhase ran `midi_alsa::tests::ump_info_for_alsa`, which
+fed the manufacturer `"00213C"` – `midi::hex_bytes` takes lowercase only (the format agreed with the Mac side, and
+`an_invalid_ump_is_ignored_and_the_endpoint_kept` checks that uppercase is refused), so the id became 0 and the assert
+failed (left 0, right 0x213C). Nix then reports "path …-omaflake-agent-0.7.4 is not valid" – only the follow-on of the
+failed build, not a broken store (first misread as a builder problem; `nix-store --verify` in the builder did remove six
+stale entries of its old system, unrelated). Cause it slipped through: the agent is its own Cargo workspace and no check
+ran its tests – not the CI, not the checklist's `cargo test` at the root. Fixed: the test uses `"00213c"`; CI's Linux
+job runs clippy and the tests of `nix/agent` (on x86_64: OPEN until the first run). Every 0.7.4 install that builds a
+NixOS image with a fresh agent hits it – a reason not to wait long with 0.7.5.
+
+**B171 (2026-11-25, built for 0.7.5 – maintainer: "setze alles um, es soll neben Kamera-Fix und Networking Teil von
+Release 0.7.5 werden"): several monitors for a VM, each in a window of its own.** Question
 from the maintainer: can a VM drive more than one monitor – ideally a second window that can be moved to another
 screen? Today every VM has one display and one window (QEMU: one `virtio-gpu-gl-pci` with `-display cocoa,gl=es`;
 runner: one `VZMacGraphicsDisplayConfiguration`, one `VZVirtualMachineView`).
@@ -517,9 +530,16 @@ runner: one `VZMacGraphicsDisplayConfiguration`, one `VZVirtualMachineView`).
   `displayPortCount` and `externalDisplayPortMask`. Probe on the Mac (APFS clone of a macOS VM): port count 2 with
   two displays fails `validate()` ("The display port count is invalid, it must be between 1 and the maximum
   supported"); with `+_maximumAllowedDisplayCount` overridden to 2 in the process it passes, but `start` fails with
-  VZErrorDomain 1 "Internal Virtualization error" – the limit is enforced again outside the process. OPEN: the
-  reason in Virtualization's log, and whether port count 2 with one display starts and a second display can be
-  hot-plugged with `_attachDisplay:`. Private API would keep omaflake off the App Store
+  VZErrorDomain 1 "Internal Virtualization error" – the limit is enforced again outside the process. Unattended run
+  on the Mac (macOS 27.2.1, M1 Max, 2026-11-25): the control (one port, one display, the same private calls,
+  `_setGraphicsDisplay:` on the view) boots and the guest takes the display (`displayDidEndReconfiguration`, 1920×1200);
+  every configuration with port count 2 fails 0.2 s after `start` – with one or two displays, with
+  `_deviceFeatureLevel` 0–3: the VM's own `com.apple.Virtualization.VirtualMachine` process starts, logs one error
+  (text redacted as `<private>`) and the client gets breadcrumb `0xb1ae81a300000829`. Hot-plug with port count 1:
+  `_validateDisplayForHotPlug:` fails (VZErrorDomain -12) and `_attachDisplay:` traps the process. So the limit sits in
+  Apple's signed XPC service; getting past it would mean patching a system binary (SIP off) – not a way for
+  omaflake. **Result: no second display for macOS guests on macOS 27.2;** repeat the probe on new macOS releases
+  (the private API shows Apple builds toward it). Private API would keep omaflake off the App Store
   and may break with any macOS update – at most an experimental setting.
 - *Linux guests on VZ* (for reference; omaflake runs NixOS on QEMU): two virtio graphics devices with one scanout
   each pass `validate()`, one device with two scanouts does not ("More than one scanout is configured"). Whether the
@@ -533,6 +553,27 @@ runner: one `VZMacGraphicsDisplayConfiguration`, one `VZVirtualMachineView`).
   `qemu-cocoa-dynamic-display` does for one). On a Linux host GTK may give this almost for free – OPEN, not checked.
   OPEN: whether GNOME/KDE in the guest show the two virtio outputs as two monitors (not seen in a running guest), and
   the effort of the Cocoa patch (needs a prototype).
+
+*Built (same day, in a macOS guest without the hypervisor; not released):*
+- *Core:* `instance.json` `displays` (optional, 1 to `InstanceConfig::MAX_DISPLAYS` = 4, schema v1 as MIDI was added –
+  before 1.0 no new version, B141); `QemuCommand` adds `max_outputs=<n>` to the GPU in window starts (headless keeps
+  one output), GTK gets `show-tabs=on`; `QemuCapabilities.displays` (the string `cocoa-display-gl` in the binary); the
+  Doctor calls an omaflake QEMU without it "older patchset" with the update (as for patchset 6).
+- *API and UIs:* `Vm.displays`, `vms.set` `displays` (NixOS, stopped, 1–4), `vms.create` `settings.displays`; the VM's
+  details and "New VM …" get a number field "Displays" for NixOS VMs – drawn by the app, `omaf ui` and the Linux app
+  from the page models, no client code; `omaf new/set --displays N`; German texts.
+- *QEMU patch `qemu-cocoa-displays` (patchset 7, ~800 lines in `ui/cocoa.m`):* a `QemuCocoaHeadView` per further
+  graphic console with its own listener – 2D (`drawRect`), CGL (its own `CAOpenGLLayer` sharing the GL view context)
+  and ANGLE (an EGL surface of its own on the shared context); the guest's cursor per display; a shown window sends its
+  size as UI info (`xoff` = widths before it), closing it sends 0×0 (virtio-gpu disconnects the output), the View menu
+  entry of its console shows it again; pointer events of every window go to the one tablet in a coordinate space of all
+  active displays side by side (`cocoa_queue_abs`, the main window too); the main window tracks the pointer while the
+  app is active, so moving between windows needs no click.
+- *Checked:* `cargo fmt/clippy/test` (workspace; golden files regenerated), `scripts/translations.py --check`, the
+  QEMU package built with Nix (`nix build .#qemu`, cocoa.m without warnings); a smoke start of that QEMU under TCG with
+  the firmware, `virtio-gpu-gl-pci,max_outputs=2`, `-display cocoa,gl=on`: two windows ("… – Display 2"), runs, no
+  crash. **OPEN (needs the Mac):** a real NixOS VM with 2 displays – both monitors in Hyprland, the pointer and clicks in
+  the second window, closing/reopening it, full screen on a second screen, `gl=es`; GNOME/KDE's layout; GTK on Linux.
 
 **B170 (2026-11-25, built for 0.7.5 – maintainer: "Baue nun alles besprochene mit in den geplanten 0.7.5 Release";
 real VMs OPEN): Docker for development VMs, and networks between VMs.** Starting point: a development VM without Docker

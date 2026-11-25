@@ -150,6 +150,8 @@ pub struct Vm {
     pub camera: bool,
     /// The host's MIDI devices in the VM (plan B161)
     pub midi: bool,
+    /// NixOS guests: monitors, each in a window of its own (plan B171); 1 for macOS guests
+    pub displays: u32,
     /// How a plain start (`vms.start` with `display: auto`) shows it
     pub display: DisplayMode,
     #[serde(with = "crate::json::iso8601")]
@@ -212,6 +214,9 @@ pub struct RecipeSettings {
     pub midi: Option<bool>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub display: Option<DisplayMode>,
+    /// NixOS guests: monitors (plan B171); None = one
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub displays: Option<u32>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -1397,6 +1402,7 @@ mod tests {
             clipboard: true,
             camera: false,
             midi: false,
+            displays: 1,
             display: DisplayMode::Gpu,
             created: crate::json::parse_date("2026-10-20T08:00:00Z").unwrap(),
             identity: Some("amber-lake".into()),

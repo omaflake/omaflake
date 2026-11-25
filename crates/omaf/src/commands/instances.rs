@@ -213,13 +213,26 @@ pub fn new(a: &cli::New) -> Outcome {
         share_path = Some(path.to_string_lossy().into_owned());
         settings.share = true;
     }
+    // More displays (plan B171): NixOS VMs only – checked before the VM exists
+    let displays = a.displays.filter(|n| *n != 1);
+    if let Some(n) = displays {
+        if settings.kind != GuestKind::Nixos {
+            return Err(Error::new("macOS VMs have one display – Virtualization.framework allows no more").into());
+        }
+        if !(1..=InstanceConfig::MAX_DISPLAYS).contains(&n) {
+            return Err(
+                Error::new(format!("{n} displays are not possible – 1 to {}", InstanceConfig::MAX_DISPLAYS)).into()
+            );
+        }
+    }
     let networks = omaflake_core::networks::Networks::new(env.paths.clone());
     for n in &a.join {
         networks.get(n)?; // before the VM exists: a wrong name leaves nothing behind
     }
     let mut c = backend.create(&a.name, &recipe, &image, &settings)?;
-    if let Some(path) = share_path {
-        c.share_path = Some(path);
+    c.share_path = share_path;
+    c.displays = displays;
+    if c.share_path.is_some() || c.displays.is_some() {
         backends.store.save(&c)?;
     }
     println!("{}", created_line(&c));
@@ -622,13 +635,17 @@ pub fn set(a: &cli::Set) -> Outcome {
     let env = Env::new();
     // Cores and memory (plan B164) through the API: it checks the host's limits, that the VM is stopped, and writes a
     // macOS VM's folder too
-    if a.cpus.is_some() || a.memory.is_some() {
+    if a.cpus.is_some() || a.memory.is_some() || a.displays.is_some() {
         let mut params = serde_json::json!({"name": a.name});
         if let Some(n) = a.cpus {
             params["cpus"] = n.into();
         }
         if let Some(n) = a.memory {
             params["memoryGb"] = n.into();
+        }
+        // Displays (plan B171): NixOS only, while stopped – the API checks both
+        if let Some(n) = a.displays {
+            params["displays"] = n.into();
         }
         omaflake_core::api::call_once("vms.set", params)?;
     }
@@ -656,11 +673,16 @@ pub fn set(a: &cli::Set) -> Outcome {
     Ok(())
 }
 
-/// "<name>: 4 CPU, 8 GB, sound on, microphone off, clipboard on, camera off, MIDI off (from the next start)"
+/// "<name>: 4 CPU, 8 GB, sound on, microphone off, clipboard on, camera off, MIDI off (from the next start)";
+/// ", 2 displays" before the bracket when it has more than one
 pub fn set_line(c: &InstanceConfig) -> String {
     let on = |b: bool| if b { "on" } else { "off" };
+    let displays = match c.displays_count() {
+        1 => String::new(),
+        n => format!(", {n} displays"),
+    };
     format!(
-        "{}: {} CPU, {} GB, sound {}, microphone {}, clipboard {}, camera {}, MIDI {} (from the next start)",
+        "{}: {} CPU, {} GB, sound {}, microphone {}, clipboard {}, camera {}, MIDI {}{displays} (from the next start)",
         c.name,
         c.cpus,
         c.memory_gb,

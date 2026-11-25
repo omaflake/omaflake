@@ -52,6 +52,7 @@ Own patches (`patches/omaflake/`):
 | `qemu-cocoa-dock-icon` (p4) | Dock icon from the image file in `OMAFLAKE_DOCK_ICON` (set by `omaf` and the app); without it the bare binary shows the generic icon |
 | `qemu-virgl-2d-flush` (p5) | flushes virgl's context 0 after each 2D transfer; with `gl=on` (CGL) the firmware, the boot menu and the console were black until the first 3D client (plan B155) |
 | `qemu-cocoa-loading-image` (p6) | the OpenGL window shows the image in `OMAFLAKE_LOADING_IMAGE` (set by `omaf` and the app) instead of the firmware, until the guest sets a scanout of its own after it, then fades (plan B155) |
+| `qemu-cocoa-displays` (p7) | a window per further display of a GPU with `max_outputs` > 1 (2D, CGL, ANGLE), on the screen of its number when there is one; a shown window connects its output, closing it disconnects it (View → its console shows it again); the pointer is mapped onto the guest's desktop of all displays side by side (plan B171) |
 
 Not included: Cocoa comfort patches (branding, immersive, pinch, scroll, keyboard), SDL audio, USB –
 they build on each other (`qemu-cocoa-full-grab-focus` does not apply without the previous ones).

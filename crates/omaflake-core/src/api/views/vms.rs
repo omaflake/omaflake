@@ -330,7 +330,7 @@ fn detail(ctx: &Ctx, v: &Vm) -> VmDetail {
         f.set = Some(Setter { method: "vms.set".into(), params: json!({"name": name}), param: id.into() });
         f.enabled_if(!running && !v.busy, running.then(|| Text::new("Stop the VM to change it")))
     };
-    let fields = vec![
+    let mut fields = vec![
         resource("cpus", tf!("CPU cores: %lld", v.cpus), v.cpus, crate::platform::VmLimits::MIN_CPUS, limits.max_cpus),
         resource(
             "memoryGb",
@@ -340,6 +340,19 @@ fn detail(ctx: &Ctx, v: &Vm) -> VmDetail {
             limits.max_memory_gb,
         ),
     ];
+    // More monitors, each in a window of its own (plan B171); macOS VMs have one (Virtualization.framework)
+    if !mac {
+        fields.push(
+            resource(
+                "displays",
+                tf!("Displays: %lld", v.displays),
+                v.displays,
+                1,
+                crate::models::InstanceConfig::MAX_DISPLAYS,
+            )
+            .help(Text::new("Each display in a window of its own")),
+        );
+    }
 
     let n = ctx.recipes.id_lengths.vm;
     let mut info = Vec::new();

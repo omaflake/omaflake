@@ -178,6 +178,9 @@ pub struct QemuCapabilities {
     /// The loading image of patch qemu-cocoa-loading-image (`OMAFLAKE_LOADING_IMAGE`, patchset 6, plan B155) – an
     /// omaflake QEMU without it is older than 0.7.1
     pub loading_image: bool,
+    /// A window per display of patch qemu-cocoa-displays (patchset 7, plan B171) – an omaflake QEMU without it shows
+    /// further displays only through its View menu, in the one window
+    pub displays: bool,
 }
 
 /// Runtime defaults of a recipe (its recipe.toml), as `nix eval --json .#lib.recipeDefaults` gives them.
@@ -464,6 +467,9 @@ pub struct InstanceConfig {
     /// for a copy under another name, kept by a restore
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub identity: Option<String>,
+    /// Monitors of a NixOS VM, each in a window of its own (plan B171); None = one
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub displays: Option<u32>,
 }
 
 impl InstanceConfig {
@@ -507,7 +513,16 @@ impl InstanceConfig {
             display: settings.display,
             share_path: None,
             identity: None,
+            displays: None,
         }
+    }
+
+    /// Most monitors a VM can have (plan B171): virtio-gpu takes 16 outputs, four windows are plenty
+    pub const MAX_DISPLAYS: u32 = 4;
+
+    /// How many monitors it has: 1 to `MAX_DISPLAYS`
+    pub fn displays_count(&self) -> u32 {
+        self.displays.unwrap_or(1).clamp(1, Self::MAX_DISPLAYS)
     }
 
     pub fn clipboard_on(&self) -> bool {

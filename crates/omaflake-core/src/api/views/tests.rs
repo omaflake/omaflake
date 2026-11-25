@@ -797,6 +797,7 @@ fn new_vm_defaults_and_validation() {
             "cpus",
             "memoryGB",
             "diskGB",
+            "displays",
             "audio",
             "microphone",
             "clipboard",
@@ -808,6 +809,15 @@ fn new_vm_defaults_and_validation() {
             "start"
         ]
     );
+    // Displays (plan B171): one unless the form says more; the create params carry the form's
+    let displays = action(&page["sections"][1]["fields"], "displays");
+    assert_eq!(
+        (displays["id"].clone(), displays["value"].clone(), displays["max"].clone()),
+        (json!("displays"), json!(1), json!(4))
+    );
+    assert!(create["params"]["settings"].get("displays").is_none());
+    let two = get(&c, "newVm", json!({"image": "omaflake.nixos.dev@cedar-mango-lift", "values": {"displays": 2}}));
+    assert_eq!(action(&two["actions"], "create")["params"]["settings"]["displays"], 2);
     let share = &page["sections"][2]["fields"][1];
     assert_eq!(share["placeholder"]["text"], "/data/share/dev");
     // Values the UI sends back: kept, checked
@@ -1435,7 +1445,13 @@ fn a_vm_shows_its_cores_and_memory_as_fields() {
     let page = get(&c, "vms", json!({}));
     for row in page["rows"].as_array().unwrap() {
         let fields = row["detail"]["fields"].as_array().unwrap();
-        assert_eq!(ids(&row["detail"]["fields"]), ["cpus", "memoryGb"]);
+        // NixOS VMs: their displays too (plan B171); macOS VMs have one
+        if row["vm"]["kind"] == "nixos" {
+            assert_eq!(ids(&row["detail"]["fields"]), ["cpus", "memoryGb", "displays"]);
+            assert_eq!((fields[2]["min"].clone(), fields[2]["max"].clone()), (json!(1), json!(4)));
+        } else {
+            assert_eq!(ids(&row["detail"]["fields"]), ["cpus", "memoryGb"]);
+        }
         let name = row["name"].clone();
         let running = row["vm"]["status"] == "running";
         for f in fields {

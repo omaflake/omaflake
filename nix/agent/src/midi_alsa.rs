@@ -706,7 +706,7 @@ mod tests {
     #[test]
     fn ump_info_for_alsa() {
         let u: Ump = serde_json::from_str(
-            r#"{"name": "Keystage", "productInstanceId": "A1", "manufacturer": "00213C", "family": 1, "model": 2,
+            r#"{"name": "Keystage", "productInstanceId": "A1", "manufacturer": "00213c", "family": 1, "model": 2,
             "version": "01020304", "staticBlocks": true, "blocks": [
             {"id": 2, "name": "Ext", "direction": "out", "firstGroup": 1, "groups": 1, "midi1": "low-speed", "uiHint": "sender"},
             {"id": 0, "name": "Main", "direction": "both", "firstGroup": 0, "groups": 1, "midi1": "no", "uiHint": "both"}]}"#,

@@ -74,6 +74,12 @@ jobs:
         run: rustup toolchain install
       - name: Test (Linux host code paths)
         run: cargo test --locked
+      # The guest agent is its own workspace; its tests also run in the image build's checkPhase, where a failing
+      # test breaks every NixOS image (plan B172) – caught here first
+      - name: Guest agent – clippy and test
+        run: |
+          cargo clippy --all-targets --locked --manifest-path nix/agent/Cargo.toml
+          cargo test --locked --manifest-path nix/agent/Cargo.toml
 
   swift:
     name: Build and test (macOS)

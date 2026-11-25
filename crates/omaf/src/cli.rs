@@ -747,6 +747,8 @@ pub struct New {
     pub disk: Option<u32>,
     #[arg(long, value_name = "network", help = "Network: shared | isolated | none")]
     pub network: Option<String>,
+    #[arg(long, value_name = "n", help = "Displays, each in a window of its own (NixOS; 1 to 4, default 1)")]
+    pub displays: Option<u32>,
     #[arg(
         long,
         value_name = "user",
@@ -791,6 +793,12 @@ pub struct Set {
     pub cpus: Option<u32>,
     #[arg(long, value_name = "GB", help = "Memory in GB from the next start (the VM must be stopped)")]
     pub memory: Option<u32>,
+    #[arg(
+        long,
+        value_name = "n",
+        help = "Displays from the next start, each in a window of its own (NixOS; 1 to 4; the VM must be stopped)"
+    )]
+    pub displays: Option<u32>,
 }
 
 #[derive(Debug, Args)]

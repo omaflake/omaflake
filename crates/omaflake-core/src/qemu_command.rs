@@ -197,12 +197,17 @@ impl QemuCommand {
         (w, h)
     }
 
-    /// "<name>,xres=<w>,yres=<h>" with an initial resolution, else the name
-    pub(crate) fn gpu_device(&self, name: &str) -> String {
-        match self.initial_resolution {
+    /// "<name>,xres=<w>,yres=<h>" with an initial resolution, else the name; ",max_outputs=<n>" for more than one
+    /// display (plan B171: a graphic console per output – a window each in omaflake's Cocoa, a tab each in GTK)
+    pub(crate) fn gpu_device(&self, name: &str, displays: u32) -> String {
+        let mut device = match self.initial_resolution {
             Some((w, h)) => format!("{name},xres={w},yres={h}"),
             None => name.to_string(),
+        };
+        if displays > 1 {
+            device.push_str(&format!(",max_outputs={displays}"));
         }
+        device
     }
 
     /// The whole argument list (without the binary) – see QEMUCommand.swift for the order, which the tests check
@@ -251,6 +256,10 @@ impl QemuCommand {
             a.extend(["-vga".into(), "none".into()]);
         }
         let t = &self.target;
+        // More displays (plan B171): Cocoa opens a window per display itself (patch qemu-cocoa-displays); GTK shows
+        // them as tabs – visible tabs, so each can be detached into a window (View → Detach Tab)
+        let displays = c.displays_count();
+        let gtk_tabs = if displays > 1 { ",show-tabs=on" } else { "" };
         match self.display {
             DisplayMode::None => {
                 a.extend(["-device".into(), format!("virtio-gpu-pci,addr={}", slot::GPU)]);
@@ -260,20 +269,20 @@ impl QemuCommand {
                 // Cocoa default: Cmd → SUPER, Option → Alt. No swap-opt-cmd (swaps exactly that) and
                 // no full-grab (needs the Accessibility permission for QEMU, plan B9/B21).
                 // zoom-to-fit: window freely resizable; the window size is passed to the guest as resolution
-                a.extend(["-device".into(), format!("{},addr={}", self.gpu_device(t.gpu(false)), slot::GPU)]);
+                a.extend(["-device".into(), format!("{},addr={}", self.gpu_device(t.gpu(false), displays), slot::GPU)]);
                 let ui = match t.ui {
-                    Ui::Cocoa => "cocoa,zoom-to-fit=on",
-                    Ui::Gtk => "gtk,zoom-to-fit=on",
+                    Ui::Cocoa => "cocoa,zoom-to-fit=on".to_string(),
+                    Ui::Gtk => format!("gtk,zoom-to-fit=on{gtk_tabs}"),
                 };
-                a.extend(["-display".into(), ui.into()]);
+                a.extend(["-display".into(), ui]);
                 a.extend(input);
             }
             DisplayMode::Gpu => {
-                a.extend(["-device".into(), format!("{},addr={}", self.gpu_device(t.gpu(true)), slot::GPU)]);
+                a.extend(["-device".into(), format!("{},addr={}", self.gpu_device(t.gpu(true), displays), slot::GPU)]);
                 // GTK knows gl=on|off only (es is Cocoa's ANGLE path)
                 let ui = match t.ui {
                     Ui::Cocoa => format!("cocoa,gl={},zoom-to-fit=on", self.gl.as_str()),
-                    Ui::Gtk => "gtk,gl=on,zoom-to-fit=on".into(),
+                    Ui::Gtk => format!("gtk,gl=on,zoom-to-fit=on{gtk_tabs}"),
                 };
                 a.extend(["-display".into(), ui]);
                 a.extend(input);
@@ -512,7 +521,7 @@ mod tests {
     fn gpu_mode() {
         let mut cmd = QemuCommand::new("/fw.fd", ip(), None, DisplayMode::Gpu);
         cmd.gl = GlBackend::Es;
-        cmd.capabilities = QemuCapabilities { gl: true, guest_owner: false, loading_image: true };
+        cmd.capabilities = QemuCapabilities { gl: true, guest_owner: false, loading_image: true, displays: true };
         let a = cmd.arguments(&default_config());
         assert_eq!(values(&a, "-display"), ["cocoa,gl=es,zoom-to-fit=on"]);
         assert!(has(&a, "-device", "virtio-gpu-gl-pci,addr=0x5"));
@@ -520,9 +529,38 @@ mod tests {
     }
 
     #[test]
+    fn several_displays() {
+        let mut c = default_config();
+        c.displays = Some(2);
+        let mut cmd = QemuCommand::new("/fw.fd", ip(), None, DisplayMode::Gpu);
+        cmd.initial_resolution = Some((2240, 1260));
+        let a = cmd.arguments(&c);
+        assert!(has(&a, "-device", "virtio-gpu-gl-pci,xres=2240,yres=1260,max_outputs=2,addr=0x5"));
+        assert_eq!(values(&a, "-display"), ["cocoa,gl=on,zoom-to-fit=on"], "Cocoa opens the windows itself");
+        let a = QemuCommand::new("/fw.fd", ip(), None, DisplayMode::Window).arguments(&c);
+        assert!(has(&a, "-device", "virtio-gpu-pci,max_outputs=2,addr=0x5"));
+
+        let mut gtk = QemuCommand::new("/fw.fd", ip(), None, DisplayMode::Gpu);
+        gtk.target = Target::linux(Arch::X86_64, Accel::Kvm, None);
+        let a = gtk.arguments(&c);
+        assert!(has(&a, "-device", "virtio-vga-gl,max_outputs=2,addr=0x5"));
+        assert_eq!(values(&a, "-display"), ["gtk,gl=on,zoom-to-fit=on,show-tabs=on"]);
+
+        // Headless: one output, whatever the VM says; out of range is clamped
+        let a = QemuCommand::new("/fw.fd", ip(), None, DisplayMode::None).arguments(&c);
+        assert!(has(&a, "-device", "virtio-gpu-pci,addr=0x5"));
+        c.displays = Some(9);
+        assert_eq!(c.displays_count(), InstanceConfig::MAX_DISPLAYS);
+        c.displays = Some(0);
+        assert_eq!(c.displays_count(), 1);
+        let a = QemuCommand::new("/fw.fd", ip(), None, DisplayMode::Gpu).arguments(&c);
+        assert!(has(&a, "-device", "virtio-gpu-gl-pci,addr=0x5"), "one display: no max_outputs");
+    }
+
+    #[test]
     fn share_with_guest_owner_patch() {
         let mut cmd = QemuCommand::new("/fw.fd", ip(), Some("/vm/share/t1".into()), DisplayMode::None);
-        cmd.capabilities = QemuCapabilities { gl: true, guest_owner: true, loading_image: true };
+        cmd.capabilities = QemuCapabilities { gl: true, guest_owner: true, loading_image: true, displays: true };
         assert_eq!(
             values(&cmd.arguments(&default_config()), "-fsdev"),
             ["local,id=fs0,path=/vm/share/t1,security_model=none,guest_owner_uid=1000,guest_owner_gid=100"]
@@ -537,7 +575,7 @@ mod tests {
         let k = QemuCommand::initial_resolution_for((2560.0, 1440.0), 2.0);
         assert_eq!(k, (3840, 2160));
         let mut cmd = QemuCommand::new("/fw.fd", ip(), None, DisplayMode::Gpu);
-        cmd.capabilities = QemuCapabilities { gl: true, guest_owner: false, loading_image: true };
+        cmd.capabilities = QemuCapabilities { gl: true, guest_owner: false, loading_image: true, displays: true };
         cmd.initial_resolution = Some(k);
         assert!(has(&cmd.arguments(&default_config()), "-device", "virtio-gpu-gl-pci,xres=3840,yres=2160,addr=0x5"));
     }
@@ -678,7 +716,7 @@ mod tests {
         ];
         assert_eq!(headless, expected_head);
         let mut cmd = QemuCommand::new("/fw.fd", ip(), None, DisplayMode::Gpu);
-        cmd.capabilities = QemuCapabilities { gl: true, guest_owner: false, loading_image: true };
+        cmd.capabilities = QemuCapabilities { gl: true, guest_owner: false, loading_image: true, displays: true };
         let gpu = cmd.arguments(&default_config());
         let window: Vec<&str> = vec![
             "-device",
@@ -700,7 +738,7 @@ mod tests {
     fn linux(arch: Arch, accel: Accel, display: DisplayMode) -> QemuCommand {
         let mut cmd = QemuCommand::new("/fw.fd", ip(), Some("/vm/share/t1".into()), display);
         cmd.target = Target::linux(arch, accel, Some("pipewire"));
-        cmd.capabilities = QemuCapabilities { gl: true, guest_owner: false, loading_image: true };
+        cmd.capabilities = QemuCapabilities { gl: true, guest_owner: false, loading_image: true, displays: true };
         cmd
     }
 

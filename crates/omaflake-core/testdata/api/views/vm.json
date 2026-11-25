@@ -338,6 +338,37 @@
           },
           "step": 1,
           "value": 8
+        },
+        {
+          "enabled": false,
+          "help": {
+            "key": "Each display in a window of its own",
+            "text": "Each display in a window of its own"
+          },
+          "id": "displays",
+          "kind": "number",
+          "label": {
+            "args": [
+              2
+            ],
+            "key": "Displays: %lld",
+            "text": "Displays: 2"
+          },
+          "max": 4,
+          "min": 1,
+          "reason": {
+            "key": "Stop the VM to change it",
+            "text": "Stop the VM to change it"
+          },
+          "set": {
+            "method": "vms.set",
+            "param": "displays",
+            "params": {
+              "name": "research"
+            }
+          },
+          "step": 1,
+          "value": 2
         }
       ],
       "info": [
@@ -652,6 +683,7 @@
       "created": "2026-10-20T08:00:00Z",
       "diskGB": 64,
       "display": "gpu",
+      "displays": 2,
       "ephemeral": false,
       "identity": "amber",
       "image": "omaflake.nixos.dev@cedar-mango-lift",

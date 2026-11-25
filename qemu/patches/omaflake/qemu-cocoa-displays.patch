@@ -1,0 +1,914 @@
+From: omaflake contributors
+Subject: cocoa: a window per further display
+
+A GPU with several outputs (virtio-gpu max_outputs=N) has a graphic console
+per output. The main window shows the first; each further one gets a window
+of its own (2D, CGL and ANGLE/EGL), opened on the screen of its number when
+there is one, that can be moved and made full screen like the main one. A
+shown window connects its output: the guest gets a monitor of the window's
+size, with its suggested position right of the ones before it. Closing the
+window disconnects the output; View -> its console shows it again.
+
+The pointer stays the one USB tablet: positions from every window are mapped
+onto the guest's whole desktop, the displays side by side in output order
+(the guests' default layout). Keys reach the guest from every window. With a
+single output nothing changes except that the main window tracks the pointer
+while the app is active (not only while it is the key window).
+
+diff --git a/ui/cocoa.m b/ui/cocoa.m
+index a6572478b..2ca4efd31 100644
+--- a/ui/cocoa.m
++++ b/ui/cocoa.m
+@@ -356,11 +356,18 @@ - (bool) handleEvent:(NSEvent *)event;
+ - (bool) handleEventLocked:(NSEvent *)event;
+ - (void) notifyMouseModeChange;
+ - (BOOL) isMouseGrabbed;
++- (BOOL) isAbsoluteEnabled;
+ - (void) raiseAllKeys;
+ @end
+ 
+ QemuCocoaView *cocoaView;
+ 
++/* omaflake: further displays, each in a window of its own (see below) */
++static int nheads;
++static void cocoa_queue_abs(QemuConsole *con, CGFloat x, CGFloat y, int w, int h);
++static void cocoa_heads_update_ui_info_locked(void);
++static bool cocoa_head_show(int index);
++
+ static CGEventRef handleTapEvent(CGEventTapProxy proxy, CGEventType type, CGEventRef cgEvent, void *userInfo)
+ {
+     QemuCocoaView *view = userInfo;
+@@ -385,7 +392,8 @@ - (id)initWithFrame:(NSRect)frameRect
+     self = [super initWithFrame:frameRect];
+     if (self) {
+ 
+-        NSTrackingAreaOptions options = NSTrackingActiveInKeyWindow |
++        /* omaflake: the app, not only this window (a display window may be key) */
++        NSTrackingAreaOptions options = NSTrackingActiveInActiveApp |
+                                         NSTrackingMouseEnteredAndExited |
+                                         NSTrackingMouseMoved |
+                                         NSTrackingInVisibleRect;
+@@ -777,6 +785,7 @@ - (void) updateUIInfoLocked
+                           cleanScaleDivisor);
+ 
+     qemu_console_set_ui_info(dcl.con, &info, TRUE);
++    cocoa_heads_update_ui_info_locked();
+ }
+ 
+ #pragma clang diagnostic pop
+@@ -1175,8 +1184,7 @@ - (void) handleMouseEvent:(NSEvent *)event
+             NSPoint p = [event locationInWindow];
+ 
+             /* Note that the origin for Cocoa mouse coords is bottom left, not top left. */
+-            qemu_input_queue_abs(dcl.con, INPUT_AXIS_X, p.x * d, 0, screen.width);
+-            qemu_input_queue_abs(dcl.con, INPUT_AXIS_Y, screen.height - p.y * d, 0, screen.height);
++            cocoa_queue_abs(dcl.con, p.x * d, screen.height - p.y * d, screen.width, screen.height);
+         } else {
+             qemu_input_queue_rel(dcl.con, INPUT_AXIS_X, [event deltaX]);
+             qemu_input_queue_rel(dcl.con, INPUT_AXIS_Y, [event deltaY]);
+@@ -1301,6 +1309,7 @@ - (void) notifyMouseModeChange {
+     }
+ }
+ - (BOOL) isMouseGrabbed {return isMouseGrabbed;}
++- (BOOL) isAbsoluteEnabled {return isAbsoluteEnabled;}
+ 
+ /*
+  * Makes the target think all down keys are being released.
+@@ -1440,6 +1449,11 @@ - (void)applicationDidFinishLaunching: (NSNotification *) note
+ {
+     COCOA_DEBUG("QemuCocoaAppController: applicationDidFinishLaunching\n");
+     allow_events = true;
++    if (nheads) {
++        with_bql(^{
++            cocoa_heads_update_ui_info_locked();
++        });
++    }
+ }
+ 
+ - (void)applicationWillTerminate:(NSNotification *)aNotification
+@@ -1611,6 +1625,9 @@ - (void)toggleZoomInterpolation:(id) sender
+ /* Displays the console on the screen */
+ - (void)displayConsole:(id)sender
+ {
++    if (cocoa_head_show([sender tag])) {
++        return;
++    }
+     with_bql(^{
+         [cocoaView selectConsoleLocked:[sender tag]];
+     });
+@@ -2632,14 +2649,798 @@ static void cocoa_gl_scanout_flush(DisplayChangeListener *dcl,
+     .dpy_gl_update          = cocoa_gl_scanout_flush,
+ };
+ 
++static bool cocoa_head_is_gl_dcl(DisplayChangeListener *dcl);
++
+ static bool cocoa_gl_is_compatible_dcl(DisplayGLCtx *dgc,
+                                        DisplayChangeListener *dcl)
+ {
+-    return dcl->ops == &dcl_gl_ops;
++    return dcl->ops == &dcl_gl_ops || cocoa_head_is_gl_dcl(dcl);
+ }
+ 
+ #endif
+ 
++/*
++ * omaflake: one window per further display. A GPU with more than one output
++ * (virtio-gpu max_outputs=N) has a graphic console per output; the main
++ * window shows the first, and each further one gets a window of its own that
++ * can be moved to another screen (or made full screen there). A shown window
++ * connects its output: the guest gets a monitor of the window's size,
++ * suggested right of the ones before it. Closing the window disconnects the
++ * output; View -> its console shows it again.
++ *
++ * The pointer is the one USB tablet. Positions are mapped onto the guest's
++ * whole desktop, which guests lay out left to right in output order by
++ * default (the suggested positions say the same), so a click lands where it
++ * was made in any window. Keys go to the guest from any window
++ * (QemuApplication sends every event to the main view first).
++ */
++#define COCOA_MAX_HEADS 15
++
++typedef struct CocoaHead CocoaHead;
++
++@interface QemuCocoaHeadView : NSView <NSWindowDelegate>
++{
++@public
++    CocoaHead *head;
++    CGColorSpaceRef colorspace;
++    CALayer *cursorLayer;
++    QEMUCursor *cursor;
++    int mouseX;
++    int mouseY;
++    bool mouseOn;
++    int guestWidth;
++    int guestHeight;
++}
++- (id)initWithFrame:(NSRect)frameRect head:(CocoaHead *)h cgl:(BOOL)cgl;
++- (void)updateUIInfoLocked;
++- (void)updateGuestSize;
++- (void)setMouseX:(int)x y:(int)y on:(bool)on;
++- (void)setCursor:(QEMUCursor *)given_cursor;
++@end
++
++struct CocoaHead {
++    DisplayChangeListener dcl;
++    int index;          /* the console's index */
++    int number;         /* the display's number as the window shows it: 2, 3, ... */
++    QemuCocoaHeadView *view;
++    NSWindow *window;
++    bool shown;
++    DisplaySurface *surface;
++#ifdef CONFIG_OPENGL
++    uint32_t scanout_id;
++    DisplayGLTextureBorrower scanout_borrow;
++    bool dirty;
++#ifdef CONFIG_EGL
++    EGLSurface egl_surface;
++#endif
++#endif
++};
++
++static CocoaHead *heads[COCOA_MAX_HEADS];
++
++/* The guest shows something on this display (it took the output) */
++static bool cocoa_head_active(CocoaHead *h)
++{
++    if (!h->shown) {
++        return false;
++    }
++#ifdef CONFIG_OPENGL
++    if (h->scanout_borrow) {
++        return true;
++    }
++#endif
++    return h->surface && !surface_is_placeholder(h->surface);
++}
++
++/* The left edge of a display on the guest's desktop: the widths before it */
++static int cocoa_head_xoff(CocoaHead *h)
++{
++    int x = qemu_console_get_width(dcl.con, 0);
++
++    for (int i = 0; i < nheads && heads[i] != h; i++) {
++        if (cocoa_head_active(heads[i])) {
++            x += qemu_console_get_width(heads[i]->dcl.con, 0);
++        }
++    }
++    return x;
++}
++
++/*
++ * An absolute position (x, y) on console con, whose picture is w x h, to the
++ * tablet: one display as before; with further displays, a position on the
++ * desktop made of all of them side by side.
++ */
++static void cocoa_queue_abs(QemuConsole *con, CGFloat x, CGFloat y, int w, int h)
++{
++    int total_w = con == dcl.con ? w : qemu_console_get_width(dcl.con, 0);
++    int total_h = con == dcl.con ? h : qemu_console_get_height(dcl.con, 0);
++    int xoff = 0;
++
++    for (int i = 0; i < nheads; i++) {
++        CocoaHead *hd = heads[i];
++        bool mine = hd->dcl.con == con;
++
++        if (!mine && !cocoa_head_active(hd)) {
++            continue;
++        }
++        if (mine) {
++            xoff = total_w;
++        }
++        total_w += mine ? w : qemu_console_get_width(hd->dcl.con, 0);
++        total_h = MAX(total_h, mine ? h : qemu_console_get_height(hd->dcl.con, 0));
++    }
++    if (total_w <= 0 || total_h <= 0) {
++        return;
++    }
++    qemu_input_queue_abs(dcl.con, INPUT_AXIS_X, xoff + x, 0, total_w);
++    qemu_input_queue_abs(dcl.con, INPUT_AXIS_Y, y, 0, total_h);
++}
++
++/* The screen's refresh rate in mHz, 0 when unknown (as the main window finds it) */
++static uint32_t cocoa_screen_refresh_rate(NSScreen *screen)
++{
++    NSDictionary *description = [screen deviceDescription];
++    CGDirectDisplayID display = [[description objectForKey:@"NSScreenNumber"] unsignedIntValue];
++    CVDisplayLinkRef displayLink;
++    uint32_t refreshRate = 0;
++
++#pragma clang diagnostic push
++#pragma clang diagnostic ignored "-Wdeprecated-declarations"
++    if (!CVDisplayLinkCreateWithCGDisplay(display, &displayLink)) {
++        CVTime period = CVDisplayLinkGetNominalOutputVideoRefreshPeriod(displayLink);
++        CVDisplayLinkRelease(displayLink);
++        if (!(period.flags & kCVTimeIsIndefinite) &&
++            period.timeValue > 0 && period.timeScale > 0) {
++            refreshRate = (int64_t)1000 * period.timeScale / period.timeValue;
++        }
++    }
++#pragma clang diagnostic pop
++    if (!refreshRate && [screen maximumFramesPerSecond] > 0) {
++        refreshRate = (uint32_t)[screen maximumFramesPerSecond] * 1000;
++    }
++    return refreshRate;
++}
++
++static void cocoa_heads_update_ui_info_locked(void)
++{
++    for (int i = 0; i < nheads; i++) {
++        [heads[i]->view updateUIInfoLocked];
++    }
++}
++
++static CocoaHead *cocoa_head_of(DisplayChangeListener *dcl)
++{
++    return container_of(dcl, CocoaHead, dcl);
++}
++
++#ifdef CONFIG_OPENGL
++static void cocoa_head_gl_render(CocoaHead *h);
++
++@interface QemuHeadCGLLayer : CAOpenGLLayer
++{
++@public
++    CocoaHead *head;
++}
++@end
++
++@implementation QemuHeadCGLLayer
++- (id)init
++{
++    self = [super init];
++    if (self) {
++        [self setAsynchronous:NO];
++    }
++    return self;
++}
++
++- (CGLContextObj)copyCGLContextForPixelFormat:(CGLPixelFormatObj)pf
++{
++    CGLContextObj ctx;
++    CGLCreateContext(pf, gl_view_ctx, &ctx);
++    return ctx;
++}
++
++- (CGLPixelFormatObj)copyCGLPixelFormatForDisplayMask:(uint32_t)mask
++{
++    CGLPixelFormatObj pix;
++    GLint npix;
++    CGLPixelFormatAttribute attribs[] = {
++        kCGLPFADisplayMask,
++        mask,
++        kCGLPFAOpenGLProfile,
++        (CGLPixelFormatAttribute)kCGLOGLPVersion_3_2_Core,
++        0
++    };
++
++    CGLChoosePixelFormat(attribs, &pix, &npix);
++    return pix;
++}
++
++- (void)drawInCGLContext:(CGLContextObj)ctx
++             pixelFormat:(CGLPixelFormatObj)pf
++            forLayerTime:(CFTimeInterval)t
++             displayTime:(const CVTimeStamp *)ts
++{
++    CGLSetCurrentContext(ctx);
++    {
++        BQL_LOCK_GUARD();
++        cocoa_head_gl_render(head);
++    }
++    [super drawInCGLContext:ctx pixelFormat:pf forLayerTime:t displayTime:ts];
++}
++@end
++#endif
++
++@implementation QemuCocoaHeadView
++- (id)initWithFrame:(NSRect)frameRect head:(CocoaHead *)h cgl:(BOOL)cgl
++{
++    self = [super initWithFrame:frameRect];
++    if (self) {
++        NSTrackingArea *trackingArea =
++            [[NSTrackingArea alloc] initWithRect:CGRectZero
++                                         options:NSTrackingActiveInActiveApp |
++                                                 NSTrackingMouseEnteredAndExited |
++                                                 NSTrackingMouseMoved |
++                                                 NSTrackingInVisibleRect
++                                           owner:self
++                                        userInfo:nil];
++
++        head = h;
++        [self addTrackingArea:trackingArea];
++        [trackingArea release];
++        colorspace = CGColorSpaceCreateWithName(kCGColorSpaceSRGB);
++        guestWidth = frameRect.size.width;
++        guestHeight = frameRect.size.height;
++#if MAC_OS_X_VERSION_MAX_ALLOWED >= MAC_OS_VERSION_14_0
++        [self setClipsToBounds:YES];
++#endif
++        [self setWantsLayer:YES];
++#ifdef CONFIG_OPENGL
++        if (cgl) {
++            QemuHeadCGLLayer *layer = [[QemuHeadCGLLayer alloc] init];
++            layer->head = h;
++            [self setLayer:layer];
++            [layer release];
++        }
++#endif
++        cursorLayer = [[CALayer alloc] init];
++        [cursorLayer setAnchorPoint:CGPointMake(0, 1)];
++        [cursorLayer setZPosition:1];
++        [cursorLayer setHidden:YES];
++        [[self layer] addSublayer:cursorLayer];
++    }
++    return self;
++}
++
++- (void)dealloc
++{
++    CGColorSpaceRelease(colorspace);
++    [cursorLayer release];
++    cursor_unref(cursor);
++    [super dealloc];
++}
++
++- (BOOL)isOpaque
++{
++    return YES;
++}
++
++#ifdef CONFIG_OPENGL
++- (BOOL)wantsUpdateLayer
++{
++    return display_opengl;
++}
++#endif
++
++- (BOOL)acceptsFirstMouse:(NSEvent *)event
++{
++    return YES;
++}
++
++- (void)drawRect:(NSRect)rect
++{
++    CGContextRef ctx = [[NSGraphicsContext currentContext] CGContext];
++    BQL_LOCK_GUARD();
++    DisplaySurface *s = head->surface;
++
++    if (!s) {
++        CGContextSetRGBFillColor(ctx, 0, 0, 0, 1);
++        CGContextFillRect(ctx, NSRectToCGRect([self bounds]));
++        return;
++    }
++
++    int w = surface_width(s);
++    int h = surface_height(s);
++    int bitsPerPixel = PIXMAN_FORMAT_BPP(surface_format(s));
++    int stride = surface_stride(s);
++    CGDataProviderRef provider = CGDataProviderCreateWithData(NULL, surface_data(s), stride * h, NULL);
++    CGImageRef image = CGImageCreate(w, h, DIV_ROUND_UP(bitsPerPixel, 8) * 2, bitsPerPixel, stride, colorspace,
++                                     kCGBitmapByteOrder32Little | kCGImageAlphaNoneSkipFirst, provider, NULL, 0,
++                                     kCGRenderingIntentDefault);
++
++    CGContextSetInterpolationQuality(ctx, zoom_interpolation ? kCGInterpolationLow : kCGInterpolationNone);
++    CGContextDrawImage(ctx, NSRectToCGRect([self bounds]), image);
++    CGImageRelease(image);
++    CGDataProviderRelease(provider);
++}
++
++/* The guest's picture changed size: the cursor's scale follows (called on the main thread) */
++- (void)updateGuestSize
++{
++    with_bql(^{
++        guestWidth = qemu_console_get_width(head->dcl.con, guestWidth);
++        guestHeight = qemu_console_get_height(head->dcl.con, guestHeight);
++        /* a display that came or went moves the ones after it */
++        cocoa_heads_update_ui_info_locked();
++    });
++    [self updateCursorLayout];
++    [self setNeedsDisplay:YES];
++}
++
++/* The output's size and place for the guest; 0 x 0 = disconnected (BQL held) */
++- (void)updateUIInfoLocked
++{
++    QemuUIInfo info = { 0 };
++
++    if (head->shown && [self window]) {
++        bool fullscreen = ([[self window] styleMask] & NSWindowStyleMaskFullScreen) != 0;
++        NSSize frameSize = fullscreen ? [[[self window] screen] frame].size : [self frame].size;
++        NSSize backing = [self convertSizeToBacking:frameSize];
++        CGFloat scale = [[self window] backingScaleFactor];
++        /* as the main window: whole logical pixels at Hyprland's scales */
++        uint32_t divisor = scale > 1.75 ? 2 : scale > 1.25 ? 3 : 1;
++        uint32_t refreshRate = cocoa_screen_refresh_rate([[self window] screen]);
++
++        info.width = MAX(divisor, (uint32_t)backing.width / divisor * divisor);
++        info.height = MAX(divisor, (uint32_t)backing.height / divisor * divisor);
++        info.width_mm = 10 * MIN(255, MAX(1, (int)lround(frameSize.width * 2.54 / 110.0)));
++        info.height_mm = 10 * MIN(255, MAX(1, (int)lround(frameSize.height * 2.54 / 110.0)));
++        info.xoff = cocoa_head_xoff(head);
++        info.yoff = 0;
++        if (refreshRate) {
++            qemu_console_listener_set_refresh(&head->dcl, MAX(1u, 1000000u / refreshRate));
++            info.refresh_rate = refreshRate;
++        }
++    }
++    qemu_console_set_ui_info(head->dcl.con, &info, TRUE);
++}
++
++- (void)updateUIInfo
++{
++    if (!allow_events) {
++        return;
++    }
++    with_bql(^{
++        [self updateUIInfoLocked];
++    });
++}
++
++- (void)updateCursorLayout
++{
++    [CATransaction begin];
++    [CATransaction setDisableActions:YES];
++    if (cursor && guestWidth > 0 && guestHeight > 0) {
++        CGFloat sx = [self bounds].size.width / guestWidth;
++        CGFloat sy = [self bounds].size.height / guestHeight;
++        CGRect bounds = CGRectMake(0, 0, cursor->width * sx, cursor->height * sy);
++
++        [cursorLayer setBounds:bounds];
++        [cursorLayer setContentsScale:sx];
++        [cursorLayer setPosition:CGPointMake(mouseX * sx, (guestHeight - mouseY) * sy)];
++    }
++    [cursorLayer setHidden:!mouseOn || !cursor];
++    [CATransaction commit];
++}
++
++- (void)setMouseX:(int)x y:(int)y on:(bool)on
++{
++    mouseX = x;
++    mouseY = y;
++    mouseOn = on;
++    [self updateCursorLayout];
++}
++
++- (void)setCursor:(QEMUCursor *)given_cursor
++{
++    cursor_unref(cursor);
++    cursor = given_cursor;
++    if (!cursor) {
++        [self updateCursorLayout];
++        return;
++    }
++    cursor_ref(cursor);
++
++    CGDataProviderRef provider = CGDataProviderCreateWithData(NULL, cursor->data,
++                                                              cursor->width * cursor->height * 4, NULL);
++    CGImageRef image = CGImageCreate(cursor->width, cursor->height, 8, 32, cursor->width * 4, colorspace,
++                                     kCGBitmapByteOrder32Little | kCGImageAlphaFirst, provider, NULL, 0,
++                                     kCGRenderingIntentDefault);
++    CGDataProviderRelease(provider);
++    [CATransaction begin];
++    [CATransaction setDisableActions:YES];
++    [cursorLayer setContents:(id)image];
++    [self updateCursorLayout];
++    [CATransaction commit];
++    CGImageRelease(image);
++}
++
++/* Pointer: grabbed as in the main window while it is over this one */
++- (void)mouseEntered:(NSEvent *)event
++{
++    if ([cocoaView isAbsoluteEnabled] && ![cocoaView isMouseGrabbed]) {
++        [cocoaView grabMouse];
++    }
++}
++
++- (void)mouseExited:(NSEvent *)event
++{
++    if ([cocoaView isAbsoluteEnabled] && [cocoaView isMouseGrabbed]) {
++        [cocoaView ungrabMouse];
++    }
++}
++
++- (void)sendPointer:(NSEvent *)event
++{
++    if (![cocoaView isAbsoluteEnabled]) {
++        return;
++    }
++    if (![cocoaView isMouseGrabbed]) {
++        [cocoaView grabMouse];
++    }
++
++    NSPoint p = [self convertPoint:[event locationInWindow] fromView:nil];
++    NSSize size = [self bounds].size;
++
++    if (size.width <= 0 || size.height <= 0) {
++        return;
++    }
++    with_bql(^{
++        int w = qemu_console_get_width(head->dcl.con, guestWidth);
++        int h = qemu_console_get_height(head->dcl.con, guestHeight);
++
++        cocoa_queue_abs(head->dcl.con, p.x * w / size.width, (size.height - p.y) * h / size.height, w, h);
++        qemu_input_event_sync();
++    });
++}
++
++- (void)sendButton:(InputButton)button down:(bool)down event:(NSEvent *)event
++{
++    if (![cocoaView isAbsoluteEnabled]) {
++        return;
++    }
++    [self sendPointer:event];
++    with_bql(^{
++        qemu_input_queue_btn(dcl.con, button, down);
++        qemu_input_event_sync();
++    });
++}
++
++- (void)mouseMoved:(NSEvent *)event { [self sendPointer:event]; }
++- (void)mouseDragged:(NSEvent *)event { [self sendPointer:event]; }
++- (void)rightMouseDragged:(NSEvent *)event { [self sendPointer:event]; }
++- (void)otherMouseDragged:(NSEvent *)event { [self sendPointer:event]; }
++- (void)mouseDown:(NSEvent *)event { [self sendButton:INPUT_BUTTON_LEFT down:true event:event]; }
++- (void)mouseUp:(NSEvent *)event { [self sendButton:INPUT_BUTTON_LEFT down:false event:event]; }
++- (void)rightMouseDown:(NSEvent *)event { [self sendButton:INPUT_BUTTON_RIGHT down:true event:event]; }
++- (void)rightMouseUp:(NSEvent *)event { [self sendButton:INPUT_BUTTON_RIGHT down:false event:event]; }
++- (void)otherMouseDown:(NSEvent *)event { [self sendButton:INPUT_BUTTON_MIDDLE down:true event:event]; }
++- (void)otherMouseUp:(NSEvent *)event { [self sendButton:INPUT_BUTTON_MIDDLE down:false event:event]; }
++
++/* Window: size and screen go to the guest; closing disconnects the output */
++- (void)windowChanged
++{
++#ifdef CONFIG_OPENGL
++    if (display_opengl) {
++        [[self layer] setContentsScale:[[self window] backingScaleFactor]];
++    }
++#endif
++    [self updateCursorLayout];
++    [self updateUIInfo];
++}
++
++- (void)windowDidResize:(NSNotification *)notification { [self windowChanged]; }
++- (void)windowDidChangeScreen:(NSNotification *)notification { [self windowChanged]; }
++- (void)windowDidChangeBackingProperties:(NSNotification *)notification { [self windowChanged]; }
++- (void)windowDidEnterFullScreen:(NSNotification *)notification { [self windowChanged]; }
++- (void)windowDidExitFullScreen:(NSNotification *)notification { [self windowChanged]; }
++
++- (void)windowDidBecomeKey:(NSNotification *)notification
++{
++    /* the main window let go of the pointer when it stopped being key */
++    if ([cocoaView isAbsoluteEnabled] && ![cocoaView isMouseGrabbed]) {
++        [cocoaView grabMouse];
++    }
++}
++
++- (BOOL)windowShouldClose:(id)sender
++{
++    [[self window] orderOut:nil];
++    head->shown = false;
++    [self updateUIInfo];
++    return NO;
++}
++@end
++
++/* View -> a display's console: show its window again (and connect the output) */
++static bool cocoa_head_show(int index)
++{
++    for (int i = 0; i < nheads; i++) {
++        CocoaHead *h = heads[i];
++
++        if (h->index == index) {
++            h->shown = true;
++            [h->window makeKeyAndOrderFront:nil];
++            [h->view updateUIInfo];
++            return true;
++        }
++    }
++    return false;
++}
++
++/* 2D */
++static void cocoa_head_update(DisplayChangeListener *dcl, int x, int y, int w, int h)
++{
++    CocoaHead *hd = cocoa_head_of(dcl);
++
++    dispatch_async(dispatch_get_main_queue(), ^{
++        [hd->view setNeedsDisplay:YES];
++    });
++}
++
++static void cocoa_head_switch(DisplayChangeListener *dcl, DisplaySurface *new_surface)
++{
++    CocoaHead *hd = cocoa_head_of(dcl);
++
++    hd->surface = new_surface;
++    dispatch_async(dispatch_get_main_queue(), ^{
++        [hd->view updateGuestSize];
++    });
++}
++
++static void cocoa_head_refresh(DisplayChangeListener *dcl)
++{
++    qemu_console_hw_update(dcl->con);
++}
++
++static void cocoa_head_mouse_set(DisplayChangeListener *dcl, int x, int y, bool on)
++{
++    CocoaHead *hd = cocoa_head_of(dcl);
++
++    dispatch_async(dispatch_get_main_queue(), ^{
++        [hd->view setMouseX:x y:y on:on];
++    });
++}
++
++static void cocoa_head_cursor_define(DisplayChangeListener *dcl, QEMUCursor *c)
++{
++    CocoaHead *hd = cocoa_head_of(dcl);
++
++    dispatch_async(dispatch_get_main_queue(), ^{
++        BQL_LOCK_GUARD();
++        [hd->view setCursor:qemu_console_get_cursor(dcl->con)];
++    });
++}
++
++static const DisplayChangeListenerOps dcl_head_ops = {
++    .dpy_name          = "cocoa-display",
++    .dpy_gfx_update    = cocoa_head_update,
++    .dpy_gfx_switch    = cocoa_head_switch,
++    .dpy_refresh       = cocoa_head_refresh,
++    .dpy_mouse_set     = cocoa_head_mouse_set,
++    .dpy_cursor_define = cocoa_head_cursor_define,
++};
++
++#ifdef CONFIG_OPENGL
++/* GL: the scanout's texture, else the surface's, scaled to the view (context current) */
++static void cocoa_head_gl_render(CocoaHead *h)
++{
++    NSSize size = [h->view convertSizeToBacking:[h->view frame].size];
++    GLint filter = qatomic_read(&zoom_interpolation) ? GL_LINEAR : GL_NEAREST;
++
++    glViewport(0, 0, size.width, size.height);
++    if (h->scanout_borrow) {
++        DisplayGLTexture texture = h->scanout_borrow(h->scanout_id);
++
++        glBindTexture(GL_TEXTURE_2D, texture.id);
++        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, filter);
++        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, filter);
++        qemu_gl_run_texture_blit(dgc.gls, texture.y_0_top);
++    } else if (h->surface && h->surface->texture) {
++        glBindTexture(GL_TEXTURE_2D, h->surface->texture);
++        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, filter);
++        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, filter);
++        surface_gl_render_texture(dgc.gls, h->surface);
++    } else {
++        glClearColor(0, 0, 0, 1);
++        glClear(GL_COLOR_BUFFER_BIT);
++    }
++    h->dirty = false;
++}
++
++static void cocoa_head_gl_update(DisplayChangeListener *dcl, int x, int y, int w, int h)
++{
++    CocoaHead *hd = cocoa_head_of(dcl);
++
++    with_gl_view_ctx(^{
++        surface_gl_update_texture(dgc.gls, hd->surface, x, y, w, h);
++    });
++    hd->dirty = true;
++}
++
++static void cocoa_head_gl_switch(DisplayChangeListener *dcl, DisplaySurface *new_surface)
++{
++    CocoaHead *hd = cocoa_head_of(dcl);
++
++    with_gl_view_ctx(^{
++        surface_gl_destroy_texture(dgc.gls, hd->surface);
++        surface_gl_create_texture(dgc.gls, new_surface);
++    });
++    cocoa_head_switch(dcl, new_surface);
++    hd->dirty = true;
++}
++
++static void cocoa_head_gl_refresh(DisplayChangeListener *dcl)
++{
++    CocoaHead *hd = cocoa_head_of(dcl);
++
++    qemu_console_hw_update(dcl->con);
++    if (!hd->dirty || !hd->shown) {
++        return;
++    }
++#ifdef CONFIG_EGL
++    if (hd->egl_surface) {
++        eglMakeCurrent(qemu_egl_display, hd->egl_surface, hd->egl_surface, gl_view_ctx);
++        cocoa_head_gl_render(hd);
++        eglSwapBuffers(qemu_egl_display, hd->egl_surface);
++        eglMakeCurrent(qemu_egl_display, EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONTEXT);
++        return;
++    }
++#endif
++    dispatch_async(dispatch_get_main_queue(), ^{
++        [[hd->view layer] setNeedsDisplay];
++    });
++}
++
++static void cocoa_head_gl_scanout_disable(DisplayChangeListener *dcl)
++{
++    CocoaHead *hd = cocoa_head_of(dcl);
++
++    hd->scanout_borrow = NULL;
++    hd->dirty = true;
++    dispatch_async(dispatch_get_main_queue(), ^{
++        [hd->view updateGuestSize];
++    });
++}
++
++static void cocoa_head_gl_scanout_texture(DisplayChangeListener *dcl, uint32_t backing_id,
++                                          DisplayGLTextureBorrower backing_borrow,
++                                          uint32_t x, uint32_t y, uint32_t w, uint32_t h)
++{
++    CocoaHead *hd = cocoa_head_of(dcl);
++    bool was_active = hd->scanout_borrow != NULL;
++
++    hd->scanout_id = backing_id;
++    hd->scanout_borrow = backing_borrow;
++    hd->dirty = true;
++    dispatch_async(dispatch_get_main_queue(), ^{
++        if (!was_active || hd->view->guestWidth != (int)w || hd->view->guestHeight != (int)h) {
++            [hd->view updateGuestSize];
++        }
++    });
++}
++
++static void cocoa_head_gl_scanout_flush(DisplayChangeListener *dcl, uint32_t x, uint32_t y, uint32_t w, uint32_t h)
++{
++    cocoa_head_of(dcl)->dirty = true;
++}
++
++static const DisplayChangeListenerOps dcl_head_gl_ops = {
++    .dpy_name               = "cocoa-display-gl",
++    .dpy_gfx_update         = cocoa_head_gl_update,
++    .dpy_gfx_switch         = cocoa_head_gl_switch,
++    .dpy_gfx_check_format   = console_gl_check_format,
++    .dpy_refresh            = cocoa_head_gl_refresh,
++    .dpy_mouse_set          = cocoa_head_mouse_set,
++    .dpy_cursor_define      = cocoa_head_cursor_define,
++    .dpy_gl_scanout_disable = cocoa_head_gl_scanout_disable,
++    .dpy_gl_scanout_texture = cocoa_head_gl_scanout_texture,
++    .dpy_gl_update          = cocoa_head_gl_scanout_flush,
++};
++
++static bool cocoa_head_is_gl_dcl(DisplayChangeListener *dcl)
++{
++    return dcl->ops == &dcl_head_gl_ops;
++}
++#endif
++
++/*
++ * A window per further graphic console (on the main thread, from
++ * cocoa_display_init, after the GL context exists). A display's window opens
++ * on the screen of the same number when there is one, else next to the main
++ * window.
++ */
++static void cocoa_heads_init(void)
++{
++    NSRect frame = cocoa_initial_window_frame();
++    NSArray<NSScreen *> *screens = [NSScreen screens];
++    NSWindow *mainWindow = [cocoaView window];
++
++    for (int index = 0; nheads < COCOA_MAX_HEADS; index++) {
++        QemuConsole *con = qemu_console_lookup_by_index(index);
++        CocoaHead *h;
++        NSWindow *window;
++        bool cgl = false;
++
++        if (!con) {
++            break;
++        }
++        if (con == dcl.con || !qemu_console_is_graphic(con)) {
++            continue;
++        }
++
++        h = g_new0(CocoaHead, 1);
++        h->index = index;
++        h->number = nheads + 2;
++        h->dcl.ops = &dcl_head_ops;
++#ifdef CONFIG_OPENGL
++        if (display_opengl) {
++            h->dcl.ops = &dcl_head_gl_ops;
++#ifdef CONFIG_EGL
++            cgl = !egl_surface;
++#else
++            cgl = true;
++#endif
++        }
++#endif
++        h->view = [[QemuCocoaHeadView alloc] initWithFrame:frame head:h cgl:cgl];
++        window = [[NSWindow alloc] initWithContentRect:frame
++            styleMask:NSWindowStyleMaskTitled | NSWindowStyleMaskMiniaturizable |
++                      NSWindowStyleMaskClosable | NSWindowStyleMaskResizable
++            backing:NSBackingStoreBuffered defer:NO];
++        [window setReleasedWhenClosed:NO];
++        [window setAcceptsMouseMovedEvents:YES];
++        [window setCollectionBehavior:NSWindowCollectionBehaviorFullScreenPrimary];
++        [window setTitle:qemu_name ?
++            [NSString stringWithFormat:@"QEMU %s – Display %d", qemu_name, h->number] :
++            [NSString stringWithFormat:@"QEMU – Display %d", h->number]];
++        [window setContentView:h->view];
++        [window setDelegate:h->view];
++        if ((NSUInteger)(h->number - 1) < [screens count]) {
++            NSRect visible = [screens[h->number - 1] visibleFrame];
++            [window setFrameOrigin:NSMakePoint(NSMidX(visible) - NSWidth([window frame]) / 2,
++                                               NSMidY(visible) - NSHeight([window frame]) / 2)];
++        } else {
++            NSRect m = [mainWindow frame];
++            NSRect f = [window frame];
++            f.origin = NSMakePoint(NSMinX(m) + 32 * (h->number - 1), NSMinY(m) - 32 * (h->number - 1));
++            [window setFrame:[window constrainFrameRect:f toScreen:[mainWindow screen]] display:NO];
++        }
++        h->window = window;
++#if defined(CONFIG_OPENGL) && defined(CONFIG_EGL)
++        if (display_opengl && egl_surface) {
++            h->egl_surface = qemu_egl_init_surface(gl_view_ctx, [h->view layer]);
++            if (!h->egl_surface) {
++                error_report("(cocoa) no EGL surface for display %d", h->number);
++                exit(1);
++            }
++        }
++#endif
++        h->surface = qemu_console_surface(con);
++        h->shown = true;
++        heads[nheads++] = h;
++        qemu_console_register_listener(con, &h->dcl, h->dcl.ops);
++        [window orderFront:nil];
++    }
++    [mainWindow makeKeyAndOrderFront:nil];
++}
++
++static void cocoa_heads_cleanup(void)
++{
++    for (int i = 0; i < nheads; i++) {
++        qemu_console_unregister_listener(&heads[i]->dcl);
++    }
++}
++
+ static void cocoa_display_early_init(DisplayOptions *o)
+ {
+     assert(o->type == DISPLAY_TYPE_COCOA);
+@@ -2780,6 +3581,7 @@ static void cocoa_display_init(DisplayState *ds, DisplayOptions *opts)
+ 
+     qemu_console_register_listener(qemu_console_lookup_default(),
+                                    &dcl, dcl.ops);
++    cocoa_heads_init();
+     kbd = qkbd_state_init(dcl.con);
+     qemu_add_mouse_mode_change_notifier(&mouse_mode_change_notifier);
+     [cocoaView notifyMouseModeChange];
+@@ -2805,6 +3607,7 @@ static void cocoa_display_cleanup(void)
+     }
+ 
+     qemu_console_unregister_listener(&dcl);
++    cocoa_heads_cleanup();
+     g_clear_pointer(&kbd, qkbd_state_free);
+     qemu_remove_mouse_mode_change_notifier(&mouse_mode_change_notifier);
+     qemu_clipboard_peer_unregister(&cbpeer);
