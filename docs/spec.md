@@ -614,6 +614,13 @@ the Mac over one channel.
   when it finds OBS, makes it OBS's current one, never touches the user's collections and writes nothing while OBS
   runs; approving OBS's extension and "Start Virtual Camera" are the user's. Nothing installs OBS (a stopgap: nothing
   may bind omaflake to it). Later omaflake's extension reads the same stream.
+  **H.264 (plan B174):** the virtio console carries ~35 MB/s, ~25 raw frames a second – fewer than the camera's 30.
+  The macOS agent also offers `camera-h264`; a runner that enables it encodes with VideoToolbox (real time, no frame
+  reordering, 8 Mbit/s, a key frame every 2 s and with every "start") and each `0x0202` carries one access unit in
+  Annex B (parameter sets before each key frame). Only frames with a credit are encoded, so the stream misses none;
+  the agent passes every frame on in order (none replaced), grants 4 credits, and the media source of "omaflake
+  Camera" follows the stream's format (`rawvideo` or `h264`) – changed only while OBS is not running. NixOS guests
+  keep raw frames (v4l2loopback). `OMAFLAKE_CAMERA_RAW=1` for the runner keeps raw frames.
 - **Trust:** the guest is untrusted. The Mac side accepts only the defined messages, everything the guest may cause on
   the Mac is switched per VM in the app (as clipboard and camera today), and tunnels are started from the Mac only –
   nothing in the guest can run commands on the Mac.
@@ -665,7 +672,7 @@ the Mac over one channel.
   | `0x0100` | both | clipboard | `{"mime", "data"}` (text/plain;charset=utf-8 or image/png, base64), in `MORE` chunks of 256 KiB, at most 32 MiB of content |
   | `0x0200` | guest → Mac | camera control | `{"action": "start" \| "stop"}`: an application opened or closed `/dev/video42` |
   | `0x0201` | guest → Mac | camera credit | `{"credits": n}`: n more frames may come (the Mac caps them at 4) |
-  | `0x0202` | Mac → guest | camera frame | one 1280×720 NV12 frame (1,382,400 bytes), always one frame, never chunked |
+  | `0x0202` | Mac → guest | camera frame | one 1280×720 NV12 frame (1,382,400 bytes), or with `camera-h264` one H.264 access unit (Annex B); always one frame, never chunked |
   | `0x0203` | Mac → guest | camera status | `{"status", "detail"}` (ready, streaming, unavailable, stopped) |
   | `0x03xx`, `0x04xx` | | tunnels; open URL, notifications | later |
   | `0x0500` | Mac → guest | MIDI endpoints | `{"endpoints": [{id, direction ("in" \| "out"), name, manufacturer?, model?, protocol (1 \| 2)}]}`: the whole list after each change |

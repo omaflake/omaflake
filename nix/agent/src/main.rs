@@ -125,6 +125,11 @@ fn offered(midi: bool) -> Vec<&'static str> {
     }
     if camera::available() {
         f.push("camera");
+        // macOS: OBS reads H.264 as well as raw frames, and the virtio console carries ~25 raw frames a second
+        // only (plan B174); v4l2loopback on Linux takes raw frames
+        if cfg!(target_os = "macos") {
+            f.push("camera-h264");
+        }
     }
     if midi {
         f.push("midi");
@@ -165,6 +170,8 @@ struct Agent {
     midi: Option<Midi>,
     /// The Mac's last camera status ("status", "detail"), for the diagnosis
     camera_status: Option<(String, String)>,
+    /// Asking the Mac again after it stopped the camera while an application still reads (plan B173)
+    camera_retry: CameraRetry,
     /// macOS: OBS's scene collection for the camera (obs.rs), as last looked at
     obs: Option<obs::State>,
     /// Why there is no MIDI here (Midi::new failed), for the diagnosis
@@ -201,8 +208,9 @@ impl Agent {
 
     /// The camera is in use: ask the Mac to start and grant it the frames it may send
     fn camera_start(&mut self) {
+        let credits = self.camera.as_ref().map_or(camera::CREDITS, |c| c.credits());
         self.send(MSG_CAMERA_CONTROL, &serde_json::json!({ "action": "start" }));
-        self.send(MSG_CAMERA_CREDIT, &serde_json::json!({ "credits": camera::CREDITS }));
+        self.send(MSG_CAMERA_CREDIT, &serde_json::json!({ "credits": credits }));
     }
 
     fn welcome(&mut self, w: Welcome) {
@@ -226,6 +234,11 @@ impl Agent {
                     Err(e) => log(&format!("{}: {e} – no camera", camera::DEVICE)),
                 }
             }
+            let compressed = self.enabled("camera-h264");
+            if let Some(c) = self.camera.as_mut() {
+                c.compressed = compressed;
+            }
+            self.obs = None; // the stream's format may have changed: OBS's source follows
             self.obs_prepare();
             if self.camera.as_ref().is_some_and(|c| c.active) {
                 self.camera_start();
@@ -242,10 +255,13 @@ impl Agent {
 
     /// macOS: OBS's scene for the camera (obs.rs) – at the welcome and with every status, until it is there
     fn obs_prepare(&mut self) {
-        if !cfg!(target_os = "macos") || !self.enabled("camera") || matches!(self.obs, Some(obs::State::Ready { .. })) {
+        if !cfg!(target_os = "macos")
+            || !self.enabled("camera")
+            || matches!(self.obs, Some(obs::State::Ready { .. } | obs::State::Updated { done: true }))
+        {
             return;
         }
-        let state = obs::prepare();
+        let state = obs::prepare(self.enabled("camera-h264"));
         if self.obs.as_ref() != Some(&state) {
             log(&state.describe());
         }
@@ -381,7 +397,7 @@ impl Agent {
         if !self.enabled("camera") {
             return Outcome::new(Status::Skipped, "The camera is off for this VM");
         }
-        let state = obs::prepare();
+        let state = obs::prepare(self.enabled("camera-h264"));
         let extension = obs::extension_state();
         let mac = self.camera_status.as_ref();
         let reading = self.camera.as_ref().is_some_and(|c| c.active);
@@ -404,6 +420,14 @@ impl Agent {
             )
         } else if state == obs::State::NeverStarted {
             Outcome::new(Status::Fail, "Start OBS once in the VM; the agent then sets up its scene collection")
+        } else if state == (obs::State::Updated { done: false }) {
+            Outcome::new(
+                Status::Fail,
+                format!(
+                    "Quit OBS once: the agent then changes the media source of \"{}\" to the camera's format",
+                    obs::COLLECTION
+                ),
+            )
         } else if extension.as_deref() != Some("activated enabled") {
             Outcome::new(
                 Status::Fail,
@@ -524,6 +548,11 @@ impl Agent {
                 if let Ok(v) = serde_json::from_slice::<serde_json::Value>(&frame.payload) {
                     let text = |k: &str| midi::clean(v.get(k).and_then(|x| x.as_str()).unwrap_or(""));
                     self.camera_status = Some((text("status"), text("detail")));
+                    // Stopped while an application reads (e.g. it took longer than 2 s to read the first frames):
+                    // nothing else starts it again. "unavailable" (no permission, no camera) is not retried
+                    if text("status") == "stopped" && self.camera.as_ref().is_some_and(|c| c.active) {
+                        self.camera_retry.stopped(Instant::now());
+                    }
                 }
             }
             MSG_MIDI_ENDPOINTS if self.enabled("midi") => self.midi_endpoints(&frame.payload),
@@ -599,6 +628,7 @@ impl Agent {
         } else {
             self.next_hello
         };
+        let due = self.camera_retry.at.map_or(due, |at| due.min(at));
         let mut timeout = due.saturating_duration_since(now).min(Duration::from_secs(1));
         if !self.diag_queue.is_empty() {
             timeout = timeout.min(Duration::from_millis(50)); // the next check starts as soon as the running one is done
@@ -629,6 +659,7 @@ impl Agent {
             match cam.events(&revents) {
                 Ok(Some(now_active)) => {
                     log(if now_active { "an application opened the camera" } else { "camera no longer in use" });
+                    self.camera_retry = CameraRetry::default();
                     if now_active {
                         self.camera_start();
                     } else {
@@ -714,10 +745,50 @@ impl Agent {
             self.next_status = now + self.interval;
             self.obs_prepare();
         }
+        if self.camera_retry.due(now) && self.camera.as_ref().is_some_and(|c| c.active) {
+            log("the Mac stopped the camera while an application reads – asking again");
+            self.camera_start();
+        }
         if let Some(cam) = self.camera.as_mut() {
             cam.keep_fresh(now);
         }
         self.diagnose_tick();
+    }
+}
+
+/// When to ask the Mac for the camera again after it stopped it while an application reads (plan B173): after 1 s,
+/// then 2, 4 and every 8 s, so a reader that stalls for good does not switch the Mac's camera on and off all the time
+#[derive(Debug)]
+struct CameraRetry {
+    at: Option<Instant>,
+    delay: Duration,
+}
+
+impl CameraRetry {
+    const FIRST: Duration = Duration::from_secs(1);
+    const MAX: Duration = Duration::from_secs(8);
+
+    /// The Mac stopped: ask again after the current delay (a second "stopped" before then changes nothing)
+    fn stopped(&mut self, now: Instant) {
+        if self.at.is_none() {
+            self.at = Some(now + self.delay);
+            self.delay = (self.delay * 2).min(Self::MAX);
+        }
+    }
+
+    /// Whether to ask now; true once per `stopped`
+    fn due(&mut self, now: Instant) -> bool {
+        let due = self.at.is_some_and(|at| now >= at);
+        if due {
+            self.at = None;
+        }
+        due
+    }
+}
+
+impl Default for CameraRetry {
+    fn default() -> Self {
+        CameraRetry { at: None, delay: Self::FIRST }
     }
 }
 
@@ -810,6 +881,7 @@ fn main() {
         sessions: vec![],
         camera: None,
         camera_status: None,
+        camera_retry: CameraRetry::default(),
         obs: None,
         midi_error,
         midi_state: (0, vec![]),
@@ -823,5 +895,34 @@ fn main() {
     }
     if agent.connected {
         agent.send(MSG_GOODBYE, &serde_json::json!({ "reason": "stopping" }));
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn the_camera_is_asked_again_after_a_stop_with_a_growing_delay() {
+        let t0 = Instant::now();
+        let mut r = CameraRetry::default();
+        assert!(!r.due(t0), "nothing stopped");
+        r.stopped(t0);
+        r.stopped(t0 + Duration::from_millis(500)); // a second status before the retry: same time
+        assert!(!r.due(t0 + Duration::from_millis(999)));
+        assert!(r.due(t0 + Duration::from_secs(1)));
+        assert!(!r.due(t0 + Duration::from_secs(2)), "once per stop");
+        let delays: Vec<u64> = (0..5)
+            .map(|_| {
+                r.stopped(t0);
+                let at = r.at.unwrap();
+                assert!(r.due(at));
+                (at - t0).as_secs()
+            })
+            .collect();
+        assert_eq!(delays, [2, 4, 8, 8, 8]);
+        r = CameraRetry::default(); // a new reader starts over
+        r.stopped(t0);
+        assert_eq!(r.at, Some(t0 + Duration::from_secs(1)));
     }
 }

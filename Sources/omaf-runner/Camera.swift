@@ -10,6 +10,8 @@ import OmaflakeKit
 /// spec §11.9) or the old port org.omaflake.camera ("start"/"stop" lines from the guest; messages with a 16-byte
 /// header "<4sBBHII": b"OMFC", version 1, kind 1 status JSON / 2 frame, 0, payload bytes, sequence).
 /// `testPattern` sends a moving pattern instead of the camera (checks without camera permission).
+/// With the agent's `camera-h264` (plan B174) the frames go out as H.264 (`CameraEncoder`): only frames the guest has
+/// a credit for are encoded, so none is missing from the stream, and a new "start" asks for a key frame.
 final class CameraBridge: NSObject, AVCaptureVideoDataOutputSampleBufferDelegate, @unchecked Sendable {
     static let width = 1280, height = 720
     static let frameBytes = width * height * 3 / 2
@@ -33,6 +35,10 @@ final class CameraBridge: NSObject, AVCaptureVideoDataOutputSampleBufferDelegate
     private var pending: [UInt8]?
     /// Port: when the guest last took a whole frame (frames it does not take within 2 s stop the camera, with a status)
     private var lastDelivered = Date.distantPast
+    /// Agent with `camera-h264`: the encoder (nil: raw NV12), and the pattern's frames as a pixel buffer for it
+    private var encoder: CameraEncoder?
+    private var patternBuffer: CVPixelBuffer?
+    private var frameCount: Int64 = 0
 
     init(transport: Transport, testPattern: Bool, onClosed: @escaping @Sendable () -> Void) {
         self.transport = transport
@@ -51,13 +57,26 @@ final class CameraBridge: NSObject, AVCaptureVideoDataOutputSampleBufferDelegate
         if portFD != nil { Thread.detachNewThread { [self] in readLoop() } }
     }
 
-    /// The guest's agent carries the camera (its welcome enabled it): from now on frames go there, against credits
-    func useAgent(_ link: AgentLink) {
+    /// The guest's agent carries the camera (its welcome enabled it): from now on frames go there, against credits –
+    /// as H.264 when the welcome enabled `camera-h264` (plan B174)
+    func useAgent(_ link: AgentLink, compressed: Bool) {
         queue.async { [self] in
             stopCapture()
             transport = .agent(link)
             credits = 0
-            status("ready", reason: testPattern ? "test pattern" : "camera")
+            pending = nil
+            encoder = nil
+            if compressed {
+                let queue = queue
+                do {
+                    encoder = try CameraEncoder(width: Self.width, height: Self.height) { [weak self] unit, _ in
+                        queue.async { self?.sendEncoded(link, unit) }
+                    }
+                } catch {
+                    return status("unavailable", reason: "\(error)")
+                }
+            }
+            status("ready", reason: testPattern ? "test pattern" : compressed ? "camera, H.264" : "camera")
         }
     }
 
@@ -65,7 +84,9 @@ final class CameraBridge: NSObject, AVCaptureVideoDataOutputSampleBufferDelegate
     func request(_ r: AgentLink.CameraRequest) {
         queue.async { [self] in
             switch r {
-            case .start: startCapture()
+            case .start:
+                encoder?.requestKeyFrame()   // a new reader in the guest starts at a key frame
+                startCapture()
             case .stop: stopCapture(); credits = 0; pending = nil
             case .credits(let n):
                 credits = min(credits + n, AgentProtocol.maxCameraCredits)
@@ -154,6 +175,7 @@ final class CameraBridge: NSObject, AVCaptureVideoDataOutputSampleBufferDelegate
         guard let pb = CMSampleBufferGetImageBuffer(sampleBuffer),
               CVPixelBufferGetWidth(pb) == Self.width, CVPixelBufferGetHeight(pb) == Self.height,
               CVPixelBufferGetPlaneCount(pb) == 2 else { return }
+        if encoder != nil { return encode(pb) }
         CVPixelBufferLockBaseAddress(pb, .readOnly)
         defer { CVPixelBufferUnlockBaseAddress(pb, .readOnly) }
         // Rows may be padded (bytesPerRow > width): copy plane by plane, row by row
@@ -186,12 +208,36 @@ final class CameraBridge: NSObject, AVCaptureVideoDataOutputSampleBufferDelegate
                 row.withUnsafeBytes { src in for y in 0..<h { memcpy(dst.baseAddress! + y * w, src.baseAddress!, w) } }
                 memset(dst.baseAddress! + w * h, 128, dst.count - w * h)
             }
+            if encoder != nil, let pb = patternPixelBuffer() { return encode(pb) }
             send(kind: 2, frame)
         }
         t.resume()
         pattern = t
         lastDelivered = Date()
         status("streaming", reason: "test pattern")
+    }
+
+    /// The pattern's bytes in a pixel buffer (H.264 takes pixel buffers; one buffer, reused – the encoder copies)
+    private func patternPixelBuffer() -> CVPixelBuffer? {
+        if patternBuffer == nil {
+            CVPixelBufferCreate(nil, Self.width, Self.height, kCVPixelFormatType_420YpCbCr8BiPlanarVideoRange,
+                                [kCVPixelBufferIOSurfacePropertiesKey: [:]] as CFDictionary, &patternBuffer)
+        }
+        guard let pb = patternBuffer else { return nil }
+        CVPixelBufferLockBaseAddress(pb, [])
+        defer { CVPixelBufferUnlockBaseAddress(pb, []) }
+        var off = 0
+        frame.withUnsafeBytes { src in
+            for plane in 0..<2 {
+                guard let base = CVPixelBufferGetBaseAddressOfPlane(pb, plane) else { return }
+                let stride = CVPixelBufferGetBytesPerRowOfPlane(pb, plane)
+                for r in 0..<CVPixelBufferGetHeightOfPlane(pb, plane) {
+                    memcpy(base + r * stride, src.baseAddress! + off, Self.width)
+                    off += Self.width
+                }
+            }
+        }
+        return pb
     }
 
     private func status(_ value: String, reason: String) {
@@ -230,6 +276,31 @@ final class CameraBridge: NSObject, AVCaptureVideoDataOutputSampleBufferDelegate
             stopCapture()
             status("stopped", reason: "the camera port failed")
         }
+    }
+
+    /// H.264 (on `queue`): a frame is encoded only against a credit – one without is never encoded, so the stream
+    /// misses nothing it refers to; no credit for 2 s stops the camera, as for raw frames
+    private func encode(_ pb: CVPixelBuffer) {
+        guard case .agent = transport, let encoder else { return }
+        guard credits > 0 else {
+            if Date().timeIntervalSince(lastCredit) > 2 {
+                stopCapture()
+                status("stopped", reason: "no credit from the guest for 2 s")
+            }
+            return
+        }
+        credits -= 1
+        frameCount += 1
+        if !encoder.encode(pb, at: CMTime(value: frameCount, timescale: 30)) { credits += 1 }
+    }
+
+    /// An encoded frame (on `queue`); empty: the encoder dropped it – its credit comes back
+    private func sendEncoded(_ link: AgentLink, _ unit: [UInt8]) {
+        guard !unit.isEmpty else {
+            credits = min(credits + 1, AgentProtocol.maxCameraCredits)
+            return
+        }
+        if !link.send(.cameraFrame, payload: Data(unit)) { stopCapture() }
     }
 
     /// Over the agent (on `queue`): a frame only against a credit, otherwise dropped – live video is never queued;

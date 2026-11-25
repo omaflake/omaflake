@@ -54,7 +54,7 @@ struct Bridge: ParsableCommand {
             link.onWelcome = { [weak link] features in
                 guard let link else { return }
                 if features.contains("clipboard") { clip?.useAgent(link) }
-                if features.contains("camera") { cam?.useAgent(link) }
+                if features.contains("camera") { cam?.useAgent(link, compressed: features.contains("camera-h264")) }
                 midiBridge?.welcomed(features, link: link)
             }
             link.onClipboard = { mime, data in clip?.apply(mime: mime, data: data) }

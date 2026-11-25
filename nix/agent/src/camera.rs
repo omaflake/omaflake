@@ -64,6 +64,8 @@ pub struct Camera {
     pub active: bool,
     /// When the last frame went to the device
     written: Instant,
+    /// Always false: v4l2loopback takes raw frames, so the agent offers no `camera-h264` on Linux (plan B174)
+    pub compressed: bool,
 }
 
 impl Camera {
@@ -89,7 +91,7 @@ impl Camera {
         if (f.get(8), f.get(12)) != (WIDTH, HEIGHT) {
             return Err(io::Error::other("v4l2loopback refused 1280x720 NV12"));
         }
-        let mut camera = Camera { device, active: false, written: Instant::now() };
+        let mut camera = Camera { device, active: false, written: Instant::now(), compressed: false };
         // A first frame makes the exclusive-caps device announce itself as a capture device (browsers find it)
         camera.black();
         let mut s = Raw::<32>::new();
@@ -128,6 +130,11 @@ impl Camera {
     }
 
     /// A frame from the Mac; returns the credits to give back (one: the buffer is free again)
+    /// Linux shows raw frames only (the agent offers no `camera-h264` here)
+    pub fn credits(&self) -> u32 {
+        CREDITS
+    }
+
     pub fn write_frame(&mut self, frame: Vec<u8>) -> io::Result<u32> {
         if frame.len() != FRAME_BYTES {
             return Err(io::Error::other("frame of the wrong size"));

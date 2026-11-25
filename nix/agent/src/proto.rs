@@ -40,7 +40,7 @@ pub const MAX_CLIPBOARD: usize = 32 * 1024 * 1024;
 // Camera (0x02xx): the Mac's camera as /dev/video42, frames only against credits (spec §11.9)
 pub const MSG_CAMERA_CONTROL: u16 = 0x0200; // guest → Mac, JSON {"action": "start" | "stop"}
 pub const MSG_CAMERA_CREDIT: u16 = 0x0201; // guest → Mac, JSON {"credits": n}: n more frames may come
-pub const MSG_CAMERA_FRAME: u16 = 0x0202; // Mac → guest, binary: one 1280×720 NV12 frame
+pub const MSG_CAMERA_FRAME: u16 = 0x0202; // Mac → guest, binary: one 1280×720 NV12 frame, or one H.264 access unit (camera-h264)
 pub const MSG_CAMERA_STATUS: u16 = 0x0203; // Mac → guest, JSON {"status", "detail"}
 
 // MIDI (0x05xx): the Mac's MIDI endpoints as virtual endpoints in the guest, Universal MIDI Packets (MIDI 2.0) on the

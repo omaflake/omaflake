@@ -488,6 +488,49 @@ Lume (trycua) only after a license review (OPEN).
 
 ## 8. Next steps (as of 2026-11-25)
 
+**B174 (2026-11-25, built – unreleased; the Mac OPEN): the camera as H.264, and vsock measured.** From B173: the
+console carries ~25 raw frames a second; the maintainer: Camo is smooth in the same VM. Decided (maintainer): H.264
+through VideoToolbox, and test vsock too.
+- *Built:* the agent offers `camera-h264` (macOS guests only; v4l2loopback on Linux takes raw frames); the runner
+  enables it unless `OMAFLAKE_CAMERA_RAW=1`. `CameraEncoder` (OmaflakeKit): VTCompressionSession, low-latency rate
+  control where the encoder offers it, real time, no frame reordering, Main profile, 8 Mbit/s, key frame every 2 s
+  and on request; each frame one Annex B access unit with SPS/PPS before key frames. `CameraBridge` encodes only
+  frames with a credit (a frame without one is never encoded, so the stream misses nothing it refers to), asks for a
+  key frame with every "start" (a new reader). Agent (`camera_mac.rs`): frames of any size up to 2 MiB, queued in
+  order, never replaced, 4 credits; `obs.rs` changes only the media source's `input_format`/`ffmpeg_options` of an
+  existing "omaflake Camera" (`h264`, `framerate=30 fflags=nobuffer probesize=262144 analyzeduration=0
+  use_wallclock_as_timestamps=1`) and back, only while OBS is not running (the diagnosis says "Quit OBS once").
+- *Checked in a macOS guest:* `CameraEncoderTests` (Annex B; VideoToolbox in the guest: SPS+PPS+IDR first, a key
+  frame on request, frames under a quarter of a raw one), agent tests (H.264 in order with credits, the source's
+  format both ways keeping the user's changes), all Swift tests, agent fmt/clippy/test, REUSE. End to end in the
+  guest with a stand-in for the Mac on a pseudo-terminal (`OMAFLAKE_AGENT_PORT`; x264 test picture, 30 fps, 8 Mbit/s,
+  frames only against credits) and the new agent: the agent switched OBS's source to `h264`, OBS 33.0.2 showed the
+  picture at 30 fps, ~990 KiB/s to OBS, the agent at 4 % of a core (raw: 75 %), 817 frames in 30 s with 820 credits
+  and none short. With the 0.7.5 runner the agent switched the source back to `rawvideo` once OBS had quit.
+- *vsock:* the macOS guest's kernel knows `AF_VSOCK` (`sys/vsock.h`, family 40), but our VMs have no socket device:
+  `socket()` fails with ENODEV. The runner adds a `VZVirtioSocketDeviceConfiguration` and listens on port 47100 when
+  `~/.omaflake/developer/vsock-bench` exists (`VsockBench`, sends raw frames' worth of bytes for 10 s; result in
+  runner.log); `scripts/vsock-bench.py` in the guest connects and prints MB/s. OPEN: the measurement on the Mac.
+- OPEN, on the Mac (needs this runner and an image with this agent): the real camera's smoothness, latency and
+  picture at 8 Mbit/s, the encoder's low-latency mode, an image before this version (raw frames still work: the old
+  agent offers no `camera-h264`).
+
+**B173 (2026-11-25, fixed – unreleased): the camera in a macOS VM stayed black with OBS; the picture is choppy.** The
+maintainer's first try on the Mac (image built with 0.7.5, OBS 33.0.2, the extension approved): OBS connected at its
+start, the Mac sent the two frames of the first credits, and the agent's log showed `"no credit from the guest for 2 s",
+"stopped"` – OBS hung for seconds at its start (its log: 94.5 % of the virtual camera's frames lagged), the credits came
+too late, and nothing asked again: for the agent OBS was still reading. A reader that replaced another did not ask
+again either (its credits for frames to the old one were lost). *Fixed:* `CameraRetry` in the agent asks the Mac again
+after a "stopped" while an application reads (1 s, 2, 4, then every 8 s; "unavailable" is not retried); a replacing
+reader counts as opened (`camera_mac.rs` `events`). Tests: `the_camera_is_asked_again_after_a_stop_with_a_growing_delay`,
+`a_reader_replacing_another_counts_as_opened`; agent fmt/clippy/test. Tried in the maintainer's VM with the agent built
+by hand (the image's 0.7.5 agent stopped, the new one started as `omaflake-agent-start` does): frames reached OBS at
+once, and the maintainer saw a picture, but choppy. *Choppy:* measured 25.6 fps reaching OBS (353,894,400 bytes in 10 s), the agent at 75 % of a core; a raw frame is
+1,382,400 bytes and the virtio console carries about 35 MB/s, so ~25 fps is the port's limit, and the Mac's 30 fps lose
+every sixth frame unevenly. A test reader in Python got 15 fps. The maintainer: Camo is smooth in the same VM, so it is
+our transport. Next: fewer bytes per frame (compressed on the Mac with VideoToolbox) or another channel (vsock for
+macOS guests – OPEN whether AF_VSOCK works in a macOS guest); OPEN which.
+
 **Release 0.7.5 (2026-11-25):** B169 (camera in macOS VMs through OBS), B170 (networks between VMs, Docker VM), B171
 (several displays for NixOS VMs, QEMU patchset 7) and B172 (the agent test that broke every NixOS image build of
 0.7.4). Released before the Mac tests (maintainer: "Committe das und bring 0.7.5 raus") – B169, B170 and B171 are

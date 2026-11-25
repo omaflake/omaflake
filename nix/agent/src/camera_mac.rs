@@ -7,7 +7,12 @@
 //!
 //! Frames go to the reader on a thread of their own, the newest only; a credit goes back to the Mac for each frame
 //! the reader took (or that a newer one replaced) – the reader's pace is the Mac's.
+//!
+//! Compressed (plan B174, the welcome enabled `camera-h264`): the Mac sends H.264 access units (Annex B) instead,
+//! and the stream is H.264. Those are never replaced – a lost frame would break the pictures after it until the
+//! next key frame –, so every frame waits for the reader; the Mac's credits bound how many there are.
 
+use std::collections::VecDeque;
 use std::io::{self, ErrorKind, Write};
 use std::net::{Shutdown, TcpListener, TcpStream};
 use std::os::fd::{AsRawFd, RawFd};
@@ -22,16 +27,20 @@ pub const HEIGHT: u32 = 720;
 pub const FRAME_BYTES: usize = (WIDTH * HEIGHT * 3 / 2) as usize;
 /// Frames the Mac may have on the way (spec §11.9, credits)
 pub const CREDITS: u32 = 2;
+/// The same for H.264: frames are small, and more on the way keep the stream even
+pub const CREDITS_COMPRESSED: u32 = 4;
+/// An H.264 frame at most (the protocol's largest message)
+const MAX_COMPRESSED: usize = crate::proto::MAX_PAYLOAD;
 
 /// Whether this guest can show the Mac's camera at all (macOS: always – the endpoint is the agent's own)
 pub fn available() -> bool {
     true
 }
 
-/// The frame waiting for the writer thread, and the reader it goes to
+/// The frames waiting for the writer thread (raw: the newest only), and the reader they go to
 #[derive(Default)]
 struct Slot {
-    frame: Option<Vec<u8>>,
+    frames: VecDeque<Vec<u8>>,
     reader: Option<TcpStream>,
     /// Bumped with every new reader: a write that began for an earlier one returns no credit
     generation: u64,
@@ -46,6 +55,8 @@ pub struct Camera {
     pub active: bool,
     /// When the last frame went to a reader (the diagnosis)
     pub last_frame: Option<Instant>,
+    /// H.264 instead of raw NV12 (plan B174)
+    pub compressed: bool,
 }
 
 impl Camera {
@@ -60,7 +71,7 @@ impl Camera {
         let shared = Arc::new((Mutex::new(Slot::default()), Condvar::new()));
         let s = shared.clone();
         std::thread::Builder::new().name("camera".into()).spawn(move || writer(&s, credit))?;
-        Ok(Camera { listener, reader: None, shared, active: false, last_frame: None })
+        Ok(Camera { listener, reader: None, shared, active: false, last_frame: None, compressed: false })
     }
 
     /// What `poll` should watch: new readers, and the reader hanging up (it never sends anything)
@@ -72,16 +83,21 @@ impl Camera {
         fds
     }
 
-    /// After `poll`, with the revents of `poll_fds` in order: `Some(active)` when a reader came or went
+    /// After `poll`, with the revents of `poll_fds` in order: `Some(active)` when a reader came or went. A reader
+    /// that replaced another is `Some(true)` too: the Mac's credits for frames to the old one are lost (plan B173)
     pub fn events(&mut self, revents: &[i16]) -> io::Result<Option<bool>> {
         let before = self.active;
+        let mut accepted = false;
         if revents.get(1).is_some_and(|&r| r != 0) && self.reader_gone() {
             self.drop_reader();
         }
         if revents.first().is_some_and(|&r| r & libc::POLLIN != 0) {
             loop {
                 match self.listener.accept() {
-                    Ok((stream, _)) => self.take_reader(stream)?,
+                    Ok((stream, _)) => {
+                        self.take_reader(stream)?;
+                        accepted = true;
+                    }
                     Err(e) if e.kind() == ErrorKind::WouldBlock => break,
                     Err(e) if e.kind() == ErrorKind::Interrupted => {}
                     Err(e) => return Err(e),
@@ -92,7 +108,7 @@ impl Camera {
         if self.active && self.shared.0.lock().unwrap_or_else(|e| e.into_inner()).reader.is_none() {
             self.drop_reader();
         }
-        Ok((self.active != before).then_some(self.active))
+        Ok(if accepted && self.active { Some(true) } else { (self.active != before).then_some(self.active) })
     }
 
     /// A reader sends nothing: readable means it hung up (or sent something – read and dropped). Reads with
@@ -129,7 +145,7 @@ impl Camera {
         let writer_end = stream.try_clone()?;
         {
             let mut slot = self.shared.0.lock().unwrap_or_else(|e| e.into_inner());
-            slot.frame = None;
+            slot.frames.clear();
             slot.reader = Some(writer_end);
             slot.generation += 1;
         }
@@ -143,15 +159,22 @@ impl Camera {
             let _ = r.shutdown(Shutdown::Both);
         }
         let mut slot = self.shared.0.lock().unwrap_or_else(|e| e.into_inner());
-        slot.frame = None;
+        slot.frames.clear();
         slot.reader = None;
         slot.generation += 1;
         self.active = false;
     }
 
+    /// The credits to grant when the camera starts
+    pub fn credits(&self) -> u32 {
+        if self.compressed { CREDITS_COMPRESSED } else { CREDITS }
+    }
+
     /// A frame from the Mac; returns the credits to give back at once (a replaced frame's)
     pub fn write_frame(&mut self, frame: Vec<u8>) -> io::Result<u32> {
-        if frame.len() != FRAME_BYTES {
+        let fits =
+            if self.compressed { (1..=MAX_COMPRESSED).contains(&frame.len()) } else { frame.len() == FRAME_BYTES };
+        if !fits {
             return Err(io::Error::other("frame of the wrong size"));
         }
         let (lock, wake) = &*self.shared;
@@ -159,7 +182,9 @@ impl Camera {
         if slot.reader.is_none() {
             return Ok(0); // late frame after the reader went: the Mac stops anyway
         }
-        let replaced = slot.frame.replace(frame).is_some();
+        // Raw: the newest frame only. H.264: every frame, in order (at most the credits granted)
+        let replaced = !self.compressed && slot.frames.pop_front().is_some();
+        slot.frames.push_back(frame);
         wake.notify_one();
         self.last_frame = Some(Instant::now());
         Ok(u32::from(replaced))
@@ -176,10 +201,10 @@ fn writer(shared: &(Mutex<Slot>, Condvar), credit: fn(u32)) {
         let (frame, mut reader, generation) = {
             let mut slot = lock.lock().unwrap_or_else(|e| e.into_inner());
             loop {
-                if slot.frame.is_some()
+                if !slot.frames.is_empty()
                     && let Some(r) = slot.reader.as_ref().and_then(|r| r.try_clone().ok())
                 {
-                    break (slot.frame.take().expect("checked"), r, slot.generation);
+                    break (slot.frames.pop_front().expect("checked"), r, slot.generation);
                 }
                 slot = wake.wait(slot).unwrap_or_else(|e| e.into_inner());
             }
@@ -194,7 +219,7 @@ fn writer(shared: &(Mutex<Slot>, Condvar), credit: fn(u32)) {
             credit(1);
         } else {
             slot.reader = None; // the main loop sees it and tells the Mac to stop
-            slot.frame = None;
+            slot.frames.clear();
         }
     }
 }
@@ -246,5 +271,46 @@ mod tests {
         drop(reader);
         assert_eq!(events(&mut cam), Some(false));
         assert!(!cam.active);
+    }
+
+    /// H.264 (plan B174): frames of any size, none replaced, in order, a credit for each
+    #[test]
+    fn compressed_frames_all_reach_the_reader_in_order() {
+        static GOT: AtomicU32 = AtomicU32::new(0);
+        let mut cam = Camera::open_at("127.0.0.1:0", |n| {
+            GOT.fetch_add(n, Ordering::SeqCst);
+        })
+        .unwrap();
+        cam.compressed = true;
+        assert_eq!(cam.credits(), CREDITS_COMPRESSED);
+        let address = cam.listener.local_addr().unwrap();
+        let mut reader = TcpStream::connect(address).unwrap();
+        reader.set_read_timeout(Some(Duration::from_secs(10))).unwrap();
+        assert_eq!(events(&mut cam), Some(true));
+        assert!(cam.write_frame(vec![]).is_err(), "an empty frame");
+        let frames: Vec<Vec<u8>> = (1..=4u8).map(|i| vec![i; 1000 * i as usize]).collect();
+        for f in &frames {
+            assert_eq!(cam.write_frame(f.clone()).unwrap(), 0, "never replaced");
+        }
+        let mut got = vec![0u8; frames.iter().map(Vec::len).sum()];
+        reader.read_exact(&mut got).unwrap();
+        assert_eq!(got, frames.concat());
+        let deadline = Instant::now() + Duration::from_secs(2);
+        while GOT.load(Ordering::SeqCst) < 4 && Instant::now() < deadline {
+            std::thread::sleep(Duration::from_millis(10));
+        }
+        assert_eq!(GOT.load(Ordering::SeqCst), 4);
+    }
+
+    /// OBS's media source reconnects while the old connection is still open: the agent must ask the Mac again
+    #[test]
+    fn a_reader_replacing_another_counts_as_opened() {
+        let mut cam = Camera::open_at("127.0.0.1:0", |_| {}).unwrap();
+        let address = cam.listener.local_addr().unwrap();
+        let _first = TcpStream::connect(address).unwrap();
+        assert_eq!(events(&mut cam), Some(true));
+        let _second = TcpStream::connect(address).unwrap();
+        assert_eq!(events(&mut cam), Some(true), "a new reader while one reads");
+        assert!(cam.active);
     }
 }

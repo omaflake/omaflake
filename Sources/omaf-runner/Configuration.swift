@@ -21,6 +21,8 @@ enum MachineConfiguration {
         var agent: FileHandle? = nil
         /// Second cards on omaflake's networks, each with its open socket (spec §11.12)
         var networks: [(NetworkCard, FileHandle)] = []
+        /// A virtio socket device, for the developer's vsock check (`VsockBench`, plan B174)
+        var vsock = false
     }
 
     /// Name of the clipboard port – the same as for NixOS guests (QEMU virtserialport)
@@ -107,6 +109,8 @@ enum MachineConfiguration {
             }
             c.consoleDevices = [console]
         }
+
+        if options.vsock { c.socketDevices = [VZVirtioSocketDeviceConfiguration()] }
 
         c.keyboards = [VZMacKeyboardConfiguration()]
         c.pointingDevices = [VZMacTrackpadConfiguration(), VZUSBScreenCoordinatePointingDeviceConfiguration()]

@@ -13,6 +13,19 @@ are collected under *Unreleased*. Releases: [GitHub](https://github.com/omaflake
 
 ## [Unreleased]
 
+### Changed
+
+- **Smooth camera in macOS VMs:** the Mac now sends the camera as H.264 instead of raw frames – the full 30 frames a
+  second instead of about 25 with gaps, and a fraction of the load in the VM. omaflake switches OBS's source in
+  "omaflake Camera" to the new format by itself while OBS is not running (quit OBS once after updating). Needs an
+  image built with this version; NixOS VMs keep raw frames.
+
+### Fixed
+
+- **Camera in macOS VMs stayed black when OBS started slowly:** the Mac stops the camera when the VM takes no frame for
+  2 s, and nothing started it again while OBS kept reading. The agent now asks the Mac again (after 1 s, then up to
+  every 8 s), and also when OBS reconnects. Needs an image built with this version.
+
 ## [0.7.5] – 2026-11-25
 
 The camera reaches macOS VMs (through OBS until omaflake's own camera extension is signed), VMs can share networks of

@@ -2,8 +2,9 @@
 //! OBS as the camera in macOS guests until omaflake's own camera extension (M12, plan B169). OBS is a stopgap:
 //! nothing installs it – when the user has, the agent writes one scene collection, "omaflake Camera", whose media
 //! source reads the agent's camera stream (camera_mac.rs), and makes it OBS's current collection. The user's own
-//! collections are never touched, an existing "omaflake Camera" is left as it is, and nothing is written while OBS
-//! runs (it writes its settings when it quits). The rest is the user's: approving OBS's camera extension and "Start
+//! collections are never touched, an existing "omaflake Camera" is left as it is – except its media source's format,
+//! which follows the stream's (raw or H.264, plan B174) –, and nothing is written while OBS runs (it writes its
+//! settings when it quits). The rest is the user's: approving OBS's camera extension and "Start
 //! Virtual Camera".
 //!
 //! The file work is plain functions over a home folder, so it is tested on every platform; only `prepare` looks at
@@ -21,6 +22,17 @@ const APP: &str = "/Applications/OBS.app";
 /// The camera stream (camera_mac.rs) as OBS's media source reads it
 const INPUT: &str = "tcp://127.0.0.1:47042";
 const FFMPEG_OPTIONS: &str = "video_size=1280x720 pixel_format=nv12 framerate=30 use_wallclock_as_timestamps=1";
+/// H.264 (plan B174): raw Annex B has no timestamps (the clock gives them) and no frame rate; nothing is buffered,
+/// and the first key frame (parameter sets first) is enough to find the stream
+const FFMPEG_OPTIONS_H264: &str =
+    "framerate=30 fflags=nobuffer probesize=262144 analyzeduration=0 use_wallclock_as_timestamps=1";
+/// The media source the agent writes, by name (the user may add their own to the collection)
+const SOURCE: &str = "Mac camera (omaflake)";
+
+/// The media source's `input_format` and `ffmpeg_options` for the stream
+fn format(compressed: bool) -> (&'static str, &'static str) {
+    if compressed { ("h264", FFMPEG_OPTIONS_H264) } else { ("rawvideo", FFMPEG_OPTIONS) }
+}
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum State {
@@ -34,6 +46,10 @@ pub enum State {
     Ready {
         created: bool,
     },
+    /// The collection's media source was for the other format: changed (`done`), or once OBS has quit
+    Updated {
+        done: bool,
+    },
     Failed(String),
 }
 
@@ -46,13 +62,19 @@ impl State {
             State::Running => format!("OBS runs; the scene collection \"{COLLECTION}\" follows once it has quit"),
             State::Ready { created: true } => format!("wrote OBS's scene collection \"{COLLECTION}\" and chose it"),
             State::Ready { created: false } => format!("OBS's scene collection \"{COLLECTION}\" is there"),
+            State::Updated { done: true } => {
+                format!("changed the media source of OBS's scene collection \"{COLLECTION}\" to the camera's format")
+            }
+            State::Updated { done: false } => format!(
+                "OBS runs; the media source of \"{COLLECTION}\" changes to the camera's format once OBS has quit"
+            ),
             State::Failed(e) => format!("OBS's scene collection: {e}"),
         }
     }
 }
 
 /// On the running guest: OBS in /Applications, OBS's process, the user's home
-pub fn prepare() -> State {
+pub fn prepare(compressed: bool) -> State {
     let installed = Path::new(APP).exists();
     let running = installed
         && std::process::Command::new("/usr/bin/pgrep")
@@ -61,7 +83,7 @@ pub fn prepare() -> State {
             .status()
             .is_ok_and(|s| s.success());
     match std::env::var_os("HOME") {
-        Some(home) => prepare_in(Path::new(&home), installed, running),
+        Some(home) => prepare_in(Path::new(&home), installed, running, compressed),
         None => State::Failed("no HOME".into()),
     }
 }
@@ -85,14 +107,14 @@ pub fn config_dir(home: &Path) -> PathBuf {
     home.join("Library/Application Support/obs-studio")
 }
 
-pub fn prepare_in(home: &Path, installed: bool, running: bool) -> State {
+pub fn prepare_in(home: &Path, installed: bool, running: bool, compressed: bool) -> State {
     if !installed {
         return State::NotInstalled;
     }
     let config = config_dir(home);
     let scene = config.join("basic/scenes").join(COLLECTION_FILE);
     if scene.exists() {
-        return State::Ready { created: false };
+        return follow_format(&scene, running, compressed);
     }
     // The current collection is in user.ini since OBS 31, in global.ini before (and there without ".json")
     let (ini, file_value) = if config.join("user.ini").exists() {
@@ -109,7 +131,7 @@ pub fn prepare_in(home: &Path, installed: bool, running: bool) -> State {
         let mut text = std::fs::read_to_string(&ini)?;
         let canvas = canvas(&config, &text);
         std::fs::create_dir_all(scene.parent().expect("has a parent"))?;
-        let collection = serde_json::to_string_pretty(&scene_collection(canvas)).expect("serializable");
+        let collection = serde_json::to_string_pretty(&scene_collection(canvas, compressed)).expect("serializable");
         std::fs::write(&scene, collection)?;
         text = ini_set(&text, "Basic", "SceneCollection", COLLECTION);
         text = ini_set(&text, "Basic", "SceneCollectionFile", file_value);
@@ -117,6 +139,39 @@ pub fn prepare_in(home: &Path, installed: bool, running: bool) -> State {
     })();
     match result {
         Ok(()) => State::Ready { created: true },
+        Err(e) => State::Failed(e.to_string()),
+    }
+}
+
+/// An existing collection: its media source (found by name) reads the stream's format – everything else stays as the
+/// user left it. A collection that cannot be read, or without the source, is the user's business
+fn follow_format(scene: &Path, running: bool, compressed: bool) -> State {
+    let Ok(text) = std::fs::read_to_string(scene) else { return State::Ready { created: false } };
+    let Ok(mut collection) = serde_json::from_str::<serde_json::Value>(&text) else {
+        return State::Ready { created: false };
+    };
+    let Some(settings) = collection["sources"].as_array_mut().and_then(|sources| {
+        sources
+            .iter_mut()
+            .find(|s| s["name"] == SOURCE && s["id"] == "ffmpeg_source")
+            .and_then(|s| s.get_mut("settings"))
+            .and_then(|s| s.as_object_mut())
+    }) else {
+        return State::Ready { created: false };
+    };
+    let (input_format, options) = format(compressed);
+    if settings.get("input_format").and_then(|v| v.as_str()) == Some(input_format)
+        && settings.get("ffmpeg_options").and_then(|v| v.as_str()) == Some(options)
+    {
+        return State::Ready { created: false };
+    }
+    if running {
+        return State::Updated { done: false };
+    }
+    settings.insert("input_format".into(), input_format.into());
+    settings.insert("ffmpeg_options".into(), options.into());
+    match std::fs::write(scene, serde_json::to_string_pretty(&collection).expect("serializable")) {
+        Ok(()) => State::Updated { done: true },
         Err(e) => State::Failed(e.to_string()),
     }
 }
@@ -134,8 +189,9 @@ fn canvas(config: &Path, ini: &str) -> (u32, u32) {
 }
 
 /// One scene with one media source reading the camera stream, fitted into the canvas
-pub fn scene_collection((cx, cy): (u32, u32)) -> serde_json::Value {
-    let source = "Mac camera (omaflake)";
+pub fn scene_collection((cx, cy): (u32, u32), compressed: bool) -> serde_json::Value {
+    let source = SOURCE;
+    let (input_format, options) = format(compressed);
     let source_uuid = "6f0e2b8a-0c1d-4e57-9a3b-0a1f6c2d7e41";
     json!({
         "name": COLLECTION,
@@ -151,8 +207,8 @@ pub fn scene_collection((cx, cy): (u32, u32)) -> serde_json::Value {
                 "settings": {
                     "is_local_file": false,
                     "input": INPUT,
-                    "input_format": "rawvideo",
-                    "ffmpeg_options": FFMPEG_OPTIONS,
+                    "input_format": input_format,
+                    "ffmpeg_options": options,
                     "buffering_mb": 1,
                     "reconnect_delay_sec": 2,
                     "hw_decode": false,
@@ -264,10 +320,10 @@ SceneCollection=Untitled\nSceneCollectionFile=Untitled.json\n\n[Video]\nRenderer
     #[test]
     fn not_installed_never_started_and_running_write_nothing() {
         let h = home("states");
-        assert_eq!(prepare_in(&h, false, false), State::NotInstalled);
-        assert_eq!(prepare_in(&h, true, false), State::NeverStarted);
+        assert_eq!(prepare_in(&h, false, false, false), State::NotInstalled);
+        assert_eq!(prepare_in(&h, true, false, false), State::NeverStarted);
         std::fs::write(config_dir(&h).join("user.ini"), USER_INI).unwrap();
-        assert_eq!(prepare_in(&h, true, true), State::Running);
+        assert_eq!(prepare_in(&h, true, true, false), State::Running);
         assert!(!config_dir(&h).join("basic/scenes").join(COLLECTION_FILE).exists());
         assert_eq!(std::fs::read_to_string(config_dir(&h).join("user.ini")).unwrap(), USER_INI);
     }
@@ -283,7 +339,7 @@ SceneCollection=Untitled\nSceneCollectionFile=Untitled.json\n\n[Video]\nRenderer
         std::fs::create_dir_all(config.join("basic/scenes")).unwrap();
         std::fs::write(config.join("basic/scenes/Untitled.json"), "{\"name\":\"Untitled\"}").unwrap();
 
-        assert_eq!(prepare_in(&h, true, false), State::Ready { created: true });
+        assert_eq!(prepare_in(&h, true, false, false), State::Ready { created: true });
         let ini = std::fs::read_to_string(config.join("user.ini")).unwrap();
         assert_eq!(ini_get(&ini, "Basic", "SceneCollection").as_deref(), Some(COLLECTION));
         assert_eq!(ini_get(&ini, "Basic", "SceneCollectionFile").as_deref(), Some(COLLECTION_FILE));
@@ -301,8 +357,37 @@ SceneCollection=Untitled\nSceneCollectionFile=Untitled.json\n\n[Video]\nRenderer
 
         // The user chose another collection since: it stays theirs
         std::fs::write(config.join("user.ini"), USER_INI).unwrap();
-        assert_eq!(prepare_in(&h, true, false), State::Ready { created: false });
+        assert_eq!(prepare_in(&h, true, false, false), State::Ready { created: false });
         assert_eq!(std::fs::read_to_string(config.join("user.ini")).unwrap(), USER_INI);
+    }
+
+    /// An agent before plan B174 wrote the raw source; the Mac now sends H.264 (and back with an older Mac)
+    #[test]
+    fn the_source_follows_the_streams_format_and_keeps_the_rest() {
+        let h = home("format");
+        let config = config_dir(&h);
+        std::fs::write(config.join("user.ini"), USER_INI).unwrap();
+        assert_eq!(prepare_in(&h, true, false, false), State::Ready { created: true });
+        let file = config.join("basic/scenes").join(COLLECTION_FILE);
+        let read = || serde_json::from_str::<serde_json::Value>(&std::fs::read_to_string(&file).unwrap()).unwrap();
+        // The user moved the picture and added a source of their own
+        let mut c = read();
+        c["sources"][1]["settings"]["items"][0]["pos"]["x"] = 10.0.into();
+        c["sources"].as_array_mut().unwrap().push(json!({ "name": "Mine", "id": "ffmpeg_source", "settings": {} }));
+        std::fs::write(&file, c.to_string()).unwrap();
+
+        assert_eq!(prepare_in(&h, true, true, true), State::Updated { done: false }, "not while OBS runs");
+        assert_eq!(read()["sources"][0]["settings"]["input_format"], "rawvideo");
+        assert_eq!(prepare_in(&h, true, false, true), State::Updated { done: true });
+        let c = read();
+        assert_eq!(c["sources"][0]["settings"]["input_format"], "h264");
+        assert_eq!(c["sources"][0]["settings"]["ffmpeg_options"], FFMPEG_OPTIONS_H264);
+        assert_eq!(c["sources"][0]["settings"]["input"], INPUT);
+        assert_eq!(c["sources"][1]["settings"]["items"][0]["pos"]["x"], 10.0);
+        assert_eq!(c["sources"][2]["name"], "Mine");
+        assert_eq!(prepare_in(&h, true, false, true), State::Ready { created: false }, "once");
+        assert_eq!(prepare_in(&h, true, false, false), State::Updated { done: true });
+        assert_eq!(read()["sources"][0]["settings"]["input_format"], "rawvideo");
     }
 
     #[test]
@@ -319,7 +404,7 @@ SceneCollection=Untitled\nSceneCollectionFile=Untitled.json\n\n[Video]\nRenderer
     fn older_obs_keeps_the_collection_in_global_ini_without_json() {
         let h = home("global");
         std::fs::write(config_dir(&h).join("global.ini"), "[Basic]\nSceneCollection=Untitled\n").unwrap();
-        assert_eq!(prepare_in(&h, true, false), State::Ready { created: true });
+        assert_eq!(prepare_in(&h, true, false, false), State::Ready { created: true });
         let ini = std::fs::read_to_string(config_dir(&h).join("global.ini")).unwrap();
         assert_eq!(ini_get(&ini, "Basic", "SceneCollectionFile").as_deref(), Some("omaflake_Camera"));
     }

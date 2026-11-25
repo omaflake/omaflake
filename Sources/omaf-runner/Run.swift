@@ -47,6 +47,8 @@ final class RunController: NSObject, NSApplicationDelegate, NSWindowDelegate, VZ
     private var clipboard: ClipboardBridge?
     private var camera: CameraBridge?
     private var agent: AgentLink?
+    /// The developer's vsock check (plan B174), when ~/.omaflake/developer/vsock-bench exists
+    private var vsockBench: VsockBench?
     private var midi: MIDIBridge?
 
     init(_ request: Request) {
@@ -83,7 +85,11 @@ final class RunController: NSObject, NSApplicationDelegate, NSWindowDelegate, VZ
                 var allowed: Set<String> = ["status"]
                 if request.clipboard { allowed.insert("clipboard") }
                 // Camera: images from 0.7.5 on carry it over the agent (plan B169); older ones keep the port
-                if request.camera { allowed.insert("camera") }
+                if request.camera {
+                    allowed.insert("camera")
+                    // H.264 where the agent offers it (macOS guests, plan B174); OMAFLAKE_CAMERA_RAW=1 keeps raw frames
+                    if ProcessInfo.processInfo.environment["OMAFLAKE_CAMERA_RAW"] != "1" { allowed.insert("camera-h264") }
+                }
                 // MIDI: the Mac side exists from the start (its "omaflake <VM>" pair is there for the Mac's apps);
                 // the guest's endpoints come once its agent's welcome enables MIDI
                 if request.midi {
@@ -99,7 +105,7 @@ final class RunController: NSObject, NSApplicationDelegate, NSWindowDelegate, VZ
                 link.onWelcome = { [weak link] (features: Set<String>) in
                     guard let link else { return }
                     if features.contains("clipboard") { clip?.useAgent(link) }
-                    if features.contains("camera") { cam?.useAgent(link) }
+                    if features.contains("camera") { cam?.useAgent(link, compressed: features.contains("camera-h264")) }
                     midiBridge?.welcomed(features, link: link)
                 }
                 link.onClipboard = { mime, data in clip?.apply(mime: mime, data: data) }
@@ -114,9 +120,15 @@ final class RunController: NSObject, NSApplicationDelegate, NSWindowDelegate, VZ
                                                              audio: request.audio, microphone: request.microphone,
                                                              clipboard: clipboardHandle, camera: cameraHandle,
                                                              agent: agentHandle,
-                                                             networks: try request.networks.map { ($0, try $0.open()) }))
+                                                             networks: try request.networks.map { ($0, try $0.open()) },
+                                                             vsock: VsockBench.enabled))
             vm = VZVirtualMachine(configuration: config)
             vm.delegate = self
+            if VsockBench.enabled {
+                let bench = VsockBench()
+                bench.attach(vm)
+                vsockBench = bench
+            }
             if request.window { showWindow() }
             if let socket = request.socket {
                 // The handler runs on the main queue (ControlServer's default); a diagnosis answers from a thread later

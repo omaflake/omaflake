@@ -35,7 +35,7 @@ public enum AgentProtocol {
         case clipboard = 0x0100       // both: {"mime", "data" (base64)} in chunks
         case cameraControl = 0x0200   // guest → Mac: {"action": "start" | "stop"}
         case cameraCredit = 0x0201    // guest → Mac: {"credits": n}
-        case cameraFrame = 0x0202     // Mac → guest: one NV12 frame
+        case cameraFrame = 0x0202     // Mac → guest: one NV12 frame, or one H.264 access unit with camera-h264
         case cameraStatus = 0x0203    // Mac → guest: {"status", "detail"}
         case midiEndpoints = 0x0500   // Mac → guest: {"endpoints": [...]}, the whole list after each change
         case midiData = 0x0501        // both: MIDI records (`MIDIRecord`)
