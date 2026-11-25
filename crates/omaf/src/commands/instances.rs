@@ -156,7 +156,9 @@ pub fn new(a: &cli::New) -> Outcome {
         settings.camera = Some(v);
     }
     if settings.kind == GuestKind::Macos && settings.camera == Some(true) {
-        eprintln!("Note: macOS VMs get the camera port, but the guest's camera extension comes after M12 (plan B49).");
+        eprintln!(
+            "Note: in macOS VMs apps see the camera as \"OBS Virtual Camera\" – install OBS in the VM (plan B169)."
+        );
     }
     if let Some(v) = cli::inverted(a.midi, a.no_midi) {
         settings.midi = Some(v);

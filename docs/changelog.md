@@ -13,6 +13,22 @@ are collected under *Unreleased*. Releases: [GitHub](https://github.com/omaflake
 
 ## [Unreleased]
 
+### Added
+
+- **Camera in macOS VMs:** the camera switch now works for macOS VMs too (the VM's details, "New VM …",
+  `omaf new/set --camera`, recipe.toml `camera`). Until omaflake's own camera extension comes with a signed release,
+  apps in the VM see the camera as "OBS Virtual Camera": install OBS in the VM and start it once – omaflake's agent
+  sets up OBS's scene collection "omaflake Camera" and chooses it; then approve OBS's camera extension in System
+  Settings and click "Start Virtual Camera". The Mac's camera is on only while OBS reads it. **Diagnose** says which
+  step is missing. Needs an image built with this version.
+
+### Fixed
+
+- **Camera port:** a guest that read the camera's frames more slowly than for a moment (more than 1 s for one write)
+  lost the camera for good – the Mac stopped it without a word and left half a frame in the port. Frames now go out
+  whole or not at all; a guest that reads nothing for 2 s gets the status "stopped" and can ask again. Concerns the
+  port `org.omaflake.camera` (macOS VMs, NixOS images from before the agent carried the camera).
+
 ## [0.7.4] – 2026-11-23
 
 Setting up is one button now, and it shows what it does: **Set Up for NixOS** in the Doctor installs Nix (the only

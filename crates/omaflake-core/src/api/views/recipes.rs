@@ -517,7 +517,7 @@ fn defaults_text(r: &RecipeDto) -> Text {
     if r.microphone.unwrap_or(false) {
         on.push(Text::new("Microphone"));
     }
-    if r.camera.unwrap_or(false) && r.kind == crate::models::GuestKind::Nixos {
+    if r.camera.unwrap_or(false) {
         on.push(Text::new("Camera"));
     }
     if r.midi.unwrap_or(false) {

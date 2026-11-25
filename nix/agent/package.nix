@@ -13,6 +13,9 @@ rustPlatform.buildRustPackage {
   };
   cargoLock.lockFile = ./Cargo.lock;
   buildInputs = lib.optionals stdenv.hostPlatform.isLinux [ alsa-lib ];
+  # The macOS camera's test streams frames over 127.0.0.1 (camera_mac.rs); the darwin sandbox blocks loopback
+  # networking when the sandbox is on
+  __darwinAllowLocalNetworking = true;
   meta = {
     description = "omaflake guest agent: status, clipboard, camera and MIDI with omaflake on the Mac over a virtio port";
     license = lib.licenses.agpl3Plus;

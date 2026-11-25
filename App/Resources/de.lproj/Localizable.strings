@@ -397,7 +397,7 @@
 "Network isolated" = "Netzwerk isoliert";
 "No network" = "Kein Netzwerk";
 "Clipboard" = "Zwischenablage";
-"The camera for macOS guests comes with a signed release" = "Die Kamera für macOS-VMs kommt mit einer signierten Version";
+"In the VM, apps see the camera as \"OBS Virtual Camera\": install OBS there, omaflake sets up its scene; then start OBS's virtual camera" = "In der VM sehen Apps die Kamera als „OBS Virtual Camera“: OBS dort installieren, omaflake richtet die Szene ein; dann in OBS die virtuelle Kamera starten";
 "Changes take effect at the next start." = "Änderungen wirken ab dem nächsten Start.";
 "SSH" = "SSH";
 "Share folder" = "Freigabeordner";

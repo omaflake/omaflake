@@ -169,7 +169,12 @@ with `#custom-omaflake.running`, `.building`, `.failed`.
   (1280×720 NV12) against credits (spec §11.9); older images use their helper `omaflake-camera` and the port
   `org.omaflake.camera` (`cam.sock`). macOS asks for camera permission the first time, for the app that started the VM
   (omaflake or Terminal). `OMAFLAKE_CAMERA_TEST_PATTERN=1 omaf start …` sends a test pattern instead (no camera, no
-  permission; `OMAFLAKE_CAMERA_TEST_FPS` sets its rate). macOS guests: after M12 (plan §8).
+  permission; `OMAFLAKE_CAMERA_TEST_FPS` sets its rate).
+- **Camera (macOS, plan B169):** the same switch; images built with 0.7.5 or later. Until omaflake's own camera
+  extension (M12) apps in the VM see the camera as "OBS Virtual Camera": install OBS in the VM and start it once –
+  the agent then writes its scene collection "omaflake Camera" and makes it the current one; approve OBS's camera
+  extension (System Settings → General → Login Items & Extensions → Camera Extensions) and click "Start Virtual
+  Camera". The Mac's camera runs while OBS reads it. `omaf diagnose <vm>` says which step is missing.
 - **MIDI (plan B161, every guest kind):** the host's MIDI endpoints as virtual MIDI endpoints of the same name in the
   guest, both ways, off by default (`--midi`, `omaf set`, recipe.toml `midi`). Nothing is captured – the host's apps
   keep the devices – and devices plugged in or out while the VM runs follow. The data are Universal MIDI Packets in the

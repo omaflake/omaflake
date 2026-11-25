@@ -439,14 +439,16 @@ fn vm_rows_say_what_the_app_said() {
     );
     assert_eq!(action(&d["switches"], "sound")["on"], true);
 
-    // The macOS VM is busy: the lamp works, no buttons; its camera is not available
+    // The macOS VM is busy: the lamp works, no buttons, no switches; its camera is on – through OBS (plan B169)
     let work = &page["rows"][1];
     assert_eq!(work["lamp"]["state"], "working");
     assert_eq!(work["actions"], json!([]));
     let camera = action(&work["detail"]["switches"], "camera");
-    assert_eq!((camera["enabled"].clone(), camera["on"].clone()), (json!(false), json!(false)));
+    assert_eq!((camera["enabled"].clone(), camera["on"].clone()), (json!(false), json!(true)));
+    assert!(camera["help"]["text"].as_str().unwrap().contains("OBS Virtual Camera"));
+    assert!(camera.get("reason").is_none(), "no longer \"comes with a signed release\"");
     let badges: Vec<&str> = work["badges"].as_array().unwrap().iter().map(|b| b["icon"].as_str().unwrap()).collect();
-    assert_eq!(badges, ["microphone", "midi", "ephemeral", "network-isolated"]);
+    assert_eq!(badges, ["microphone", "camera", "midi", "ephemeral", "network-isolated"]);
     // MIDI reaches every guest kind (plan B161): macOS and NixOS guests have the switch
     let midi = action(&work["detail"]["switches"], "midi");
     assert_eq!(midi["on"], true);
@@ -741,14 +743,16 @@ fn new_vm_defaults_and_validation() {
     let bad = get(&c, "newVm", json!({"image": "omaflake.nixos.dev@cedar-mango-lift", "values": {"name": "Bad Name"}}));
     assert!(bad["sections"][0]["fields"][0]["error"]["text"].as_str().unwrap().starts_with("Invalid name"));
 
-    // macOS: no isolated network, the disk as the image, no camera
+    // macOS: no isolated network, the disk as the image; the camera through OBS (plan B169)
     let mac = get(&c, "newVm", json!({"image": "omaflake.macos.dev@stone-lamp", "values": {"network": "isolated"}}));
     let resources = &mac["sections"][1]["fields"];
     let network = action(resources, "network");
     assert_eq!(network["value"], "shared");
     assert_eq!(network["choices"].as_array().unwrap().len(), 2);
     assert_eq!(action(resources, "diskGB")["kind"], "info");
-    assert!(resources.as_array().unwrap().iter().all(|f| f["id"] != "camera"));
+    let camera = action(resources, "camera");
+    assert_eq!(camera["kind"], "toggle");
+    assert!(camera["help"]["text"].as_str().unwrap().contains("OBS Virtual Camera"));
     let e = build(&c, &PageRef { page: "newVm".into(), params: json!({"image": "nope"}) }).unwrap_err();
     assert_eq!(e.kind, Some(crate::error::codes::NOT_FOUND));
 }

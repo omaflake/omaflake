@@ -409,7 +409,7 @@ images/mac-<flavor>-<rev>/ ──clonefile + new machine-id + new MAC──▶ i
 |---|---|---|
 | `mac-minimal` | base only + Nix/nix-darwin, terminal tools, tidy Dock | 4 / 8 GB / 60 GB |
 | `mac-office` | Microsoft 365 (Word, Excel, PowerPoint, Outlook, Teams), browser; sign-in per instance | 4 / 8 GB / 80 GB |
-| `mac-dev` | VS Code (extensions via home-manager OPEN), Git, Xcode CLT (approach OPEN), Docker replacement OPEN | 8 / 16 GB / 120 GB |
+| `mac-dev` | VS Code (extensions via home-manager OPEN), Git, Xcode CLT (approach OPEN), Docker replacement OPEN (direction: a Docker VM, B170) | 8 / 16 GB / 120 GB |
 
 Cask names and disk sizes must be verified with `brew info --cask` during implementation.
 
@@ -494,6 +494,126 @@ replacing a base per credential (B166), the core handover after an update (B165)
 the diagnosis on NixOS guests and on a Linux host (B162), MIDI with the real piano and Dorico (B161). Not built yet:
 the disk size of a VM (B164), upgrading a VM in place, why a macOS build VM once had no SSH (port 22 closed, 2026-11-22
 – watch it with the build window when it happens again), and M12 once the Developer ID is there.
+
+**B170 (2026-11-25, direction – maintainer: "Die Idee finde ich gut"; nothing built): Docker for development VMs,
+and virtual networks between VMs.** Starting point: a development VM without Docker is of little use. Findings:
+- *NixOS guests run Docker themselves* – containers need no hypervisor, only the guest's kernel; the old `images.dev`
+  had "docker active" (M1, §4). Today's catalog has no Docker module.
+- *macOS guests cannot:* Docker on macOS always needs a Linux VM (Docker Desktop, Colima, OrbStack, Apple's
+  `container` all use Virtualization.framework), and a macOS guest has no nested virtualisation (§7.2 `mac-dev`:
+  "Docker replacement OPEN"). Nested virtualisation in VZ (M3 and later, macOS 15) is for Linux guests only, to our
+  knowledge – OPEN, not checked.
+- *The host's Docker in the guest* (`DOCKER_HOST` to the Mac's socket) works technically but is rejected as the
+  default: the Docker socket is root on the Docker host, and Docker Desktop/OrbStack mount `/Users` – a disposable
+  guest could read and write the whole Mac (`docker run -v /Users:/x …`). At most an opt-in with a clear warning.
+
+Direction: **a Docker VM** – a small headless NixOS VM with Docker that macOS VMs use through `DOCKER_HOST`, a near
+relative of the Linux builder (docs/linux-builder.md). Generalised: **virtual networks** as objects of their own, in
+which VMs of both kinds talk to each other (one Docker VM for several macOS VMs), shown as a graph in the app. Design:
+spec §11.12. Pitfalls of any remote Docker: bind mounts name paths on the Docker host (projects must appear at the same
+path in both VMs – with several clients the Docker VM needs all their folders; OPEN), published ports land on the
+Docker VM (`-p 8080:80` → forward to the client's `localhost`), and every VM in the network with the TCP socket is root
+on the Docker VM (accepted inside a network built for it; the app says so).
+
+Order:
+1. *Docker module for NixOS* (catalog `modules/omaflake/nixos/docker`, `virtualisation.docker.enable`, the user in
+   group `docker`) – small, useful at once, and the Docker VM's content.
+2. *Spike – the risky part:* omaflake's own switch with one QEMU and one VZ VM on one segment, ping both ways, the
+   internet through the gateway. OPEN: `gvisor-tap-vsock` (Podman, Lima) as the switch and gateway – licence
+   (Apache-2.0 to our knowledge) and whether it takes QEMU's `-netdev stream`/`dgram` and VZ's
+   `VZFileHandleNetworkDeviceAttachment` sockets – or a small switch of our own (Rust); throughput against today's
+   `-netdev user` and VZ NAT; whether macOS guests on today's VZ NAT already reach each other (probably, same bridge).
+3. *Networks in the core:* `networks.json` (schema v1), `instance.json` `networks: [..]`, `omaf net
+   create/list/rm`, `omaf new/set --net`; DNS names; rules (internet, host, between VMs); `isolated` for macOS VMs
+   (closes BM27).
+4. *Docker VM recipe* (`nixos/docker`) and the client side: `DOCKER_HOST` in the macOS guest, the shared project
+   folder at the same path, port forwarding to the client's `localhost`.
+5. *Network view* in the app, `omaf ui` and the Linux app.
+
+**B169 (2026-11-25, planned – release 0.7.5): the camera in macOS VMs, through OBS until M12.** Maintainer: the
+camera switch works for macOS VMs in the app as if we were signed; the only difference is that the guest needs OBS
+for now. OBS is a stopgap: nothing may bind omaflake to it in the long run – no catalog module; the agent sets up
+OBS's scene when it finds OBS. The design keeps M12 a drop-in: the agent offers the frames at one endpoint in the
+guest; today OBS reads it, later omaflake's own camera extension.
+
+1. *Agent, macOS (nix/agent):* offers `camera` on macOS too. New `camera_mac.rs`: a listener on `127.0.0.1:47042`
+   (raw NV12 1280×720, one client; a second replaces the first); a client connecting = `camera_start` (credits, as
+   on NixOS), disconnecting = stop; frames from `MSG_CAMERA_FRAME` go to the client on their own thread, newest
+   frame only, and a credit goes back per frame the client took – so the client's reading paces the Mac.
+2. *Agent sets up OBS:* the agent runs as the guest's user (checked: the 0.7.4 agent). With the camera enabled and
+   `/Applications/OBS.app` present, it writes the scene collection "omaflake Camera" (one media source as in B168:
+   input `tcp://127.0.0.1:47042`, `rawvideo`, `video_size=1280x720 pixel_format=nv12 framerate=30
+   use_wallclock_as_timestamps=1`, scaled to OBS's canvas from `basic.ini`) to
+   `~/Library/Application Support/obs-studio/basic/scenes/` – only if missing, never touching the user's
+   collections and never while OBS runs. Choosing it and "Start Virtual Camera" stay the user's (OBS has no file
+   for "start with this collection" that the agent should change – OPEN whether `global.ini` may be touched).
+3. *Diagnosis (macOS):* the camera check reports the endpoint, whether a client reads, the Mac's last status, OBS
+   found or not, the scene collection written, and the extension's state from `systemextensionsctl list`
+   (`activated enabled` / `waiting for user` → "approve OBS Virtual Camera in System Settings → General → Login
+   Items & Extensions → Camera Extensions").
+4. *Runner (Run.swift):* when the agent's welcome enables `camera`, the camera moves from the port
+   `org.omaflake.camera` to the agent (`cam?.useAgent(link)`, `link.onCamera`), as `Bridge.swift` already does for
+   NixOS; the port stays for images before 0.7.5 (with B168's `PortWriter`).
+5. *Core, API, app:* the switch for macOS VMs (`views/vms.rs` – no more "comes with a signed release"), the camera
+   badge, the new-VM field (`views/new_vm.rs`), the recipe summary (`views/recipes.rs`); the help for macOS VMs:
+   "In the VM the camera is “OBS Virtual Camera”: OBS, the scene collection “omaflake Camera”, Start Virtual
+   Camera". `omaf new/set --camera` drops its M12 note; translations (de.lproj → `scripts/translations.py`); view
+   test data.
+6. *Docs:* spec §11.9 (macOS camera), cli.md, the app docs, changelog (Added; needs an image built with 0.7.5 and
+   OBS in the VM), this entry's results.
+7. *Check:* fps with the agent instead of B168's Python helper (goal ≥ 25 at 1280×720; below that OPEN: fewer bytes
+   per frame), all checks of CLAUDE.md, a macOS image built with 0.7.5, then on the Mac: switch in the app → camera
+   permission → OBS → Photo Booth and FaceTime; an image before 0.7.5 still gets the port.
+
+*Built (same day, in a macOS guest; not released):* 1–6 as planned. The agent's `camera` module comes from
+`camera_mac.rs` on macOS (`#[cfg_attr(..., path)]`), both with one interface (`available`, `open(credit)`,
+`poll_fds`/`events`, `write_frame` returning the credits to give back), so the main loop has no platform branches;
+the writer thread sends its credits through `write_port`. The maintainer allowed the agent to make the collection
+OBS's current one (`user.ini` `[Basic] SceneCollection/SceneCollectionFile` since OBS 31, `global.ini` before) – only
+when it writes the collection, so a collection the user chose later stays theirs. The diagnosis on the Mac passes the
+macOS camera check to the guest (`SKIP_CAMERA_MACOS` is gone); an agent before 0.7.5 still answers "skipped".
+Checked: agent `cargo fmt/clippy/test` on macOS (43 tests, among them the stream with a real TCP reader and the OBS
+files in a temporary home), workspace `fmt/clippy/test`, `swift build/test` (60), `reuse lint`, `nix flake check` of
+the image flake with the catalog, and the agent's Nix package for aarch64-darwin (its tests run in the build). Found
+by that build: on macOS an accepted socket inherits the listener's `O_NONBLOCK` and a `try_clone` shares it, so the
+writer thread wrote non-blocking and gave up on a reader that fell behind (the test hung under the build's load;
+alone it passed by luck). The reader's socket is blocking now; hang-ups are seen with `recv(MSG_DONTWAIT)`; the test
+lets the reader fall behind on purpose and has a read timeout. `package.nix` allows loopback networking
+(`__darwinAllowLocalNetworking`) for that test where the darwin sandbox is on. OPEN: the agent's Linux build (no Linux builder in the guest – CI), the version
+bump to 0.7.5, a macOS image built with it and the whole chain on the Mac with the fps.
+
+**B168 (2026-11-25, prototype; the real Mac camera OPEN): camera in macOS guests through OBS Virtual Camera.** Until
+the Developer ID (M12), a signed third-party camera extension can stand in for ours. Checked in a macOS 27.2.1 guest:
+OBS 33.0.2's camera extension (team `2MMRE5MTB8`) is approved and loaded in a Virtualization.framework VM
+(`systemextensionsctl`: `activated enabled`; the user switches it on in System Settings → General → Login Items &
+Extensions → Camera Extensions, with the password) – so a camera extension works in our guests at all, which M12's
+own extension needs too. The path: macOS guests still use the old port `org.omaflake.camera` (the runner does not
+move the camera to the agent), so a guest-side helper (prototype outside the repository, Python) reads it (raw tty,
+`{"type":"start"|"stop"}` lines, `OMFC` messages) and hands the raw NV12 frames to one TCP client on
+`127.0.0.1:47042`; the Mac's camera runs only while a client is connected, frames the client does not take at once
+are dropped. OBS reads them as a media source: not a local file, input `tcp://127.0.0.1:47042`, input format
+`rawvideo`, FFmpeg options `video_size=1280x720 pixel_format=nv12 framerate=30 use_wallclock_as_timestamps=1`; its
+virtual camera then shows the guest's own test pattern in Photo Booth. Found on the way: the virtual camera must be
+started after the extension's approval (OBS started before shows nothing until "Start Virtual Camera" again); a
+process without `com.apple.security.device.camera` (here the Claude Code CLI) gets no camera at all, not even a
+prompt. *With the Mac's camera (same day):* the app's switch is greyed out for macOS VMs, but `omaf set <vm>
+--camera` turns it on (the CLI only notes M12); at the first start macOS asked on the Mac whether omaflake may use
+the camera, and the ad-hoc signed runner (`com.apple.security.device.camera`) got it. The FaceTime HD camera then
+showed in OBS and in its virtual camera – about 20 fps, choppy (the maintainer: "very jerky"). Two findings: (1) the
+runner gives every write into the camera port 1 s (`SO_SNDTIMEO`, `Run.swift` `portPair`); a slower guest makes
+`writeAll` fail, and the bridge then stops the camera **silently** – no status to the guest, half a frame left in
+the port, the camera light off until the next "start". The first helper hit this (it wrote to OBS on the reading
+thread): one frame, then nothing. *Fixed (same day):* `PortWriter` (OmaflakeKit) writes header and payload as one
+message – not a byte written by the timeout: the frame is dropped (live video); begun: finished (up to 5 s), so the
+guest's reader stays in step; closed or stuck: failed. The bridge stops the camera only when the guest took no
+frame for 2 s or the port failed, and then says so (status "stopped" with the reason). Tests: `PortWriterTests`
+(whole message, full port drops without writing, a begun message finished when the guest reads late, stuck halfway
+and closed fail). Not yet checked with a VM: the Mac runs the installed runner until the next build there. (2) The guest's port comes with `ctsflow` and `-clocal`; the helper now sets
+`clocal`, reads whatever is there and resynchronises on `OMFC`, writes to OBS on its own thread (newest frame only)
+and asks for the camera again after 3 s without frames. The ~20 fps are the Python helper at ~85 % of a core over
+the virtio console (B70's limit for a Python reader was 26–27 fps) – a native reader (the Rust agent) or fewer bytes
+per frame should give more. OPEN: whether the helper moves into the agent as an interim feature before M12, the
+smoothness in OBS (its media source buffers), latency.
 
 **B167 (2026-11-23, decided, next session): chrono → jiff.** After the push of 0.7.4 `cargo deny` failed on
 RUSTSEC-2026-0543 ("chrono is unmaintained", no safe upgrade; jiff or time suggested) – CI on main is red for that

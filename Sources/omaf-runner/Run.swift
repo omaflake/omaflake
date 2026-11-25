@@ -80,6 +80,8 @@ final class RunController: NSObject, NSApplicationDelegate, NSWindowDelegate, VZ
                 try? FileManager.default.removeItem(at: stateFile)   // an earlier run's report must not count
                 var allowed: Set<String> = ["status"]
                 if request.clipboard { allowed.insert("clipboard") }
+                // Camera: images from 0.7.5 on carry it over the agent (plan B169); older ones keep the port
+                if request.camera { allowed.insert("camera") }
                 // MIDI: the Mac side exists from the start (its "omaflake <VM>" pair is there for the Mac's apps);
                 // the guest's endpoints come once its agent's welcome enables MIDI
                 if request.midi {
@@ -91,13 +93,15 @@ final class RunController: NSObject, NSApplicationDelegate, NSWindowDelegate, VZ
                 }
                 let link = AgentLink(fd: ourEnd, stateFile: stateFile, host: "omaflake", allowed: allowed,
                                      log: { text in log(text) })   // runner.log, like everything else here
-                let clip = clipboard, midiBridge = midi
+                let clip = clipboard, cam = camera, midiBridge = midi
                 link.onWelcome = { [weak link] (features: Set<String>) in
                     guard let link else { return }
                     if features.contains("clipboard") { clip?.useAgent(link) }
+                    if features.contains("camera") { cam?.useAgent(link) }
                     midiBridge?.welcomed(features, link: link)
                 }
                 link.onClipboard = { mime, data in clip?.apply(mime: mime, data: data) }
+                link.onCamera = { request in cam?.request(request) }
                 midiBridge?.attach(link)
                 Thread.detachNewThread { _ = link.run() }   // ends when the VM goes; a misbehaving guest only loses its link
                 agent = link

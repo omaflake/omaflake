@@ -15,7 +15,7 @@ enum MachineConfiguration {
         var microphone = false
         /// Clipboard: the host end of the virtio console port org.omaflake.clipboard (see RunController)
         var clipboard: FileHandle?
-        /// Camera: the host end of the port org.omaflake.camera (the guest's camera extension: after M12, plan B49)
+        /// Camera: the host end of the port org.omaflake.camera (images before 0.7.5; newer ones use the agent, plan B169)
         var camera: FileHandle?
         /// The omaflake agent's port org.omaflake.agent (spec §11.9)
         var agent: FileHandle? = nil

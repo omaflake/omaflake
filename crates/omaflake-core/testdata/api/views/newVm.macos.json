@@ -233,6 +233,22 @@
         },
         {
           "enabled": true,
+          "help": {
+            "key": "In the VM, apps see the camera as \"OBS Virtual Camera\": install OBS there, omaflake sets up its scene; then start OBS's virtual camera",
+            "text": "In the VM, apps see the camera as \"OBS Virtual Camera\": install OBS there, omaflake sets up its scene; then start OBS's virtual camera"
+          },
+          "id": "camera",
+          "kind": "toggle",
+          "label": {
+            "key": "Camera in the VM",
+            "text": "Camera in the VM"
+          },
+          "param": "settings.camera",
+          "value": false,
+          "valueParam": "camera"
+        },
+        {
+          "enabled": true,
           "id": "midi",
           "kind": "toggle",
           "label": {

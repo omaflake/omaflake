@@ -858,6 +858,15 @@
         },
         {
           "help": {
+            "key": "Camera on",
+            "text": "Camera on"
+          },
+          "icon": "camera",
+          "id": "camera",
+          "tone": "warning"
+        },
+        {
+          "help": {
             "key": "MIDI devices in the VM",
             "text": "MIDI devices in the VM"
           },
@@ -1200,6 +1209,10 @@
           },
           {
             "enabled": false,
+            "help": {
+              "key": "In the VM, apps see the camera as \"OBS Virtual Camera\": install OBS there, omaflake sets up its scene; then start OBS's virtual camera",
+              "text": "In the VM, apps see the camera as \"OBS Virtual Camera\": install OBS there, omaflake sets up its scene; then start OBS's virtual camera"
+            },
             "icon": "camera",
             "id": "camera",
             "label": {
@@ -1207,14 +1220,10 @@
               "text": "Camera"
             },
             "method": "vms.set",
-            "on": false,
+            "on": true,
             "params": {
               "camera": false,
               "name": "work"
-            },
-            "reason": {
-              "key": "The camera for macOS guests comes with a signed release",
-              "text": "The camera for macOS guests comes with a signed release"
             }
           },
           {

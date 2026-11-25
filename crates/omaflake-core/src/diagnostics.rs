@@ -42,14 +42,13 @@ pub fn title(id: &str) -> &'static str {
 
 /// The details this module writes itself (English; the views show them translated – keys with German), as opposed to
 /// what a guest or a tool said (shown as it is)
-pub const OWN_DETAILS: [&str; 11] = [
+pub const OWN_DETAILS: [&str; 10] = [
     SKIP_CLIPBOARD,
     SKIP_SHARE,
     SKIP_NETWORK,
     SKIP_SOUND,
     SKIP_MICROPHONE,
     SKIP_CAMERA,
-    SKIP_CAMERA_MACOS,
     SKIP_MIDI,
     NO_DIAGNOSIS,
     NO_AGENT,
@@ -61,7 +60,6 @@ pub const SKIP_NETWORK: &str = "No network for this VM";
 pub const SKIP_SOUND: &str = "Sound is off for this VM";
 pub const SKIP_MICROPHONE: &str = "The microphone is off for this VM";
 pub const SKIP_CAMERA: &str = "The camera is off for this VM";
-pub const SKIP_CAMERA_MACOS: &str = "The camera for macOS guests comes with a signed release";
 pub const SKIP_MIDI: &str = "MIDI is off for this VM";
 pub const NO_DIAGNOSIS: &str = "The guest's agent has no diagnosis – an image built before it";
 pub const NO_AGENT: &str = "Not checked – no word from the guest's agent";
@@ -385,7 +383,7 @@ impl<'a> Diagnosis<'a> {
             "sound" if !c.sound_on() => r(CheckStatus::Skipped, SKIP_SOUND.into()),
             "microphone" if !c.microphone_on() => r(CheckStatus::Skipped, SKIP_MICROPHONE.into()),
             "camera" if !c.camera_on() => r(CheckStatus::Skipped, SKIP_CAMERA.into()),
-            "camera" if c.guest_kind() == GuestKind::Macos => r(CheckStatus::Skipped, SKIP_CAMERA_MACOS.into()),
+            // macOS too since 0.7.5 (plan B169): the guest's agent checks the stream, OBS and its camera extension
             "sound" | "microphone" | "camera" => self.passed_through(id),
             "midi" if !c.midi_on() => r(CheckStatus::Skipped, SKIP_MIDI.into()),
             "midi" => self.midi(),

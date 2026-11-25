@@ -191,7 +191,7 @@ impl VzBackend {
             // The VM's own pair on the Mac is "omaflake <name>" – the bundle's folder is "vm" for every VM
             args.extend(["--midi".into(), "--vm-name".into(), c.name.clone()]);
         }
-        // Camera: the Mac side and the port are ready; the guest's camera extension comes after M12 (plan B49)
+        // Camera: over the agent from images of 0.7.5 on (plan B169), the port org.omaflake.camera for older ones
         if c.camera_on() {
             args.push("--camera".into());
             if std::env::var("OMAFLAKE_CAMERA_TEST_PATTERN").as_deref() == Ok("1") {

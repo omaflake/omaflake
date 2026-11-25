@@ -16,6 +16,11 @@ pub const FRAME_BYTES: usize = (WIDTH * HEIGHT * 3 / 2) as usize;
 /// Frames the Mac may have on the way: the guest's free buffers (spec §11.9, credits)
 pub const CREDITS: u32 = 2;
 
+/// Whether this guest can show the Mac's camera (the loopback device exists)
+pub fn available() -> bool {
+    std::path::Path::new(DEVICE).exists()
+}
+
 // Linux UAPI (videodev2.h) and v4l2loopback 0.15.x – sizes for aarch64, as in camera-agent.py
 const V4L2_BUF_TYPE_VIDEO_OUTPUT: u32 = 2;
 const V4L2_FIELD_NONE: u32 = 1;
@@ -62,8 +67,9 @@ pub struct Camera {
 }
 
 impl Camera {
-    /// Opens the loopback device, sets 1280×720 NV12 and listens for applications opening it
-    pub fn open() -> io::Result<Camera> {
+    /// Opens the loopback device, sets 1280×720 NV12 and listens for applications opening it (credits go back
+    /// from the main loop – `write_frame` returns them)
+    pub fn open(_credit: fn(u32)) -> io::Result<Camera> {
         let device = OpenOptions::new().read(true).write(true).custom_flags(libc::O_CLOEXEC).open(DEVICE)?;
         let fd = device.as_raw_fd();
         let mut f = Raw::<208>::new();
@@ -93,23 +99,42 @@ impl Camera {
         Ok(camera)
     }
 
-    pub fn fd(&self) -> RawFd {
-        self.device.as_raw_fd()
+    /// What `poll` should watch: the device's events (an application opened or closed it)
+    pub fn poll_fds(&self) -> Vec<(RawFd, i16)> {
+        vec![(self.device.as_raw_fd(), libc::POLLPRI)]
+    }
+
+    /// After `poll`, with the revents of `poll_fds`: `Some(active)` when an application opened or closed the device
+    pub fn events(&mut self, revents: &[i16]) -> io::Result<Option<bool>> {
+        if revents.first().is_none_or(|&r| r & libc::POLLPRI == 0) {
+            return Ok(None);
+        }
+        let now_active = self.readers()?;
+        if now_active == self.active {
+            return Ok(None);
+        }
+        self.active = now_active;
+        if !now_active {
+            self.black(); // kept fresh from now on (`keep_fresh`, B130)
+        }
+        Ok(Some(now_active))
     }
 
     /// After POLLPRI: whether an application has the device open now
-    pub fn readers(&mut self) -> io::Result<bool> {
+    fn readers(&mut self) -> io::Result<bool> {
         let mut e = Raw::<136>::new();
         ioctl(self.device.as_raw_fd(), VIDIOC_DQEVENT, &mut e)?;
         Ok(e.get(0) == V4L2_EVENT_PRI_CLIENT_USAGE && e.get(8) > 0)
     }
 
-    pub fn write_frame(&mut self, frame: &[u8]) -> io::Result<()> {
+    /// A frame from the Mac; returns the credits to give back (one: the buffer is free again)
+    pub fn write_frame(&mut self, frame: Vec<u8>) -> io::Result<u32> {
         if frame.len() != FRAME_BYTES {
             return Err(io::Error::other("frame of the wrong size"));
         }
         self.written = Instant::now();
-        self.device.write_all(frame)
+        self.device.write_all(&frame)?;
+        Ok(1)
     }
 
     /// A black frame – shown while the Mac sends nothing

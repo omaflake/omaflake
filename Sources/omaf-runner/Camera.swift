@@ -31,6 +31,8 @@ final class CameraBridge: NSObject, AVCaptureVideoDataOutputSampleBufferDelegate
     private var lastCredit = Date.distantPast
     /// The newest frame that found no credit – sent as soon as one comes (older ones are replaced: live video)
     private var pending: [UInt8]?
+    /// Port: when the guest last took a whole frame (frames it does not take within 2 s stop the camera, with a status)
+    private var lastDelivered = Date.distantPast
 
     init(transport: Transport, testPattern: Bool, onClosed: @escaping @Sendable () -> Void) {
         self.transport = transport
@@ -137,6 +139,7 @@ final class CameraBridge: NSObject, AVCaptureVideoDataOutputSampleBufferDelegate
         s.commitConfiguration()
         s.startRunning()
         session = s
+        lastDelivered = Date()
         status("streaming", reason: device.localizedName)
     }
 
@@ -187,6 +190,7 @@ final class CameraBridge: NSObject, AVCaptureVideoDataOutputSampleBufferDelegate
         }
         t.resume()
         pattern = t
+        lastDelivered = Date()
         status("streaming", reason: "test pattern")
     }
 
@@ -202,18 +206,29 @@ final class CameraBridge: NSObject, AVCaptureVideoDataOutputSampleBufferDelegate
             return sendAgent(link, kind: kind, payload)
         }
         guard case .port(let fd) = transport else { return }
-        var header = [UInt8](repeating: 0, count: 16)
-        header.replaceSubrange(0..<4, with: Array("OMFC".utf8))
-        header[4] = 1
-        header[5] = kind
-        withUnsafeBytes(of: UInt32(payload.count).littleEndian) { header.replaceSubrange(8..<12, with: $0) }
+        var message = [UInt8](repeating: 0, count: 16)
+        message.replaceSubrange(0..<4, with: Array("OMFC".utf8))
+        message[4] = 1
+        message[5] = kind
+        withUnsafeBytes(of: UInt32(payload.count).littleEndian) { message.replaceSubrange(8..<12, with: $0) }
         sequence &+= 1
-        withUnsafeBytes(of: sequence.littleEndian) { header.replaceSubrange(12..<16, with: $0) }
-        writeLock.withLock {
-            guard writeAll(fd, header), writeAll(fd, payload) else {
+        withUnsafeBytes(of: sequence.littleEndian) { message.replaceSubrange(12..<16, with: $0) }
+        message += payload
+        // Header and payload in one message: the port's 1 s write timeout must never leave half a frame (plan B168)
+        let outcome = writeLock.withLock { PortWriter(fd: fd).write(message) }
+        guard kind == 2 else { return }   // a status that did not go out is not worth stopping for
+        switch outcome {
+        case .written:
+            lastDelivered = Date()
+        case .dropped:
+            // The guest is not reading right now: live video drops the frame; for 2 s on end the camera goes off
+            if Date().timeIntervalSince(lastDelivered) > 2 {
                 stopCapture()
-                return
+                status("stopped", reason: "the guest did not read for 2 s")
             }
+        case .failed:
+            stopCapture()
+            status("stopped", reason: "the camera port failed")
         }
     }
 
@@ -236,18 +251,5 @@ final class CameraBridge: NSObject, AVCaptureVideoDataOutputSampleBufferDelegate
         }
         credits -= 1
         if !link.send(.cameraFrame, payload: Data(payload)) { stopCapture() }
-    }
-
-    private func writeAll(_ fd: Int32, _ bytes: [UInt8]) -> Bool {
-        bytes.withUnsafeBytes { buf in
-            var off = 0
-            while off < buf.count {
-                let n = write(fd, buf.baseAddress! + off, buf.count - off)
-                if n < 0 && errno == EINTR { continue }
-                if n <= 0 { return false }
-                off += n
-            }
-            return true
-        }
     }
 }

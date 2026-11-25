@@ -230,13 +230,11 @@ pub(crate) fn page(ctx: &Ctx, p: &NewVmParams) -> Option<NewVmPage> {
             .param("settings.clipboard")
             .value_param("clipboard"),
     );
-    if !mac {
-        resources.push(
-            Field::new("camera", FieldKind::Toggle, Text::new("Camera in the VM"), s["camera"].clone())
-                .param("settings.camera")
-                .value_param("camera"),
-        );
-    }
+    // macOS too (plan B169): through OBS in the VM until omaflake's own camera extension
+    let camera = Field::new("camera", FieldKind::Toggle, Text::new("Camera in the VM"), s["camera"].clone())
+        .param("settings.camera")
+        .value_param("camera");
+    resources.push(if mac { camera.help(Text::new(super::vms::CAMERA_MACOS)) } else { camera });
     // MIDI (plan B161): every guest kind
     resources.push(
         Field::new("midi", FieldKind::Toggle, Text::new("MIDI devices in the VM"), s["midi"].clone())

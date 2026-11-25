@@ -117,6 +117,9 @@ pub(crate) fn page(ctx: &Ctx, p: &VmsParams) -> VmsPage {
     VmsPage { head, rows, unreadable: unreadable(&ctx.unreadable_vms) }
 }
 
+/// macOS VMs (plan B169): until omaflake's own camera extension (M12) the guest's apps see the camera through OBS
+pub(crate) const CAMERA_MACOS: &str = "In the VM, apps see the camera as \"OBS Virtual Camera\": install OBS there, omaflake sets up its scene; then start OBS's virtual camera";
+
 pub fn unreadable(list: &[crate::api::types::Unreadable]) -> Vec<Hint> {
     list.iter()
         .map(|u| Hint::new("warning", Text::verbatim(format!("{}: {}", u.name, u.reason)), Tone::Warning))
@@ -275,7 +278,7 @@ fn feature_badges(v: &Vm) -> Vec<Badge> {
     if v.microphone {
         b.push(Badge::new("microphone", "microphone", Text::new("Microphone on"), Tone::Warning));
     }
-    if v.camera && v.kind == GuestKind::Nixos {
+    if v.camera {
         b.push(Badge::new("camera", "camera", Text::new("Camera on"), Tone::Warning));
     }
     if v.midi {
@@ -311,8 +314,10 @@ fn detail(ctx: &Ctx, v: &Vm) -> VmDetail {
             .help(Text::new("Shared Clipboard")),
         set("sound", "Sound", "sound", v.audio, json!({"name": name, "audio": !v.audio})),
         set("microphone", "Microphone", "microphone", v.microphone, microphone),
-        set("camera", "Camera", "camera", v.camera && !mac, json!({"name": name, "camera": !v.camera}))
-            .enabled_if(!mac, Some(Text::new("The camera for macOS guests comes with a signed release"))),
+        {
+            let camera = set("camera", "Camera", "camera", v.camera, json!({"name": name, "camera": !v.camera}));
+            if mac { camera.help(Text::new(CAMERA_MACOS)) } else { camera }
+        },
         // MIDI (plan B161): every guest kind – macOS through CoreMIDI, NixOS through the ALSA sequencer
         set("midi", "MIDI", "midi", v.midi, json!({"name": name, "midi": !v.midi}))
             .help(Text::new("This computer's MIDI devices in the VM, both ways")),

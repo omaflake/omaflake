@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 //! omaflake agent (guest side): one process per guest, talking to omaflake on the Mac over the virtio port
 //! org.omaflake.agent (spec §11.9): hello and periodic status, the clipboard (for the user's Wayland session, through
-//! `omaflake-agent session`), the Mac's camera as /dev/video42, the Mac's MIDI endpoints (CoreMIDI on macOS, the
+//! `omaflake-agent session`), the Mac's camera (Linux: /dev/video42; macOS: a stream for OBS until omaflake's camera
+//! extension – camera_mac.rs, obs.rs), the Mac's MIDI endpoints (CoreMIDI on macOS, the
 //! ALSA sequencer on Linux – midi.rs, midi_alsa.rs) and the guest's half of the VM diagnosis (diagnose.rs).
 //!
 //! The port reports POLLHUP while nothing listens on the Mac's end. Each time the Mac side connects, the agent
@@ -22,6 +23,7 @@ macro_rules! concat_runtime {
 pub(crate) use concat_runtime;
 
 mod b64;
+#[cfg_attr(target_os = "macos", path = "camera_mac.rs")]
 mod camera;
 mod clip;
 mod diagnose;
@@ -31,6 +33,7 @@ mod midi1;
 #[cfg(not(target_os = "macos"))]
 mod midi_alsa;
 mod midi_clock;
+mod obs;
 mod proto;
 mod session;
 mod status;
@@ -78,6 +81,12 @@ fn write_port(bytes: &[u8]) {
     }
 }
 
+/// Credits for the Mac's camera from the camera's own thread (macOS: per frame the reader took)
+fn camera_credit(n: u32) {
+    let payload = serde_json::to_vec(&serde_json::json!({ "credits": n })).expect("serializable");
+    write_port(&encode(MSG_CAMERA_CREDIT, 0, &payload));
+}
+
 /// A guest app played to one of the virtual destinations / writable ports (the MIDI thread)
 fn midi_out(record: ump::Record) {
     if !MIDI_ON.load(Ordering::SeqCst) {
@@ -107,15 +116,15 @@ struct Welcome {
 }
 
 /// What this agent offers in its hello; the Mac enables a subset in its welcome. macOS guests keep their clipboard
-/// helper until the agent's pasteboard is checked in a guest (PNG: OPEN, spec §11.9), so the agent there offers MIDI
-/// and the diagnosis only. The diagnosis is offered always, on every guest kind (plan B162)
+/// helper until the agent's pasteboard is checked in a guest (PNG: OPEN, spec §11.9), so the agent there offers the
+/// camera (plan B169), MIDI and the diagnosis. The diagnosis is offered always, on every guest kind (plan B162)
 fn offered(midi: bool) -> Vec<&'static str> {
     let mut f = vec!["status", "diagnose"];
     if cfg!(target_os = "linux") {
         f.push("clipboard");
-        if std::path::Path::new(camera::DEVICE).exists() {
-            f.push("camera");
-        }
+    }
+    if camera::available() {
+        f.push("camera");
     }
     if midi {
         f.push("midi");
@@ -156,6 +165,8 @@ struct Agent {
     midi: Option<Midi>,
     /// The Mac's last camera status ("status", "detail"), for the diagnosis
     camera_status: Option<(String, String)>,
+    /// macOS: OBS's scene collection for the camera (obs.rs), as last looked at
+    obs: Option<obs::State>,
     /// Why there is no MIDI here (Midi::new failed), for the diagnosis
     midi_error: Option<String>,
     /// MIDI endpoints mirrored from the Mac's list and the names that failed, as last reported to the Mac
@@ -210,11 +221,12 @@ impl Agent {
         ));
         if self.enabled("camera") {
             if self.camera.is_none() {
-                match Camera::open() {
+                match Camera::open(camera_credit) {
                     Ok(c) => self.camera = Some(c),
                     Err(e) => log(&format!("{}: {e} – no camera", camera::DEVICE)),
                 }
             }
+            self.obs_prepare();
             if self.camera.as_ref().is_some_and(|c| c.active) {
                 self.camera_start();
             }
@@ -226,6 +238,18 @@ impl Agent {
         if !midi && let Some(m) = self.midi.as_mut() {
             m.clear(); // off for this VM: the Mac's devices leave the guest
         }
+    }
+
+    /// macOS: OBS's scene for the camera (obs.rs) – at the welcome and with every status, until it is there
+    fn obs_prepare(&mut self) {
+        if !cfg!(target_os = "macos") || !self.enabled("camera") || matches!(self.obs, Some(obs::State::Ready { .. })) {
+            return;
+        }
+        let state = obs::prepare();
+        if self.obs.as_ref() != Some(&state) {
+            log(&state.describe());
+        }
+        self.obs = Some(state);
     }
 
     /// The Mac's MIDI endpoints changed: the guest's follow, the Mac hears how many exist
@@ -350,9 +374,71 @@ impl Agent {
         outcome.answer(req)
     }
 
+    /// macOS (plan B169): the stream, OBS and its camera extension, whether OBS reads, the Mac's last camera status
     #[cfg(target_os = "macos")]
     fn diagnose_camera(&self) -> diagnose::Outcome {
-        diagnose::Outcome::new(diagnose::Status::Skipped, "The camera in macOS guests comes after M12")
+        use diagnose::{Outcome, Status};
+        if !self.enabled("camera") {
+            return Outcome::new(Status::Skipped, "The camera is off for this VM");
+        }
+        let state = obs::prepare();
+        let extension = obs::extension_state();
+        let mac = self.camera_status.as_ref();
+        let reading = self.camera.as_ref().is_some_and(|c| c.active);
+        let data = serde_json::json!({
+            "device": camera::DEVICE,
+            "open": self.camera.is_some(),
+            "inUse": reading,
+            "obs": state.describe(),
+            "obsExtension": extension,
+            "macStatus": mac.map(|(s, _)| s),
+            "macDetail": mac.map(|(_, d)| d),
+        });
+        let outcome = if self.camera.is_none() {
+            Outcome::new(Status::Fail, format!("The agent could not open {}", camera::DEVICE))
+        } else if state == obs::State::NotInstalled {
+            Outcome::new(
+                Status::Fail,
+                "Install OBS (obsproject.com) in the VM: until omaflake's own camera extension, apps in the VM see \
+                 the Mac's camera as \"OBS Virtual Camera\"",
+            )
+        } else if state == obs::State::NeverStarted {
+            Outcome::new(Status::Fail, "Start OBS once in the VM; the agent then sets up its scene collection")
+        } else if extension.as_deref() != Some("activated enabled") {
+            Outcome::new(
+                Status::Fail,
+                match extension {
+                    None => "In OBS, click \"Start Virtual Camera\" once to install OBS's camera extension".into(),
+                    Some(s) => format!(
+                        "OBS's camera extension is {s}: approve \"OBS Virtual Camera\" in System Settings → General → \
+                         Login Items & Extensions → Camera Extensions, then start OBS's virtual camera again"
+                    ),
+                },
+            )
+        } else if let Some((s, d)) = mac.filter(|(s, _)| s == "unavailable") {
+            Outcome::new(
+                Status::Fail,
+                format!("The Mac's camera is {s}{}", if d.is_empty() { String::new() } else { format!(": {d}") }),
+            )
+        } else if reading {
+            Outcome::new(
+                Status::Pass,
+                format!(
+                    "OBS reads the Mac's camera{}; apps in the VM choose \"OBS Virtual Camera\"",
+                    mac.map(|(s, _)| format!(" ({s})")).unwrap_or_default()
+                ),
+            )
+        } else {
+            Outcome::new(
+                Status::Pass,
+                format!(
+                    "Ready – {}. In OBS: the scene collection \"{}\", then \"Start Virtual Camera\"",
+                    state.describe(),
+                    obs::COLLECTION
+                ),
+            )
+        };
+        outcome.with(data)
     }
 
     /// NixOS: the loopback device, whether the agent feeds it, and the Mac's last camera status
@@ -424,11 +510,14 @@ impl Agent {
                 if !cam.active {
                     return; // late frame after the application closed the camera
                 }
-                if let Err(e) = cam.write_frame(&frame.payload) {
+                // Linux: one buffer free again; macOS: a replaced frame's credit (the rest come from its thread)
+                let credits = cam.write_frame(frame.payload).unwrap_or_else(|e| {
                     log(&format!("camera frame: {e}"));
+                    1
+                });
+                if credits > 0 {
+                    self.send(MSG_CAMERA_CREDIT, &serde_json::json!({ "credits": credits }));
                 }
-                // One buffer free again: one more frame may come
-                self.send(MSG_CAMERA_CREDIT, &serde_json::json!({ "credits": 1 }));
             }
             MSG_CAMERA_STATUS if self.enabled("camera") => {
                 log(&format!("Mac camera: {}", String::from_utf8_lossy(&frame.payload)));
@@ -520,10 +609,12 @@ impl Agent {
             fds.push(libc::pollfd { fd: l.as_raw_fd(), events: libc::POLLIN, revents: 0 });
             fds.len() - 1
         });
-        let camera_at = self.camera.as_ref().map(|c| {
-            fds.push(libc::pollfd { fd: c.fd(), events: libc::POLLPRI, revents: 0 });
-            fds.len() - 1
-        });
+        let camera_at = fds.len();
+        if let Some(c) = self.camera.as_ref() {
+            for (fd, events) in c.poll_fds() {
+                fds.push(libc::pollfd { fd, events, revents: 0 });
+            }
+        }
         let sessions_at = fds.len();
         for s in &self.sessions {
             fds.push(libc::pollfd { fd: s.stream.as_raw_fd(), events: libc::POLLIN, revents: 0 });
@@ -533,16 +624,10 @@ impl Agent {
             return; // EINTR (a signal) – the caller checks STOP
         }
 
-        if let Some(i) = camera_at
-            && fds[i].revents & libc::POLLPRI != 0
-            && let Some(cam) = self.camera.as_mut()
-        {
-            match cam.readers() {
-                Ok(now_active) if now_active != cam.active => {
-                    cam.active = now_active;
-                    if !now_active {
-                        cam.black(); // kept fresh from now on (`keep_fresh`, B130)
-                    }
+        if let Some(cam) = self.camera.as_mut() {
+            let revents: Vec<i16> = fds[camera_at..sessions_at].iter().map(|f| f.revents).collect();
+            match cam.events(&revents) {
+                Ok(Some(now_active)) => {
                     log(if now_active { "an application opened the camera" } else { "camera no longer in use" });
                     if now_active {
                         self.camera_start();
@@ -550,7 +635,7 @@ impl Agent {
                         self.send(MSG_CAMERA_CONTROL, &serde_json::json!({ "action": "stop" }));
                     }
                 }
-                Ok(_) => {}
+                Ok(None) => {}
                 Err(e) => log(&format!("camera event: {e}")),
             }
         }
@@ -627,6 +712,7 @@ impl Agent {
         } else if self.welcomed && now >= self.next_status {
             self.send(MSG_STATUS, &status::status());
             self.next_status = now + self.interval;
+            self.obs_prepare();
         }
         if let Some(cam) = self.camera.as_mut() {
             cam.keep_fresh(now);
@@ -724,6 +810,7 @@ fn main() {
         sessions: vec![],
         camera: None,
         camera_status: None,
+        obs: None,
         midi_error,
         midi_state: (0, vec![]),
         diag_queue: VecDeque::new(),

@@ -271,7 +271,7 @@ Network modes from `recipe.toml`:
 | Mode | NixOS (QEMU) | macOS (omaf-runner) |
 |---|---|---|
 | `shared` | `-netdev user` with SSH forwarding | `VZNATNetworkDeviceAttachment` (`192.168.64.x`) |
-| `isolated` | `-netdev user,restrict=on` + SSH forwarding | **not available** (M10, plan BM27): NAT has no outbound block; a vmnet host-mode network needs a restricted entitlement – `omaf new`/`start` refuse it. Later: packet filter or `VZFileHandleNetworkDeviceAttachment` (OPEN) |
+| `isolated` | `-netdev user,restrict=on` + SSH forwarding | **not available** (M10, plan BM27): NAT has no outbound block; a vmnet host-mode network needs a restricted entitlement – `omaf new`/`start` refuse it. Later: packet filter or `VZFileHandleNetworkDeviceAttachment` (OPEN; direction: omaflake's own switch, §11.12) |
 | `none` | no network card | no network card (SSH not possible then) |
 
 ### 6.4 Runner `omaf-runner` (macOS, to be verified in M7)
@@ -352,7 +352,7 @@ interface (`omaf ui`, ratatui, macOS and Linux) only draw it.
 - **M2 QEMU build:** DECIDED 2026-10-16 – own build with virglrenderer + ANGLE (plan B6). Template github.com/omacom/try-omarchy (MIT license, observe its license notices).
 - **UEFI firmware:** located per QEMU at `<prefix>/share/qemu/edk2-aarch64-code.fd`; the CLI derives the path from the binary.
 - **Clipboard (NixOS):** spice-vdagent is X11-oriented; under Hyprland possibly an own solution is needed (template: try-omarchy).
-- **Camera bridge:** DECIDED (2026-10-17) for NixOS – as try-omarchy: AVFoundation on the Mac → virtio-serial → v4l2loopback in the guest, on demand (plan B37). macOS guests: the same Mac side over a virtio console port, ready (plan B49); in the guest a CoreMediaIO camera extension after M12.
+- **Camera bridge:** DECIDED (2026-10-17) for NixOS – as try-omarchy: AVFoundation on the Mac → virtio-serial → v4l2loopback in the guest, on demand (plan B37). macOS guests: the same Mac side (plan B49), over the agent from 0.7.5 on (plan B169); in the guest OBS's virtual camera reads the agent's stream until omaflake's own CoreMediaIO camera extension (M12).
 - **Image retention:** How many old image revisions are kept? (both guest kinds)
 - **macOS – wallpaper:** no nix-darwin option (BM1) → script (`desktoppr` or `osascript`) in the GUI session (LaunchAgent). Which approach works on macOS 27: OPEN (M8).
 - **macOS – widgets:** DECIDED (2026-10-16): off in all macOS VMs – widgets are used on the host. Implemented in the darwin guest module: `system.defaults.WindowManager.StandardHideWidgets = true` and `StageManagerHideWidgets = true` (M8). Content/arrangement is not declarable (`WidgetCenter` can only query/reload its own widgets, plan BM1) and is therefore dropped.
@@ -594,8 +594,14 @@ the Mac over one channel.
   also with network off); live status (load, memory, disk, addresses, logged-in user); host name and guest settings at
   first start (fits the generic images of §11.3); a clean shutdown request; later forwarding of ports ("tunnels")
   started from the Mac, opening a URL on the Mac, notifications from the guest.
-- **macOS camera:** the agent is the transport only. A camera inside a macOS guest still needs a Camera Extension
-  (CoreMediaIO system extension) there, signed and approved by the user – that stays with M12 and the signed release.
+- **macOS camera (plan B169, 0.7.5):** the agent offers `camera` in macOS guests too and hands the frames (raw NV12
+  1280×720) to one reader on `127.0.0.1:47042`; a reader connecting asks the Mac for frames, one credit goes back per
+  frame the reader took, so the Mac's camera runs only while something reads and at the reader's pace. Apps see a
+  camera only through a Camera Extension (CoreMediaIO system extension), which must be signed – until omaflake's own
+  (M12) that is OBS's: the agent writes OBS's scene collection "omaflake Camera" (a media source reading the stream)
+  when it finds OBS, makes it OBS's current one, never touches the user's collections and writes nothing while OBS
+  runs; approving OBS's extension and "Start Virtual Camera" are the user's. Nothing installs OBS (a stopgap: nothing
+  may bind omaflake to it). Later omaflake's extension reads the same stream.
 - **Trust:** the guest is untrusted. The Mac side accepts only the defined messages, everything the guest may cause on
   the Mac is switched per VM in the app (as clipboard and camera today), and tunnels are started from the Mac only –
   nothing in the guest can run commands on the Mac.
@@ -705,7 +711,8 @@ the Mac over one channel.
   `sound` – plays a 1 s 440 Hz tone on the guest's default output → `confirm` (only the user hears it) or `fail` with
   why; `microphone` – records 2 s from the default input → `data: {level}` (RMS 0…1, peak), `pass` above 0.01, else
   `confirm` ("say something and try again"); `camera` – NixOS: the loopback device and the Mac's last camera status,
-  macOS: `skipped` (the guest side comes after M12); `midi` – `data: {endpoints, failed}`.
+  macOS: the stream, whether OBS reads it, OBS installed and started once, its scene collection and its camera
+  extension's state (`systemextensionsctl list`), each with what to do; `midi` – `data: {endpoints, failed}`.
   **Relay:** whatever holds the agent link answers a control request `{"command": "diagnose", "check", "args"?}` with
   the agent's answer (or `{"error"}` after 15 s) – `omaf-runner run` on its control socket, `omaf-runner bridge` and
   `omaf bridge` on a new `--control <socket>` (the instance's `bridge.sock`); `{"command": "midi"}` gives the host
@@ -855,6 +862,53 @@ and the modules and key binding sets it uses in a version it allows (`modules/�
 get the ID and source of the recipe of that base there is now; image packages are renamed to `<base>@<words>` (VMs on
 them follow – their overlays are rebased); every VM gets an identity. Checked: the six recipes give the same store
 paths as before.
+
+### 11.12 Virtual networks between VMs (DIRECTION 2026-11-25, plan B170; nothing built)
+
+**Why.** VMs should talk to each other across the hypervisor boundary – first case: one NixOS VM with Docker that
+several macOS VMs use (macOS guests cannot run Docker, plan B170). Today they cannot: every QEMU VM has its own NAT
+(`-netdev user`, §6.3), macOS VMs share VZ's NAT (`192.168.64.x`), and omaflake controls neither. Joining Apple's
+vmnet needs root (`socket_vmnet`) or a restricted entitlement – not an option.
+
+**Switch in user space.** omaflake runs its own switch and gateway per network, without root or entitlements; both
+hypervisors attach to it over Unix sockets:
+
+| Side | Attachment |
+|---|---|
+| NixOS (QEMU) | `-netdev stream` or `-netdev dgram` on the network's socket |
+| macOS (omaf-runner) | `VZFileHandleNetworkDeviceAttachment` (datagram socket) |
+| Switch + gateway | DHCP, DNS, NAT to the outside, port forwards to the host; `gvisor-tap-vsock` or our own (OPEN, plan B170 spike) |
+
+Because the switch is omaflake's, it can enforce rules per network – which gives macOS VMs `isolated` (§6.3, plan
+BM27) – and it knows who talks to whom, which the network view shows.
+
+**Networks as objects.**
+
+```sh
+omaf net create dev --internet on --host off
+omaf new docker --recipe omaflake.nixos.docker --net dev
+omaf new mac1   --recipe omaflake.macos.dev    --net dev
+```
+
+- A network has its own subnet and rules: internet, access to the host, traffic between its VMs.
+- Built-in DNS: `<vm>.<network>.omaf` (name scheme OPEN), e.g. `DOCKER_HOST=tcp://docker.dev.omaf:2375`.
+- A VM can be in several networks. Without `--net` it gets a network of its own, as today – the default does not
+  change. The network modes `shared` / `isolated` / `none` become rules of that network (migration OPEN).
+- Stored in `<data>/networks.json` (schema v1, §5.1); `instance.json` names its networks. A network's switch runs
+  while one of its VMs runs (process model – part of the core service or one process per network – OPEN).
+
+**Docker VM.** A recipe `nixos/docker` (the catalog's Docker module, headless). Clients set `DOCKER_HOST`; bind
+mounts need the project folder at the same path in the client and the Docker VM, published ports are forwarded to the
+client's `localhost` (by the agent or the switch – OPEN). The Docker socket over TCP is root on the Docker VM for
+every VM of the network; the app says so where the network is set up.
+
+**Network view (app, `omaf ui`, Linux app).** A graph: the host, each network as a switch, each VM (kind by symbol,
+running/stopped by colour). Edges: membership, internet and host access (on/blocked). Live from the switch: traffic per
+edge, port forwards, offered services (e.g. "Docker :2375 · 3 clients"). Editing in the graph: drag a VM into a
+network, switch a network's internet off. The guest's own view comes from the agent's `network` check (§11.9).
+
+OPEN: everything above – the switch (B170's spike), throughput, the process model, the migration of network modes,
+bind mounts with several clients.
 
 ### 11.4 Prerequisites for release
 

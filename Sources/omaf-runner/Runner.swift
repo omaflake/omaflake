@@ -104,7 +104,7 @@ struct Run: ParsableCommand {
     @Flag(help: "Sound from the VM to the Mac") var audio = false
     @Flag(help: "The Mac's microphone in the VM (with --audio; macOS asks for permission the first time)") var microphone = false
     @Flag(help: "Clipboard shared with the Mac (guest agent omaflake-clipboard)") var clipboard = false
-    @Flag(help: "Camera port org.omaflake.camera (macOS guests: the guest side comes after M12)") var camera = false
+    @Flag(help: "Camera port org.omaflake.camera (images before 0.7.5; newer ones carry it over the agent)") var camera = false
     @Option(help: "Attach the omaflake agent's port and keep what it reports in this file (spec §11.9)") var agentState: String?
     @Flag(help: "With --camera: a test pattern instead of the camera") var cameraTestPattern = false
     @Flag(help: "With --agent-state: the Mac's MIDI devices in the VM, both ways (plan B161)") var midi = false
