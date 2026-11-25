@@ -20,6 +20,9 @@ are collected under *Unreleased*. Releases: [GitHub](https://github.com/omaflake
   version, which moves its system into the new space (it removes the fallback recovery behind it; the recovery inside
   the system stays). Not yet tried on a Mac.
 
+- **The Linux builder checked by itself:** once a day omaflake checks in the background that the builder accepts this
+  Mac's builds, so a broken one shows in the Doctor before a build runs into it; a builder disk smaller than its
+  settings (made before them) gets "New Disk …".
 - **Networks edited in the picture:** in the Networks tab of the macOS app, drag a VM onto a network to add it; the
   menu of an address takes it out again.
 - **Ports of other VMs on localhost:** "Ports of other VMs" in a VM's details (`omaf set --forwards "5432=docker:5432"`)

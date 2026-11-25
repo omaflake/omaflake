@@ -1847,3 +1847,10 @@
 "\"%@\" is no port: <port>=<vm>[:<port>], e.g. 5432=docker:5432" = "„%@“ ist kein Port: <Port>=<VM>[:<Port>], z. B. 5432=docker:5432";
 "%@ cannot forward to itself" = "%@ kann nicht auf sich selbst weiterleiten";
 "Drag a VM onto a network to add it; an address's menu takes it out." = "Zieh eine VM auf ein Netz, um sie hinzuzufügen; das Menü einer Adresse nimmt sie wieder heraus.";
+
+/* Plan B182: the Linux builder checked once a day, its disk's size */
+"its disk is smaller than its settings" = "seine Festplatte ist kleiner als eingestellt";
+"The Linux builder's disk was made before its settings and is smaller – builds may run out of space. A new disk gives it the full size; what it built is built or downloaded again." = "Die Festplatte des Linux-Builders entstand vor seinen Einstellungen und ist kleiner – Builds können ohne Platz dastehen. Eine neue Festplatte gibt ihm die volle Größe; was er gebaut hat, wird neu gebaut oder geladen.";
+"New Disk …" = "Neue Festplatte …";
+"New Disk" = "Neue Festplatte";
+"omaflake stops the Linux builder, deletes its disk and starts it with a new one in the size of its settings: what it built is built or downloaded again. Then it checks the builder. nix-darwin's builder asks for an administrator." = "omaflake stoppt den Linux-Builder, löscht seine Festplatte und startet ihn mit einer neuen in der eingestellten Größe: was er gebaut hat, wird neu gebaut oder geladen. Danach prüft omaflake den Builder. Der Builder von nix-darwin fragt nach einem Administrator.";

@@ -493,6 +493,8 @@ impl Prerequisites {
     pub const NIX_HALF: &'static str = "half-done Nix install";
     /// The builder-running item's detail when the builder refuses the Mac's builds (plan B175)
     pub const BUILDER_REFUSES: &'static str = "refuses this Mac's builds";
+    /// … when its disk is smaller than its settings (plan B182)
+    pub const BUILDER_SMALL_DISK: &'static str = "its disk is smaller than its settings";
 
     pub(crate) fn nix_not_mounted(v: &NixVolume) -> Prerequisite {
         Prerequisite::new(
@@ -839,6 +841,19 @@ impl Prerequisites {
                 "The Linux builder runs but refuses what this Mac built (it no longer trusts it – its Nix store is probably damaged). Repair gives it a new disk.",
                 None,
             );
+        }
+        if up {
+            // Once a day in the background (plan B182): a refusal is found before a build runs into it
+            health.check_in_background();
+            if health.disk_too_small().is_some() {
+                return Prerequisite::new(
+                    PrerequisiteItem::BuilderRunning,
+                    PrerequisiteStatus::Limited,
+                    Self::BUILDER_SMALL_DISK,
+                    "The Linux builder's disk was made before its settings and is smaller – builds may run out of space. A new disk gives it the full size; what it built is built or downloaded again.",
+                    None,
+                );
+            }
         }
         let hint = if up {
             String::new()

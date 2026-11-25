@@ -68,8 +68,81 @@ impl BuilderHealth {
          launchctl bootstrap system \"$p\"; \
          echo 'Linux builder restarted with a new disk'";
 
+    /// The disk size nix/hosts/builder-vm.nix gives the builder (`virtualisation.darwin-builder.diskSize`, GiB)
+    pub const DISK_GIB: u64 = 100;
+    /// How often a running builder is checked by itself (plan B182): once a day, in the background
+    pub const CHECK_EVERY: std::time::Duration = std::time::Duration::from_secs(24 * 3600);
+
     pub fn new(paths: Paths) -> Self {
         BuilderHealth { paths }
+    }
+
+    /// `<data>/builder/checked`: when the last check in the background started
+    fn checked_file(&self) -> PathBuf {
+        self.paths.root.join("builder").join("checked")
+    }
+
+    /// A check is due: none for `CHECK_EVERY` (plan B182)
+    pub fn check_due(&self) -> bool {
+        let file = self.checked_file();
+        fs::metadata(&file)
+            .and_then(|m| m.modified())
+            .ok()
+            .and_then(|t| t.elapsed().ok())
+            .is_none_or(|age| age >= Self::CHECK_EVERY)
+    }
+
+    /// Checks the builder in the background when it is due (plan B182): a refusal is noted for the Doctor (`marker`)
+    /// before an image build runs into it. Noted as started first, so two Doctor checks do not start two probes.
+    pub fn check_in_background(&self) {
+        if !self.check_due() {
+            return;
+        }
+        let file = self.checked_file();
+        if let Some(dir) = file.parent()
+            && fs::create_dir_all(dir).is_ok()
+            && fs::write(&file, crate::json::iso8601::format(&crate::json::now())).is_ok()
+        {
+            let me = self.clone();
+            std::thread::spawn(move || {
+                let _ = me.probe();
+            });
+        }
+    }
+
+    /// The builder's disk (plan B182): omaflake's own in its folder, nix-darwin's in the daemon's working directory
+    /// (its default /var/lib/linux-builder); None for another builder or the default one (its 20 GB are its own)
+    pub fn disk(&self) -> Option<PathBuf> {
+        let own = LinuxBuilder::new(self.paths.clone());
+        if own.is_set_up() && !own.system_has_builder() {
+            return (own.stage() == Some(crate::linux_builder::Stage::Omaflake)).then(|| own.disk());
+        }
+        if !crate::builder_maintenance::BuilderMaintenance::new(self.paths.clone()).system_is_omaflakes() {
+            return None;
+        }
+        let plist = fs::read_to_string("/Library/LaunchDaemons/org.nixos.linux-builder.plist").unwrap_or_default();
+        let dir = plist
+            .split("<key>WorkingDirectory</key>")
+            .nth(1)
+            .and_then(|r| r.split("<string>").nth(1))
+            .and_then(|r| r.split("</string>").next())
+            .unwrap_or("/var/lib/linux-builder");
+        Some(PathBuf::from(dir).join("nixos.qcow2"))
+    }
+
+    /// A qcow2's virtual size from its header (magic "QFI\xfb", the size at byte 24) – no qemu-img needed
+    pub fn qcow2_size(path: &std::path::Path) -> Option<u64> {
+        use std::io::Read;
+        let mut head = [0u8; 32];
+        fs::File::open(path).ok()?.read_exact(&mut head).ok()?;
+        (head[0..4] == *b"QFI\xfb").then(|| u64::from_be_bytes(head[24..32].try_into().unwrap_or_default()))
+    }
+
+    /// The builder's disk is smaller than its settings (plan B182): (GiB it has, GiB it should have) – it was made
+    /// before the setting and is only made when missing
+    pub fn disk_too_small(&self) -> Option<(u64, u64)> {
+        let have = Self::qcow2_size(&self.disk()?)? >> 30;
+        (have + 1 < Self::DISK_GIB).then_some((have, Self::DISK_GIB))
     }
 
     /// `<data>/builder/refused`: a build saw the builder refuse the Mac's paths (its first line: when)
@@ -214,6 +287,38 @@ mod tests {
         assert!(h.is_marked());
         h.clear();
         assert!(!h.is_marked());
+    }
+
+    /// The size it checks against is builder-vm.nix's
+    #[test]
+    fn disk_size_matches_the_builder_settings() {
+        let nix =
+            std::fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/../../nix/hosts/builder-vm.nix")).unwrap();
+        assert!(nix.contains(&format!("diskSize = {} * 1024;", BuilderHealth::DISK_GIB)), "{nix}");
+    }
+
+    #[test]
+    fn qcow2_size_from_the_header() {
+        let t = tempfile::tempdir().unwrap();
+        let f = t.path().join("d.qcow2");
+        let mut head = b"QFI\xfb".to_vec();
+        head.extend_from_slice(&[0, 0, 0, 3]);
+        head.extend_from_slice(&[0u8; 16]);
+        head.extend_from_slice(&(20u64 << 30).to_be_bytes());
+        std::fs::write(&f, &head).unwrap();
+        assert_eq!(BuilderHealth::qcow2_size(&f), Some(20 << 30));
+        std::fs::write(&f, b"not a qcow2 file at all, not at all").unwrap();
+        assert_eq!(BuilderHealth::qcow2_size(&f), None);
+    }
+
+    #[test]
+    fn a_check_is_due_once_a_day() {
+        let t = tempfile::tempdir().unwrap();
+        let h = BuilderHealth::new(Paths::new(t.path().join("data"), None));
+        assert!(h.check_due());
+        std::fs::create_dir_all(h.checked_file().parent().unwrap()).unwrap();
+        std::fs::write(h.checked_file(), "x").unwrap();
+        assert!(!h.check_due());
     }
 
     #[test]

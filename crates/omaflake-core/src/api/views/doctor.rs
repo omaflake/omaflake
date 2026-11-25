@@ -490,6 +490,19 @@ fn item(ctx: &Ctx, p: &PrerequisiteDto) -> DoctorItem {
             )
             .primary(),
         );
+    } else if p.item == I::BuilderRunning && p.detail == Prerequisites::BUILDER_SMALL_DISK {
+        // A disk made before its settings (plan B182): the same new disk as the repair
+        actions.push(no_task(
+            Action::call("newDisk", Text::new("New Disk …"), Some("reset"), "builder.repair", json!({})).confirm(
+                Confirm::new(
+                    Text::new("Give the Linux builder a new disk?"),
+                    Text::new(
+                        "omaflake stops the Linux builder, deletes its disk and starts it with a new one in the size of its settings: what it built is built or downloaded again. Then it checks the builder. nix-darwin's builder asks for an administrator.",
+                    ),
+                )
+                .button("New Disk"),
+            ),
+        ));
     } else if p.item == I::BuilderRunning && p.status == S::Ok && ctx.host == super::HostOs::Macos {
         actions.push(no_task(
             Action::call("check", Text::new("Test Build"), Some("ok"), "builder.check", json!({}))

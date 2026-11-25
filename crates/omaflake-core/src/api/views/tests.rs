@@ -2506,3 +2506,25 @@ fn welcome_asks_what_to_set_up() {
     let doctor = get(&c, "doctor", json!({}));
     assert!(ids(&doctor["actions"]).contains(&"welcome".to_string()));
 }
+
+/// A builder disk made before its settings (plan B182): a warning, not a blocker, and New Disk … with a question
+#[test]
+fn doctor_offers_a_new_builder_disk() {
+    use crate::prerequisites::{PrerequisiteItem as I, PrerequisiteStatus as S, Prerequisites};
+    let mut c = ctx();
+    c.host = super::HostOs::Macos;
+    let mut running = crate::api::contract::prerequisite(I::BuilderRunning, S::Limited);
+    running.detail = Prerequisites::BUILDER_SMALL_DISK.into();
+    c.doctor.as_mut().unwrap().nixos_preflight = vec![running];
+    let page = get(&c, "doctor", json!({}));
+    let item = page["sections"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .flat_map(|s| s["items"].as_array().unwrap().clone())
+        .find(|i| i["item"] == "builderRunning")
+        .unwrap();
+    let new_disk = action(&item["actions"], "newDisk");
+    assert_eq!(new_disk["method"], "builder.repair");
+    assert_eq!(new_disk["confirm"]["button"]["key"], "New Disk");
+}

@@ -488,6 +488,15 @@ Lume (trycua) only after a license review (OPEN).
 
 ## 8. Next steps (as of 2026-11-25)
 
+**B182 (2026-11-25, built for 0.8.0): the Linux builder checked once a day; its disk's size.** Follow-ups of B175.
+`BuilderHealth::check_in_background`: a Doctor check of a running builder starts the probe in a thread when the last
+one is 24 h old (`<data>/builder/checked`, written first – two checks start one probe); a refusal sets the marker, so
+the Doctor shows Repair … before a build runs into it. `disk_too_small`: the builder's qcow2 (omaflake's own in its
+folder at the omaflake stage; nix-darwin's in the daemon's WorkingDirectory when the system is omaflake's) is read
+from its header (magic "QFI\xfb", size at byte 24 – no qemu-img) and compared with builder-vm.nix's 100 GiB (a test
+reads the file); smaller → "Linux builder running" is Limited (no blocker) with New Disk … (`builder.repair`). The
+maintainer's had 20 GB (B175). Tests: the header, the size against builder-vm.nix, the daily due, the Doctor's action.
+
 **B181 (2026-11-25, built for 0.8.0; clicking OPEN): the network graph edited by dragging (macOS app).** A VM node is
 `draggable` (its id), a network node a `dropDestination` (outlined while a VM is over it) that sends `networks.join`;
 the address on a line has a context menu "Take <VM> Out" (`networks.leave`); a line under the graph says so. Errors are
