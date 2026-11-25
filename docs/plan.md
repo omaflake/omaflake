@@ -488,6 +488,12 @@ Lume (trycua) only after a license review (OPEN).
 
 ## 8. Next steps (as of 2026-11-25)
 
+**Release 0.7.6 (2026-11-25):** B175 (the Linux builder that refuses the Mac's builds: recognized, checked, repaired
+– the new disk checked on the Mac) together with the camera fixes B173 (asked again after a stop) and B174 (H.264
+through VideoToolbox; vsock measured in the guest). Maintainer: "Mach zusammen mit dem Kamera-Fix … einen Release
+0.7.6". Still to be tried on the Mac: the Doctor's Repair … and Test Build, the H.264 camera with a real camera, the
+vsock bench; their OPEN items stay.
+
 **B175 (2026-11-25, built – unreleased): NixOS image builds failed with "lacks a signature by a trusted key".** The
 maintainer's build of `neovim-minimal` with 0.7.5 (after B172's fix: the agent built and its tests passed) failed in
 `system-units`: nix-darwin's builder refused `…-unit-console-getty.service-disabled`, a path the Mac had built earlier

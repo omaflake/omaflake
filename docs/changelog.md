@@ -13,9 +13,14 @@ are collected under *Unreleased*. Releases: [GitHub](https://github.com/omaflake
 
 ## [Unreleased]
 
+## [0.7.6] – 2026-11-25
+
+A fix release: NixOS images build again on a Mac whose Linux builder stopped trusting it – the Doctor recognizes it and
+repairs it –, and the camera in macOS VMs is smooth (H.264) and no longer stays black when OBS starts slowly.
+
 ### Changed
 
-- **Smooth camera in macOS VMs:** the Mac now sends the camera as H.264 instead of raw frames – the full 30 frames a
+- **Smooth camera in macOS VMs** (new, not yet tried with a real camera on a Mac): the Mac now sends the camera as H.264 instead of raw frames – the full 30 frames a
   second instead of about 25 with gaps, and a fraction of the load in the VM. omaflake switches OBS's source in
   "omaflake Camera" to the new format by itself while OBS is not running (quit OBS once after updating). Needs an
   image built with this version; NixOS VMs keep raw frames.
