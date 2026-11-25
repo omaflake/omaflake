@@ -754,6 +754,10 @@ fn page_actions(ctx: &Ctx) -> Vec<Action> {
                 .primary(),
         );
     }
+    // The first start's questions (plan B144) while there is no credential yet – the app opens them by itself once
+    if ctx.credentials.is_empty() {
+        actions.push(Action::show("welcome", Text::new("Guided Setup …"), Some("install"), "welcome", json!({})));
+    }
     actions.push(
         Action::call("check", Text::new("Check Again"), Some("refresh"), "doctor.check", json!({}))
             .busy(ctx.checking)

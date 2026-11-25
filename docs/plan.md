@@ -525,6 +525,13 @@ so the request it waited for found no thread. The app calls it from the main thr
 test now does it from a thread of its own. With a pool of one thread a few CoreClient and Diagnosis tests still wait
 for good (no thread blocked – OPEN whether that is the strict mode itself); against any hang every suite has
 `.timeLimit(.minutes(1))` and CI's Test step `timeout-minutes: 15`, so a hanging test fails by name.
+*The rest (same day):* the next CI run still hung (the 15 minutes ended it), and locally 4 of 6 parallel runs hung,
+0 of 6 with `--no-parallel`; skipping either `CoreClientTests` or `PortWriterTests` made 6 of 6 pass. A hung process had
+no dispatch worker thread left at all (so not even the time limits fired). `PortWriterTests` were synchronous tests –
+on threads of the cooperative pool – that waited on a semaphore for a reader started with
+`DispatchQueue.global().asyncAfter`; with the CoreClient tests alongside, that reader found no thread. Now the reader is
+a thread of its own and every PortWriter test runs off the pool (`offPool`, shared with DiagnosisTests in
+OffPool.swift): 10 of 10 parallel runs pass.
 
 **Release 0.7.6 (2026-11-25):** B175 (the Linux builder that refuses the Mac's builds: recognized, checked, repaired
 – the new disk checked on the Mac) together with the camera fixes B173 (asked again after a stop) and B174 (H.264
@@ -1618,7 +1625,16 @@ meanwhile) – before, leaving its page looked as if no base were coming; "Insta
 Recipes, Modules and Looks: what the list offers as filtered (`recipes.installAll`, `modules.installAll` – one job,
 one after the other –, `looks.installAll`; a confirmation when one is not official). OPEN: clicked in the app.
 
-**B144 (2026-10-25, ideas of the maintainer – noted, not decided, not built).**
+**B144 (2026-10-25, ideas of the maintainer – noted, not decided, not built; done 2026-11-25 for 0.8.0).** *Done:* the
+navigation split and the key bindings' own page came with B147 (Run and Workshop, `keys`), the catalog with search and
+chips with B148; now authors are chips too ("@<author>", when the modules come from more than one), and the first-run
+wizard: the page `welcome` (a credential form's shape, so every interface draws it) asks what to run (NixOS, macOS,
+both – on Linux NixOS only), whether to start with the suggested recipes and omaflake's looks, the user and full name
+while there is no credential (the password asked on Set Up, kept in the keychain), developer mode; `setup.welcome`
+creates the credential, sets developer mode and starts the jobs – Set Up for NixOS (it installs a look), the catalog's
+suggested recipes of the chosen kinds (lab ones only in developer mode), the macOS base for the credential when there
+is none. The app opens it at its first start in front of the Doctor (Set Up and Later lead there); the Doctor offers
+"Guided Setup …" while there is no credential. OPEN: clicked through on a fresh Mac. Before:
 - **First-run wizard:** a newcomer finds many tabs and choices at once. On the first start (no data folder, or another
   sign of a first run) a short series of questions: minimal or complete (all standard recipes, modules and looks at
   once, or by hand later); what it is for (suggests recipes and modules); NixOS VMs, macOS VMs or both (is a macOS

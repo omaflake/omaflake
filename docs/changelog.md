@@ -20,6 +20,11 @@ are collected under *Unreleased*. Releases: [GitHub](https://github.com/omaflake
   version, which moves its system into the new space (it removes the fallback recovery behind it; the recovery inside
   the system stays). Not yet tried on a Mac.
 
+- **A guided first start:** a few questions – NixOS VMs, macOS VMs or both, omaflake's recipes and looks to start
+  with, your user in the guests, developer mode – and one Set Up that does it all; the Doctor shows each step. The app
+  opens it at its first start; the Doctor offers it while you have no credential ("Guided Setup …").
+- **Modules by author:** the recipe studio's catalog has a chip per author ("@omaflake") when modules come from more
+  than one.
 - **Upgrade a VM and keep its files:** "Upgrade, Keep Files …" in a running VM's details (`omaf upgrade --keep`)
   copies the new image's system into the VM and switches to it – the disk, the files and the settings stay. NixOS VMs
   need an image built with this version once (it allows the switch without a password). Not yet tried on a Mac.

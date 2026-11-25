@@ -586,6 +586,8 @@ pub fn page(ctx: &Ctx, name: &str, model: &Value) -> Page {
         "networkMember" => credential(ctx, "networkMember", model, &mut p),
         "locale" => credential(ctx, "locale", model, &mut p),
         "profile" => credential(ctx, "profile", model, &mut p),
+        // The first start's questions (plan B144): a credential form's shape
+        "welcome" => credential(ctx, "welcome", model, &mut p),
         // The recipe studio (plan B147)
         "recipeStudio" => studio(ctx, model, &mut p),
         "keymapStudio" => keymap_studio(ctx, model, &mut p),

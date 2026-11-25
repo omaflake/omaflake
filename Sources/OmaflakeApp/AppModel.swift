@@ -350,8 +350,9 @@ final class AppModel {
         client = CoreClient(launcher: launcher, initialize: params, topics: ServerEvent.viewTopics, ownCore: ownCore)
         if let saved = UserDefaults.standard.string(forKey: "homeTab").flatMap(HomeTab.init(rawValue:)) { tab = saved }
         if let saved = UserDefaults.standard.string(forKey: "menuTab").flatMap(HomeTab.init(rawValue:)) { menuTab = saved }
-        // The first time, the window (menu or app window, plan B119) opens on the Doctor
-        if Self.firstLaunch { path = [PageRef("doctor")] }
+        // The first time, the window (menu or app window, plan B119) opens on the first start's questions (plan B144),
+        // with the Doctor behind them – where their Set Up (or Later) leads
+        if Self.firstLaunch { path = [PageRef("doctor"), PageRef("welcome")] }
         // Development aid (screenshots, checks without clicks): open on a page, `OMAFLAKE_PAGE=settings` with
         // `OMAFLAKE_PAGE_PARAMS` as JSON
         let env = ProcessInfo.processInfo.environment

@@ -1799,7 +1799,6 @@
 "Set up the Linux builder first (Linux builder → Set Up …)" = "Richte zuerst den Linux-Builder ein (Linux-Builder → Einrichten …)";
 
 /* Plan B164: a larger disk */
-"Disk: %lld GB" = "Festplatte: %lld GB";
 "Only larger. The VM takes the new space at its next start (images built with omaflake 0.8.0 or later)." = "Nur größer. Die VM nimmt den neuen Platz beim nächsten Start (Images ab omaflake 0.8.0).";
 "Only larger. The VM takes the new space at its next start." = "Nur größer. Die VM nimmt den neuen Platz beim nächsten Start.";
 "%@ is running – stop it to change its disk" = "%@ läuft – stoppe die VM, um ihre Festplatte zu ändern";
@@ -1822,3 +1821,21 @@
 "No ssh command for %@" = "Kein ssh-Befehl für %@";
 "%@ cannot switch its system without a password – its image is older than omaflake 0.8.0. Upgrade it once with a fresh disk (Upgrade to New Image …)." = "%@ kann sein System nicht ohne Passwort wechseln – sein Image ist älter als omaflake 0.8.0. Stelle sie einmal mit frischer Festplatte um (Auf neue Vorlage umstellen …).";
 "Switching %@ to the new system failed (%@)" = "%1$@ auf das neue System umzustellen ist fehlgeschlagen (%2$@)";
+
+/* Plan B144: the first start's questions */
+"Welcome to omaflake" = "Willkommen bei omaflake";
+"A few questions, then omaflake sets up what you need – it shows each step in the Doctor. Everything here can be changed later." = "Ein paar Fragen, dann richtet omaflake ein, was du brauchst – jeden Schritt zeigt der Doktor. Alles hier kannst du später ändern.";
+"What do you want to run?" = "Was möchtest du laufen lassen?";
+"NixOS VMs need Nix and a small Linux VM that builds their images; macOS VMs need a macOS base – about 30 minutes and 30 GB once." = "NixOS-VMs brauchen Nix und eine kleine Linux-VM, die ihre Images baut; macOS-VMs brauchen eine macOS-Base – einmalig etwa 30 Minuten und 30 GB.";
+"NixOS VMs" = "NixOS-VMs";
+"macOS VMs" = "macOS-VMs";
+"Start with omaflake's recipes and looks" = "Mit den Rezepten und Looks von omaflake beginnen";
+"Installs the recipes the official catalog suggests for what you run, and omaflake's looks. Without it you pick them yourself in Recipes and Looks." = "Installiert die Rezepte, die der offizielle Katalog für deine Auswahl vorschlägt, und die Looks von omaflake. Ohne das wählst du sie selbst unter Rezepte und Looks.";
+"Your user in the guests: the login, the home folder, omaf ssh." = "Dein Benutzer in den Gästen: die Anmeldung, der Home-Ordner, omaf ssh.";
+"Your name in the guests (the account, git)" = "Dein Name in den Gästen (das Konto, git)";
+"Developer mode" = "Entwicklermodus";
+"Shows the lab recipes and the tools for making your own – you can switch it later in Settings" = "Zeigt die Lab-Rezepte und die Werkzeuge für eigene – umschalten kannst du ihn später in den Einstellungen";
+"Your password in the guests" = "Dein Passwort in den Gästen";
+"The password of your user in the guests, kept in the keychain: omaflake creates macOS bases and builds macOS images with it, so you never type it there. Copy it from Credentials whenever a guest asks." = "Das Passwort deines Benutzers in den Gästen, im Schlüsselbund aufbewahrt: omaflake legt damit macOS-Bases an und baut macOS-Images, du tippst es dort also nie. Kopiere es unter Zugangsdaten, wann immer ein Gast danach fragt.";
+"Guided Setup …" = "Geführte Einrichtung …";
+"NixOS and macOS VMs" = "NixOS- und macOS-VMs";

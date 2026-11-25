@@ -483,7 +483,10 @@ fn vm_rows_say_what_the_app_said() {
     // In place (plan B178): only while it runs, keeping its files
     let keep = action(&d["actions"], "upgradeInPlace");
     assert_eq!(keep["enabled"], true);
-    assert_eq!(keep["params"], json!({"name": "research", "image": "omaflake.nixos.dev@mint-river-cloud", "keep": true}));
+    assert_eq!(
+        keep["params"],
+        json!({"name": "research", "image": "omaflake.nixos.dev@mint-river-cloud", "keep": true})
+    );
     assert!(keep["confirm"].is_object());
     let remove = action(&d["actions"], "remove");
     assert_eq!(remove["confirm"]["title"]["text"], "Remove “research”?");
@@ -1569,6 +1572,16 @@ fn recipe_studio_pages_through_the_catalog() {
     // Typing: six suggestions at most
     let typed = get(&c, "recipeStudio", json!({"values": {"search": "term"}}));
     assert_eq!(typed["catalog"]["suggest"].as_array().unwrap().len(), 6);
+    // Two authors: each is a chip (plan B144), and it filters
+    let chips: Vec<String> = cat["tags"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|t| t["label"]["text"].as_str().unwrap_or_default().to_string())
+        .collect();
+    assert!(chips.contains(&"@zoe".to_string()) && chips.contains(&"@omaflake".to_string()), "{chips:?}");
+    let zoe = get(&c, "recipeStudio", json!({"values": {"tags": ["@zoe"]}}));
+    assert_eq!(zoe["catalog"]["pages"]["text"]["text"], "1–5 of 10");
 }
 
 /// The catalog tabs a page at a time (plan B148): search, chips (tags and capabilities), ten a page across those here
@@ -2451,4 +2464,38 @@ fn unreadable_parts_are_updates() {
     let unfetched = get(&c, "modules", json!({}));
     assert_eq!(unfetched["unreadable"][0]["action"]["method"], "modules.list");
     assert_eq!(unfetched["unreadable"][0]["action"]["params"]["fetch"], true);
+}
+
+/// The first start's questions (plan B144): a credential form – what to run, recipes and looks, who you are while there
+/// is no credential (with the password asked), developer mode – and one Set Up
+#[test]
+fn welcome_asks_what_to_set_up() {
+    let mut c = ctx();
+    c.host = super::HostOs::Macos;
+    c.credentials.clear();
+    c.host_user = "alex".into();
+    let page = get(&c, "welcome", json!({"values": {"guests": "both"}}));
+    assert_eq!(page["title"]["key"], "Welcome to omaflake");
+    assert_eq!(ids(&page["fields"]), ["guests", "recommended", "user", "fullName", "lab"]);
+    let set_up = action(&page["actions"], "setUp");
+    assert_eq!(set_up["method"], "setup.welcome");
+    assert_eq!(set_up["params"]["guests"], "both");
+    assert_eq!(set_up["params"]["user"], "alex");
+    assert_eq!(set_up["params"]["recommended"], true);
+    assert_eq!(set_up["ask"][0]["param"], "password");
+    assert_eq!(set_up["then"], "back");
+    assert_eq!(action(&page["actions"], "later")["method"], "ui.back");
+    // A user name the guests do not take: Set Up waits
+    let bad = get(&c, "welcome", json!({"values": {"user": "Alex Smith"}}));
+    assert_eq!(action(&bad["actions"], "setUp")["enabled"], false);
+    // With a credential: no questions about who you are; on Linux nothing to choose but NixOS
+    let mut linux = ctx();
+    linux.host = super::HostOs::Linux;
+    let page = get(&linux, "welcome", json!({}));
+    assert_eq!(ids(&page["fields"]), ["recommended", "lab"]);
+    assert_eq!(action(&page["actions"], "setUp")["params"]["guests"], "nixos");
+    assert!(action(&page["actions"], "setUp").get("ask").is_none_or(|a| a.as_array().is_none_or(Vec::is_empty)));
+    // The Doctor offers the questions while there is no credential
+    let doctor = get(&c, "doctor", json!({}));
+    assert!(ids(&doctor["actions"]).contains(&"welcome".to_string()));
 }

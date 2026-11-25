@@ -1,0 +1,112 @@
+{
+  "actions": [
+    {
+      "enabled": true,
+      "id": "later",
+      "label": {
+        "key": "Later",
+        "text": "Later"
+      },
+      "method": "ui.back",
+      "params": {}
+    },
+    {
+      "enabled": true,
+      "icon": "install",
+      "id": "setUp",
+      "label": {
+        "key": "Set Up",
+        "text": "Set Up"
+      },
+      "method": "setup.welcome",
+      "params": {
+        "guests": "both",
+        "lab": true,
+        "recommended": true
+      },
+      "primary": true,
+      "then": "back"
+    }
+  ],
+  "fields": [
+    {
+      "choices": [
+        {
+          "label": {
+            "key": "NixOS VMs",
+            "text": "NixOS VMs"
+          },
+          "value": "nixos"
+        },
+        {
+          "label": {
+            "key": "macOS VMs",
+            "text": "macOS VMs"
+          },
+          "value": "macos"
+        },
+        {
+          "label": {
+            "key": "NixOS and macOS VMs",
+            "text": "NixOS and macOS VMs"
+          },
+          "value": "both"
+        }
+      ],
+      "enabled": true,
+      "help": {
+        "key": "NixOS VMs need Nix and a small Linux VM that builds their images; macOS VMs need a macOS base – about 30 minutes and 30 GB once.",
+        "text": "NixOS VMs need Nix and a small Linux VM that builds their images; macOS VMs need a macOS base – about 30 minutes and 30 GB once."
+      },
+      "id": "guests",
+      "kind": "choice",
+      "label": {
+        "key": "What do you want to run?",
+        "text": "What do you want to run?"
+      },
+      "param": "guests",
+      "value": "both",
+      "valueParam": "guests"
+    },
+    {
+      "enabled": true,
+      "help": {
+        "key": "Installs the recipes the official catalog suggests for what you run, and omaflake's looks. Without it you pick them yourself in Recipes and Looks.",
+        "text": "Installs the recipes the official catalog suggests for what you run, and omaflake's looks. Without it you pick them yourself in Recipes and Looks."
+      },
+      "id": "recommended",
+      "kind": "toggle",
+      "label": {
+        "key": "Start with omaflake's recipes and looks",
+        "text": "Start with omaflake's recipes and looks"
+      },
+      "param": "recommended",
+      "value": true,
+      "valueParam": "recommended"
+    },
+    {
+      "enabled": true,
+      "help": {
+        "key": "Shows the lab recipes and the tools for making your own – you can switch it later in Settings",
+        "text": "Shows the lab recipes and the tools for making your own – you can switch it later in Settings"
+      },
+      "id": "lab",
+      "kind": "toggle",
+      "label": {
+        "key": "Developer mode",
+        "text": "Developer mode"
+      },
+      "param": "lab",
+      "value": true,
+      "valueParam": "lab"
+    }
+  ],
+  "intro": {
+    "key": "A few questions, then omaflake sets up what you need – it shows each step in the Doctor. Everything here can be changed later.",
+    "text": "A few questions, then omaflake sets up what you need – it shows each step in the Doctor. Everything here can be changed later."
+  },
+  "title": {
+    "key": "Welcome to omaflake",
+    "text": "Welcome to omaflake"
+  }
+}

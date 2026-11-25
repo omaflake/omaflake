@@ -39,6 +39,7 @@ pub mod recipes;
 pub mod settings;
 pub mod text;
 pub mod vms;
+pub mod welcome;
 
 #[cfg(test)]
 pub(crate) mod tests;
@@ -61,8 +62,9 @@ pub use activity::ActivityEntry;
 pub use text::{Arg, Text};
 
 /// Every page `views.get` knows
-pub const PAGES: [&str; 33] = [
+pub const PAGES: [&str; 34] = [
     "home",
+    "welcome",
     "vms",
     "vm",
     "images",
@@ -319,6 +321,8 @@ pub(crate) fn build(ctx: &Ctx, page: &PageRef) -> Result<Value, RpcError> {
         }
         "build" => to_value(build::page(ctx, &page_params(p)?)),
         "doctor" => to_value(doctor::page(ctx)),
+        // The first start's questions (plan B144), in a credential form's shape
+        "welcome" => to_value(welcome::page(ctx, &page_params(p)?)),
         "diagnostics" => {
             let p: diagnostics::DiagnosticsParams = page_params(p)?;
             to_value(diagnostics::page(ctx, &p).ok_or_else(|| {

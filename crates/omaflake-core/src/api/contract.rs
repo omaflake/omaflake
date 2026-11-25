@@ -963,6 +963,7 @@ fn view_goldens() -> Vec<(&'static str, Value)> {
             page("keys", json!({"draft": {"platform": "nixos", "modules": ["omaflake/hyprland"], "name": "mine"}})),
         ),
         ("credential", page("credential", json!({}))),
+        ("welcome", page("welcome", json!({"values": {"guests": "both"}}))),
         ("credential.edit", page("credential", json!({"id": "c-1"}))),
         ("credentials.linux", build(&linux, &PageRef { page: "credentials".into(), params: json!({}) }).unwrap()),
         ("baseCredential", page("baseCredential", json!({"name": "mac-base-26A434"}))),

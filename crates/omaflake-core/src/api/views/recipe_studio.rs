@@ -330,7 +330,16 @@ pub(crate) fn page(ctx: &Ctx, p: &StudioParams) -> Option<RecipeStudioPage> {
         .and_then(Value::as_array)
         .map(|l| l.iter().filter_map(Value::as_str).map(str::to_string).collect())
         .unwrap_or_default();
-    let labels_of = |m: &PartDto| -> BTreeSet<String> { m.tags.iter().chain(m.provides.iter()).cloned().collect() };
+    // Who made it is a chip too (plan B144), as "@<author>" – only when the modules come from more than one author
+    let author_of = |m: &PartDto| m.reference.split('/').next().unwrap_or_default().to_string();
+    let authors: BTreeSet<String> = modules.iter().map(|m| author_of(m)).collect();
+    let labels_of = |m: &PartDto| -> BTreeSet<String> {
+        let mut l: BTreeSet<String> = m.tags.iter().chain(m.provides.iter()).cloned().collect();
+        if authors.len() > 1 {
+            l.insert(format!("@{}", author_of(m)));
+        }
+        l
+    };
     let matches = |m: &PartDto| {
         let hay =
             format!("{} {} {} {} {}", m.title, m.description, m.reference, m.tags.join(" "), m.provides.join(" "))
@@ -478,7 +487,7 @@ pub(crate) fn page(ctx: &Ctx, p: &StudioParams) -> Option<RecipeStudioPage> {
             })
             .collect()
     };
-    // The chips: every tag and capability of the platform's modules, the most common first
+    // The chips: every tag, capability and author of the platform's modules, the most common first
     let mut counts: BTreeMap<String, usize> = BTreeMap::new();
     for m in &modules {
         for l in labels_of(m) {

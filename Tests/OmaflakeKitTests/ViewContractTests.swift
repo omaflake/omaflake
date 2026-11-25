@@ -279,6 +279,14 @@ extension APIContractTests {
                 guard case .credential(let p) = try page("network", as: "network") else { throw Unexpected() }
                 #expect(p.fields.map(\.id) == ["name"] && p.fields[0].error == nil && p.actions.last?.method == "networks.create")
             },
+            // The first start's questions (plan B144), a credential form's shape: with a credential no "who you are"
+            "welcome": {
+                guard case .credential(let p) = try page("welcome", as: "welcome") else { throw Unexpected() }
+                #expect(p.fields.map(\.id) == ["guests", "recommended", "lab"] && p.fields[0].choices.count == 3)
+                let setUp = try #require(p.actions.last)
+                #expect(setUp.method == "setup.welcome" && setUp.then == .back && setUp.primary)
+                #expect(setUp.params["guests"] == .string("both") && p.actions.first?.method == "ui.back")
+            },
             "networkMember": {
                 guard case .credential(let p) = try page("networkMember", as: "networkMember") else { throw Unexpected() }
                 #expect(p.fields.first?.choices.count == 2 && p.actions.last?.method == "networks.join")

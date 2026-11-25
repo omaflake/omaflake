@@ -1539,6 +1539,8 @@ public enum PageModel: Sendable, Equatable {
         // Networks between VMs (plan B170): the credentials' list with a graph; the forms as a credential's
         case "networks": self = .networks(try NetworksPage(from: decoder))
         case "network", "networkMember": self = .credential(try CredentialPage(from: decoder))
+        // The first start's questions (plan B144): a credential form's shape
+        case "welcome": self = .credential(try CredentialPage(from: decoder))
         case "recipeStudio": self = .studio(try RecipeStudioPage(from: decoder))
         case "keymapStudio": self = .keymapStudio(try KeymapStudioPage(from: decoder))
         case "lookStudio": self = .lookStudio(try LookStudioPage(from: decoder))

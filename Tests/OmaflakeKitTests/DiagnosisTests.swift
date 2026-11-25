@@ -35,21 +35,12 @@ struct DiagnosisTests {
         return nil
     }
 
-    /// Runs a test body that blocks (semaphores, socket reads, the link's waits) on a thread of its own: blocked, it
-    /// would hold one of the few threads of Swift's cooperative pool that the async tests running alongside need
-    static func offPool(_ body: @escaping @Sendable () throws -> Void) async throws {
-        try await withCheckedThrowingContinuation { (c: CheckedContinuation<Void, Error>) in
-            Thread.detachNewThread {
-                do { try body(); c.resume() } catch { c.resume(throwing: error) }
-            }
-        }
-    }
 
     static func answer(_ object: [String: Any]) -> Data {
         try! JSONSerialization.data(withJSONObject: object)
     }
 
-    @Test func requestAndAnswer() async throws { try await Self.offPool { try Self.requestAndAnswer() } }
+    @Test func requestAndAnswer() async throws { try await offPool { try Self.requestAndAnswer() } }
 
     static func requestAndAnswer() throws {
         let h = try welcomed()
@@ -82,7 +73,7 @@ struct DiagnosisTests {
         #expect(AgentState.load(h.stateFile)?.status?.uptime == 3)
     }
 
-    @Test func timeoutAndRefusals() async throws { try await Self.offPool { try Self.timeoutAndRefusals() } }
+    @Test func timeoutAndRefusals() async throws { try await offPool { try Self.timeoutAndRefusals() } }
 
     static func timeoutAndRefusals() throws {
         let h = try welcomed()
@@ -101,7 +92,7 @@ struct DiagnosisTests {
         #expect((old.link.diagnose(check: "info")["error"] as? String)?.contains("does not offer") == true)
     }
 
-    @Test func malformedAnswersSpendTheBudget() async throws { try await Self.offPool { try Self.malformedAnswersSpendTheBudget() } }
+    @Test func malformedAnswersSpendTheBudget() async throws { try await offPool { try Self.malformedAnswersSpendTheBudget() } }
 
     static func malformedAnswersSpendTheBudget() throws {
         #expect(AgentLink.diagnosis(Data(#"{"id":1,"check":"info","status":"great","detail":""}"#.utf8)) == nil)
@@ -122,7 +113,7 @@ struct DiagnosisTests {
 
     /// The relay (spec §11.9, "Relay"): `{"command": "diagnose", "check", "args"?}` on a control socket → the agent's
     /// answer, as `omaf-runner run` and `omaf-runner bridge --control` serve it
-    @Test func relayOverTheControlSocket() async throws { try await Self.offPool { try Self.relayOverTheControlSocket() } }
+    @Test func relayOverTheControlSocket() async throws { try await offPool { try Self.relayOverTheControlSocket() } }
 
     static func relayOverTheControlSocket() throws {
         let h = try welcomed()

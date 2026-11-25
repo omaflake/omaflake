@@ -418,6 +418,7 @@ impl Server {
                 self.qemu_install_job(params::<P>(p)?.upgrade)
             }
             "setup.nixos" => self.setup_job(),
+            "setup.welcome" => self.setup_welcome(params(p)?),
             "shell.add" => self.shell_change(true),
             "shell.remove" => self.shell_change(false),
             "doctor.createSshKey" => {
@@ -2948,6 +2949,70 @@ impl Server {
     /// Everything NixOS guests need, one step after the other, as one job with its steps (plan B160): Nix (the one
     /// administrator question) → Nix in the shell → omaflake's SSH key → QEMU → a look → the Linux builder. Steps that
     /// are done are skipped. Only the credential is left to the user (a form); IPSW and macOS base stay their own.
+    /// `setup.welcome` (plan B144): the first start's answers – a credential while there is none, developer mode, then
+    /// the jobs for what was chosen: Set Up for NixOS (it installs omaflake's looks too), the suggested recipes and the
+    /// looks, the macOS base for the credential. One that cannot start now (another runs) is left to the Doctor.
+    fn setup_welcome(&self, p: WelcomeSetup) -> Reply {
+        let paths = self.paths();
+        if Credentials::new(paths.clone()).list().is_empty() {
+            let user = p
+                .user
+                .clone()
+                .filter(|u| !u.trim().is_empty())
+                .ok_or_else(|| RpcError::from(vm_err!(codes::PREREQUISITE, "A credential needs a user")))?;
+            let name = p.full_name.clone().filter(|n| !n.trim().is_empty()).unwrap_or_else(|| user.clone());
+            self.credentials_change(
+                None,
+                CredentialParams {
+                    id: None,
+                    name: Some(name),
+                    user: Some(user),
+                    full_name: p.full_name.clone(),
+                    email: None,
+                    password: p.password.clone(),
+                },
+            )?;
+        }
+        let mut settings = Settings::load(&paths);
+        settings.developer_mode = Some(p.lab);
+        settings.save(&paths).map_err(err)?;
+        let mac = cfg!(target_os = "macos");
+        let nixos = p.guests != "macos" || !mac;
+        let macos = mac && p.guests != "nixos";
+        let mut jobs = Vec::new();
+        let mut take = |r: Reply| match r {
+            Ok(Answer::Job(j)) => jobs.push(j),
+            Ok(Answer::Jobs(js)) => jobs.extend(js),
+            Ok(_) => {}
+            Err(e) => self.events().message(Level::Warning, &e.message),
+        };
+        // Set Up for NixOS installs a look itself; on a Linux computer the Doctor sets up what NixOS needs
+        if nixos && mac {
+            take(self.setup_job());
+        } else if p.recommended {
+            take(self.looks_install_recommended());
+        }
+        if p.recommended {
+            let kinds = |k: GuestKind| (k == GuestKind::Nixos && nixos) || (k == GuestKind::Macos && macos);
+            if let Ok(available) = self.recipes_available(false) {
+                let sources = Settings::load(&paths).recipe_sources();
+                for r in available.suggested.into_iter().filter(|r| kinds(r.kind) && (p.lab || !r.lab)) {
+                    if let Some(job) = self.inner.jobs.active(JobKind::RecipeInstall, Some(&r.id)) {
+                        take(Ok(Answer::Job(job)));
+                    } else if let Some(source) = sources.iter().find(|s| s.id() == r.source) {
+                        take(Ok(Answer::Job(self.inner.jobs.submit(self.install_spec(r.id.clone(), source.clone())))));
+                    }
+                }
+            }
+        }
+        if macos && MacImageBuilder::newest_base_in(&paths).is_none() {
+            take(self.macos_install_base(InstallBaseParams { credential: None, ipsw: None, replace: None }));
+        }
+        self.check_doctor_later();
+        self.poke();
+        Ok(Answer::Jobs(jobs))
+    }
+
     fn setup_job(&self) -> Reply {
         if let Some(job) = self.inner.jobs.active(JobKind::Setup, None) {
             return Ok(Answer::Job(job));
@@ -3811,6 +3876,25 @@ struct ExportParams {
 struct SetPathParams {
     item: String,
     path: String,
+}
+
+/// `setup.welcome` (plan B144)
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct WelcomeSetup {
+    /// "nixos", "macos" or "both"
+    #[serde(default)]
+    guests: String,
+    #[serde(default)]
+    recommended: bool,
+    #[serde(default)]
+    lab: bool,
+    #[serde(default)]
+    user: Option<String>,
+    #[serde(default)]
+    full_name: Option<String>,
+    #[serde(default)]
+    password: Option<String>,
 }
 
 #[derive(Deserialize)]

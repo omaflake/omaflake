@@ -2248,6 +2248,7 @@ pub mod tests {
             "networks" => "networks",
             "network" => "network",
             "networkMember" => "networkMember",
+            "welcome" => "welcome",
             "recipeStudio" => "recipeStudio",
             "keymapStudio" => "keymapStudio",
             "sources" => "sources",

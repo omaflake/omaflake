@@ -44,13 +44,15 @@ struct PortWriterTests {
         while write(fd, junk, junk.count) > 0 {}
     }
 
-    /// The guest reading `count` bytes on another thread, starting after `delay` seconds
+    /// The guest reading `count` bytes on a thread of its own, starting after `delay` seconds – not a dispatch queue:
+    /// with the tests in parallel it may find no thread while the test waits for it (plan B176)
     final class Reader: @unchecked Sendable {
         private var bytes = [UInt8]()
         private let done = DispatchSemaphore(value: 0)
 
         init(_ fd: Int32, count: Int, after delay: TimeInterval) {
-            DispatchQueue.global().asyncAfter(deadline: .now() + delay) { [self] in
+            Thread.detachNewThread { [self] in
+                Thread.sleep(forTimeInterval: delay)
                 var chunk = [UInt8](repeating: 0, count: 65536)
                 while bytes.count < count {
                     let n = Darwin.read(fd, &chunk, chunk.count)
@@ -69,7 +71,9 @@ struct PortWriterTests {
 
     static func message(_ count: Int) -> [UInt8] { (0..<count).map { UInt8($0 % 251) } }
 
-    @Test func aWholeMessageWhileTheGuestReads() {
+    @Test func aWholeMessageWhileTheGuestReads() async throws { try await offPool { Self.aWholeMessageWhileTheGuestReads() } }
+
+    static func aWholeMessageWhileTheGuestReads() {
         let (ours, guest) = Self.pair()
         defer { close(ours); close(guest) }
         let sent = Self.message(1_382_400)   // one 1280×720 NV12 frame
@@ -78,7 +82,9 @@ struct PortWriterTests {
         #expect(received.wait() == sent)
     }
 
-    @Test func aFullPortDropsTheMessageWithoutWritingAnyOfIt() {
+    @Test func aFullPortDropsTheMessageWithoutWritingAnyOfIt() async throws { try await offPool { Self.aFullPortDropsTheMessageWithoutWritingAnyOfIt() } }
+
+    static func aFullPortDropsTheMessageWithoutWritingAnyOfIt() {
         let (ours, guest) = Self.pair()
         defer { close(ours); close(guest) }
         Self.fill(ours)
@@ -87,7 +93,9 @@ struct PortWriterTests {
         #expect(Self.drain(guest).allSatisfy { $0 == 0xEE })
     }
 
-    @Test func aBegunMessageIsFinishedWhenTheGuestReadsLate() {
+    @Test func aBegunMessageIsFinishedWhenTheGuestReadsLate() async throws { try await offPool { Self.aBegunMessageIsFinishedWhenTheGuestReadsLate() } }
+
+    static func aBegunMessageIsFinishedWhenTheGuestReadsLate() {
         let (ours, guest) = Self.pair()
         defer { close(ours); close(guest) }
         let sent = Self.message(200_000)   // far more than the buffers: it stalls past the 0.1 s timeout
@@ -96,13 +104,17 @@ struct PortWriterTests {
         #expect(received.wait() == sent)
     }
 
-    @Test func aMessageStuckHalfwayFails() {
+    @Test func aMessageStuckHalfwayFails() async throws { try await offPool { Self.aMessageStuckHalfwayFails() } }
+
+    static func aMessageStuckHalfwayFails() {
         let (ours, guest) = Self.pair()
         defer { close(ours); close(guest) }
         #expect(PortWriter(fd: ours, finishWithin: 0.3).write(Self.message(200_000)) == .failed)
     }
 
-    @Test func aClosedPortFails() {
+    @Test func aClosedPortFails() async throws { try await offPool { Self.aClosedPortFails() } }
+
+    static func aClosedPortFails() {
         let (ours, guest) = Self.pair()
         defer { close(ours) }
         close(guest)
