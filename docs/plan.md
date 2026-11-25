@@ -488,6 +488,17 @@ Lume (trycua) only after a license review (OPEN).
 
 ## 8. Next steps (as of 2026-11-25)
 
+**Release 0.8.0 (2026-11-25):** everything of the maintainer's list that needs no Developer ID ("Alles heißt wirklich
+alles, was keine Developer-ID braucht"): B167 (chrono → jiff), B177 (the dependencies looked through), B164 (a larger
+disk), B178 (upgrade in place), B144 (the guided first start, modules by author), B179 (names over mDNS, joining while
+running), B180 (ports of other VMs on localhost), B181 (the graph edited by dragging), B182 (the builder checked
+daily, its disk's size), B176 (the hung tests). *Left, with reasons:* rules per network and `isolated` for macOS VMs –
+a gateway on the switch needs a userspace NAT (gvproxy as a port: configurable subnet by its config file, but a second
+DHCP server on the segment, SSH from the Mac to reach, a Go binary to ship – its own piece of work, to be tried with
+real VMs); the camera over vsock – H.264 (B174) made the camera smooth at 30 fps, so vsock waits for the measurement on
+the Mac (VsockBench) to show it is needed; dragging in the Linux app and `omaf ui`. To try on the Mac: everything
+marked OPEN in B164, B178–B182 (they need images built with 0.8.0).
+
 **B182 (2026-11-25, built for 0.8.0): the Linux builder checked once a day; its disk's size.** Follow-ups of B175.
 `BuilderHealth::check_in_background`: a Doctor check of a running builder starts the probe in a thread when the last
 one is 24 h old (`<data>/builder/checked`, written first – two checks start one probe); a refusal sets the marker, so

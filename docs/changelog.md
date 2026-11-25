@@ -13,6 +13,12 @@ are collected under *Unreleased*. Releases: [GitHub](https://github.com/omaflake
 
 ## [Unreleased]
 
+## [0.8.0] – 2026-11-25
+
+A guided first start; VMs that grow, upgrade without losing their files and find each other by name; ports of other
+VMs on localhost; networks edited by dragging; the Linux builder checked by itself; and omaflake with fewer
+dependencies. Much of it needs images built with this version and is not yet tried on a Mac – the notes say where.
+
 ### Added
 
 - **A larger disk for a VM:** the VM's details and `omaf set --disk <GB>` grow a stopped VM's disk (never shrink it).
@@ -45,7 +51,6 @@ are collected under *Unreleased*. Releases: [GitHub](https://github.com/omaflake
 - **No more packages of others for the macOS runner:** `omaf-runner` reads its command line itself, and omaflake
   writes hex and Base64 itself – three dependencies fewer; the others are at their newest versions at least two weeks
   old (rfd, ksni, lucide-icons, libc, toml, ureq).
-
 - **Dates without chrono:** omaflake handles dates with jiff now – chrono is no longer maintained
   (RUSTSEC-2026-0543). Files and the API keep their date format.
 
