@@ -504,7 +504,32 @@ fn detail(ctx: &Ctx, v: &Vm) -> VmDetail {
             .destructive()
             .confirm(Confirm::new(tf!("Remove “%@”?", name), remove_text).button("Remove").destructive()),
     );
-    let actions = actions.into_iter().map(|a| a.enabled_if(free, stopped_reason.clone())).collect();
+    let mut actions: Vec<Action> = actions.into_iter().map(|a| a.enabled_if(free, stopped_reason.clone())).collect();
+    // In place (plan B178): while it runs, keeping its disk and files – the new image's system is switched to
+    if let (true, Some(latest)) = (v.upgradable, &v.latest_image) {
+        let at = actions.iter().position(|a| a.id == "reset").unwrap_or(actions.len());
+        actions.insert(
+            at,
+            Action::call(
+                "upgradeInPlace",
+                Text::new("Upgrade, Keep Files …"),
+                Some("upgrade"),
+                "vms.upgrade",
+                json!({"name": name, "image": latest, "keep": true}),
+            )
+            .confirm(
+                Confirm::new(
+                    tf!("Upgrade “%@” to %@ and keep its files?", name, latest),
+                    Text::new(
+                        "omaflake copies the new image's system into the running VM and switches to it – files, settings and the disk stay. A program running in the VM may restart. Needs an image built with omaflake 0.8.0 or later in the VM.",
+                    ),
+                )
+                .button("Upgrade"),
+            )
+            .enabled_if(running && !v.busy, (!running).then(|| Text::new("Start the VM first"))),
+        );
+    }
+    let actions = actions;
     VmDetail {
         switches,
         switches_note: running.then(|| Text::new("Changes take effect at the next start.")),

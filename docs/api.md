@@ -296,7 +296,7 @@ move writes `data-move.log` next to config.json, as `logs/` moves along). Downlo
 | `data-move` | `{dataFolder}` |
 | `ipsw-download` | `{file, version}` |
 | `macos-install` | `{base, existing, ready}` |
-| `builder-install-nix`, `builder-mount-nix`, `builder-uninstall-nix`, `builder-trust`, `builder-setup`, `builder-apply`, `builder-clean-up`, `nix-clean-up`, `qemu-install`, `setup` | `{message}` – what it did, in English |
+| `builder-install-nix`, `builder-mount-nix`, `builder-uninstall-nix`, `builder-trust`, `builder-setup`, `builder-apply`, `builder-clean-up`, `builder-check`, `builder-repair`, `vm-upgrade`, `nix-clean-up`, `qemu-install`, `setup` | `{message}` – what it did, in English |
 | `diagnostics` | `{checks: [{id, status, detail}], file}` – a VM's diagnosis (plan B162); `file` its log, `<data>/logs/diagnostics-<vm>-<time>.log` (a new one per run) |
 | `cli-install` | `{link, installed, message}` – the link, whether it is there now (install) or was removed; `message` in English |
 
@@ -398,7 +398,7 @@ Params and results in short; the types are those of §4.
 | `vms.start` | `name, display?: "auto"|"none"|"window"|"gpu", gl?: "on"|"es"` | `Vm` – `auto` (default): the UI's start – a window, with 3D where QEMU can; refused beyond the macOS limit (`mac-limit`) |
 | `vms.stop` | `name, timeout? (s, 60)` | `{result}` – `alreadyStopped`, `powerdown`, `quit`, `forcedOff`, `killed`; anything but `powerdown`/`alreadyStopped` is an activity line ("… forced off – the clean shutdown did not take") |
 | `vms.reset` / `vms.remove` | `name` | `null` – refused while running |
-| `vms.upgrade` | `name, image?` | `Vm` – to its line's newest image unless `image` is named; refused while running |
+| `vms.upgrade` | `name, image?, keep?` | `Vm` – to its line's newest image unless `image` is named; refused while running (a fresh disk from the image). `keep: true` (plan B178): Job (`vm-upgrade`) → `result: {message}` – the running VM gets the image's system in place (built if needed, `nix copy` over SSH, switched to: NixOS `switch-to-configuration switch`, macOS `activate`), keeps its disk and files; the VM's `systemImage` (instance.json) names it. Needs an image from 0.8.0 on in a NixOS VM (its sudo rule) |
 | `vms.set` | `name, audio?, microphone?, clipboard?, camera?, midi?, cpus?, memoryGb?, diskGb?, displays?` | `{vm, takesEffectAtNextStart}` – `diskGb` (plan B164) only larger and while stopped (`vm-running`; smaller or above 4096 `unsupported-system`): NixOS `qemu-img resize` of the overlay, macOS disk.img; the guest takes the space at its next boot; `cpus`/`memoryGb` (plan B164) only while stopped (`vm-running`), 1 to this computer's cores and 2 GB to its memory less 2 GB (`unsupported-system` beyond); `displays` (plan B171) NixOS only, 1 to 4, while stopped |
 | `vms.ssh` | `name, command?: [string]` | `{argv, shellLine}` – what to run in a terminal |
 | `vms.agent` | `name, wait? (s)` | the agent's report (spec §11.9; agent.json) or `null` – `wait`: up to that long for a report that says the agent is up |

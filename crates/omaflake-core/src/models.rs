@@ -470,6 +470,10 @@ pub struct InstanceConfig {
     /// Monitors of a NixOS VM, each in a window of its own (plan B171); None = one
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub displays: Option<u32>,
+    /// The image whose system runs after an upgrade in place (plan B178); None = `image`'s. `image` stays the disk's
+    /// base.
+    #[serde(rename = "systemImage", default, skip_serializing_if = "Option::is_none")]
+    pub system_image: Option<String>,
 }
 
 impl InstanceConfig {
@@ -514,6 +518,7 @@ impl InstanceConfig {
             share_path: None,
             identity: None,
             displays: None,
+            system_image: None,
         }
     }
 

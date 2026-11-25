@@ -28,6 +28,7 @@ pub mod guest_settings;
 pub mod host_bridge;
 pub mod image_migration;
 pub mod image_store;
+pub mod in_place;
 pub mod instance_store;
 pub mod ipsw_downloader;
 pub mod keymaps;

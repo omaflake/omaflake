@@ -13,6 +13,8 @@ public struct Job: Decodable, Sendable, Equatable, Identifiable {
         case builderUninstallNix = "builder-uninstall-nix", builderTrust = "builder-trust", qemuInstall = "qemu-install", setup
         /// Plan B175: does the Linux builder accept this Mac's builds; a new disk when it refuses them
         case builderCheck = "builder-check", builderRepair = "builder-repair"
+        /// Plan B178: a running VM upgraded in place
+        case vmUpgrade = "vm-upgrade"
         case unknown
 
         public var isBuilderTask: Bool {

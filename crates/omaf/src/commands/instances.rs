@@ -398,7 +398,15 @@ pub fn reset(name: &str) -> Outcome {
     while_stopped(name, |_, _| Ok(()), |b, c, _| b.reset(c).map(|_| format!("{name} reset.")))
 }
 
-pub fn upgrade(name: &str) -> Outcome {
+pub fn upgrade(name: &str, keep: bool) -> Outcome {
+    // In place (plan B178): through the API – a job that builds and copies the system, the VM running
+    if keep {
+        let done = omaflake_core::api::call_once("vms.upgrade", serde_json::json!({"name": name, "keep": true}))?;
+        if let Some(m) = done.get("message").and_then(serde_json::Value::as_str) {
+            println!("{m}.");
+        }
+        return Ok(());
+    }
     while_stopped(
         name,
         |env, c| {
@@ -643,10 +651,11 @@ pub fn set(a: &cli::Set) -> Outcome {
         if let Some(n) = a.memory {
             params["memoryGb"] = n.into();
         }
-        // Displays (plan B171): NixOS only, while stopped – the API checks both
+        // A larger disk (plan B164): only larger, while stopped – the API checks both
         if let Some(n) = a.disk {
             params["diskGb"] = n.into();
         }
+        // Displays (plan B171): NixOS only, while stopped – the API checks both
         if let Some(n) = a.displays {
             params["displays"] = n.into();
         }

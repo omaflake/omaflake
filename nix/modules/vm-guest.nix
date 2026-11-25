@@ -77,6 +77,16 @@ in
       options = [ "umask=077" ];
     };
 
+    # Upgrading a running VM in place (plan B178): omaflake copies the newer image's system in over SSH and switches to
+    # it – these two commands, and only these, without a password for wheel (its user could do it with one anyway)
+    security.sudo.extraRules = [{
+      groups = [ "wheel" ];
+      commands = map (command: { inherit command; options = [ "NOPASSWD" ]; }) [
+        "/run/current-system/sw/bin/nix-env -p /nix/var/nix/profiles/system --set /nix/store/*"
+        "/nix/var/nix/profiles/system/bin/switch-to-configuration switch"
+      ];
+    }];
+
     # Guest integration
     services.qemuGuest.enable = true;
     services.spice-vdagentd.enable = true;

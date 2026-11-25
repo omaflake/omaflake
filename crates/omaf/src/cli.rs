@@ -84,8 +84,10 @@ pub enum Command {
     Stop(Stop),
     #[command(about = "Reset: delete the instance's state and start over from its image.")]
     Reset(NameArg),
-    #[command(about = "Upgrade to the recipe's current image (the old state is deleted).")]
-    Upgrade(NameArg),
+    #[command(
+        about = "Upgrade to the recipe's current image (the old state is deleted; --keep: a running VM keeps its files)."
+    )]
+    Upgrade(UpgradeArgs),
     #[command(name = "rm", about = "Delete an instance (its share folder stays).")]
     Remove(NameArg),
     #[command(about = "Instances with status.")]
@@ -805,6 +807,17 @@ pub struct Set {
         help = "A larger disk in GB (only larger; the VM must be stopped; the guest takes the space at its next start)"
     )]
     pub disk: Option<u32>,
+}
+
+#[derive(Debug, Args)]
+pub struct UpgradeArgs {
+    #[arg(value_name = "name")]
+    pub name: String,
+    #[arg(
+        long,
+        help = "In place: the running VM gets the new image's system and keeps its disk and files (images from 0.8.0 on)"
+    )]
+    pub keep: bool,
 }
 
 #[derive(Debug, Args)]

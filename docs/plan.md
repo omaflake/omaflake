@@ -488,6 +488,21 @@ Lume (trycua) only after a license review (OPEN).
 
 ## 8. Next steps (as of 2026-11-25)
 
+**B178 (2026-11-25, built for 0.8.0; the Mac OPEN): upgrade a VM in place.** Until now an upgrade gave a VM a fresh
+disk from the new image – everything in it gone. Now `vms.upgrade {keep: true}` (a job, `vm-upgrade`; "Upgrade, Keep
+Files …" in a running VM's details; `omaf upgrade --keep`): `InPlace` (`in_place.rs`) builds the new image's system
+with the image's credential, look and locale (NixOS `nixosConfigurations."vm-<system>-<recipe>".config.system.build.toplevel`,
+macOS the image's `storePath` when it is still in the store, else `darwinConfigurations.<recipe>.system`), copies it in
+(`nix copy --no-check-sigs --to ssh-ng://<user>@<address>?ssh-key=<omaflake's key>`; the guest's user is a trusted Nix
+user – NixOS base.nix `@wheel`, macOS since BM19) and switches: NixOS `nix-env -p /nix/var/nix/profiles/system --set` and
+`switch-to-configuration switch` through a sudo rule in vm-guest.nix for exactly these two commands (the user's
+password is "changeme" or theirs – omaflake does not know it), macOS `<system>/activate` with the image credential's
+password on sudo's stdin, as the image build does. `InstanceConfig::system_image` (instance.json, schema v1 – an
+optional field, as `displays` and `midi` were added) names the image whose system runs; `image` stays the disk's base,
+and "upgradable" compares with what runs. A NixOS VM from an older image says to upgrade once with a fresh disk. Tests:
+attributes, the switch commands, store URLs (a data folder with a space). OPEN, on a Mac: both kinds end to end; a NixOS
+switch with a running graphical session.
+
 **B177 (2026-11-25, for 0.8.0): the dependencies looked through.** Maintainer: look at every dependency like chrono –
 newer, better, or our own. *Own instead:* `hex` and `base64` (a dozen calls; `encoding.rs`, the same Base64 as the
 agent's `b64.rs`, RFC 4648 vectors); `swift-argument-parser` – only `omaf-runner` used it, a tool omaf starts with a

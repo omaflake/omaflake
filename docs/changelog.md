@@ -20,6 +20,10 @@ are collected under *Unreleased*. Releases: [GitHub](https://github.com/omaflake
   version, which moves its system into the new space (it removes the fallback recovery behind it; the recovery inside
   the system stays). Not yet tried on a Mac.
 
+- **Upgrade a VM and keep its files:** "Upgrade, Keep Files …" in a running VM's details (`omaf upgrade --keep`)
+  copies the new image's system into the VM and switches to it – the disk, the files and the settings stay. NixOS VMs
+  need an image built with this version once (it allows the switch without a password). Not yet tried on a Mac.
+
 ### Changed
 
 - **No more packages of others for the macOS runner:** `omaf-runner` reads its command line itself, and omaflake

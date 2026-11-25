@@ -189,6 +189,15 @@ pub fn job_ended(job: &JobDto) -> Option<(Level, Text, Option<Notification>)> {
         }
         (K::BuilderInstallNix, S::Finished) => (Level::Info, Text::new("Nix installed"), None),
         (K::BuilderMountNix, S::Finished) => (Level::Info, Text::new("Nix Store mounted at /nix"), None),
+        (K::VmUpgrade, S::Finished) => (
+            Level::Info,
+            tf!(
+                "%@ upgraded in place – its files stayed",
+                job.title.trim_start_matches("Upgrade ").trim_end_matches(" in place")
+            ),
+            None,
+        ),
+        (K::VmUpgrade, S::Failed) => (Level::Error, tf!("%@: %@", job.title.clone(), error), None),
         (K::BuilderCheck | K::BuilderRepair, S::Finished) => {
             (Level::Info, Text::new("The Linux builder accepts this Mac's builds"), None)
         }

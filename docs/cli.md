@@ -57,7 +57,7 @@ git-ignored settings (`nix/local/`); flake URLs are used as given. Recipes come 
 | `omaf start <name> [--window [--gl on\|es] [--no-gl] \| --headless] [--wait]` | start QEMU in its own session (survives CLI/terminal); `--window` with 3D if the binary supports it. Without `--window`/`--headless` the recipe's `display` decides (none, window, gpu). On a Linux host with KVM, or TCG without a usable `/dev/kvm` – then a line says so (emulated, many times slower; SSH may take minutes); `--gl es` is the Mac's ANGLE path, GTK windows always use `gl=on` (docs/linux.md) |
 | `omaf stop <name> [--timeout 60]` | ACPI powerdown → QMP `quit` → SIGKILL |
 | `omaf reset <name>` | deletes overlay, efivars, known_hosts; fresh overlay (macOS: fresh clone) |
-| `omaf upgrade <name>` | switch to the current image of the recipe (the old state is deleted) |
+| `omaf upgrade <name> [--keep]` | switch to the current image of the recipe (the old state is deleted); `--keep` (plan B178): the running VM gets the new image's system in place and keeps its disk and files (NixOS VMs with an image from 0.8.0 on) |
 | `omaf rm <name>` | deletes the instance (its share folder stays) |
 | `omaf images [list]` / `omaf images rm <image>` | images with their omaflake ID, recipe, revision, time, system, look and the instances using them / delete an image (by name, omaflake ID or the start of its words) – refused while instances use it; `current/` moves to the next newest image of the recipe's line |
 | `omaf list [--long]` | instances with status, guest kind, SSH port, disk usage; VMs that run from elsewhere with their place; `--long` with each VM's omaflake ID (`vm:<name>:<words>`) and its recipe's (spec §11.11) |

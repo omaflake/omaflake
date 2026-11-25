@@ -1108,6 +1108,9 @@ pub enum JobKind {
     BuilderCheck,
     /// Give the Linux builder a new disk when it refuses the Mac's builds (`builder.repair`, plan B175)
     BuilderRepair,
+    /// Upgrade a running VM in place: the newer image's system copied in and switched to (`vms.upgrade {keep}`, plan
+    /// B178)
+    VmUpgrade,
     /// Install or update omaflake's QEMU (`qemu.install`, `nix profile`)
     QemuInstall,
     /// Set up everything NixOS guests need, one step after the other (`setup.nixos`, plan B160)

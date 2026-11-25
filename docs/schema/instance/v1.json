@@ -96,6 +96,10 @@
       "maximum": 4,
       "description": "NixOS VMs: monitors, each in a window of its own (missing = 1)"
     },
+    "systemImage": {
+      "type": "string",
+      "description": "The image whose system runs after an upgrade in place (missing = image's); image stays the disk's base"
+    },
     "display": {
       "enum": [
         "none",

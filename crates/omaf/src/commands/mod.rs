@@ -100,7 +100,7 @@ pub fn run(command: Command) -> Outcome {
         Command::Start(a) => instances::start(&a),
         Command::Stop(a) => instances::stop(&a),
         Command::Reset(a) => instances::reset(&a.name),
-        Command::Upgrade(a) => instances::upgrade(&a.name),
+        Command::Upgrade(a) => instances::upgrade(&a.name, a.keep),
         Command::Remove(a) => instances::remove(&a.name),
         Command::List(a) => instances::list(&a),
         Command::Export { command } => match command {

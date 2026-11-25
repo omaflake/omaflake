@@ -111,6 +111,19 @@ impl ImageInfo {
 
     /// The credential and look of a build: the look's id (an installed look's, plan B141 – older images name a look of
     /// omaflake's own) and the credential's ID and name
+    /// What the image was built with, as a choice for building again (plan B178); a credential or locale that is gone
+    /// is left out (the defaults then)
+    pub fn choice(&self, paths: &Paths) -> BuildChoice {
+        BuildChoice {
+            credential: self
+                .credential
+                .as_deref()
+                .and_then(|id| crate::credentials::Credentials::new(paths.clone()).get(id)),
+            look: self.look_choice.clone().or_else(|| self.look.clone()),
+            locale: self.locale.as_deref().and_then(|id| crate::locales::Locales::new(paths.clone()).get(id)),
+        }
+    }
+
     pub fn set_choice(&mut self, choice: &BuildChoice) {
         self.look = choice.look.clone();
         self.look_choice = choice.look.clone();

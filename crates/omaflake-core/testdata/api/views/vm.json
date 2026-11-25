@@ -212,6 +212,40 @@
         {
           "confirm": {
             "button": {
+              "key": "Upgrade",
+              "text": "Upgrade"
+            },
+            "destructive": false,
+            "text": {
+              "key": "omaflake copies the new image's system into the running VM and switches to it – files, settings and the disk stay. A program running in the VM may restart. Needs an image built with omaflake 0.8.0 or later in the VM.",
+              "text": "omaflake copies the new image's system into the running VM and switches to it – files, settings and the disk stay. A program running in the VM may restart. Needs an image built with omaflake 0.8.0 or later in the VM."
+            },
+            "title": {
+              "args": [
+                "research",
+                "omaflake.nixos.dev@mint-river-cloud"
+              ],
+              "key": "Upgrade “%@” to %@ and keep its files?",
+              "text": "Upgrade “research” to omaflake.nixos.dev@mint-river-cloud and keep its files?"
+            }
+          },
+          "enabled": true,
+          "icon": "upgrade",
+          "id": "upgradeInPlace",
+          "label": {
+            "key": "Upgrade, Keep Files …",
+            "text": "Upgrade, Keep Files …"
+          },
+          "method": "vms.upgrade",
+          "params": {
+            "image": "omaflake.nixos.dev@mint-river-cloud",
+            "keep": true,
+            "name": "research"
+          }
+        },
+        {
+          "confirm": {
+            "button": {
               "key": "Continue",
               "text": "Continue"
             },

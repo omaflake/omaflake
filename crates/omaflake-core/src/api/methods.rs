@@ -858,8 +858,9 @@ impl Server {
                     ))
                 })?;
                 let latest = state.snap.current.get(&row.config.recipe).cloned();
+                let runs = row.config.system_image.as_ref().unwrap_or(&row.config.image);
                 match latest {
-                    Some(l) if l != row.config.image => l,
+                    Some(l) if &l != runs => l,
                     _ => {
                         return Err(RpcError::from(crate::vm_err!(
                             "{} uses the newest image of its recipe already",
@@ -869,6 +870,9 @@ impl Server {
                 }
             }
         };
+        if p.keep {
+            return self.upgrade_in_place(&p.name, &target);
+        }
         self.act(&p.name, true, |backends, paths| {
             let c = backends.store.load(&p.name)?;
             let backend = backends.backend_for(&c)?;
@@ -876,9 +880,89 @@ impl Server {
                 return Err(vm_err!(codes::VM_RUNNING, "running – stop it first"));
             }
             let image = ImageStore::new(paths.clone()).image(&target)?;
-            backend.upgrade(&c, &image)
+            backend.upgrade(&c, &image)?;
+            // A fresh disk from the new image: its own system runs
+            let mut c = backends.store.load(&p.name)?;
+            c.system_image = None;
+            backends.store.save(&c)
         })?;
         Answer::of(self.vm(&p.name)?)
+    }
+
+    /// `vms.upgrade {keep: true}` (plan B178): the running VM gets `target`'s system in place, as a job – it keeps its
+    /// disk and everything on it
+    fn upgrade_in_place(&self, name: &str, target: &str) -> Reply {
+        let s = self.clone();
+        let (name, target) = (name.to_string(), target.to_string());
+        let title = format!("Upgrade {name} in place");
+        let log_name = name.clone();
+        let vm = name.clone();
+        let mut spec = JobSpec::new(
+            JobKind::VmUpgrade,
+            title,
+            Box::new(move |ctx: &JobCtx| {
+                let log = ctx.log_sink();
+                s.act(&vm, false, |backends, paths| {
+                    let mut c = backends.store.load(&vm)?;
+                    let backend = backends.backend_for(&c)?;
+                    if backend.status(&c) != VmStatus::Running {
+                        return Err(vm_err!(
+                            codes::PREREQUISITE,
+                            "{} is not running – an upgrade in place needs it running; start it first",
+                            vm
+                        ));
+                    }
+                    let image = ImageStore::new(paths.clone()).image(&target)?;
+                    if image.info.kind != c.guest_kind() {
+                        return Err(vm_err!("{} is not an image for {}", target, vm));
+                    }
+                    let flake = Settings::load(paths).flake_path()?;
+                    let up = crate::in_place::InPlace::new(paths.clone());
+                    let system = up.system(&image, &flake, &*log)?;
+                    let store = match c.guest_kind() {
+                        GuestKind::Nixos => {
+                            up.store_url(&c, crate::ssh_command::SshCommand::DEFAULT_HOST, Some(c.ssh_port))
+                        }
+                        GuestKind::Macos => {
+                            let ip = backends.vz()?.address(&c).ok_or_else(|| {
+                                vm_err!("{} has no network address yet – wait until it has started", vm)
+                            })?;
+                            up.store_url(&c, &ip, None)
+                        }
+                    };
+                    // macOS: sudo with the password of the credential the image was built with (its base's)
+                    let password = match c.guest_kind() {
+                        GuestKind::Macos => Some(
+                            image
+                                .info
+                                .credential
+                                .as_deref()
+                                .and_then(|id| Credentials::new(paths.clone()).password(id))
+                                .ok_or_else(|| {
+                                    vm_err!(
+                                        codes::PREREQUISITE,
+                                        "No password for the credential of {} in the keychain",
+                                        target
+                                    )
+                                })?,
+                        ),
+                        GuestKind::Nixos => None,
+                    };
+                    let ssh = backend.ssh_arguments(&c, &[]);
+                    up.apply(&c, &system, &store, &ssh, password.as_deref(), &*log)?;
+                    c.system_image = Some(image.name.clone());
+                    backends.store.save(&c)
+                })
+                .map_err(crate::Error::from)?;
+                let done = format!("{name} runs the system of {target} now – its files stayed");
+                ctx.log(&done);
+                result(MessageResult { message: done })
+            }),
+        );
+        spec.log_file = Some(self.paths().logs().join(format!("upgrade-{log_name}.log")));
+        let s = self.clone();
+        spec.on_end = Some(Box::new(move |_| s.poke()));
+        Ok(Answer::Job(self.inner.jobs.submit(spec)))
     }
 
     fn vms_set(&self, p: SetParams) -> Reply {
@@ -3296,6 +3380,9 @@ struct UpgradeParams {
     name: String,
     #[serde(default)]
     image: Option<String>,
+    /// In place (plan B178): the running VM keeps its disk, the new image's system is switched to – a job
+    #[serde(default)]
+    keep: bool,
 }
 
 #[derive(Deserialize)]

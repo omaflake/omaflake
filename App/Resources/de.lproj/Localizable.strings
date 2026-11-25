@@ -1806,3 +1806,19 @@
 "A disk only grows – %@ has %@ GB, %@ GB would lose data" = "Eine Festplatte wird nur größer – %1$@ hat %2$@ GB, mit %3$@ GB gingen Daten verloren";
 "%@ GB are not possible – at most %@ GB" = "%1$@ GB sind nicht möglich – höchstens %2$@ GB";
 "Growing the disk of %@ failed: %@" = "Die Festplatte von %1$@ zu vergrößern ist fehlgeschlagen: %2$@";
+
+/* Plan B178: upgrade a running VM in place */
+"Upgrade, Keep Files …" = "Upgrade, Dateien behalten …";
+"Upgrade “%@” to %@ and keep its files?" = "„%1$@“ auf %2$@ upgraden und die Dateien behalten?";
+"omaflake copies the new image's system into the running VM and switches to it – files, settings and the disk stay. A program running in the VM may restart. Needs an image built with omaflake 0.8.0 or later in the VM." = "omaflake kopiert das System des neuen Images in die laufende VM und wechselt darauf – Dateien, Einstellungen und die Festplatte bleiben. Ein Programm in der VM startet dabei vielleicht neu. Die VM braucht ein Image, das mit omaflake 0.8.0 oder neuer gebaut ist.";
+"Upgrade" = "Upgraden";
+"%@ upgraded in place – its files stayed" = "%@ an Ort und Stelle upgegradet – die Dateien sind geblieben";
+"%@ is not running – an upgrade in place needs it running; start it first" = "%@ läuft nicht – ein Upgrade an Ort und Stelle braucht die laufende VM; starte sie zuerst";
+"%@ is not an image for %@" = "%1$@ ist kein Image für %2$@";
+"%@ has no network address yet – wait until it has started" = "%@ hat noch keine Netzwerkadresse – warte, bis sie gestartet ist";
+"No password for the credential of %@ in the keychain" = "Kein Passwort für die Zugangsdaten von %@ im Schlüsselbund";
+"Building the system of %@ failed (%@) – see the lines above" = "Das System von %1$@ zu bauen ist fehlgeschlagen (%2$@) – siehe die Zeilen darüber";
+"Copying the new system into %@ failed (%@) – see the lines above" = "Das neue System nach %1$@ zu kopieren ist fehlgeschlagen (%2$@) – siehe die Zeilen darüber";
+"No ssh command for %@" = "Kein ssh-Befehl für %@";
+"%@ cannot switch its system without a password – its image is older than omaflake 0.8.0. Upgrade it once with a fresh disk (Upgrade to New Image …)." = "%@ kann sein System nicht ohne Passwort wechseln – sein Image ist älter als omaflake 0.8.0. Stelle sie einmal mit frischer Festplatte um (Auf neue Vorlage umstellen …).";
+"Switching %@ to the new system failed (%@)" = "%1$@ auf das neue System umzustellen ist fehlgeschlagen (%2$@)";

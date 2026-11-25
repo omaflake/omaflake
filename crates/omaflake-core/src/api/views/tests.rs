@@ -475,11 +475,16 @@ fn vm_rows_say_what_the_app_said() {
     // Its details while it runs: everything that changes it waits for the shutdown
     let d = &research["detail"];
     assert_eq!(d["switchesNote"]["key"], "Changes take effect at the next start.");
-    assert_eq!(ids(&d["actions"]), ["export", "forget", "upgrade", "reset", "remove"]);
-    for a in d["actions"].as_array().unwrap() {
+    assert_eq!(ids(&d["actions"]), ["export", "forget", "upgrade", "upgradeInPlace", "reset", "remove"]);
+    for a in d["actions"].as_array().unwrap().iter().filter(|a| a["id"] != "upgradeInPlace") {
         assert_eq!(a["enabled"], false);
         assert_eq!(a["reason"]["key"], "Shut the VM down first");
     }
+    // In place (plan B178): only while it runs, keeping its files
+    let keep = action(&d["actions"], "upgradeInPlace");
+    assert_eq!(keep["enabled"], true);
+    assert_eq!(keep["params"], json!({"name": "research", "image": "omaflake.nixos.dev@mint-river-cloud", "keep": true}));
+    assert!(keep["confirm"].is_object());
     let remove = action(&d["actions"], "remove");
     assert_eq!(remove["confirm"]["title"]["text"], "Remove “research”?");
     assert_eq!(

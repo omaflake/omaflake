@@ -711,7 +711,7 @@ impl View<'_> {
             agent: row.agent.as_ref().and_then(|a| serde_json::to_value(a).ok()),
             accelerator: row.accelerator.map(|a| a.as_str().to_string()),
             location: row.location.clone(),
-            upgradable: latest.as_ref().is_some_and(|l| *l != c.image),
+            upgradable: latest.as_ref().is_some_and(|l| l != c.system_image.as_ref().unwrap_or(&c.image)),
             latest_image: latest,
         }
     }
