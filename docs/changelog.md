@@ -20,6 +20,8 @@ are collected under *Unreleased*. Releases: [GitHub](https://github.com/omaflake
   version, which moves its system into the new space (it removes the fallback recovery behind it; the recovery inside
   the system stays). Not yet tried on a Mac.
 
+- **Networks edited in the picture:** in the Networks tab of the macOS app, drag a VM onto a network to add it; the
+  menu of an address takes it out again.
 - **Ports of other VMs on localhost:** "Ports of other VMs" in a VM's details (`omaf set --forwards "5432=docker:5432"`)
   makes `localhost:5432` in the VM reach port 5432 of the VM docker in a shared network – handy for tools that only
   talk to localhost. From the next start; images built with this version.

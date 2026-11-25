@@ -5,9 +5,23 @@ import OmaflakeKit
 /// The Networks tab's picture (plan B170, spec §11.12): the VMs on the left; this Mac and every network on the right;
 /// a line per connection – dashed to the Mac for a VM's own NAT, solid to a network with the VM's address on it, green
 /// while the card is connected to the running switch. Below each network, what went between which of its VMs.
+/// Edited by hand (plan B181): a VM dragged onto a network joins it, an address's menu takes the VM out again.
 struct NetworkGraphView: View {
     let graph: NetworkGraph
     let model: AppModel
+    /// The network a VM is being dragged over
+    @State private var target: String?
+
+    /// `networks.join` / `networks.leave` (api.md); an error is a toast
+    private func change(_ method: String, vm: String, network: String) {
+        Task { @MainActor in
+            do {
+                let _: JSONValue? = try await model.client.call(method, JSONValue.object(["network": .string(network), "vm": .string(vm)]))
+            } catch {
+                model.toast(model.describe(error))
+            }
+        }
+    }
 
     private let rowHeight: CGFloat = 40
     private let nodeWidth: CGFloat = 170
@@ -62,21 +76,38 @@ struct NetworkGraphView: View {
                             .background(Capsule().fill(BrandTokens.Colors.window.opacity(0.85)))
                             .position(x: a.x + (b.x - a.x) * 0.7, y: a.y + (b.y - a.y) * 0.7)
                             .help(link.bytes.map { ByteCountFormatter.string(fromByteCount: $0, countStyle: .binary) } ?? "")
+                            .contextMenu {
+                                Button(String(format: String(localized: "Take %@ Out"), left[i].label), role: .destructive) {
+                                    change("networks.leave", vm: link.vm, network: link.to)
+                                }
+                            }
                     }
                 }
                 ForEach(Array(left.enumerated()), id: \.offset) { i, vm in
                     node(title: vm.label, detail: "", symbol: Icons.symbol(vm.kind)?.main ?? "questionmark.square.dashed",
                          on: vm.running)
+                        .draggable(vm.id)
                         .position(x: leftX, y: y(i, left.count))
                 }
                 ForEach(Array(right.enumerated()), id: \.offset) { j, t in
-                    node(title: t.title, detail: t.detail, symbol: t.symbol, on: t.on)
+                    node(title: t.title, detail: t.detail, symbol: t.symbol, on: t.on, targeted: target == t.id)
+                        .dropDestination(for: String.self) { vms, _ in
+                            guard t.id != "host", let vm = vms.first, graph.vms.contains(where: { $0.id == vm }) else { return false }
+                            change("networks.join", vm: vm, network: t.id)
+                            return true
+                        } isTargeted: { over in
+                            if t.id != "host" { target = over ? t.id : (target == t.id ? nil : target) }
+                        }
                         .position(x: rightX, y: y(j, right.count))
                 }
             }
         }
         .frame(height: CGFloat(rows) * rowHeight)
         .padding(.vertical, BrandTokens.Spacing.s)
+        if !graph.networks.isEmpty && !graph.vms.isEmpty {
+            Text("Drag a VM onto a network to add it; an address's menu takes it out.")
+                .font(.caption).foregroundStyle(.secondary)
+        }
         if !graph.flows.isEmpty {
             VStack(alignment: .leading, spacing: BrandTokens.Spacing.xxs) {
                 ForEach(Array(graph.flows.enumerated()), id: \.offset) { _, f in
@@ -87,7 +118,7 @@ struct NetworkGraphView: View {
         }
     }
 
-    private func node(title: String, detail: String, symbol: String, on: Bool) -> some View {
+    private func node(title: String, detail: String, symbol: String, on: Bool, targeted: Bool = false) -> some View {
         HStack(spacing: BrandTokens.Spacing.m) {
             StatusLamp(state: on ? .on : .off)
             Image(systemName: symbol).frame(width: 16).foregroundStyle(.secondary)
@@ -100,6 +131,7 @@ struct NetworkGraphView: View {
         .padding(.horizontal, BrandTokens.Spacing.m)
         .frame(width: nodeWidth, height: rowHeight - 6)
         .background(RoundedRectangle(cornerRadius: 8).fill(BrandTokens.Colors.card))
-        .overlay(RoundedRectangle(cornerRadius: 8).stroke(BrandTokens.Colors.cardBorder))
+        .overlay(RoundedRectangle(cornerRadius: 8).stroke(targeted ? BrandTokens.Colors.accent : BrandTokens.Colors.cardBorder,
+                                                          lineWidth: targeted ? 2 : 1))
     }
 }

@@ -955,7 +955,9 @@ and passes each connection on (nix/agent forward.rs). The Mac side: `omaf-runner
 offers no `forward` and gets no list).
 
 **Later (OPEN).** Rules per network (internet, host access) and `isolated` for macOS VMs (BM27) – a gateway on the
-switch (e.g. gvproxy as one port); the graph's editing by dragging; throughput measured against VZ's NAT.
+switch (e.g. gvproxy as one port); dragging in the Linux app's and `omaf ui`'s graph; throughput measured against VZ's
+NAT. The macOS app's graph is edited by dragging since plan B181: a VM dropped on a network joins it, an address's
+menu takes the VM out.
 
 ### 11.4 Prerequisites for release
 

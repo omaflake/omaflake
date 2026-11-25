@@ -488,6 +488,12 @@ Lume (trycua) only after a license review (OPEN).
 
 ## 8. Next steps (as of 2026-11-25)
 
+**B181 (2026-11-25, built for 0.8.0; clicking OPEN): the network graph edited by dragging (macOS app).** A VM node is
+`draggable` (its id), a network node a `dropDestination` (outlined while a VM is over it) that sends `networks.join`;
+the address on a line has a context menu "Take <VM> Out" (`networks.leave`); a line under the graph says so. Errors are
+toasts. `swift build` only – not clicked in the app here (no screen tool in this session). The Linux app and `omaf ui`
+keep the lists' Add VM … / Take … Out.
+
 **B180 (2026-11-25, built for 0.8.0; the guests OPEN): ports of other VMs on a VM's localhost.** From spec §11.12's
 "later". `InstanceConfig::forwards` ([{port, vm, to}], schema v1 optional field), `PortForward::parse_list` /
 `list_text` ("5432=docker:5432, 2375=docker"); `Networks::forward_targets` turns them into `AgentForward {port, to:

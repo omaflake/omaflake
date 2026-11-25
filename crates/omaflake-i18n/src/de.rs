@@ -529,6 +529,7 @@ pub static DE: &[(&str, &str)] = &[
     ("Downloading macOS from Apple …", "macOS wird von Apple geladen …"),
     ("Downloading …", "Wird geladen …"),
     ("Downloads the latest macOS supported by this Mac from Apple (about 27 GB), installs it and prepares a base for your macOS VMs: your guest user, automatic login, SSH with your keys from ~/.ssh. No manual steps; existing downloads and bases are reused.", "Lädt das neueste von diesem Mac unterstützte macOS von Apple (ca. 27 GB), installiert es und bereitet daraus eine Base für deine macOS-VMs vor: dein Gast-User, automatische Anmeldung, SSH mit deinen Schlüsseln aus ~/.ssh. Keine manuellen Schritte; vorhandene Downloads und Bases werden wiederverwendet."),
+    ("Drag a VM onto a network to add it; an address's menu takes it out.", "Zieh eine VM auf ein Netz, um sie hinzuzufügen; das Menü einer Adresse nimmt sie wieder heraus."),
     ("E-mail", "E-Mail"),
     ("E-mail (git)", "E-Mail (git)"),
     ("E-mail (git; may stay empty)", "E-Mail (git; darf leer bleiben)"),
