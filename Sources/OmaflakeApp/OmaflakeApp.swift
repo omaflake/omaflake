@@ -229,6 +229,7 @@ struct MainView: View {
         case .diagnostics(let p)?: return model.t(p.title)
         case .settings(let p)?: return model.t(p.title)
         case .credentials(let p)?: return model.t(p.title)
+        case .networks(let p)?: return model.t(p.list.title)
         case .credential(let p)?: return model.t(p.title)
         case .studio(let p)?: return model.t(p.title)
         case .keymapStudio(let p)?: return model.t(p.title)

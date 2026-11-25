@@ -488,6 +488,9 @@ Lume (trycua) only after a license review (OPEN).
 
 ## 8. Next steps (as of 2026-11-22)
 
+**0.7.5 (planned):** B169 (camera in macOS VMs through OBS) and B170 (networks between VMs, Docker VM) – both to be
+tried on the Mac before the release.
+
 **Next (2026-11-23, after release 0.7.4):** the maintainer's tests on the Mac – a fresh Mac with Set Up for NixOS
 (the Linux builder's two stages, Nix's one administrator question, Full Disk Access: OPEN, B160), creating and
 replacing a base per credential (B166), the core handover after an update (B165), a forced stop and the build window,
@@ -495,40 +498,89 @@ the diagnosis on NixOS guests and on a Linux host (B162), MIDI with the real pia
 the disk size of a VM (B164), upgrading a VM in place, why a macOS build VM once had no SSH (port 22 closed, 2026-11-22
 – watch it with the build window when it happens again), and M12 once the Developer ID is there.
 
-**B170 (2026-11-25, direction – maintainer: "Die Idee finde ich gut"; nothing built): Docker for development VMs,
-and virtual networks between VMs.** Starting point: a development VM without Docker is of little use. Findings:
+**B171 (2026-11-25, findings; nothing built): several monitors for a VM, each in a window of its own.** Question
+from the maintainer: can a VM drive more than one monitor – ideally a second window that can be moved to another
+screen? Today every VM has one display and one window (QEMU: one `virtio-gpu-gl-pci` with `-display cocoa,gl=es`;
+runner: one `VZMacGraphicsDisplayConfiguration`, one `VZVirtualMachineView`).
+- *macOS guests: not possible with Virtualization.framework.* The SDK (macOS 27.2) says "Maximum of one display is
+  supported" for `VZMacGraphicsDeviceConfiguration.displays` and one scanout for
+  `VZVirtioGraphicsDeviceConfiguration.scanouts`; `VZVirtualMachineView` has no way to pick a display. A
+  `validate()` probe on the Mac (macOS VM's hardware model and machine identifier, nothing booted) rejected both ways:
+  one device with two displays ("Number of displays is greater than the configured display port count") and two
+  devices with one display each ("Number of graphics devices is greater than the maximum number supported"). The
+  "display port count" has no public setting. *Private API* (read from the ObjC runtime on macOS 27.2; maintainer:
+  try it, hacky is fine): `VZMacGraphicsDeviceConfiguration` has `_setDisplayPortCount:` (default 1) and
+  `+_maximumAllowedDisplayCount` (returns 1); `VZVirtualMachineView` has `_setGraphicsDisplay:` (bind a view to one
+  display); `VZMacGraphicsDevice` has `_validateDisplayForHotPlug:error:`; `VZMacGraphicsDisplayConfiguration` has
+  `_setConnectionType:`, `_setDisplayIdentifier:`; `VZGraphicsDevice` has `_attachDisplay:completionHandler:`
+  (hot-plug at run time) and `_displayPortCount`; ParavirtualizedGraphics' `PGDeviceDescriptor` has
+  `displayPortCount` and `externalDisplayPortMask`. Probe on the Mac (APFS clone of a macOS VM): port count 2 with
+  two displays fails `validate()` ("The display port count is invalid, it must be between 1 and the maximum
+  supported"); with `+_maximumAllowedDisplayCount` overridden to 2 in the process it passes, but `start` fails with
+  VZErrorDomain 1 "Internal Virtualization error" – the limit is enforced again outside the process. OPEN: the
+  reason in Virtualization's log, and whether port count 2 with one display starts and a second display can be
+  hot-plugged with `_attachDisplay:`. Private API would keep omaflake off the App Store
+  and may break with any macOS update – at most an experimental setting.
+- *Linux guests on VZ* (for reference; omaflake runs NixOS on QEMU): two virtio graphics devices with one scanout
+  each pass `validate()`, one device with two scanouts does not ("More than one scanout is configured"). Whether the
+  second device boots and can be shown in a view of its own: OPEN, not checked.
+- *NixOS guests on QEMU: possible, work in our Cocoa frontend.* QEMU 11.1.2's `virtio-gpu` reports
+  `num_scanouts = max_outputs` to the guest (up to 16, `hw/display/virtio-gpu-base.c`), so
+  `virtio-gpu-gl-pci,max_outputs=2` gives the guest two outputs. `ui/cocoa.m` has one display change listener and one
+  `NSWindow`; further consoles are only reachable through the menu / Ctrl+Alt+number in the same window. GTK already
+  detaches a console into a window of its own ("Detach Tab", `ui/gtk.c`) – the model for a Cocoa patch: one listener,
+  window, GL (ANGLE) context and input routing per console, the window size following each output (as
+  `qemu-cocoa-dynamic-display` does for one). On a Linux host GTK may give this almost for free – OPEN, not checked.
+  OPEN: whether GNOME/KDE in the guest show the two virtio outputs as two monitors (not seen in a running guest), and
+  the effort of the Cocoa patch (needs a prototype).
+
+**B170 (2026-11-25, built for 0.7.5 – maintainer: "Baue nun alles besprochene mit in den geplanten 0.7.5 Release";
+real VMs OPEN): Docker for development VMs, and networks between VMs.** Starting point: a development VM without Docker
+is of little use. Findings:
 - *NixOS guests run Docker themselves* – containers need no hypervisor, only the guest's kernel; the old `images.dev`
-  had "docker active" (M1, §4). Today's catalog has no Docker module.
+  had "docker active" (M1, §4).
 - *macOS guests cannot:* Docker on macOS always needs a Linux VM (Docker Desktop, Colima, OrbStack, Apple's
-  `container` all use Virtualization.framework), and a macOS guest has no nested virtualisation (§7.2 `mac-dev`:
-  "Docker replacement OPEN"). Nested virtualisation in VZ (M3 and later, macOS 15) is for Linux guests only, to our
-  knowledge – OPEN, not checked.
-- *The host's Docker in the guest* (`DOCKER_HOST` to the Mac's socket) works technically but is rejected as the
-  default: the Docker socket is root on the Docker host, and Docker Desktop/OrbStack mount `/Users` – a disposable
-  guest could read and write the whole Mac (`docker run -v /Users:/x …`). At most an opt-in with a clear warning.
+  `container` all use Virtualization.framework), and a macOS guest has no nested virtualisation (§7.2 `mac-dev`).
+  Nested virtualisation in VZ (M3 and later, macOS 15) is for Linux guests only, to our knowledge – OPEN, not checked.
+- *The host's Docker in the guest* works technically but is rejected as the default: the Docker socket is root on the
+  Docker host, and Docker Desktop/OrbStack mount `/Users` – a disposable guest could read and write the whole Mac.
 
-Direction: **a Docker VM** – a small headless NixOS VM with Docker that macOS VMs use through `DOCKER_HOST`, a near
-relative of the Linux builder (docs/linux-builder.md). Generalised: **virtual networks** as objects of their own, in
-which VMs of both kinds talk to each other (one Docker VM for several macOS VMs), shown as a graph in the app. Design:
-spec §11.12. Pitfalls of any remote Docker: bind mounts name paths on the Docker host (projects must appear at the same
-path in both VMs – with several clients the Docker VM needs all their folders; OPEN), published ports land on the
-Docker VM (`-p 8080:80` → forward to the client's `localhost`), and every VM in the network with the TCP socket is root
-on the Docker VM (accepted inside a network built for it; the app says so).
+*Spike (same day, in a macOS guest without VMs: simulated cards on sockets):* `gvproxy` 0.8.9 (nixpkgs, Apache-2.0)
+puts one QEMU stream client and one vfkit datagram client on one segment (DHCP for both, frames both ways), but a
+second client of either kind gets nothing – one VM per kind. A switch of omaflake's own was needed anyway.
 
-Order:
-1. *Docker module for NixOS* (catalog `modules/omaflake/nixos/docker`, `virtualisation.docker.enable`, the user in
-   group `docker`) – small, useful at once, and the Docker VM's content.
-2. *Spike – the risky part:* omaflake's own switch with one QEMU and one VZ VM on one segment, ping both ways, the
-   internet through the gateway. OPEN: `gvisor-tap-vsock` (Podman, Lima) as the switch and gateway – licence
-   (Apache-2.0 to our knowledge) and whether it takes QEMU's `-netdev stream`/`dgram` and VZ's
-   `VZFileHandleNetworkDeviceAttachment` sockets – or a small switch of our own (Rust); throughput against today's
-   `-netdev user` and VZ NAT; whether macOS guests on today's VZ NAT already reach each other (probably, same bridge).
-3. *Networks in the core:* `networks.json` (schema v1), `instance.json` `networks: [..]`, `omaf net
-   create/list/rm`, `omaf new/set --net`; DNS names; rules (internet, host, between VMs); `isolated` for macOS VMs
-   (closes BM27).
-4. *Docker VM recipe* (`nixos/docker`) and the client side: `DOCKER_HOST` in the macOS guest, the shared project
-   folder at the same path, port forwarding to the client's `localhost`.
-5. *Network view* in the app, `omaf ui` and the Linux app.
+*Decided (maintainer, 2026-11-25):* **a second card** – a VM keeps its own NAT (SSH, internet, network mode unchanged)
+and joins networks with an extra card on omaflake's switch in Rust (no Go binary, no risk for VMs without networks);
+`isolated` for macOS (BM27) stays a later step. **Opt-in, OPEN marked** in 0.7.5 – nothing here could run a VM.
+
+*Built* (spec §11.12): `networks/` in the core (store `networks.json` v1, addressing `10.231.<n>.<host>` with the MAC
+`02:6f:6d:<n>:<host>:00`, the switch with ARP/ping/DHCP and `status.json`), `omaf network-switch` (started before a
+member VM by `Networks::prepare`, ends a minute after its last port), QEMU's `-netdev stream` cards (slots 0xa–0xd,
+`reconnect-ms` checked in QEMU 11.1.2's `qapi/net.json`), the runner's `--lan-mac/--lan-socket/--lan-switch` with
+`VZFileHandleNetworkDeviceAttachment` (`NetworkCard` in OmaflakeKit), `omaf networks …` and `omaf new --join`, the API
+`networks.*`, the Networks tab (Run group) with its graph in the app (SwiftUI Canvas), the Linux app (cards) and
+`omaf ui` (a tree), German texts, a VM's removal taking it out of its networks, `networks.json` moving with the data
+folder. Guests: NixOS's NetworkManager takes a new card by itself; macOS gets a launchd daemon
+(`networksetup -detectnewhardware` at boot, darwin-guest.nix). Catalog: module `omaflake/nixos/docker` (Docker 29.8.1,
+Compose, socket activation on `/run/docker.sock` and `0.0.0.0:2375`, the firewall open for it, the user in `docker`,
+`/Volumes/My Shared Files` → `/mnt/share` for bind mounts from macOS VMs) and recipe `nixos/docker` (headless) – both
+evaluated with the image flake.
+
+*Found on the way:* on macOS, std's `UnixDatagram::recv_from` takes the last byte of a sender's path for its NUL – a
+sender that bound without one (Python) came out a character short and the answers went to `lan0.soc`; the switch now
+keeps the raw address (test `answers_reach_a_sender_bound_without_nul`). The Swift test
+`CoreClientTests.responsesInAnotherOrderFindTheirRequest` (unchanged) can hang under load: it relies on 100 ms for the
+slow request to arrive first; hung `swiftpm-testing-helper` processes of timed-out runs then made later runs hang too
+(killed – the run passed). OPEN: make that test wait for the slow request instead of sleeping.
+
+*Checked:* Rust workspace tests (core 494 incl. the switch with a QEMU card and two macOS cards in one process, the
+end-to-end with the real `omaf network-switch` process and simulated cards: ARP, DHCP, unicast across kinds, `omaf
+networks show` with traffic), `swift test` (incl. `NetworkCardTests` against a stand-in switch and the view contracts),
+clippy, fmt, `reuse lint`, the catalog's `--check`, the Docker VM's evaluation. OPEN – on the Mac: a NixOS and a macOS
+VM in one network (DHCP in both guests, ping, `docker ps` from macOS with `DOCKER_HOST`), a macOS image built with this
+version, QEMU starting while the switch is not yet up, a runner's card after the switch restarted, throughput.
+*Later:* rules per network and `isolated` for macOS (a gateway on the switch), DNS names, ports to a client's
+`localhost`, joining while running, editing in the graph.
 
 **B169 (2026-11-25, planned – release 0.7.5): the camera in macOS VMs, through OBS until M12.** Maintainer: the
 camera switch works for macOS VMs in the app as if we were signed; the only difference is that the guest needs OBS

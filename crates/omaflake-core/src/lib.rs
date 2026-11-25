@@ -38,6 +38,7 @@ pub mod mac_vm;
 pub mod models;
 pub mod modules;
 pub mod my_recipes;
+pub mod networks;
 pub mod nix_gl;
 pub mod omaflake_id;
 pub mod packages;

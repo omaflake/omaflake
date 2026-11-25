@@ -17,6 +17,7 @@ use omaflake_core::api::views::images::{BuildJobRow, ImageRowView, ImagesPage};
 use omaflake_core::api::views::keymap_studio::KeymapStudioPage;
 use omaflake_core::api::views::keys::KeysPage;
 use omaflake_core::api::views::look_studio::LookStudioPage;
+use omaflake_core::api::views::networks::NetworkGraph;
 use omaflake_core::api::views::new_vm::NewVmPage;
 use omaflake_core::api::views::recipe_studio::{RecipeStudioPage, StudioModule};
 use omaflake_core::api::views::recipes::{OfferedRow, RecipeRowView, RecipesPage};
@@ -78,6 +79,9 @@ pub fn list<'a>(app: &'a App, tab: &str, m: &'a Model) -> El<'a> {
         Model::Activity(p) => activity(app, p),
         // Credentials, locales, profiles: tabs of the workshop (plan B147)
         Model::Credentials(c) => credentials(app, tab, c),
+        Model::Networks(n) => {
+            column![credentials(app, tab, &n.list), network_graph(&n.graph)].spacing(spacing::XL).into()
+        }
         Model::Studio(st) => studio(app, tab, st),
         Model::KeymapStudio(k) => keymap_studio(app, tab, k),
         Model::LookStudio(l) => look_studio(app, tab, l),
@@ -876,6 +880,66 @@ fn credentials<'a>(app: &'a App, page: &str, c: &'a CredentialsPage) -> El<'a> {
     ]
     .spacing(spacing::XL)
     .into()
+}
+
+/// The networks' graph (plan B170): the host with every VM's own NAT, and each network as a card with its members –
+/// lamp (connected), kind, name, address, traffic – and what went between which VMs
+fn network_graph<'a>(g: &'a NetworkGraph) -> El<'a> {
+    let dot = |on: bool| text("●").size(text_size::CAPTION).color(if on { style::SUCCESS } else { style::tertiary() });
+    let kind_of = |vm: &str| g.vms.iter().find(|v| v.id == vm).map(|v| v.kind.as_str()).unwrap_or_default();
+    let member = |vm: &'a str, label: String, on: bool, bytes: Option<u64>| -> El<'a> {
+        let mut r = row![
+            dot(on),
+            icon(kind_of(vm), text_size::CALLOUT, style::SECONDARY),
+            text(vm).size(text_size::CALLOUT),
+            caption(label).color(style::SECONDARY),
+        ]
+        .spacing(spacing::M)
+        .align_y(Alignment::Center);
+        if let Some(b) = bytes {
+            r = r.push(caption(crate::text::bytes_text(b as i64)).color(style::tertiary()));
+        }
+        r.into()
+    };
+    let card = |title: El<'a>, lines: Vec<El<'a>>| -> El<'a> {
+        container(column![title, Column::with_children(lines).spacing(spacing::S)].spacing(spacing::M))
+            .padding(spacing::CARD_PADDING)
+            .width(Length::Fixed(300.0))
+            .style(style::card)
+            .into()
+    };
+    let host_title: El<'a> = row![icon("vm", text_size::BODY, style::ACCENT), text(s(&g.host)).font(style::semibold())]
+        .spacing(spacing::M)
+        .align_y(Alignment::Center)
+        .into();
+    let nat = g.links.iter().filter(|l| l.kind == "nat").map(|l| member(&l.vm, s(&l.label), l.active, None)).collect();
+    let mut cards = vec![card(host_title, nat)];
+    for n in &g.networks {
+        let title: El<'a> = row![
+            dot(n.running),
+            icon("network", text_size::BODY, style::ACCENT),
+            text(&n.label).font(style::semibold()),
+            caption(&n.subnet).color(style::SECONDARY),
+        ]
+        .spacing(spacing::M)
+        .align_y(Alignment::Center)
+        .into();
+        let mut lines: Vec<El<'a>> = g
+            .links
+            .iter()
+            .filter(|l| l.kind == "network" && l.to == n.id)
+            .map(|l| member(&l.vm, s(&l.label), l.active, l.bytes))
+            .collect();
+        for f in g.flows.iter().filter(|f| f.network == n.id) {
+            lines.push(
+                caption(format!("{} → {}  {}", f.from, f.to, crate::text::bytes_text(f.bytes as i64)))
+                    .color(style::tertiary())
+                    .into(),
+            );
+        }
+        cards.push(card(title, lines));
+    }
+    wrap(cards)
 }
 
 /// A credential as the other lists' rows (plan B137): lamp (in use), name, badges, subtitle, the quick action (Copy
@@ -2181,6 +2245,9 @@ pub mod tests {
             "modules" => "modules",
             "profiles" => "profiles",
             "profile" => "profile",
+            "networks" => "networks",
+            "network" => "network",
+            "networkMember" => "networkMember",
             "recipeStudio" => "recipeStudio",
             "keymapStudio" => "keymapStudio",
             "sources" => "sources",

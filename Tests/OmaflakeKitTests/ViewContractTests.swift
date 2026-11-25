@@ -25,8 +25,8 @@ extension APIContractTests {
                 guard case .home(let h) = try page("home", as: "home") else { throw Unexpected() }
                 #expect(h.actions.map(\.id) == ["doctor", "settings", "dataFolder", "quit"] && h.actions[0].badge == 3)
                 #expect(h.actions[3].confirm?.text.args == [.string("research")] && h.firstTab == "vms")
-                #expect(h.tabs.map(\.id) == ["vms", "images", "activity", "recipes", "recipeStudio", "keymapStudio", "lookStudio", "recipeCatalog", "modules", "looks", "keymaps", "sources", "credentials", "locales", "profiles"] && h.tabs[0].badge?.count == 1)
-                #expect(h.tabs[1].badge?.kind == "working" && h.tabs[3].badge?.tone == .warning && h.tabs[2].badge == nil)
+                #expect(h.tabs.map(\.id) == ["vms", "images", "activity", "networks", "recipes", "recipeStudio", "keymapStudio", "lookStudio", "recipeCatalog", "modules", "looks", "keymaps", "sources", "credentials", "locales", "profiles"] && h.tabs[0].badge?.count == 1)
+                #expect(h.tabs[1].badge?.kind == "working" && h.tabs[4].badge?.tone == .warning && h.tabs[2].badge == nil)
                 // Two groups (plan B147): every tab names one of them, and each tab is one of the app's
                 #expect(h.groups.map(\.id) == ["run", "workshop", "catalog", "profiles"] && h.tabs.allSatisfy { t in h.groups.contains { $0.id == t.group } })
                 // The window's title is data; the header's short labels
@@ -262,6 +262,24 @@ extension APIContractTests {
             "profiles": {
                 guard case .credentials(let p) = try page("profiles", as: "profiles") else { throw Unexpected() }
                 #expect(p.title.key == "Performance" && p.rows.first?.subtitle.text == "2 CPU · 4 GB RAM")
+            },
+            "networks": {
+                // Networks between VMs (plan B170): the credentials' list and the graph
+                guard case .networks(let p) = try page("networks", as: "networks") else { throw Unexpected() }
+                #expect(p.list.title.key == "Networks" && p.list.rows.map(\.id) == ["dev", "lab"])
+                #expect(p.list.rows[0].detail.actions.map(\.method).last == "networks.remove")
+                #expect(p.graph.networks.map(\.id) == ["dev", "lab"] && p.graph.networks[0].running)
+                #expect(p.graph.links.contains { $0.vm == "research" && $0.to == "dev" && $0.active && $0.bytes == 15000 })
+                #expect(p.graph.links.contains { $0.vm == "work" && $0.to == "host" && $0.kind == "nat" })
+                #expect(p.graph.flows.first?.bytes == 2500 && p.graph.vms.map(\.kind) == ["nixos", "macos"])
+            },
+            "network": {
+                guard case .credential(let p) = try page("network", as: "network") else { throw Unexpected() }
+                #expect(p.fields.map(\.id) == ["name"] && p.fields[0].error == nil && p.actions.last?.method == "networks.create")
+            },
+            "networkMember": {
+                guard case .credential(let p) = try page("networkMember", as: "networkMember") else { throw Unexpected() }
+                #expect(p.fields.first?.choices.count == 2 && p.actions.last?.method == "networks.join")
             },
             "profile": {
                 guard case .credential(let p) = try page("profile", as: "profile") else { throw Unexpected() }

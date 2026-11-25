@@ -28,6 +28,7 @@ impl IconSet {
             "look" => ("\u{f53f}", "◈"),
             "module" => ("\u{f1b3}", "▦"),
             "gauge" => ("\u{f0e4}", "◔"),
+            "network" => ("\u{f0e8}", "⇄"),
             "copy" => ("\u{f0c5}", "⧉"),
             "edit" => ("\u{f044}", "✎"),
             "license" => ("\u{f24e}", "⚖"),

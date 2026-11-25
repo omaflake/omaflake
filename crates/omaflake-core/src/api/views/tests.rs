@@ -176,6 +176,7 @@ pub(crate) fn ctx() -> Ctx {
         }],
         looks: looks_fixture(),
         modules: modules_fixture(),
+        networks: vec![],
         profiles: vec![crate::api::types::ProfileDto {
             id: "p-1".into(),
             name: "Small".into(),
@@ -267,6 +268,90 @@ pub(crate) fn ctx() -> Ctx {
 
 /// The views' context with diagnoses (plan B162): "research" (NixOS) finished with every kind of status, "work"
 /// (macOS, running here) with SSH refused – `mac` picks which VM's page the tests look at
+/// The test context with two networks (plan B170): "dev" with both VMs and a running switch, "lab" empty and idle
+pub(crate) fn networks_ctx() -> Ctx {
+    use crate::networks::Network;
+    use crate::networks::switch::{Flow, PortStatus, SwitchStatus};
+    use std::collections::BTreeMap;
+    let mut c = ctx();
+    let created = chrono::DateTime::parse_from_rfc3339("2026-11-25T10:00:00Z").unwrap().with_timezone(&chrono::Utc);
+    let dev = Network {
+        name: "dev".into(),
+        number: 1,
+        created,
+        members: BTreeMap::from([("research".to_string(), 10), ("work".to_string(), 11)]),
+    };
+    let status = SwitchStatus {
+        network: "dev".into(),
+        pid: 4242,
+        started: created,
+        updated: created,
+        ports: vec![PortStatus {
+            kind: "qemu".into(),
+            mac: Some("02:6f:6d:01:0a:00".into()),
+            vm: Some("research".into()),
+            address: Some("10.231.1.10".into()),
+            rx_frames: 40,
+            rx_bytes: 12_000,
+            tx_frames: 12,
+            tx_bytes: 3_000,
+            dropped: 0,
+        }],
+        flows: vec![Flow { from: "research".into(), to: "work".into(), bytes: 2_500 }],
+    };
+    let lab = Network { name: "lab".into(), number: 2, created, members: BTreeMap::new() };
+    c.networks = vec![
+        super::networks::NetworkInfo { network: dev, status: Some(status) },
+        super::networks::NetworkInfo { network: lab, status: None },
+    ];
+    c
+}
+
+#[test]
+fn the_networks_tab() {
+    let c = networks_ctx();
+    let page = get(&c, "networks", json!({}));
+    assert_eq!(page["title"]["key"], "Networks");
+    let dev = &page["rows"][0];
+    assert_eq!(dev["subtitle"]["text"], "10.231.1.0/24 · 2 VMs");
+    assert_eq!(dev["lamp"]["state"], "on");
+    assert_eq!(dev["usedBy"], json!(["research", "work"]));
+    let info: Vec<String> = dev["detail"]["info"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|l| l["value"]["text"].as_str().unwrap().to_string())
+        .collect();
+    assert!(info.contains(&"10.231.1.10 · connected – 12.0 KB in, 3.0 KB out".to_string()), "{info:?}");
+    assert!(info.iter().any(|l| l.starts_with("10.231.1.11 · ")), "{info:?}");
+    let actions: Vec<&str> =
+        dev["detail"]["actions"].as_array().unwrap().iter().map(|a| a["id"].as_str().unwrap()).collect();
+    assert_eq!(actions, ["join", "leave-research", "leave-work", "remove"]);
+    assert_eq!(dev["detail"]["actions"][0]["enabled"], false, "every VM is in it");
+    assert_eq!(page["rows"][1]["subtitle"]["text"], "10.231.2.0/24 · no VMs");
+    // The graph: NAT links of both VMs, two memberships of dev, the flow
+    let g = &page["graph"];
+    assert_eq!(g["networks"].as_array().unwrap().len(), 2);
+    let links: Vec<(String, String, bool)> = g["links"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|l| (l["vm"].as_str().unwrap().into(), l["to"].as_str().unwrap().into(), l["active"].as_bool().unwrap()))
+        .collect();
+    assert!(links.contains(&("research".into(), "host".into(), true)), "{links:?}");
+    assert!(links.contains(&("research".into(), "dev".into(), true)), "{links:?}");
+    assert!(links.contains(&("work".into(), "dev".into(), false)), "work is not connected: {links:?}");
+    assert_eq!(g["flows"][0]["bytes"], 2500);
+    // The forms
+    let new = get(&c, "network", json!({"values": {"name": "dev"}}));
+    assert_eq!(new["fields"][0]["error"]["text"], "There is a network \"dev\" already");
+    let ok = get(&c, "network", json!({"values": {"name": "ops"}}));
+    assert_eq!(ok["actions"][1]["params"], json!({"name": "ops"}));
+    let member = get(&c, "networkMember", json!({"network": "lab"}));
+    assert_eq!(member["fields"][0]["choices"].as_array().unwrap().len(), 2);
+    assert_eq!(member["actions"][1]["params"], json!({"network": "lab", "vm": "research"}));
+}
+
 pub(crate) fn diagnosis_ctx() -> Ctx {
     use crate::api::views::diagnostics::DiagnosisRecord;
     use crate::diagnostics::{CheckResult as R, CheckStatus as S};
@@ -2059,6 +2144,7 @@ fn looks_are_a_tab_with_their_colours_usage_and_offers() {
             "vms",
             "images",
             "activity",
+            "networks",
             "recipes",
             "recipeStudio",
             "keymapStudio",

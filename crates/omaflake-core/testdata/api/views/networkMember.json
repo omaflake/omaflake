@@ -1,0 +1,79 @@
+{
+  "actions": [
+    {
+      "enabled": true,
+      "id": "cancel",
+      "label": {
+        "key": "Cancel",
+        "text": "Cancel"
+      },
+      "method": "ui.back",
+      "params": {}
+    },
+    {
+      "enabled": true,
+      "icon": "add",
+      "id": "join",
+      "label": {
+        "key": "Add",
+        "text": "Add"
+      },
+      "method": "networks.join",
+      "params": {
+        "network": "lab",
+        "vm": "research"
+      },
+      "primary": true,
+      "then": "back"
+    }
+  ],
+  "fields": [
+    {
+      "choices": [
+        {
+          "icon": "nixos",
+          "label": {
+            "text": "research"
+          },
+          "value": "research"
+        },
+        {
+          "icon": "macos",
+          "label": {
+            "text": "work"
+          },
+          "value": "work"
+        }
+      ],
+      "enabled": true,
+      "help": {
+        "key": "It gets a second network card in this network from its next start.",
+        "text": "It gets a second network card in this network from its next start."
+      },
+      "id": "vm",
+      "kind": "choice",
+      "label": {
+        "key": "VM",
+        "text": "VM"
+      },
+      "param": "vm",
+      "value": "research",
+      "valueParam": "vm"
+    }
+  ],
+  "id": "lab",
+  "intro": {
+    "args": [
+      "10.231.2.0/24"
+    ],
+    "key": "A VM in %@ reaches the network's other VMs; a running VM gets the card at its next start.",
+    "text": "A VM in 10.231.2.0/24 reaches the network's other VMs; a running VM gets the card at its next start."
+  },
+  "title": {
+    "args": [
+      "lab"
+    ],
+    "key": "Add a VM to “%@”",
+    "text": "Add a VM to “lab”"
+  }
+}

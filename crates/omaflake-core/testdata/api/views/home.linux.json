@@ -187,6 +187,15 @@
       }
     },
     {
+      "group": "run",
+      "icon": "network",
+      "id": "networks",
+      "label": {
+        "key": "Networks",
+        "text": "Networks"
+      }
+    },
+    {
       "badge": {
         "help": {
           "key": "A recipe changed since its image was built",

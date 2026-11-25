@@ -57,6 +57,17 @@ struct Id {
     id: String,
 }
 
+#[derive(Deserialize)]
+struct NetworkName {
+    name: String,
+}
+
+#[derive(Deserialize)]
+struct NetworkMember {
+    network: String,
+    vm: String,
+}
+
 impl Server {
     pub(crate) fn dispatch(&self, method: &str, p: Value) -> Reply {
         match method {
@@ -100,6 +111,35 @@ impl Server {
             }
             "profiles.setDefault" => {
                 crate::profiles::Profiles::new(self.paths()).set_default(&params::<Id>(p)?.id).map_err(err)?;
+                self.poke();
+                Answer::of(Value::Null)
+            }
+            // Networks between VMs (plan B170, spec §11.12)
+            "networks.list" => Answer::of(network_dtos(&self.paths())),
+            "networks.create" => {
+                let n = crate::networks::Networks::new(self.paths())
+                    .create(&params::<NetworkName>(p)?.name)
+                    .map_err(err)?;
+                self.poke();
+                Answer::of(json!({"name": n.name, "subnet": n.subnet()}))
+            }
+            "networks.remove" => {
+                crate::networks::Networks::new(self.paths()).remove(&params::<NetworkName>(p)?.name).map_err(err)?;
+                self.poke();
+                Answer::of(Value::Null)
+            }
+            "networks.join" => {
+                let p: NetworkMember = params(p)?;
+                if !crate::instance_store::InstanceStore::new(self.paths(), "qemu-img").exists(&p.vm) {
+                    return Err(err(crate::vm_err!(codes::NOT_FOUND, "Instance \"{}\" does not exist", p.vm)));
+                }
+                let address = crate::networks::Networks::new(self.paths()).join(&p.network, &p.vm).map_err(err)?;
+                self.poke();
+                Answer::of(json!({"address": address.to_string()}))
+            }
+            "networks.leave" => {
+                let p: NetworkMember = params(p)?;
+                crate::networks::Networks::new(self.paths()).leave(&p.network, &p.vm).map_err(err)?;
                 self.poke();
                 Answer::of(Value::Null)
             }
@@ -3261,6 +3301,38 @@ pub(crate) fn locale_dtos(paths: &Paths) -> Vec<LocaleDto> {
             locale: l.locale,
             time_zone: l.time_zone,
             keyboards: l.keyboards,
+        })
+        .collect()
+}
+
+/// `networks.list` (plan B170): every network, its members and – while its switch runs – their traffic
+pub(crate) fn network_dtos(paths: &Paths) -> Vec<NetworkDto> {
+    super::views::network_infos(paths)
+        .into_iter()
+        .map(|info| {
+            let n = &info.network;
+            let members = n
+                .members
+                .iter()
+                .map(|(vm, host)| {
+                    let port = info.status.as_ref().and_then(|s| s.ports.iter().find(|p| p.vm.as_deref() == Some(vm)));
+                    NetworkMemberDto {
+                        vm: vm.clone(),
+                        address: n.address(*host).to_string(),
+                        mac: crate::networks::packets::mac_text(&n.mac(*host)),
+                        connected: port.is_some(),
+                        rx_bytes: port.map_or(0, |p| p.rx_bytes),
+                        tx_bytes: port.map_or(0, |p| p.tx_bytes),
+                    }
+                })
+                .collect();
+            NetworkDto {
+                name: n.name.clone(),
+                subnet: n.subnet(),
+                switch_address: n.switch_address().to_string(),
+                running: info.status.is_some(),
+                members,
+            }
         })
         .collect()
 }

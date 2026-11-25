@@ -58,6 +58,14 @@ pub enum Command {
         args_conflicts_with_subcommands = true
     )]
     Profiles(Profiles),
+    /// Plan B170, spec §11.12
+    #[command(
+        about = "Networks between VMs: each member gets a second network card on a switch omaflake runs (its own \
+                 NAT stays).",
+        alias = "net",
+        args_conflicts_with_subcommands = true
+    )]
+    Networks(Networks),
     #[command(name = "macos", about = "macOS bases: install from Apple's IPSW with a credential, or assign one.")]
     #[command(subcommand_required = true, arg_required_else_help = true)]
     MacOs {
@@ -167,6 +175,53 @@ pub enum Command {
         hide = true
     )]
     Bridge(Bridge),
+    /// Spec §11.12: started by omaf before a member VM starts
+    #[command(about = "Run the switch of a network (started by omaf; ends a minute after its last VM).", hide = true)]
+    NetworkSwitch(NetworkSwitch),
+}
+
+#[derive(Debug, Args)]
+pub struct NetworkSwitch {
+    #[arg(value_name = "network")]
+    pub network: String,
+    #[arg(long, value_name = "folder", help = "The data folder")]
+    pub data: std::path::PathBuf,
+}
+
+#[derive(Debug, Args)]
+pub struct Networks {
+    #[command(subcommand)]
+    pub command: Option<NetworksCommand>,
+}
+
+#[derive(Debug, Subcommand)]
+pub enum NetworksCommand {
+    #[command(about = "The networks, their subnets and members.")]
+    List,
+    #[command(about = "Create a network (10.231.<n>.0/24).")]
+    Create(NetworkRef),
+    #[command(name = "rm", about = "Remove a network (its members lose that card at their next start).")]
+    Remove(NetworkRef),
+    #[command(about = "A network's members, addresses and – while its switch runs – traffic.")]
+    Show(NetworkRef),
+    #[command(about = "Add a VM to a network (its card appears at the VM's next start).")]
+    Join(NetworkMember),
+    #[command(about = "Take a VM out of a network (from its next start).")]
+    Leave(NetworkMember),
+}
+
+#[derive(Debug, Args)]
+pub struct NetworkRef {
+    #[arg(value_name = "network", help = "Its name (lowercase letters, digits, dashes)")]
+    pub network: String,
+}
+
+#[derive(Debug, Args)]
+pub struct NetworkMember {
+    #[arg(value_name = "network")]
+    pub network: String,
+    #[arg(value_name = "vm")]
+    pub vm: String,
 }
 
 #[derive(Debug, Args)]
@@ -672,6 +727,12 @@ pub struct New {
     pub midi: bool,
     #[arg(long, overrides_with = "midi", help = "Without this computer's MIDI devices")]
     pub no_midi: bool,
+    #[arg(
+        long = "join",
+        value_name = "network",
+        help = "Join this network between VMs (a second card; once per network, up to 4 – see omaf networks)"
+    )]
+    pub join: Vec<String>,
     #[arg(
         long,
         value_name = "profile",

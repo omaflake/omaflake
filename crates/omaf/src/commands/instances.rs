@@ -213,12 +213,19 @@ pub fn new(a: &cli::New) -> Outcome {
         share_path = Some(path.to_string_lossy().into_owned());
         settings.share = true;
     }
+    let networks = omaflake_core::networks::Networks::new(env.paths.clone());
+    for n in &a.join {
+        networks.get(n)?; // before the VM exists: a wrong name leaves nothing behind
+    }
     let mut c = backend.create(&a.name, &recipe, &image, &settings)?;
     if let Some(path) = share_path {
         c.share_path = Some(path);
         backends.store.save(&c)?;
     }
     println!("{}", created_line(&c));
+    for n in &a.join {
+        println!("{} joins network {} as {}", c.name, n, networks.join(n, &c.name)?);
+    }
     Ok(())
 }
 

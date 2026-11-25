@@ -31,6 +31,7 @@ pub mod locales;
 pub mod look_studio;
 pub mod looks;
 pub mod modules;
+pub mod networks;
 pub mod new_vm;
 pub mod profiles;
 pub mod recipe_studio;
@@ -60,7 +61,7 @@ pub use activity::ActivityEntry;
 pub use text::{Arg, Text};
 
 /// Every page `views.get` knows
-pub const PAGES: [&str; 30] = [
+pub const PAGES: [&str; 33] = [
     "home",
     "vms",
     "vm",
@@ -91,6 +92,9 @@ pub const PAGES: [&str; 30] = [
     "recipeCatalog",
     "keymaps",
     "diagnostics",
+    "networks",
+    "network",
+    "networkMember",
 ];
 
 /// The computer the core runs on (`initialize`'s `host`): texts that name the Mac, Finder or the Keychain have a
@@ -141,6 +145,8 @@ pub(crate) struct Ctx {
     pub locales: Vec<crate::api::types::LocaleDto>,
     /// The profiles (plan B142)
     pub profiles: Vec<crate::api::types::ProfileDto>,
+    /// The networks between VMs, each with its running switch's status (plan B170)
+    pub networks: Vec<networks::NetworkInfo>,
     /// The looks here and what the catalogs fetched last offer (plan B141)
     pub looks: crate::api::types::LooksAnswer,
     /// The modules and key binding sets here and what the catalogs offer (plan B142)
@@ -325,6 +331,14 @@ pub(crate) fn build(ctx: &Ctx, page: &PageRef) -> Result<Value, RpcError> {
         "modules" => to_value(modules::page(ctx, &page_params(p)?)),
         "locales" => to_value(locales::page(ctx)),
         "profiles" => to_value(profiles::page(ctx)),
+        "networks" => to_value(networks::page(ctx)),
+        "network" => to_value(networks::network_page(ctx, &page_params(p)?)),
+        "networkMember" => {
+            let p: networks::MemberParams = page_params(p)?;
+            to_value(networks::member_page(ctx, &p).ok_or_else(|| {
+                RpcError::from(crate::vm_err!(crate::error::codes::NOT_FOUND, "No network \"{}\"", p.network))
+            })?)
+        }
         "recipeStudio" => {
             let p: recipe_studio::StudioParams = page_params(p)?;
             to_value(recipe_studio::page(ctx, &p).ok_or_else(|| {
@@ -460,6 +474,7 @@ impl Server {
             modules: self.modules_answer(language_for_looks.as_deref()),
             locales: super::methods::locale_dtos(&state.paths),
             profiles: super::methods::profile_dtos(&state.paths),
+            networks: network_infos(&state.paths),
             bases: super::methods::base_dtos(&state.paths, &self.bases_in_use()),
             settings: super::methods::settings_dto(&state.paths),
             settings_answer,
@@ -587,4 +602,15 @@ impl Server {
             }
         }
     }
+}
+
+/// The networks and what each running switch last wrote (plan B170)
+pub(crate) fn network_infos(paths: &Paths) -> Vec<networks::NetworkInfo> {
+    let store = crate::networks::Networks::new(paths.clone());
+    store
+        .list()
+        .unwrap_or_default()
+        .into_iter()
+        .map(|network| networks::NetworkInfo { status: store.status(&network.name), network })
+        .collect()
 }

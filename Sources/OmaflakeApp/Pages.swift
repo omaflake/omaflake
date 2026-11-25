@@ -17,6 +17,7 @@ struct PageView: View {
             case .newVm(let p)?: NewVMView(page: p, ref: ref, model: model)
             case .build(let p)?: BuildView(page: p, ref: ref, model: model)
             case .credentials(let p)?: CredentialsView(page: p, model: model)
+            case .networks(let p)?: CredentialsView(page: p.list, model: model, graph: p.graph)
             case .credential(let p)?: CredentialView(page: p, ref: ref, model: model)
             case .studio(let p)?: RecipeStudioView(page: p, ref: ref, model: model)
             case .keymapStudio(let p)?: KeymapStudioView(page: p, ref: ref, model: model)
@@ -243,18 +244,21 @@ struct NewVMView: View {
 struct CredentialsView: View {
     let page: CredentialsPage
     let model: AppModel
+    /// The Networks tab's picture (plan B170)
+    var graph: NetworkGraph? = nil
 
     var body: some View {
         Form {
             // The explanation in a box of its own above the form, with the help switch on (plan B148)
             if model.helpOn { Section { HelpNote(page.intro, model: model) }.listRowBackground(Color.clear) }
+            if let graph { Section { NetworkGraphView(graph: graph, model: model) } }
             Section {
                 // As the other lists: lamp (in use), name and usage, the quick action; opened: its values and actions
                 ForEach(page.rows) { r in
                     ExpandableRow {
                         HStack(spacing: BrandTokens.Spacing.xl) {
                             StatusLamp(state: .init(r.lamp.state)).help(Text(verbatim: model.t(r.lamp.help)))
-                            Image(systemName: "key").frame(width: 16).foregroundStyle(.secondary)
+                            Image(systemName: graph == nil ? "key" : "network").frame(width: 16).foregroundStyle(.secondary)
                             VStack(alignment: .leading, spacing: BrandTokens.Spacing.xxs) {
                                 HStack(spacing: BrandTokens.Spacing.m) {
                                     Text(verbatim: r.name).font(.callout.weight(.medium)).lineLimit(1)

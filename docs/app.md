@@ -90,7 +90,7 @@ while omaflake is not in front (menu window closed, app window hidden or in the 
   row or a build row and builds that recipe (no picker); there is no default image (plan B100)
 - Main window: header with icons (Doctor with an orange dot when something needs attention, Settings, data folder in
   Finder, Quit – asks first while VMs are running), then the tabs in four groups (plan B147): **Run** – VMs, Images,
-  Activity –, the **Workshop** – Build Images (the recipes here, built into images), Recipe Studio, Key Binding
+  Activity, Networks –, the **Workshop** – Build Images (the recipes here, built into images), Recipe Studio, Key Binding
   Studio –, the **Catalog** – Recipes (what the sources offer), Modules, Looks, Key Bindings, Sources (before in the
   Settings) – and **Profiles** – Credentials, Locales, Performance (CPU cores and RAM of new VMs). The app window has a
   sidebar with the groups – both stay while a page is open next to them, and a click in the sidebar closes it (plan
@@ -99,6 +99,11 @@ while omaflake is not in front (menu window closed, app window hidden or in the 
   pages' explanations, each in a box of its own. Each tab is one list that scrolls on its own (plan B91);
   the app remembers the last tab, the very first time (no VM yet) it opens on Recipes:
   - **VMs** (badge: running VMs); a VM is created from an image row (plan B100)
+  - **Networks** (plan B170, spec §11.12): networks between VMs – a picture of who is connected to what (this Mac with
+    each VM's own NAT; each network with its members, their addresses, green while a card is connected to the running
+    switch, and the bytes between VMs), then the networks as rows: subnet and members; opened, each member's address
+    and traffic, for a Docker VM the `DOCKER_HOST` line, "Add VM …", "Take … Out", "Remove …". "New Network …" asks
+    for a name. Changes count from a VM's next start
   - **Images** (Vorlagen; badge: spinner while a build runs, red ✕ after a failed one): every built image on its own
     row – full name, recipe, build time, how many VMs use it (green lamp: at least one), "outdated" when its recipe
     changed; "New VM" creates a VM from exactly that image; build details, remove; builds on top (plan B100)

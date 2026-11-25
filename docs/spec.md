@@ -123,7 +123,11 @@ the settings file always stays at `~/.omaflake/config.json` and records the data
     image.omaflake-image/          only in exported VMs and VMs that run from elsewhere: the image they need
   run/<name>/                      what only lives while a VM runs, outside its package: qemu.pid, qmp.sock, qga.sock,
                                    serial.log, qemu.log, .lock, agent socket and state; macOS: runner.sock, runner.pid,
-                                   runner.log (omaf-runner; SSH on the NAT address, port 22)
+                                   runner.log (omaf-runner; SSH on the NAT address, port 22); lan<i>.sock (a macOS
+                                   VM's cards on networks between VMs, §11.12)
+  run/net/<network>/               a network's switch while it runs: qemu.sock, vz.sock, switch.pid, switch.log,
+                                   status.json (§11.12)
+  networks.json                    the networks between VMs and their members (§11.12)
   recipes/                         downloaded and imported recipes (§11.3), `.installed.json`
   share/<name>/                    default share folder per instance (NixOS: 9p, macOS: virtiofs); a folder the user
                                    chose instead is recorded as `sharePath` in instance.json
@@ -271,7 +275,7 @@ Network modes from `recipe.toml`:
 | Mode | NixOS (QEMU) | macOS (omaf-runner) |
 |---|---|---|
 | `shared` | `-netdev user` with SSH forwarding | `VZNATNetworkDeviceAttachment` (`192.168.64.x`) |
-| `isolated` | `-netdev user,restrict=on` + SSH forwarding | **not available** (M10, plan BM27): NAT has no outbound block; a vmnet host-mode network needs a restricted entitlement – `omaf new`/`start` refuse it. Later: packet filter or `VZFileHandleNetworkDeviceAttachment` (OPEN; direction: omaflake's own switch, §11.12) |
+| `isolated` | `-netdev user,restrict=on` + SSH forwarding | **not available** (M10, plan BM27): NAT has no outbound block; a vmnet host-mode network needs a restricted entitlement – `omaf new`/`start` refuse it. Later: packet filter or `VZFileHandleNetworkDeviceAttachment` (OPEN; networks between VMs are a second card, §11.12) |
 | `none` | no network card | no network card (SSH not possible then) |
 
 ### 6.4 Runner `omaf-runner` (macOS, to be verified in M7)
@@ -863,52 +867,65 @@ get the ID and source of the recipe of that base there is now; image packages ar
 them follow – their overlays are rebased); every VM gets an identity. Checked: the six recipes give the same store
 paths as before.
 
-### 11.12 Virtual networks between VMs (DIRECTION 2026-11-25, plan B170; nothing built)
+### 11.12 Networks between VMs (DECIDED and built 2026-11-25 for 0.7.5, plan B170; checked without real VMs)
 
 **Why.** VMs should talk to each other across the hypervisor boundary – first case: one NixOS VM with Docker that
-several macOS VMs use (macOS guests cannot run Docker, plan B170). Today they cannot: every QEMU VM has its own NAT
-(`-netdev user`, §6.3), macOS VMs share VZ's NAT (`192.168.64.x`), and omaflake controls neither. Joining Apple's
-vmnet needs root (`socket_vmnet`) or a restricted entitlement – not an option.
+several macOS VMs use (macOS guests cannot run Docker, plan B170). Without networks they cannot: every QEMU VM has its
+own NAT (`-netdev user`, §6.3), macOS VMs share VZ's NAT (`192.168.64.x`), and omaflake controls neither. Joining
+Apple's vmnet needs root (`socket_vmnet`) or a restricted entitlement – not an option.
 
-**Switch in user space.** omaflake runs its own switch and gateway per network, without root or entitlements; both
-hypervisors attach to it over Unix sockets:
+**A second card (maintainer's decision, 2026-11-25).** A network is an Ethernet segment omaflake runs itself; a VM
+joins it with a **second network card**. Its own card – the NAT with SSH and the internet, the network mode `shared` /
+`isolated` / `none` – stays exactly as it is, so a VM in no network starts as before. Networks are opt-in.
 
 | Side | Attachment |
 |---|---|
-| NixOS (QEMU) | `-netdev stream` or `-netdev dgram` on the network's socket |
-| macOS (omaf-runner) | `VZFileHandleNetworkDeviceAttachment` (datagram socket) |
-| Switch + gateway | DHCP, DNS, NAT to the outside, port forwards to the host; `gvisor-tap-vsock` or our own (OPEN, plan B170 spike) |
+| NixOS (QEMU) | `-netdev stream,id=lan<i>,server=off,addr.type=unix,addr.path=<data>/run/net/<name>/qemu.sock,reconnect-ms=1000` + `virtio-net-pci,netdev=lan<i>,mac=…,addr=0xa…0xd` (QEMU 11.1.2 `qapi/net.json`) |
+| macOS (omaf-runner) | `--lan-mac/--lan-socket/--lan-switch`: a datagram socket bound to `<data>/run/<vm>/lan<i>.sock`, connected to `…/vz.sock`, given to `VZFileHandleNetworkDeviceAttachment` |
+| Switch | `omaf network-switch <name> --data <folder>` (hidden): one process per network |
 
-Because the switch is omaflake's, it can enforce rules per network – which gives macOS VMs `isolated` (§6.3, plan
-BM27) – and it knows who talks to whom, which the network view shows.
+**The switch** (`crates/omaflake-core/src/networks/`) is a learning Ethernet switch in Rust (std and libc, no new
+dependency): QEMU's stream frames (a 4-byte big-endian length before each), and one datagram per frame from each
+runner's bound path – the sender's address is kept raw (std's `SocketAddr` on macOS drops the last byte of a path
+bound without a terminating NUL). Its own address `.1` answers ARP, ping and DHCP. omaflake starts it before a member
+VM starts (`Networks::prepare`); it ends a minute after its last port went, or when its network is removed. A frame it
+cannot pass on at once is dropped. Every two seconds it writes `status.json`: ports, the member behind each card,
+traffic in and out, bytes between VMs. Spike (same day): `gvisor-tap-vsock` 0.8.9 joins a QEMU and a vfkit client on
+one segment but serves only one client per kind – a switch of omaflake's own was needed anyway; with no gateway to
+replace, gvproxy is not used.
 
-**Networks as objects.**
+**Addresses.** Network n (1–254, the first free) is `10.231.<n>.0/24`, the switch `.1`, members 10–254 (the first free
+when they join; kept while they stay). A card's MAC is `02:6f:6d:<n>:<host>:00` – the switch's DHCP server answers from
+the MAC alone, without leases, and gives no router and no DNS server: the default route stays on the VM's NAT. A VM is
+in at most 4 networks (QEMU's PCI slots 0xa–0xd).
 
-```sh
-omaf net create dev --internet on --host off
-omaf new docker --recipe omaflake.nixos.docker --net dev
-omaf new mac1   --recipe omaflake.macos.dev    --net dev
-```
+**Files.** `<data>/networks.json` (schema `networks` v1, docs/schema/networks/v1.json): the networks with their
+members – the only place membership is kept (a VM's package does not carry it; removing a VM takes it out). Runtime
+files in `<data>/run/net/<name>/`: `qemu.sock`, `vz.sock`, `switch.pid`, `switch.log`, `status.json`.
 
-- A network has its own subnet and rules: internet, access to the host, traffic between its VMs.
-- Built-in DNS: `<vm>.<network>.omaf` (name scheme OPEN), e.g. `DOCKER_HOST=tcp://docker.dev.omaf:2375`.
-- A VM can be in several networks. Without `--net` it gets a network of its own, as today – the default does not
-  change. The network modes `shared` / `isolated` / `none` become rules of that network (migration OPEN).
-- Stored in `<data>/networks.json` (schema v1, §5.1); `instance.json` names its networks. A network's switch runs
-  while one of its VMs runs (process model – part of the core service or one process per network – OPEN).
+**Guests.** NixOS: NetworkManager brings up a new card with DHCP by itself. macOS: a launchd daemon of
+`darwin-guest.nix` runs `networksetup -detectnewhardware` at every boot, so a card macOS has not seen gets a network
+service (DHCP). OPEN: both checked in a running guest.
 
-**Docker VM.** A recipe `nixos/docker` (the catalog's Docker module, headless). Clients set `DOCKER_HOST`; bind
-mounts need the project folder at the same path in the client and the Docker VM, published ports are forwarded to the
-client's `localhost` (by the agent or the switch – OPEN). The Docker socket over TCP is root on the Docker VM for
-every VM of the network; the app says so where the network is set up.
+**CLI, API, UI.** `omaf networks [list|create|rm|show|join|leave]` (alias `net`), `omaf new --join <network>`;
+API `networks.list/create/remove/join/leave` (docs/api.md); the Networks tab in the Run group of every UI: the networks
+as a list (the Credentials page's shape: members with address and traffic, Add VM …, Take … Out, Remove …), the forms
+`network` and `networkMember`, and the graph – this computer with every VM's own NAT, each network with its members,
+addresses, whether each card is connected, and what went between which VMs. The app draws it as a picture, the Linux
+app as cards, `omaf ui` as a tree.
 
-**Network view (app, `omaf ui`, Linux app).** A graph: the host, each network as a switch, each VM (kind by symbol,
-running/stopped by colour). Edges: membership, internet and host access (on/blocked). Live from the switch: traffic per
-edge, port forwards, offered services (e.g. "Docker :2375 · 3 clients"). Editing in the graph: drag a VM into a
-network, switch a network's internet off. The guest's own view comes from the agent's `network` check (§11.9).
+**Docker VM.** The catalog's recipe `nixos/docker` (headless; modules `omaflake/shell`, `omaflake/docker`): Docker 29
+with Compose, listening on `/run/docker.sock` and TCP 2375 (socket activation, firewall open; the VM's NAT lets
+nothing in). A macOS VM in its network uses `DOCKER_HOST=tcp://<address>:2375` (the network's details show the line).
+The port has no TLS and no login – every VM of the network is root on the Docker VM; the module and the docs say so.
+Bind mounts: `/Volumes/My Shared Files` in the Docker VM links to `/mnt/share`, so `docker run -v "$PWD":/app` from a
+macOS VM works when both VMs share the same host folder. Ports published by containers are reached at the Docker VM's
+address, not at the client's `localhost`.
 
-OPEN: everything above – the switch (B170's spike), throughput, the process model, the migration of network modes,
-bind mounts with several clients.
+**Later (OPEN).** Rules per network (internet, host access) and `isolated` for macOS VMs (BM27) – a gateway on the
+switch (e.g. gvproxy as one port); DNS names for members (`<vm>.<network>.omaf`); ports forwarded to a client's
+`localhost`; a VM joining while it runs (today: from its next start); the graph's editing by dragging; throughput
+measured against VZ's NAT.
 
 ### 11.4 Prerequisites for release
 

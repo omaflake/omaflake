@@ -34,6 +34,7 @@ one, and never removes a published version from this site. Editors use the URL t
 | `keymap` | `keymap.toml` of a key binding set (TOML, checked as data; plan B142) | [v1](keymap/v1.json), [v2](keymap/v2.json) (key lists, `{ key, after }`; plan B147) |
 | `look` | `look.toml` of a look (TOML, checked as data; plan B140, B141) | [v1](look/v1.json) |
 | `installed-parts` | `<data>/looks/`, `<data>/modules/`, `<data>/keymaps/` `.installed.json` – what was installed from sources | [v1](installed-parts/v1.json) |
+| `networks` | `<data>/networks.json` – the networks between VMs and their members (spec §11.12) | [v1](networks/v1.json) |
 | `tokens` | `$XDG_CONFIG_HOME/omaflake/tokens.json` – tokens of private sources on Linux without a keyring | [v1](tokens/v1.json) |
 
 The schemas live in the repository's [docs/schema/](https://github.com/omaflake/omaflake/tree/main/docs/schema); how

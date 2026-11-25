@@ -920,6 +920,34 @@ pub struct LooksAnswer {
     pub fetched: bool,
 }
 
+/// A network between VMs (`networks.list`, plan B170, spec §11.12)
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct NetworkDto {
+    pub name: String,
+    /// "10.231.1.0/24"
+    pub subnet: String,
+    /// The switch's own address (`.1`)
+    pub switch_address: String,
+    /// Its switch runs
+    pub running: bool,
+    pub members: Vec<NetworkMemberDto>,
+}
+
+/// A VM in a network
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct NetworkMemberDto {
+    pub vm: String,
+    pub address: String,
+    pub mac: String,
+    /// Its card is connected to the running switch
+    pub connected: bool,
+    /// Bytes from the VM / to the VM since the switch started
+    pub rx_bytes: u64,
+    pub tx_bytes: u64,
+}
+
 /// A profile (`profiles.list`, plan B142): CPU cores and RAM a new VM gets
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]

@@ -20,6 +20,7 @@ pub fn lucide(name: &str) -> Option<Icon> {
         "look" => Icon::Palette,
         "module" => Icon::Blocks,
         "gauge" => Icon::Gauge,
+        "network" => Icon::Network,
         "copy" => Icon::Copy,
         "edit" => Icon::Pencil,
         "license" => Icon::Scale,

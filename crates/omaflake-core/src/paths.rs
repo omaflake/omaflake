@@ -30,7 +30,7 @@ pub struct Paths {
 impl Paths {
     /// Top-level entries of the data folder that belong to omaflake – moved by `DataFolder::move_to`; anything else
     /// in the folder stays where it is: the settings file and `developer/` (contributors' own local files).
-    pub const DATA_ENTRIES: [&'static str; 12] = [
+    pub const DATA_ENTRIES: [&'static str; 13] = [
         "images",
         "instances",
         "bases",
@@ -43,6 +43,8 @@ impl Paths {
         "guest",
         "recipes",
         "run",
+        // The networks between VMs and their members (spec §11.12)
+        "networks.json",
     ];
 
     /// `config_file` None = `<root>/config.json`
@@ -288,6 +290,10 @@ impl InstancePaths {
         self.run.join("bridge.sock")
     }
     // omaflake agent (spec §11.9): the port's socket and what the agent last reported (AgentState)
+    /// omaf-runner's end of the VM's card on its i-th network (spec §11.12): the switch answers to this path
+    pub fn network_socket(&self, i: usize) -> PathBuf {
+        self.run.join(format!("lan{i}.sock"))
+    }
     pub fn agent_socket(&self) -> PathBuf {
         self.run.join("agent.sock")
     }

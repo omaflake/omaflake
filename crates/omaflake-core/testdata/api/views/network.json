@@ -1,0 +1,55 @@
+{
+  "actions": [
+    {
+      "enabled": true,
+      "id": "cancel",
+      "label": {
+        "key": "Cancel",
+        "text": "Cancel"
+      },
+      "method": "ui.back",
+      "params": {}
+    },
+    {
+      "enabled": true,
+      "icon": "create",
+      "id": "create",
+      "label": {
+        "key": "Create",
+        "text": "Create"
+      },
+      "method": "networks.create",
+      "params": {
+        "name": "dev"
+      },
+      "primary": true,
+      "then": "back"
+    }
+  ],
+  "fields": [
+    {
+      "enabled": true,
+      "help": {
+        "key": "Lowercase letters, digits and dashes, e.g. “dev” – the VMs' address range is chosen for it.",
+        "text": "Lowercase letters, digits and dashes, e.g. “dev” – the VMs' address range is chosen for it."
+      },
+      "id": "name",
+      "kind": "text",
+      "label": {
+        "key": "Name",
+        "text": "Name"
+      },
+      "param": "name",
+      "value": "dev",
+      "valueParam": "name"
+    }
+  ],
+  "intro": {
+    "key": "A network between VMs. Add VMs to it afterwards; each gets a fixed address in it.",
+    "text": "A network between VMs. Add VMs to it afterwards; each gets a fixed address in it."
+  },
+  "title": {
+    "key": "New Network",
+    "text": "New Network"
+  }
+}

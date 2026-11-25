@@ -160,7 +160,12 @@ impl VzBackend {
     // MARK: Start, stop, status
 
     /// The runner's arguments for `start`
-    pub(crate) fn runner_arguments(&self, c: &InstanceConfig, options: StartOptions) -> Result<Vec<String>> {
+    pub(crate) fn runner_arguments(
+        &self,
+        c: &InstanceConfig,
+        options: StartOptions,
+        networks: &[crate::networks::Attachment],
+    ) -> Result<Vec<String>> {
         let ip = self.paths.instance(&c.name);
         let mut args: Vec<String> = vec![
             "run".into(),
@@ -200,6 +205,17 @@ impl VzBackend {
         }
         if c.share {
             args.extend(["--share".into(), path_string(&self.paths.prepare_share(c, None)?)]);
+        }
+        // A second card per network (spec §11.12): the runner binds its end and sends to the switch
+        for (i, n) in networks.iter().enumerate() {
+            args.extend([
+                "--lan-mac".into(),
+                crate::networks::packets::mac_text(&n.mac),
+                "--lan-socket".into(),
+                path_string(&ip.network_socket(i)),
+                "--lan-switch".into(),
+                path_string(&n.vz_socket),
+            ]);
         }
         Ok(args)
     }
@@ -396,7 +412,8 @@ impl VmBackend for VzBackend {
         } else if !ip.vm().exists() {
             self.clone_image(c)?;
         }
-        let args = self.runner_arguments(c, options)?;
+        let networks = crate::networks::Networks::new(self.paths.clone()).prepare(&c.name)?;
+        let args = self.runner_arguments(c, options, &networks)?;
         self.run_runner(c, &args, Duration::from_secs(30))
     }
 
@@ -807,7 +824,7 @@ pub(crate) mod tests {
         c.clipboard = Some(false);
         c.share = true;
         let ip = p.instance("m1");
-        let a = vz.runner_arguments(&c, StartOptions::new(DisplayMode::Window)).unwrap();
+        let a = vz.runner_arguments(&c, StartOptions::new(DisplayMode::Window), &[]).unwrap();
         let s = |x: &Path| x.to_string_lossy().into_owned();
         let mut expected = vec!["run".to_string(), s(&ip.vm()), "--socket".into(), s(&ip.runner_socket())];
         expected.extend(["--pid-file".into(), s(&ip.runner_pid()), "--window".into(), "--no-network".into()]);
@@ -816,14 +833,31 @@ pub(crate) mod tests {
         assert_eq!(a, expected);
         assert!(p.share("m1").is_dir());
         let headless =
-            vz.runner_arguments(&mac_config("m1", NetworkMode::Shared), StartOptions::new(DisplayMode::None));
+            vz.runner_arguments(&mac_config("m1", NetworkMode::Shared), StartOptions::new(DisplayMode::None), &[]);
         let headless = headless.unwrap();
         assert!(!headless.contains(&"--window".to_string()) && headless.contains(&"--clipboard".to_string()));
         assert!(!headless.contains(&"--midi".to_string()));
         c.midi = Some(true);
-        let a = vz.runner_arguments(&c, StartOptions::new(DisplayMode::None)).unwrap();
+        let a = vz.runner_arguments(&c, StartOptions::new(DisplayMode::None), &[]).unwrap();
         let at = a.iter().position(|x| x == "--agent-state").unwrap();
         assert_eq!(a[at + 2..at + 5], ["--midi", "--vm-name", "m1"]);
+        // A card per network, last
+        let networks = crate::networks::Networks::new(p.clone());
+        networks.create("dev").unwrap();
+        networks.join("dev", "m1").unwrap();
+        let cards = networks.attachments("m1");
+        let a = vz.runner_arguments(&c, StartOptions::new(DisplayMode::None), &cards).unwrap();
+        assert_eq!(
+            a[a.len() - 6..],
+            [
+                "--lan-mac".to_string(),
+                "02:6f:6d:01:0a:00".into(),
+                "--lan-socket".into(),
+                s(&ip.network_socket(0)),
+                "--lan-switch".into(),
+                s(&networks.vz_socket("dev")),
+            ]
+        );
     }
 
     #[test]

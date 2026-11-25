@@ -22,6 +22,17 @@ are collected under *Unreleased*. Releases: [GitHub](https://github.com/omaflake
   Settings and click "Start Virtual Camera". The Mac's camera is on only while OBS reads it. **Diagnose** says which
   step is missing. Needs an image built with this version.
 
+- **Networks between VMs** (new, not yet tried with real VMs): VMs of both kinds – NixOS and macOS – can talk to each
+  other. Create a network in the new **Networks** tab (or `omaf networks create dev`) and add VMs to it (`omaf networks
+  join dev <vm>`, `omaf new … --join dev`): from its next start each member gets a second network card there with a
+  fixed address (`10.231.<n>.<host>`); its own network – SSH, the internet – stays as it is. omaflake runs each
+  network's switch itself, without administrator rights. The tab shows who is connected to what, and the traffic.
+  macOS VMs need an image built with this version (it sets up the new card at boot).
+- **Docker VM:** the catalog's new recipe `nixos/docker` – a VM without a window that runs Docker with Compose, for
+  itself and for the macOS VMs in its networks (`DOCKER_HOST=tcp://<its address>:2375`, shown in the network's details;
+  every VM in the network can use it as root). With the same folder of this Mac shared into both VMs,
+  `docker run -v "$PWD":/app` works from the macOS VM.
+
 ### Fixed
 
 - **Camera port:** a guest that read the camera's frames more slowly than for a moment (more than 1 s for one write)

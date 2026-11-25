@@ -109,6 +109,9 @@ struct Run: ParsableCommand {
     @Flag(help: "With --camera: a test pattern instead of the camera") var cameraTestPattern = false
     @Flag(help: "With --agent-state: the Mac's MIDI devices in the VM, both ways (plan B161)") var midi = false
     @Option(help: "The VM's name: its own MIDI pair on the Mac is \"omaflake <name>\" (default: the bundle's folder)") var vmName: String?
+    @Option(help: "A card on one of omaflake's networks: its MAC (with --lan-socket and --lan-switch, once per network)") var lanMac: [String] = []
+    @Option(help: "The card's own datagram socket (the switch answers to it)") var lanSocket: [String] = []
+    @Option(help: "The network switch's datagram socket (vz.sock)") var lanSwitch: [String] = []
     @Flag(help: "Start into macOS Recovery") var recovery = false
     @Option(help: "First start after installation only: create a user (macOS 27 guest)") var user: String?
     @Option(help: "Full name for --user") var fullName: String?
@@ -119,6 +122,9 @@ struct Run: ParsableCommand {
     func validate() throws {
         if user != nil && !passwordStdin { throw ValidationError("--user requires --password-stdin") }
         if user == nil && (autoLogin || ssh || fullName != nil) { throw ValidationError("--auto-login/--ssh/--full-name only with --user") }
+        if lanMac.count != lanSocket.count || lanSocket.count != lanSwitch.count {
+            throw ValidationError("--lan-mac, --lan-socket and --lan-switch must be given equally often")
+        }
     }
 
     func run() throws {
@@ -134,7 +140,9 @@ struct Run: ParsableCommand {
             bundle: MacVMBundle(url(bundle)), window: window, socket: socket.map(url), pidFile: pidFile.map(url),
             share: share.map(url), network: !noNetwork, audio: audio, microphone: audio && microphone,
             clipboard: clipboard, camera: camera, cameraTestPattern: cameraTestPattern, agentState: agentState.map(url),
-            midi: midi, vmName: vmName, recovery: recovery, provisioning: provisioning)
+            midi: midi, vmName: vmName,
+            networks: try NetworkCard.parse(macs: lanMac, sockets: lanSocket, switches: lanSwitch),
+            recovery: recovery, provisioning: provisioning)
         MainActor.assumeIsolated {
             let app = NSApplication.shared
             app.setActivationPolicy(window ? .regular : .prohibited)

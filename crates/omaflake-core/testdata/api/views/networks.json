@@ -1,0 +1,393 @@
+{
+  "add": {
+    "enabled": true,
+    "icon": "add",
+    "id": "add",
+    "label": {
+      "key": "New Network …",
+      "text": "New Network …"
+    },
+    "method": "ui.show",
+    "params": {
+      "page": "network",
+      "params": {}
+    },
+    "primary": true
+  },
+  "footer": {
+    "key": "Networks stay on this computer. omaflake runs each network's switch itself – no administrator rights, nothing reaches the network from outside. Every VM in a network can reach every service the others offer there.",
+    "text": "Networks stay on this computer. omaflake runs each network's switch itself – no administrator rights, nothing reaches the network from outside. Every VM in a network can reach every service the others offer there."
+  },
+  "graph": {
+    "flows": [
+      {
+        "bytes": 2500,
+        "from": "research",
+        "network": "dev",
+        "to": "work"
+      }
+    ],
+    "host": {
+      "key": "This Mac",
+      "text": "This Mac"
+    },
+    "links": [
+      {
+        "active": true,
+        "kind": "nat",
+        "label": {
+          "key": "NAT · internet",
+          "text": "NAT · internet"
+        },
+        "to": "host",
+        "vm": "research"
+      },
+      {
+        "active": false,
+        "kind": "nat",
+        "label": {
+          "key": "NAT · no internet",
+          "text": "NAT · no internet"
+        },
+        "to": "host",
+        "vm": "work"
+      },
+      {
+        "active": true,
+        "bytes": 15000,
+        "kind": "network",
+        "label": {
+          "text": "10.231.1.10"
+        },
+        "to": "dev",
+        "vm": "research"
+      },
+      {
+        "active": false,
+        "kind": "network",
+        "label": {
+          "text": "10.231.1.11"
+        },
+        "to": "dev",
+        "vm": "work"
+      }
+    ],
+    "networks": [
+      {
+        "id": "dev",
+        "label": "dev",
+        "running": true,
+        "subnet": "10.231.1.0/24"
+      },
+      {
+        "id": "lab",
+        "label": "lab",
+        "running": false,
+        "subnet": "10.231.2.0/24"
+      }
+    ],
+    "vms": [
+      {
+        "id": "research",
+        "kind": "nixos",
+        "label": "research",
+        "running": true
+      },
+      {
+        "id": "work",
+        "kind": "macos",
+        "label": "work",
+        "running": false
+      }
+    ]
+  },
+  "intro": {
+    "key": "Networks between VMs: each VM in a network gets a second network card there and reaches the network's other VMs – NixOS and macOS alike, e.g. a Docker VM for several macOS VMs. Its own network (SSH, the internet) stays as it is. A change counts from the VM's next start.",
+    "text": "Networks between VMs: each VM in a network gets a second network card there and reaches the network's other VMs – NixOS and macOS alike, e.g. a Docker VM for several macOS VMs. Its own network (SSH, the internet) stays as it is. A change counts from the VM's next start."
+  },
+  "rows": [
+    {
+      "actions": [],
+      "badges": [],
+      "detail": {
+        "actions": [
+          {
+            "enabled": false,
+            "icon": "add",
+            "id": "join",
+            "label": {
+              "key": "Add VM …",
+              "text": "Add VM …"
+            },
+            "method": "ui.show",
+            "params": {
+              "page": "networkMember",
+              "params": {
+                "network": "dev"
+              }
+            },
+            "primary": true,
+            "reason": {
+              "key": "Every VM is in it",
+              "text": "Every VM is in it"
+            }
+          },
+          {
+            "enabled": true,
+            "help": {
+              "key": "From its next start",
+              "text": "From its next start"
+            },
+            "icon": "network-none",
+            "id": "leave-research",
+            "label": {
+              "args": [
+                "research"
+              ],
+              "key": "Take %@ Out",
+              "text": "Take research Out"
+            },
+            "method": "networks.leave",
+            "params": {
+              "network": "dev",
+              "vm": "research"
+            }
+          },
+          {
+            "enabled": true,
+            "help": {
+              "key": "From its next start",
+              "text": "From its next start"
+            },
+            "icon": "network-none",
+            "id": "leave-work",
+            "label": {
+              "args": [
+                "work"
+              ],
+              "key": "Take %@ Out",
+              "text": "Take work Out"
+            },
+            "method": "networks.leave",
+            "params": {
+              "network": "dev",
+              "vm": "work"
+            }
+          },
+          {
+            "confirm": {
+              "button": {
+                "key": "Remove",
+                "text": "Remove"
+              },
+              "destructive": true,
+              "text": {
+                "key": "Its VMs lose that card at their next start; their own network stays.",
+                "text": "Its VMs lose that card at their next start; their own network stays."
+              },
+              "title": {
+                "args": [
+                  "dev"
+                ],
+                "key": "Remove the network “%@”?",
+                "text": "Remove the network “dev”?"
+              }
+            },
+            "destructive": true,
+            "enabled": true,
+            "icon": "trash",
+            "id": "remove",
+            "label": {
+              "key": "Remove …",
+              "text": "Remove …"
+            },
+            "method": "networks.remove",
+            "params": {
+              "name": "dev"
+            }
+          }
+        ],
+        "info": [
+          {
+            "label": {
+              "key": "Subnet",
+              "text": "Subnet"
+            },
+            "value": {
+              "text": "10.231.1.0/24"
+            }
+          },
+          {
+            "label": {
+              "key": "Switch",
+              "text": "Switch"
+            },
+            "note": {
+              "key": "running",
+              "text": "running"
+            },
+            "tone": "success",
+            "value": {
+              "text": "10.231.1.1"
+            }
+          },
+          {
+            "label": {
+              "text": "research"
+            },
+            "tone": "success",
+            "value": {
+              "args": [
+                "10.231.1.10",
+                {
+                  "bytes": 12000
+                },
+                {
+                  "bytes": 3000
+                }
+              ],
+              "key": "%@ · connected – %@ in, %@ out",
+              "text": "10.231.1.10 · connected – 12.0 KB in, 3.0 KB out"
+            }
+          },
+          {
+            "label": {
+              "text": "work"
+            },
+            "value": {
+              "args": [
+                "10.231.1.11"
+              ],
+              "key": "%@ · not running",
+              "text": "10.231.1.11 · not running"
+            }
+          }
+        ]
+      },
+      "id": "dev",
+      "lamp": {
+        "help": {
+          "key": "The network's switch runs",
+          "text": "The network's switch runs"
+        },
+        "state": "on"
+      },
+      "name": "dev",
+      "subtitle": {
+        "args": [
+          "10.231.1.0/24",
+          2
+        ],
+        "key": "%@ · %lld VMs",
+        "text": "10.231.1.0/24 · 2 VMs"
+      },
+      "usedBy": [
+        "research",
+        "work"
+      ]
+    },
+    {
+      "actions": [],
+      "badges": [],
+      "detail": {
+        "actions": [
+          {
+            "enabled": true,
+            "icon": "add",
+            "id": "join",
+            "label": {
+              "key": "Add VM …",
+              "text": "Add VM …"
+            },
+            "method": "ui.show",
+            "params": {
+              "page": "networkMember",
+              "params": {
+                "network": "lab"
+              }
+            },
+            "primary": true
+          },
+          {
+            "confirm": {
+              "button": {
+                "key": "Remove",
+                "text": "Remove"
+              },
+              "destructive": true,
+              "text": {
+                "key": "Its VMs lose that card at their next start; their own network stays.",
+                "text": "Its VMs lose that card at their next start; their own network stays."
+              },
+              "title": {
+                "args": [
+                  "lab"
+                ],
+                "key": "Remove the network “%@”?",
+                "text": "Remove the network “lab”?"
+              }
+            },
+            "destructive": true,
+            "enabled": true,
+            "icon": "trash",
+            "id": "remove",
+            "label": {
+              "key": "Remove …",
+              "text": "Remove …"
+            },
+            "method": "networks.remove",
+            "params": {
+              "name": "lab"
+            }
+          }
+        ],
+        "info": [
+          {
+            "label": {
+              "key": "Subnet",
+              "text": "Subnet"
+            },
+            "value": {
+              "text": "10.231.2.0/24"
+            }
+          },
+          {
+            "label": {
+              "key": "Switch",
+              "text": "Switch"
+            },
+            "note": {
+              "key": "starts with the first VM of the network, ends a minute after the last",
+              "text": "starts with the first VM of the network, ends a minute after the last"
+            },
+            "tone": "normal",
+            "value": {
+              "text": "10.231.2.1"
+            }
+          }
+        ]
+      },
+      "id": "lab",
+      "lamp": {
+        "help": {
+          "key": "The network's switch runs",
+          "text": "The network's switch runs"
+        },
+        "state": "off"
+      },
+      "name": "lab",
+      "subtitle": {
+        "args": [
+          "10.231.2.0/24"
+        ],
+        "key": "%@ · no VMs",
+        "text": "10.231.2.0/24 · no VMs"
+      },
+      "usedBy": []
+    }
+  ],
+  "title": {
+    "key": "Networks",
+    "text": "Networks"
+  }
+}

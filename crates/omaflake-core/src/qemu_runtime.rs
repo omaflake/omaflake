@@ -239,6 +239,7 @@ impl QemuRuntime {
             prepare_efivars(&ip.efivars(), Path::new(template))?;
         }
         let mut cmd = QemuCommand::new(&self.firmware, ip.clone(), share, display);
+        cmd.networks = crate::networks::Networks::new(self.paths.clone()).prepare(&config.name)?;
         cmd.target = target;
         cmd.gl = gl;
         cmd.capabilities = caps;

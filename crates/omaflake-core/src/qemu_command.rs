@@ -10,6 +10,8 @@
 //! else (disk, network, share, agent ports, QMP, serial log) is the same on every host.
 use crate::agent_protocol::AgentProtocol;
 use crate::models::{DisplayMode, GlBackend, InstanceConfig, NetworkMode, QemuCapabilities};
+use crate::networks::Attachment;
+use crate::networks::packets::mac_text;
 use crate::paths::InstancePaths;
 
 /// The guest's architecture (always the host's: guests run natively, plan B114)
@@ -144,6 +146,8 @@ pub struct QemuCommand {
     /// Initial resolution of the virtual GPU in pixels (the window opens to match; afterwards the guest follows the
     /// window)
     pub initial_resolution: Option<(u32, u32)>,
+    /// Second cards on omaflake's networks (spec §11.12), at most `slot::NETWORKS.len()`
+    pub networks: Vec<Attachment>,
 }
 
 /// PCI slots per device, the same with and without a window (Swift `QEMUCommand.Slot`)
@@ -156,6 +160,8 @@ pub mod slot {
     pub const SHARE: &str = "0x7";
     pub const SERIAL: &str = "0x8";
     pub const SOUND: &str = "0x9";
+    /// Cards on omaflake's networks (spec §11.12), in the order of the VM's networks
+    pub const NETWORKS: [&str; 4] = ["0xa", "0xb", "0xc", "0xd"];
 }
 
 impl QemuCommand {
@@ -178,6 +184,7 @@ impl QemuCommand {
             gl: GlBackend::On,
             capabilities: QemuCapabilities::default(),
             initial_resolution: None,
+            networks: vec![],
         }
     }
 
@@ -301,6 +308,19 @@ impl QemuCommand {
                 net_device,
             ]),
             NetworkMode::None => a.extend(["-nic".into(), "none".into()]),
+        }
+        // A second card per network: a stream socket to the network's switch, which may come up after QEMU (it is
+        // started first; reconnect-ms covers a switch that restarts – QEMU 11.1.2 qapi/net.json, since 9.2)
+        for (i, (n, at)) in self.networks.iter().zip(slot::NETWORKS).enumerate() {
+            a.extend([
+                "-netdev".into(),
+                format!(
+                    "stream,id=lan{i},server=off,addr.type=unix,addr.path={},reconnect-ms=1000",
+                    n.qemu_socket.to_string_lossy().replace(',', ",,")
+                ),
+                "-device".into(),
+                format!("virtio-net-pci,netdev=lan{i},mac={},addr={at}", mac_text(&n.mac)),
+            ]);
         }
 
         if let (true, Some(share)) = (c.share, &self.share_path) {
@@ -446,6 +466,31 @@ mod tests {
         let none = args(&config(NetworkMode::None, false, true));
         assert!(values(&none, "-netdev").is_empty());
         assert_eq!(values(&none, "-nic"), ["none"]);
+    }
+
+    #[test]
+    fn a_second_card_per_network() {
+        let attachment = |name: &str, number: u8| crate::networks::Attachment {
+            network: name.into(),
+            mac: crate::networks::mac_for(number, 10),
+            address: std::net::Ipv4Addr::new(10, 231, number, 10),
+            qemu_socket: format!("/data/run/net/{name}/qemu.sock").into(),
+            vz_socket: format!("/data/run/net/{name}/vz.sock").into(),
+        };
+        let mut cmd = QemuCommand::new("/fw.fd", ip(), None, DisplayMode::None);
+        cmd.networks = vec![attachment("dev", 1), attachment("a,b", 2)];
+        let a = cmd.arguments(&config(NetworkMode::None, false, false));
+        assert_eq!(
+            values(&a, "-netdev"),
+            [
+                "stream,id=lan0,server=off,addr.type=unix,addr.path=/data/run/net/dev/qemu.sock,reconnect-ms=1000",
+                "stream,id=lan1,server=off,addr.type=unix,addr.path=/data/run/net/a,,b/qemu.sock,reconnect-ms=1000",
+            ],
+            "the VM's own NAT can be off; a comma in the path is doubled"
+        );
+        assert!(has(&a, "-device", "virtio-net-pci,netdev=lan0,mac=02:6f:6d:01:0a:00,addr=0xa"));
+        assert!(has(&a, "-device", "virtio-net-pci,netdev=lan1,mac=02:6f:6d:02:0a:00,addr=0xb"));
+        assert_eq!(values(&a, "-nic"), ["none"]);
     }
 
     #[test]

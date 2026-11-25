@@ -8,6 +8,7 @@ pub mod locales;
 pub mod looks;
 pub mod macos;
 pub mod modules;
+pub mod networks;
 pub mod packages;
 pub mod profiles;
 pub mod recipes;
@@ -77,6 +78,15 @@ pub fn run(command: Command) -> Outcome {
             Some(ProfilesCommand::Remove(a)) => profiles::remove(&a.profile),
             Some(ProfilesCommand::Default(a)) => profiles::set_default(&a.profile),
         },
+        Command::Networks(n) => match n.command {
+            None | Some(NetworksCommand::List) => networks::list(),
+            Some(NetworksCommand::Create(a)) => networks::create(&a.network),
+            Some(NetworksCommand::Remove(a)) => networks::remove(&a.network),
+            Some(NetworksCommand::Show(a)) => networks::show(&a.network),
+            Some(NetworksCommand::Join(a)) => networks::join(&a.network, &a.vm),
+            Some(NetworksCommand::Leave(a)) => networks::leave(&a.network, &a.vm),
+        },
+        Command::NetworkSwitch(a) => networks::switch(&a),
         Command::MacOs { command: MacOsCommand::Install(a) } => macos::install(&a),
         Command::MacOs { command: MacOsCommand::Assign(a) } => macos::assign(&a),
         Command::MacOs { command: MacOsCommand::Bases } => macos::bases(),

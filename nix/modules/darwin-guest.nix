@@ -130,6 +130,14 @@ in
   power.sleep.display = "never";
   system.defaults.screensaver.askForPassword = false;
 
+  # Cards on omaflake's networks between VMs (spec §11.12) come and go with the VM's networks: at every boot macOS
+  # gets a network service (DHCP) for a card it has not seen. The switch hands out no router, so the default route
+  # stays on the VM's own NAT. OPEN: checked in a guest with a second card.
+  launchd.daemons.omaflake-network-cards.serviceConfig = {
+    ProgramArguments = [ "/usr/sbin/networksetup" "-detectnewhardware" ];
+    RunAtLoad = true;
+  };
+
   # Images are rebuilt deliberately – no automatic macOS updates in the guest
   system.defaults.SoftwareUpdate.AutomaticallyInstallMacOSUpdates = false;
 

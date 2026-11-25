@@ -19,6 +19,8 @@ enum MachineConfiguration {
         var camera: FileHandle?
         /// The omaflake agent's port org.omaflake.agent (spec §11.9)
         var agent: FileHandle? = nil
+        /// Second cards on omaflake's networks, each with its open socket (spec §11.12)
+        var networks: [(NetworkCard, FileHandle)] = []
     }
 
     /// Name of the clipboard port – the same as for NixOS guests (QEMU virtserialport)
@@ -65,6 +67,9 @@ enum MachineConfiguration {
             }
             net.macAddress = mac
             c.networkDevices = [net]
+        }
+        for (card, handle) in options.networks {
+            c.networkDevices.append(try card.device(handle))
         }
 
         if let share = options.share {

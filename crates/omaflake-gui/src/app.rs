@@ -47,6 +47,8 @@ pub enum Model {
     /// Credentials (plan B137)
     Credentials(Box<CredentialsPage>),
     Credential(Box<CredentialPage>),
+    /// Networks between VMs (plan B170): the credentials' list and the graph
+    Networks(Box<omaflake_core::api::views::networks::NetworksPage>),
     /// Looks (plan B141)
     Looks(Box<omaflake_core::api::views::looks::LooksPage>),
     Activity(Box<ActivityPage>),
@@ -117,6 +119,9 @@ pub fn decode(page: &str, v: Value) -> Model {
         // looks'
         "profiles" => de(v, Model::Credentials),
         "profile" => de(v, Model::Credential),
+        // Networks between VMs (plan B170): the list with its graph; the forms in the credential form's shape
+        "networks" => de(v, Model::Networks),
+        "network" | "networkMember" => de(v, Model::Credential),
         "recipeStudio" => de(v, Model::Studio),
         "keymapStudio" => de(v, Model::KeymapStudio),
         "lookStudio" => de(v, Model::LookStudio),
@@ -153,6 +158,7 @@ impl Model {
             Model::MacBase(p) => &p.title,
             Model::Settings(p) => &p.title,
             Model::Credentials(p) => &p.title,
+            Model::Networks(p) => &p.list.title,
             Model::Credential(p) => &p.title,
             Model::Vm(p) => &p.title,
             Model::Image(p) => &p.title,

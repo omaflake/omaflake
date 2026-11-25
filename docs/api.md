@@ -371,6 +371,11 @@ Params and results in short; the types are those of §4.
 | `profiles.update` | `id`, any of `name, cpus, memoryGB` | `{id}` – VMs created with it keep their size |
 | `profiles.remove` | `id` | `null` – another one becomes the default |
 | `profiles.setDefault` | `id` | `null` – the profile new VMs get unless another is chosen |
+| `networks.list` | – | `[{name, subnet, switchAddress, running, members: [{vm, address, mac, connected, rxBytes, txBytes}]}]` (plan B170, spec §11.12) – the networks between VMs; `running`: its switch runs; `connected`, bytes: the member's card on the running switch |
+| `networks.create` | `name` | `{name, subnet}` – lowercase letters, digits, dashes (1–24); the first free `10.231.<n>.0/24` |
+| `networks.remove` | `name` | `null` – its members lose that card at their next start; a running switch ends |
+| `networks.join` | `network, vm` | `{address}` – the VM's fixed address in it (kept while it stays); a card from its next start; at most 4 networks per VM |
+| `networks.leave` | `network, vm` | `null` – from the VM's next start |
 | `modules.list` | `fetch?` | `{parts, offered, unreadable, fetched}` (plan B142) – `parts`: the modules and key binding sets here `[{id, reference, kind: module|keymap, platform?, title, description, version, tags, provides, needs, enhances, keys (a module's actions → default key; a set's "<module> <action>" → key), unfree, source, sourceName, official, installed, update, broken? (installed but it cannot be read – why; the rest is its source's entry, `update` set, plan B156), changed? (installed but its files are not what was installed – changed by hand or mixed up by an install; `update` set when a source offers it, to install it again), recipes (the recipes here made of it)}]`; `offered`: what the catalogs offer besides (`fetch: true` – or the first call – looks into them) |
 | `modules.install` | `id, source` | Job `module-install` – a module (`<author>.<platform>.<name>`) or key binding set (`<author>.keymap.<name>`), every file checked against the catalog's SHA-256 |
 | `modules.installAll` | `items: [{id, source}]` | Job `module-install` – the modules and key binding sets the Modules tab offers, one after the other; one that fails does not keep the others out |
@@ -694,7 +699,7 @@ a change at once: send `method` with `params` and the new value at `param` (`nul
 `image`, `recipe`, `activity`, `nixos`, `macos`, `start-window`, `start-headless`, `stop`, `terminal`, `folder`,
 `export`, `import`, `external`, `hide`, `upgrade`, `reset`, `trash`, `build`, `new-vm`, `create`, `cancel`, `install`,
 `refresh`, `download`, `pause`, `apply`, `clean`, `guide`, `log`, `doctor`, `diagnose`, `settings`, `key`, `quit`, `up`, `add`,
-`clipboard`, `sound`, `microphone`, `camera`, `midi`, `ephemeral`, `network-isolated`, `network-none`, `upgradable`,
+`clipboard`, `sound`, `microphone`, `camera`, `midi`, `ephemeral`, `network-isolated`, `network-none`, `network`, `upgradable`,
 `outdated`, `lab`, `arch`, `official`, `lock`, `lock-warning`, `github`, `url`, `warning`, `ok`, `filter`,
 `finished`, `failed`, `cancelled`. An unknown name is drawn as nothing (or its `label`).
 
@@ -957,6 +962,19 @@ default (`profiles.setDefault`), remove (destructive, confirm)]}}`; `add` ("New 
 
 **profile** (params `id?`, `values`) – the shape of **credential**: `fields: [name, cpus (1–64), memoryGB (1–512)]`
 (a new one 4 CPU, 8 GB), `actions: [cancel, save (`profiles.update`) | create (`profiles.add`)]`.
+
+**networks** (plan B170, a tab of the Run group) – the shape of **credentials**: rows `{id, name, lamp (on: its switch
+runs), subtitle ("10.231.1.0/24 · 2 VMs"), usedBy (the members), detail: {info (subnet, switch, one line per member:
+address, connected with its traffic or why not; for a Docker VM the `DOCKER_HOST` line), actions: [join (`ui.show
+networkMember {network}`), leave-<vm> (`networks.leave`), remove (destructive, confirm)]}}`; `add` ("New Network …")
+opens `network`. Besides: `graph: {host (Text), networks: [{id, label, subnet, running}], vms: [{id, label, kind
+(nixos, macos; unknown for a member whose VM is gone), running}], links: [{vm, to (a network's id, or "host"), kind
+(network | nat), label (the address; for nat "NAT · internet" / "NAT · no internet"), active, bytes?}], flows:
+[{network, from, to, bytes}]}` – UIs draw it as a picture (app), cards (Linux app) or a tree (`omaf ui`).
+
+**network** (params `values`) – the shape of **credential**: `fields: [name]` (its error: empty, not a name, taken),
+`actions: [cancel, create (`networks.create`)]`. **networkMember** (params `network`, `values`): `fields: [vm]` (the VMs
+not in it, as choices), `actions: [cancel, join (`networks.join`)]`.
 
 **modules** (plan B142) – the shape of **looks** (UIs draw it with the same view; rows without `swatches`): the modules
 (NixOS, then macOS) and key binding sets here, then `offered`; subtitle "omaflake/hyprland · 1.0.0 · NixOS module · 1

@@ -1,0 +1,46 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://omaflake.dev/schema/networks/v1.json",
+  "title": "omaflake networks between VMs",
+  "description": "<data>/networks.json: the networks between VMs on this computer and their members (spec §11.12, plan B170). Network n is 10.231.<n>.0/24; a member's host number gives its address and its card's MAC 02:6f:6d:<n>:<host>:00.",
+  "type": "object",
+  "properties": {
+    "$schema": {
+      "const": "https://omaflake.dev/schema/networks/v1.json"
+    },
+    "networks": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "pattern": "^[a-z0-9]([a-z0-9-]{0,22}[a-z0-9])?$"
+          },
+          "number": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 254
+          },
+          "created": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "members": {
+            "description": "VM name → host number (10–254)",
+            "type": "object",
+            "additionalProperties": {
+              "type": "integer",
+              "minimum": 10,
+              "maximum": 254
+            }
+          }
+        },
+        "required": ["name", "number", "created"],
+        "additionalProperties": false
+      }
+    }
+  },
+  "required": ["$schema"],
+  "additionalProperties": false
+}

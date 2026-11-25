@@ -55,6 +55,9 @@ struct HomeList: View {
         case .credentials(let p)?:
             // Credentials, locales, profiles: tabs of the workshop (plan B147)
             CredentialsView(page: p, model: model)
+        case .networks(let p)?:
+            // Networks between VMs (plan B170): the graph above the list
+            CredentialsView(page: p.list, model: model, graph: p.graph)
         case .studio(let p)?:
             RecipeStudioView(page: p, ref: model.listRef(tab), model: model)
         case .lookStudio(let p)?:

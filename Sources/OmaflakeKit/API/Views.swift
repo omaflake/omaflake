@@ -1073,6 +1073,62 @@ public struct CredentialsPage: Decodable, Sendable, Equatable {
     public var footer: ViewText
 }
 
+/// The Networks tab (plan B170, spec §11.12): the list in the credentials' shape and the graph of who is connected to
+/// what
+public struct NetworksPage: Decodable, Sendable, Equatable {
+    public var list: CredentialsPage
+    public var graph: NetworkGraph
+
+    enum Key: String, CodingKey { case graph }
+
+    public init(from decoder: Decoder) throws {
+        list = try CredentialsPage(from: decoder)
+        graph = try decoder.container(keyedBy: Key.self).decode(NetworkGraph.self, forKey: .graph)
+    }
+}
+
+/// The host, every network and every VM, and how they are connected (plan B170)
+public struct NetworkGraph: Decodable, Sendable, Equatable {
+    public struct Network: Decodable, Sendable, Equatable, Identifiable {
+        public var id: String
+        public var label: String
+        public var subnet: String
+        public var running: Bool
+    }
+
+    public struct Vm: Decodable, Sendable, Equatable, Identifiable {
+        public var id: String
+        public var label: String
+        /// nixos, macos (unknown: a member whose VM is gone)
+        public var kind: String
+        public var running: Bool
+    }
+
+    /// A VM's connection: to a network's id, or "host" for its own NAT
+    public struct Link: Decodable, Sendable, Equatable {
+        public var vm: String
+        public var to: String
+        /// network, nat
+        public var kind: String
+        public var label: ViewText
+        public var active: Bool
+        public var bytes: Int64?
+    }
+
+    public struct Flow: Decodable, Sendable, Equatable {
+        public var network: String
+        public var from: String
+        public var to: String
+        public var bytes: Int64
+    }
+
+    public var host: ViewText
+    public var networks: [Network]
+    public var vms: [Vm]
+    public var links: [Link]
+    public var flows: [Flow]
+}
+
 /// One credential's form (plan B137): new, or to edit – only the name while images use it
 public struct CredentialPage: Decodable, Sendable, Equatable {
     public var title: ViewText
@@ -1441,6 +1497,8 @@ public enum PageModel: Sendable, Equatable {
     case newVm(NewVmPage), build(BuildPage), doctor(DoctorPage), diagnostics(DiagnosticsPage), macBase(MacBasePage), settings(SettingsPage)
     case activity(ActivityPage), importStep(ImportPage), credentials(CredentialsPage), credential(CredentialPage)
     case looks(LooksPage), keys(KeysPage), studio(RecipeStudioPage), keymapStudio(KeymapStudioPage), lookStudio(LookStudioPage), sources(SourcesPage)
+    /// Networks between VMs (plan B170)
+    case networks(NetworksPage)
     /// The page could not be built
     case error(ViewError)
     /// A page this client does not know
@@ -1478,6 +1536,9 @@ public enum PageModel: Sendable, Equatable {
         // Plan B142: profiles as credentials, the recipe editor as a credential's form, modules as looks
         case "profiles": self = .credentials(try CredentialsPage(from: decoder))
         case "profile": self = .credential(try CredentialPage(from: decoder))
+        // Networks between VMs (plan B170): the credentials' list with a graph; the forms as a credential's
+        case "networks": self = .networks(try NetworksPage(from: decoder))
+        case "network", "networkMember": self = .credential(try CredentialPage(from: decoder))
         case "recipeStudio": self = .studio(try RecipeStudioPage(from: decoder))
         case "keymapStudio": self = .keymapStudio(try KeymapStudioPage(from: decoder))
         case "lookStudio": self = .lookStudio(try LookStudioPage(from: decoder))

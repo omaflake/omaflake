@@ -301,6 +301,8 @@ impl InstanceStore {
         if own_share {
             Self::remove_share_if_empty(&self.paths.share(name));
         }
+        // Out of its networks (spec §11.12); the VM is gone either way
+        let _ = crate::networks::Networks::new(self.paths.clone()).forget_vm(name);
         Ok(())
     }
 

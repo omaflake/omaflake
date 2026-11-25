@@ -856,6 +856,7 @@ fn view_goldens() -> Vec<(&'static str, Value)> {
     failed.jobs[0].error_text = Some(why.text().clone());
     let mut mac = ctx();
     mac.recipes.recipes[0].runs_here = true;
+    let nets = super::views::tests::networks_ctx();
     let mut linux = ctx();
     linux.host = super::views::HostOs::Linux;
     // A Linux host without usable KVM (VMs under TCG) and with a QEMU without 3D (plan B124)
@@ -945,6 +946,12 @@ fn view_goldens() -> Vec<(&'static str, Value)> {
         ("locale", page("locale", json!({"values": {"name": "Russian", "keyboard": "ru", "keyboard2": "de"}}))),
         ("modules", page("modules", json!({}))),
         ("profiles", page("profiles", json!({}))),
+        ("networks", build(&nets, &PageRef { page: "networks".into(), params: json!({}) }).unwrap()),
+        ("network", page("network", json!({"values": {"name": "dev"}}))),
+        (
+            "networkMember",
+            build(&nets, &PageRef { page: "networkMember".into(), params: json!({"network": "lab"}) }).unwrap(),
+        ),
         ("profile", page("profile", json!({"values": {"name": "Big", "cpus": 8, "memoryGB": 32}}))),
         ("recipeStudio", page("recipeStudio", json!({"id": "omaflake.nixos.dev@velvet-tiger-orbit"}))),
         ("keymapStudio", page("keymapStudio", json!({"values": {"name": "mine"}}))),

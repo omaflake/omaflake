@@ -577,6 +577,13 @@ pub fn page(ctx: &Ctx, name: &str, model: &Value) -> Page {
         "newVm" => new_vm(ctx, model, &mut p),
         "settings" => settings(ctx, model, &mut p),
         "credentials" | "locales" | "profiles" => credentials(ctx, model, &mut p),
+        // Networks between VMs (plan B170): the credentials' shape and the graph as a tree
+        "networks" => {
+            credentials(ctx, model, &mut p);
+            network_graph(ctx, &model["graph"], &mut p);
+        }
+        "network" => credential(ctx, "network", model, &mut p),
+        "networkMember" => credential(ctx, "networkMember", model, &mut p),
         "locale" => credential(ctx, "locale", model, &mut p),
         "profile" => credential(ctx, "profile", model, &mut p),
         // The recipe studio (plan B147)
@@ -1245,6 +1252,72 @@ fn credentials(ctx: &Ctx, model: &Value, p: &mut Page) {
     }
     if let Some(f) = model.get("footer") {
         p.items.extend(help_item(ctx, t(f), 2));
+    }
+}
+
+/// The networks' graph as a tree (plan B170): the host with every VM's own NAT, then each network with its members,
+/// their addresses and traffic, and what went between which VMs
+fn network_graph(ctx: &Ctx, g: &Value, p: &mut Page) {
+    let th = ctx.theme;
+    let vms = arr(g, "vms");
+    let links = arr(g, "links");
+    let kind_icon = |vm: &str| {
+        let kind = vms.iter().find(|v| s(v, "id") == vm).map(|v| s(v, "kind")).unwrap_or_default();
+        ctx.icons.get(kind).to_string()
+    };
+    let lamp =
+        |on: bool| if on { Span::styled("● ", th.tone(Tone::Success)) } else { Span::styled("○ ", th.secondary()) };
+    let branch = |last: bool| if last { "  └─ " } else { "  ├─ " };
+    p.items.push(Item::blank());
+    p.items.push(heading(ctx, format!(" {}", t(&g["host"]))));
+    let nat: Vec<&Value> = links.iter().filter(|l| s(l, "kind") == "nat").collect();
+    for (i, l) in nat.iter().enumerate() {
+        let vm = s(l, "vm");
+        p.items.push(Item::line(
+            "",
+            Line::from(vec![
+                Span::styled(branch(i + 1 == nat.len()), th.border()),
+                lamp(b(l, "active")),
+                Span::styled(format!("{} {vm}", kind_icon(vm)), th.text()),
+                Span::styled(format!("  {}", t(&l["label"])), th.secondary()),
+            ]),
+        ));
+    }
+    for n in arr(g, "networks") {
+        let id = s(n, "id");
+        p.items.push(Item::line(
+            "",
+            Line::from(vec![
+                Span::raw(" "),
+                lamp(b(n, "running")),
+                Span::styled(format!("{} {id}", ctx.icons.get("network")), th.title()),
+                Span::styled(format!("  {}", s(n, "subnet")), th.secondary()),
+            ]),
+        ));
+        let members: Vec<&Value> = links.iter().filter(|l| s(l, "kind") == "network" && s(l, "to") == id).collect();
+        for (i, l) in members.iter().enumerate() {
+            let vm = s(l, "vm");
+            let mut spans = vec![
+                Span::styled(branch(i + 1 == members.len()), th.border()),
+                lamp(b(l, "active")),
+                Span::styled(format!("{} {vm}", kind_icon(vm)), th.text()),
+                Span::styled(format!("  {}", t(&l["label"])), th.secondary()),
+            ];
+            if let Some(bytes) = l.get("bytes").and_then(Value::as_i64) {
+                spans.push(Span::styled(format!("  {}", bytes_text(bytes)), th.secondary()));
+            }
+            p.items.push(Item::line("", Line::from(spans)));
+        }
+        for f in arr(g, "flows").iter().filter(|f| s(f, "network") == id) {
+            p.items.push(Item::line(
+                "",
+                secondary_line(
+                    ctx,
+                    format!("{} → {}  {}", s(f, "from"), s(f, "to"), bytes_text(f["bytes"].as_i64().unwrap_or(0))),
+                    7,
+                ),
+            ));
+        }
     }
 }
 

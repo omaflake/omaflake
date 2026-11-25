@@ -26,6 +26,8 @@ final class RunController: NSObject, NSApplicationDelegate, NSWindowDelegate, VZ
         var midi = false
         /// The VM's name for its MIDI pair "omaflake <name>" (nil: the instance's folder, the bundle's parent)
         var vmName: String?
+        /// Cards on omaflake's networks (spec §11.12)
+        var networks: [NetworkCard] = []
         var recovery: Bool
         var provisioning: Provisioning?
     }
@@ -111,7 +113,8 @@ final class RunController: NSObject, NSApplicationDelegate, NSWindowDelegate, VZ
                                                        .init(share: request.share, network: request.network,
                                                              audio: request.audio, microphone: request.microphone,
                                                              clipboard: clipboardHandle, camera: cameraHandle,
-                                                             agent: agentHandle))
+                                                             agent: agentHandle,
+                                                             networks: try request.networks.map { ($0, try $0.open()) }))
             vm = VZVirtualMachine(configuration: config)
             vm.delegate = self
             if request.window { showWindow() }

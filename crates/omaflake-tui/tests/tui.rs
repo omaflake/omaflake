@@ -136,7 +136,7 @@ fn subscribes_home_activity_and_the_first_tab() {
 fn tab_goes_on_into_the_workshop() {
     let mut h = Harness::new(none);
     h.model("vms", json!({}), fixture("vms"));
-    for _ in 0..3 {
+    for _ in 0..4 {
         h.key(KeyCode::Tab);
     }
     assert_eq!(h.app.tab, "recipes", "the workshop's first tab: Build Images");
@@ -151,11 +151,26 @@ fn tab_goes_on_into_the_workshop() {
     assert!(!s.contains("Images ◐"), "the running group's tabs are hidden: {s}");
 }
 
+/// The Networks tab (plan B170): the list in the credentials' shape and the graph as a tree
+#[test]
+fn draws_the_networks_tab() {
+    let mut h = Harness::new(none);
+    h.model("networks", json!({}), fixture("networks"));
+    h.app.tab = "networks".into();
+    let s = h.screen_sized(160, 45);
+    for want in
+        ["dev", "10.231.1.0/24 · 2 VMs", "This Mac", "NAT · internet", "research  10.231.1.10", "research → work"]
+    {
+        assert!(s.contains(want), "missing {want:?} in\n{s}");
+    }
+}
+
 #[test]
 fn draws_the_vms_tab() {
     let mut h = Harness::new(none);
     h.model("vms", json!({}), fixture("vms"));
-    let s = h.screen();
+    // Wide enough for every label of the header (four run tabs since the networks, plan B170); narrower ones shorten
+    let s = h.screen_sized(160, 45);
     for want in [
         "VMs 1",
         "Images",
@@ -423,7 +438,7 @@ fn enter_does_the_primary_action_only() {
     assert_eq!(row.default.map(|d| row.actions[d]["id"].clone()), Some(images["rows"][0]["actions"][2]["id"].clone()));
     // A hint without a primary (the lab hint) has no default: Enter opens its actions
     let mut h = Harness::new(none);
-    for _ in 0..7 {
+    for _ in 0..8 {
         h.key(KeyCode::Tab);
     }
     assert_eq!(h.app.tab, "recipeCatalog");
@@ -755,7 +770,7 @@ fn linux_home_and_an_import_refused_with_a_text_reason() {
     });
     h.model("home", json!({}), fixture("home.linux"));
     h.model("vms", json!({}), fixture("vms"));
-    let s = h.screen();
+    let s = h.screen_sized(160, 45);
     assert!(s.contains(" omaflake ") && s.contains("S Settings") && s.contains("D Doctor"), "{s}");
     h.app.run_action(&json!({"id": "x", "label": {"text": "x"}, "method": "ui.step", "enabled": true,
                              "params": {"page": "import", "params": {"path": "/x"}}}));
