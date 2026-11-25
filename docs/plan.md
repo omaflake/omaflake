@@ -486,11 +486,12 @@ Lume (trycua) only after a license review (OPEN).
 
 ---
 
-## 8. Next steps (as of 2026-11-22)
+## 8. Next steps (as of 2026-11-25)
 
-**0.7.5 (planned):** B169 (camera in macOS VMs through OBS), B170 (networks between VMs, Docker VM) and B171 (several
-displays for NixOS VMs, QEMU patchset 7) – all to be tried on the Mac before the release; B172 (the agent test that
-broke every NixOS image build of 0.7.4) makes it urgent.
+**Release 0.7.5 (2026-11-25):** B169 (camera in macOS VMs through OBS), B170 (networks between VMs, Docker VM), B171
+(several displays for NixOS VMs, QEMU patchset 7) and B172 (the agent test that broke every NixOS image build of
+0.7.4). Released before the Mac tests (maintainer: "Committe das und bring 0.7.5 raus") – B169, B170 and B171 are
+still to be tried on the Mac; their OPEN items stay.
 
 **Next (2026-11-23, after release 0.7.4):** the maintainer's tests on the Mac – a fresh Mac with Set Up for NixOS
 (the Linux builder's two stages, Nix's one administrator question, Full Disk Access: OPEN, B160), creating and

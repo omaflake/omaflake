@@ -13,6 +13,12 @@ are collected under *Unreleased*. Releases: [GitHub](https://github.com/omaflake
 
 ## [Unreleased]
 
+## [0.7.5] – 2026-11-25
+
+The camera reaches macOS VMs (through OBS until omaflake's own camera extension is signed), VMs can share networks of
+their own – with a Docker VM for the macOS VMs –, and a NixOS VM can have several monitors, each in its own window. And
+a fix: NixOS images could not be built with 0.7.4.
+
 ### Added
 
 - **Camera in macOS VMs:** the camera switch now works for macOS VMs too (the VM's details, "New VM …",
@@ -28,11 +34,12 @@ are collected under *Unreleased*. Releases: [GitHub](https://github.com/omaflake
   fixed address (`10.231.<n>.<host>`); its own network – SSH, the internet – stays as it is. omaflake runs each
   network's switch itself, without administrator rights. The tab shows who is connected to what, and the traffic.
   macOS VMs need an image built with this version (it sets up the new card at boot).
-- **Several displays for NixOS VMs:** a NixOS VM can have up to four monitors, each in a window of its own that you
-  can move to another screen or make full screen there – set it in the VM's details or under "New VM …" (stopped VMs;
-  `omaf new/set --displays 2`). Each window's size is that monitor's resolution; closing a window unplugs its monitor,
-  QEMU's View menu plugs it in again. Needs omaflake's QEMU with patchset 7 (the Doctor offers the update). macOS VMs
-  keep one display: Virtualization.framework allows no more (tried, also through its private interfaces).
+- **Several displays for NixOS VMs** (new, not yet tried on a Mac): a NixOS VM can have up to four monitors, each in a
+  window of its own that you can move to another screen or make full screen there – set it in the VM's details or under
+  "New VM …" (stopped VMs; `omaf new/set --displays 2`). Each window's size is that monitor's resolution; closing a
+  window unplugs its monitor, QEMU's View menu plugs it in again. Needs omaflake's QEMU with patchset 7 (the Doctor
+  offers the update). macOS VMs keep one display: Virtualization.framework allows no more (tried, also through its
+  private interfaces).
 - **Docker VM:** the catalog's new recipe `nixos/docker` – a VM without a window that runs Docker with Compose, for
   itself and for the macOS VMs in its networks (`DOCKER_HOST=tcp://<its address>:2375`, shown in the network's details;
   every VM in the network can use it as root). With the same folder of this Mac shared into both VMs,
