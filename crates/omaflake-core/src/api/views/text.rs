@@ -4,7 +4,7 @@
 //! size and `%lld` for a whole number – so the app's `de.lproj/Localizable.strings` translates them as they are; other
 //! UIs keep their own tables under the same keys. A text without a key is data (a name, a path) and is shown as it is.
 
-use chrono::{DateTime, Utc};
+use crate::json::Date;
 use serde::{Deserialize, Serialize};
 
 /// A user-facing text: `key` (absent: shown as it is), the English `text`, and the `args` its placeholders take, in order
@@ -28,7 +28,7 @@ pub enum Arg {
     Str(String),
     Date {
         #[serde(with = "crate::json::iso8601")]
-        date: DateTime<Utc>,
+        date: Date,
     },
     Bytes {
         bytes: i64,
@@ -82,7 +82,7 @@ impl From<Text> for Arg {
 }
 
 impl Arg {
-    pub fn date(date: DateTime<Utc>) -> Arg {
+    pub fn date(date: Date) -> Arg {
         Arg::Date { date }
     }
 
@@ -99,7 +99,7 @@ impl Arg {
         match self {
             Arg::Int(n) => n.to_string(),
             Arg::Str(s) => s.clone(),
-            Arg::Date { date } => date.format("%Y-%m-%d %H:%M UTC").to_string(),
+            Arg::Date { date } => date.strftime("%Y-%m-%d %H:%M UTC").to_string(),
             Arg::Bytes { bytes } => bytes_text(*bytes),
             Arg::Param { param } => format!("<{param}>"),
             Arg::Text(t) => t.text.clone(),

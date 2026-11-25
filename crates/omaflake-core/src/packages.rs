@@ -10,7 +10,7 @@ use std::fs;
 use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
 
-use chrono::{DateTime, Utc};
+use crate::json::Date;
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
 
@@ -183,7 +183,7 @@ pub struct Manifest {
     pub kind: PackageKind,
     pub name: String,
     #[serde(with = "crate::json::iso8601")]
-    pub exported: DateTime<Utc>,
+    pub exported: Date,
     /// omaflake's version that wrote it
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub omaflake: Option<String>,

@@ -7,7 +7,6 @@ use std::os::unix::process::CommandExt;
 use std::path::Path;
 use std::time::{Duration, Instant};
 
-use chrono::Utc;
 use omaflake_core::builder_health::{BuilderHealth, Trust};
 use omaflake_core::builder_maintenance::BuilderMaintenance;
 use omaflake_core::cli_link::CliLink;
@@ -551,14 +550,14 @@ pub fn agent(a: &cli::Agent) -> Outcome {
         println!("{}", String::from_utf8_lossy(&json::to_pretty(&state, true)?));
         return Ok(());
     }
-    for line in agent_lines(&state, Utc::now()) {
+    for line in agent_lines(&state, omaflake_core::json::Date::now()) {
         println!("{line}");
     }
     Ok(())
 }
 
 /// What `omaf agent` prints for a state, `now` for "Reported: … s ago"
-pub fn agent_lines(state: &AgentState, now: chrono::DateTime<Utc>) -> Vec<String> {
+pub fn agent_lines(state: &AgentState, now: omaflake_core::json::Date) -> Vec<String> {
     let mut out = Vec::new();
     if let Some(problem) = &state.problem {
         out.push(format!("Problem:  {problem}"));
@@ -597,7 +596,7 @@ pub fn agent_lines(state: &AgentState, now: chrono::DateTime<Utc>) -> Vec<String
             out.push(format!("Users:    {}", u.join(", ")));
         }
         if let Some(at) = state.status_at {
-            out.push(format!("Reported: {} s ago", (now - at).num_seconds()));
+            out.push(format!("Reported: {} s ago", omaflake_core::json::seconds_between(now, at)));
         }
     }
     if let Some(m) = &state.midi {
@@ -1107,7 +1106,7 @@ mod tests {
 
     #[test]
     fn agent_report() {
-        let now = Utc::now();
+        let now = omaflake_core::json::Date::now();
         let state = AgentState {
             hello: Some(AgentHello {
                 agent: "omaflake-agent 0.2.0".into(),
@@ -1133,7 +1132,7 @@ mod tests {
                 }]),
                 users: Some(vec![]),
             }),
-            status_at: Some(now - chrono::Duration::seconds(3)),
+            status_at: Some(now - jiff::SignedDuration::from_secs(3)),
             goodbye_at: None,
             problem: None,
             features: None,

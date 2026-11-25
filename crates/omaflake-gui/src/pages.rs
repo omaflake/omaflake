@@ -1582,9 +1582,9 @@ fn build<'a>(app: &'a App, page: &str, b: &'a BuildPage) -> El<'a> {
     }
     c = c.push(status);
     if let Some(p) = &b.progress {
-        let now = chrono::Utc::now();
-        let running = p.started.map(|t| (now - t).num_seconds()).unwrap_or(0);
-        let quiet = p.last_output.map(|t| (now - t).num_seconds()).unwrap_or(0);
+        let now = omaflake_core::json::Date::now();
+        let running = p.started.map(|t| omaflake_core::json::seconds_between(now, t)).unwrap_or(0);
+        let quiet = p.last_output.map(|t| omaflake_core::json::seconds_between(now, t)).unwrap_or(0);
         let mut times =
             row![secondary(format!("{} · {}", s(&p.step), s(&p.title))).width(Length::Fill)].spacing(spacing::L);
         if let Some(count) = &p.count {

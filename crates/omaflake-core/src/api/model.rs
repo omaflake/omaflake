@@ -374,7 +374,7 @@ pub(crate) struct Doctor {
     pub builder_system_is_omaflakes: bool,
     /// The `omaf` command's link (plan B122)
     pub cli: Option<CliLinkDto>,
-    pub checked: chrono::DateTime<chrono::Utc>,
+    pub checked: crate::json::Date,
 }
 
 impl Doctor {

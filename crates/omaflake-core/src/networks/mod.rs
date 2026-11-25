@@ -22,11 +22,11 @@ use std::net::Ipv4Addr;
 use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
 
-use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 
 use crate::error::{IoContext, Result, codes};
 use crate::file_format::{FileFormat, Step, write_atomic};
+use crate::json::Date;
 use crate::paths::Paths;
 use crate::spawn::{Pid, live_pid, spawn_detached};
 use crate::vm_err;
@@ -54,7 +54,7 @@ pub struct Network {
     /// The third octet of its subnet `10.231.<number>.0/24` (1–254)
     pub number: u8,
     #[serde(with = "crate::json::iso8601")]
-    pub created: DateTime<Utc>,
+    pub created: Date,
     /// VM name → its host number
     #[serde(default)]
     pub members: BTreeMap<String, u8>,

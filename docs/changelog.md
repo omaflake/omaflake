@@ -13,6 +13,11 @@ are collected under *Unreleased*. Releases: [GitHub](https://github.com/omaflake
 
 ## [Unreleased]
 
+### Changed
+
+- **Dates without chrono:** omaflake handles dates with jiff now – chrono is no longer maintained
+  (RUSTSEC-2026-0543). Files and the API keep their date format.
+
 ## [0.7.6] – 2026-11-25
 
 A fix release: NixOS images build again on a Mac whose Linux builder stopped trusting it – the Doctor recognizes it and

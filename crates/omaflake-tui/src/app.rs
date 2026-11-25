@@ -10,7 +10,6 @@ use std::sync::Arc;
 use std::sync::mpsc::Sender;
 use std::time::Instant;
 
-use chrono::Utc;
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use serde_json::{Map, Value, json};
 
@@ -333,7 +332,7 @@ impl App {
             icons: self.icons,
             expanded: &self.expanded,
             collapsed: &self.collapsed,
-            now: Utc::now(),
+            now: omaflake_core::json::Date::now(),
             tick: self.tick,
             help: self.home.as_ref().and_then(|h| h["help"]["on"].as_bool()).unwrap_or(false),
         }

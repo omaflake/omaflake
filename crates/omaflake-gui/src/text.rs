@@ -6,8 +6,8 @@
 
 use std::sync::OnceLock;
 
-use chrono::{DateTime, Local, Utc};
 use omaflake_core::api::views::{Arg, Text};
+use omaflake_core::json::Date;
 pub use omaflake_i18n::Arg as I18nArg;
 use omaflake_i18n::Language;
 use serde_json::Value;
@@ -64,13 +64,13 @@ pub fn lookup<'a>(v: &'a Value, path: &str) -> Option<&'a Value> {
 }
 
 /// "2026-10-21 10:00" (German "21.10.2026 10:00") in local time
-pub fn date_time(d: DateTime<Utc>) -> String {
-    d.with_timezone(&Local).format(lang().date_time_pattern()).to_string()
+pub fn date_time(d: Date) -> String {
+    omaflake_core::json::local(d, lang().date_time_pattern())
 }
 
 /// "10:00" in local time (the activity list)
-pub fn time(d: DateTime<Utc>) -> String {
-    d.with_timezone(&Local).format("%H:%M").to_string()
+pub fn time(d: Date) -> String {
+    omaflake_core::json::local(d, "%H:%M")
 }
 
 /// "12.3 GB" (decimal units, as the core and the macOS app; "12,3 GB" in German)

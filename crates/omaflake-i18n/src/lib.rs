@@ -113,7 +113,7 @@ impl Language {
         }
     }
 
-    /// The `chrono` pattern of a date with time: "2026-10-21 10:00" / "21.10.2026 10:00"
+    /// The strftime pattern (jiff) of a date with time: "2026-10-21 10:00" / "21.10.2026 10:00"
     pub fn date_time_pattern(self) -> &'static str {
         match self {
             Language::English => "%Y-%m-%d %H:%M",

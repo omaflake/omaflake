@@ -23,13 +23,13 @@ use std::time::{Duration, Instant};
 
 use base64::Engine;
 use base64::engine::general_purpose::STANDARD as BASE64;
-use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 
 use crate::Log;
 use crate::error::Result;
 use crate::file_format::write_atomic;
 use crate::json;
+use crate::json::Date;
 
 /// Swift `enum AgentProtocol` (constants and frame encoding)
 pub enum AgentProtocol {}
@@ -740,7 +740,7 @@ pub struct AgentState {
         skip_serializing_if = "Option::is_none",
         with = "crate::json::iso8601::option"
     )]
-    pub hello_at: Option<DateTime<Utc>>,
+    pub hello_at: Option<Date>,
     /// The version agreed in the welcome; None while there is none (no hello yet, or no common version)
     #[serde(rename = "protocolVersion", default, skip_serializing_if = "Option::is_none")]
     pub protocol_version: Option<u32>,
@@ -752,14 +752,14 @@ pub struct AgentState {
         skip_serializing_if = "Option::is_none",
         with = "crate::json::iso8601::option"
     )]
-    pub status_at: Option<DateTime<Utc>>,
+    pub status_at: Option<Date>,
     #[serde(
         rename = "goodbyeAt",
         default,
         skip_serializing_if = "Option::is_none",
         with = "crate::json::iso8601::option"
     )]
-    pub goodbye_at: Option<DateTime<Utc>>,
+    pub goodbye_at: Option<Date>,
     /// Why the link does not work (no common version, too many malformed messages)
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub problem: Option<String>,

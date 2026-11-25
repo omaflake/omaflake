@@ -22,7 +22,6 @@ use std::io::Read;
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 
-use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
 use sha2::{Digest, Sha256};
@@ -30,6 +29,7 @@ use sha2::{Digest, Sha256};
 use crate::error::{Error, IoContext, Result, codes};
 use crate::file_format::{FileFormat, Step, UnreadableFile, write_atomic};
 use crate::image_store::ImageStore;
+use crate::json::Date;
 use crate::models::{GuestKind, RecipeDefaults, RecipeId};
 use crate::omaflake_id::OmaflakeId;
 use crate::packages::{Manifest, Package, PackageKind};
@@ -696,7 +696,7 @@ pub struct Installed {
     pub version: String,
     /// With fractions of a second (versions of a line come in order, plan B111); older files without
     #[serde(with = "crate::json::iso8601_fractional")]
-    pub installed: DateTime<Utc>,
+    pub installed: Date,
 }
 
 /// `.installed.json` at its current version: `{"$schema": …, "recipes": {<id>: Installed}}`
@@ -730,7 +730,7 @@ pub struct Version {
     pub id: String,
     pub source: String,
     /// When it came (downloaded, imported, kept at a build); None for the recipe a local folder has now
-    pub added: Option<DateTime<Utc>>,
+    pub added: Option<Date>,
     /// The line's newest: a local folder's recipe as it is now, otherwise the last one that came
     pub is_newest: bool,
     /// It is the recipe in a local folder source (changed there, not removed here)
@@ -1010,11 +1010,11 @@ impl RecipeLibrary {
 
     /// When a recipe version is added: now, but always after every version already here – the newest version of a
     /// line is the last that came, and two imports within one millisecond must not tie (seen on a fast Linux host)
-    fn install_time(manifest: &BTreeMap<String, Installed>) -> DateTime<Utc> {
+    fn install_time(manifest: &BTreeMap<String, Installed>) -> Date {
         // Whole milliseconds: `.installed.json` keeps no more, so a later time within the same millisecond would tie
-        let now = DateTime::from_timestamp_millis(Utc::now().timestamp_millis()).unwrap_or_else(Utc::now);
+        let now = crate::json::whole_millis(crate::json::Date::now());
         match manifest.values().map(|i| i.installed).max() {
-            Some(last) if last >= now => last + chrono::Duration::milliseconds(1),
+            Some(last) if last >= now => last + jiff::SignedDuration::from_millis(1),
             _ => now,
         }
     }
@@ -2210,7 +2210,7 @@ mod tests {
         let installed = InstalledFile {
             recipes: BTreeMap::from([(
                 "x".to_string(),
-                Installed { source: "s".into(), version: "v".into(), installed: Utc::now() },
+                Installed { source: "s".into(), version: "v".into(), installed: crate::json::Date::now() },
             )]),
         };
         matches(&RecipeLibrary::FILE_FORMAT.encode(&installed).unwrap());

@@ -274,7 +274,7 @@ pub(crate) fn networks_ctx() -> Ctx {
     use crate::networks::switch::{Flow, PortStatus, SwitchStatus};
     use std::collections::BTreeMap;
     let mut c = ctx();
-    let created = chrono::DateTime::parse_from_rfc3339("2026-11-25T10:00:00Z").unwrap().with_timezone(&chrono::Utc);
+    let created = crate::json::parse_date("2026-11-25T10:00:00Z").unwrap();
     let dev = Network {
         name: "dev".into(),
         number: 1,

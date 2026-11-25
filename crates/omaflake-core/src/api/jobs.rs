@@ -18,7 +18,7 @@ use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Condvar, Mutex, MutexGuard};
 use std::time::{Duration, Instant};
 
-use chrono::{DateTime, Utc};
+use crate::json::Date;
 use serde_json::Value;
 
 use super::events::{Events, Topic};
@@ -91,9 +91,9 @@ struct JobData {
     state: JobState,
     /// Ended and its `on_end` ran: `wait` returns
     settled: bool,
-    started: Option<DateTime<Utc>>,
-    finished: Option<DateTime<Utc>>,
-    last_output: Option<DateTime<Utc>>,
+    started: Option<Date>,
+    finished: Option<Date>,
+    last_output: Option<Date>,
     lines: VecDeque<String>,
     /// Index of `lines[0]` among all shown lines
     first: usize,

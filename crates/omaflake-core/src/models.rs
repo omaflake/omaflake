@@ -4,7 +4,7 @@
 use crate::vm_err;
 use std::collections::{BTreeMap, HashMap, HashSet};
 
-use chrono::{DateTime, Utc};
+use crate::json::Date;
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
 
@@ -435,7 +435,7 @@ pub struct InstanceConfig {
     #[serde(rename = "sshPort")]
     pub ssh_port: u16,
     #[serde(with = "crate::json::iso8601")]
-    pub created: DateTime<Utc>,
+    pub created: Date,
     /// Login user inside the guest; missing in instances created before this field existed
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub user: Option<String>,
@@ -487,7 +487,7 @@ impl InstanceConfig {
         system: &str,
         settings: &RecipeDefaults,
         ssh_port: u16,
-        created: DateTime<Utc>,
+        created: Date,
     ) -> Self {
         InstanceConfig {
             name: name.into(),

@@ -15,7 +15,6 @@ use std::os::unix::fs::{MetadataExt, PermissionsExt};
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
 
-use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
 
@@ -27,6 +26,7 @@ use crate::guest_settings::BuildChoice;
 use crate::instance_store::InstanceStore;
 use crate::ipsw_downloader::KeepAwake;
 use crate::json;
+use crate::json::Date;
 use crate::models::{GuestKind, RecipeDefaults, RecipeId};
 use crate::omaflake_id::OmaflakeId;
 use crate::packages::{Package, PackageKind};
@@ -102,7 +102,7 @@ pub struct ImageInfo {
     #[serde(rename = "localeName", default, skip_serializing_if = "Option::is_none")]
     pub locale_name: Option<String>,
     #[serde(with = "crate::json::iso8601")]
-    pub created: DateTime<Utc>,
+    pub created: Date,
 }
 
 impl ImageInfo {
@@ -131,7 +131,7 @@ impl ImageInfo {
         source: &str,
         revision: &str,
         store_path: Option<String>,
-        created: DateTime<Utc>,
+        created: Date,
     ) -> Self {
         let p = RecipeId::parts(recipe);
         ImageInfo {
@@ -733,17 +733,17 @@ mod tests {
     use crate::paths::tests::temp_paths;
     use crate::platform::is_writable;
 
-    fn info(recipe: &str, kind: GuestKind, created: DateTime<Utc>) -> ImageInfo {
+    fn info(recipe: &str, kind: GuestKind, created: Date) -> ImageInfo {
         let system = if kind == GuestKind::Macos { "aarch64-darwin" } else { "aarch64-linux" };
         ImageInfo::new(recipe, None, kind, system, "/f", "r", Some("/nix/store/x".into()), created)
     }
 
-    fn at(seconds: i64) -> DateTime<Utc> {
-        DateTime::from_timestamp(seconds, 0).unwrap()
+    fn at(seconds: i64) -> Date {
+        Date::from_second(seconds).unwrap()
     }
 
     /// A macOS image package (a stand-in VM folder, read-only like a real one)
-    fn mac_image(p: &Paths, name: &str, recipe: &str, created: DateTime<Utc>) {
+    fn mac_image(p: &Paths, name: &str, recipe: &str, created: Date) {
         let dir = p.image_dir(name);
         fs::create_dir_all(&dir).unwrap();
         fs::write(dir.join("config.json"), "{}").unwrap();

@@ -4,7 +4,6 @@
 //! the Doctor's style. The checks themselves are `crate::diagnostics`; the server keeps the newest run per VM
 //! (`DiagnosisRecord`) and runs one when the page is subscribed and the VM has none since it started.
 
-use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 
@@ -14,6 +13,7 @@ use super::common::*;
 use super::text::{Text, tf};
 use crate::api::types::JobState;
 use crate::diagnostics::{CHECKS, CheckResult, CheckStatus, OWN_DETAILS, title};
+use crate::json::Date;
 use crate::models::{GuestKind, VmStatus};
 
 /// The newest diagnosis of a VM in its current run (the server's state)
@@ -26,7 +26,7 @@ pub struct DiagnosisRecord {
     /// Every check: pending, running or done (confirmed ones as pass or fail)
     pub checks: Vec<CheckResult>,
     pub file: String,
-    pub finished: Option<DateTime<Utc>>,
+    pub finished: Option<Date>,
 }
 
 impl DiagnosisRecord {
@@ -58,7 +58,7 @@ pub struct DiagnosticsPage {
     pub state: DiagnosisState,
     /// When the newest run ended
     #[serde(default, skip_serializing_if = "Option::is_none", with = "crate::json::iso8601::option")]
-    pub checked: Option<DateTime<Utc>>,
+    pub checked: Option<Date>,
     pub intro: Text,
     pub checks: Vec<DiagnosticsCheck>,
     /// Run (Again), Copy Log, Show Log File

@@ -7,7 +7,7 @@
 
 use std::collections::{HashMap, HashSet};
 
-use chrono::{DateTime, Utc};
+use omaflake_core::json::Date;
 use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::{Line, Span};
 use serde_json::{Value, json};
@@ -24,7 +24,7 @@ pub struct Ctx<'a> {
     pub expanded: &'a HashSet<String>,
     /// Rows the user closed that the model opens by itself (the Doctor's items with a problem)
     pub collapsed: &'a HashSet<String>,
-    pub now: DateTime<Utc>,
+    pub now: Date,
     /// Counts up a few times a second: spinners
     pub tick: u64,
     /// The help switch (plan B148): explanations are shown only while it is on
@@ -752,9 +752,7 @@ fn activity(ctx: &Ctx, model: &Value, p: &mut Page) {
             "warning" => (ctx.icons.get("warning"), Tone::Warning),
             _ => ("·", Tone::Normal),
         };
-        let time = parse_date(s(e, "time"))
-            .map(|d| d.with_timezone(&chrono::Local).format("%H:%M:%S").to_string())
-            .unwrap_or_default();
+        let time = parse_date(s(e, "time")).map(|d| omaflake_core::json::local(d, "%H:%M:%S")).unwrap_or_default();
         let line = Line::from(vec![
             Span::styled(format!(" {time} "), th.secondary()),
             Span::styled(symbol.to_string(), th.tone(tone)),
@@ -883,10 +881,13 @@ fn build(ctx: &Ctx, model: &Value, p: &mut Page) {
         ];
         // The running time and the quiet time are the UI's to count (api.md §10.5)
         if let Some(start) = pr.get("started").and_then(Value::as_str).and_then(parse_date) {
-            second.push(Span::styled(format!("  {}", duration_text((ctx.now - start).num_seconds())), th.secondary()));
+            second.push(Span::styled(
+                format!("  {}", duration_text(omaflake_core::json::seconds_between(ctx.now, start))),
+                th.secondary(),
+            ));
         }
         if let Some(last) = pr.get("lastOutput").and_then(Value::as_str).and_then(parse_date) {
-            let quiet = (ctx.now - last).num_seconds();
+            let quiet = omaflake_core::json::seconds_between(ctx.now, last);
             let warn = pr.get("quietWarning").and_then(Value::as_i64).unwrap_or(i64::MAX);
             if quiet >= warn {
                 second.push(Span::styled(format!("  quiet {}", duration_text(quiet)), th.tone(Tone::Warning)));

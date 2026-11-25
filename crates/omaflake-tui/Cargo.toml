@@ -14,7 +14,7 @@ omaflake-core.workspace = true
 omaflake-i18n.workspace = true
 omaflake-brand = { path = "../omaflake-brand" }
 serde_json.workspace = true
-chrono.workspace = true
+jiff.workspace = true
 libc.workspace = true
 # Only this crate draws a terminal interface (plan B121)
 ratatui = { version = "=0.30.2", default-features = false, features = ["crossterm", "layout-cache"] }

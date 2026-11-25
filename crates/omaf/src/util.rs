@@ -6,7 +6,7 @@ use std::collections::HashMap;
 use std::io::{BufRead, Write};
 use std::path::{Path, PathBuf};
 
-use chrono::{DateTime, Local, Utc};
+use omaflake_core::json::Date;
 use omaflake_core::platform::{expand_tilde, standardize};
 use omaflake_core::recipe_sources::RecipeRef;
 use omaflake_core::{
@@ -95,8 +95,8 @@ pub fn pad(s: &str, n: usize) -> String {
 }
 
 /// A date in the Mac's time zone, e.g. "yyyy-MM-dd HH:mm" → `%Y-%m-%d %H:%M` (Swift `DateFormatter.dateFormat`)
-pub fn local_date(date: &DateTime<Utc>, format: &str) -> String {
-    date.with_timezone(&Local).format(format).to_string()
+pub fn local_date(date: &Date, format: &str) -> String {
+    omaflake_core::json::local(*date, format)
 }
 
 /// `~` expanded, then standardized (Swift `URL(fileURLWithPath: expandingTildeInPath).standardizedFileURL`)

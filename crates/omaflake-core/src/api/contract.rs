@@ -28,7 +28,7 @@ fn dir() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("testdata/api")
 }
 
-pub(crate) fn date(s: &str) -> chrono::DateTime<chrono::Utc> {
+pub(crate) fn date(s: &str) -> crate::json::Date {
     parse_date(s).unwrap()
 }
 

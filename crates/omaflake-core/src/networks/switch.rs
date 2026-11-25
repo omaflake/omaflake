@@ -19,13 +19,13 @@ use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::{Duration, Instant};
 
-use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 
 use super::packets::{self, BROADCAST, DhcpAnswer, Mac, mac_text};
 use super::{Network, Networks, parse_member_mac};
 use crate::error::{IoContext, Result};
 use crate::file_format::write_atomic;
+use crate::json::Date;
 use crate::paths::Paths;
 use crate::vm_err;
 
@@ -75,9 +75,9 @@ pub struct SwitchStatus {
     pub network: String,
     pub pid: i32,
     #[serde(with = "crate::json::iso8601")]
-    pub started: DateTime<Utc>,
+    pub started: Date,
     #[serde(with = "crate::json::iso8601")]
-    pub updated: DateTime<Utc>,
+    pub updated: Date,
     pub ports: Vec<PortStatus>,
     #[serde(default)]
     pub flows: Vec<Flow>,
@@ -166,7 +166,7 @@ pub struct Switch {
     /// MAC → index in `ports`
     table: HashMap<Mac, usize>,
     flows: BTreeMap<(Mac, Mac), u64>,
-    started: DateTime<Utc>,
+    started: Date,
     idle: Duration,
 }
 

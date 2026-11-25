@@ -6,7 +6,7 @@
 
 use std::sync::OnceLock;
 
-use chrono::{DateTime, Utc};
+use omaflake_core::json::Date;
 pub use omaflake_i18n::Arg as I18nArg;
 use serde_json::Value;
 
@@ -126,13 +126,13 @@ pub fn render(key: &str, args: &[Value], params: &Value) -> String {
 /// "2026-10-21 10:00 UTC" (German "21.10.2026 10:00 UTC", as the core's texts in UTC)
 pub fn date_text(iso: &str) -> String {
     match parse_date(iso) {
-        Some(d) => format!("{} UTC", d.format(lang().date_time_pattern())),
+        Some(d) => format!("{} UTC", d.strftime(lang().date_time_pattern())),
         None => iso.to_string(),
     }
 }
 
-pub fn parse_date(iso: &str) -> Option<DateTime<Utc>> {
-    DateTime::parse_from_rfc3339(iso).ok().map(|d| d.with_timezone(&Utc))
+pub fn parse_date(iso: &str) -> Option<Date> {
+    omaflake_core::json::parse_date(iso)
 }
 
 /// "12.3 GB" (decimal units, as the core; "12,3 GB" in German)

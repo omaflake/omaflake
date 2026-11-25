@@ -19,7 +19,7 @@ omaflake-i18n.workspace = true
 omaflake-brand = { path = "../omaflake-brand" }
 serde.workspace = true
 serde_json.workspace = true
-chrono.workspace = true
+jiff.workspace = true
 libc.workspace = true
 iced = { version = "=0.14.0", features = ["image", "tokio"] }
 rfd = "=0.17.2"

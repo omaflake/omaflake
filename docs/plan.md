@@ -784,7 +784,14 @@ the virtio console (B70's limit for a Python reader was 26–27 fps) – a nativ
 per frame should give more. OPEN: whether the helper moves into the agent as an interim feature before M12, the
 smoothness in OBS (its media source buffers), latency.
 
-**B167 (2026-11-23, decided, next session): chrono → jiff.** After the push of 0.7.4 `cargo deny` failed on
+**B167 (2026-11-23, decided; done 2026-11-25 for 0.8.0): chrono → jiff.** *Done:* chrono is gone from the tree
+(`cargo tree -i chrono` finds nothing), `cargo deny` passes again. jiff 0.2.42 (the newest release at least 14 days old;
+1.0 came out 2026-11-15 – the move to 1.0 once it is old enough), features `std`, `serde`, `tz-system`,
+`tzdb-zoneinfo` (the local zone from the system's zoneinfo, no bundled database). One type for a point in time,
+`json::Date` (= `jiff::Timestamp`), and helpers in `json.rs` for what chrono did at the call sites: `whole_seconds`,
+`whole_millis`, `seconds_between`, `from_system_time`, `local` / `local_now` (strftime patterns as before); the ISO 8601
+formats Swift writes are unchanged (`dates_as_swift_writes_them`). The branch `wip/b167-jiff` (a mechanical first pass)
+was not used. Before: After the push of 0.7.4 `cargo deny` failed on
 RUSTSEC-2026-0543 ("chrono is unmaintained", no safe upgrade; jiff or time suggested) – CI on main is red for that
 alone (fmt, clippy, tests, Linux host, flakes, licences pass). Maintainer: replace chrono with jiff completely (core,
 omaf, TUI, the Linux app), not ignore the advisory. Also seen: async-executor 1.14.0 is yanked (through zbus) – a

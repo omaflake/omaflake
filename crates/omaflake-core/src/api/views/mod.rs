@@ -45,7 +45,6 @@ pub(crate) mod tests;
 
 use std::collections::{BTreeMap, HashSet};
 
-use chrono::{DateTime, Utc};
 use serde::Serialize;
 use serde::de::DeserializeOwned;
 use serde_json::{Value, json};
@@ -54,6 +53,7 @@ use super::model;
 use super::protocol::{RpcError, params};
 use super::server::{Server, lock};
 use super::types::*;
+use crate::json::Date;
 use crate::models::{GuestKind, RecipeId};
 use crate::paths::Paths;
 
@@ -116,7 +116,7 @@ impl HostOs {
 pub(crate) struct UpdateRecord {
     pub state: Option<UpdateState>,
     pub release: Option<ReleaseDto>,
-    pub checked: Option<DateTime<Utc>>,
+    pub checked: Option<Date>,
     pub error: Option<String>,
     pub checking: bool,
 }

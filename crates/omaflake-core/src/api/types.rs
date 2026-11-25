@@ -9,10 +9,10 @@
 
 use std::collections::BTreeMap;
 
-use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
+use crate::json::Date;
 use crate::models::{DisplayMode, GuestKind, NetworkMode, StopResult, VmStatus};
 use crate::prerequisites::{PrerequisiteItem, PrerequisiteStatus};
 use crate::recipe_sources::RecipeSourceKind;
@@ -60,7 +60,7 @@ pub struct CoreIdentity {
     pub executable: String,
     pub size: u64,
     #[serde(with = "crate::json::iso8601_fractional")]
-    pub modified: DateTime<Utc>,
+    pub modified: Date,
 }
 
 impl CoreIdentity {
@@ -72,7 +72,7 @@ impl CoreIdentity {
             executable: path.to_string_lossy().into_owned(),
             size: meta.len(),
             // In milliseconds, as it travels – so a core compares equal with what it said in `initialize`
-            modified: chrono::SubsecRound::trunc_subsecs(DateTime::<Utc>::from(meta.modified().ok()?), 3),
+            modified: crate::json::whole_millis(crate::json::from_system_time(meta.modified().ok()?)?),
         })
     }
 
@@ -155,7 +155,7 @@ pub struct Vm {
     /// How a plain start (`vms.start` with `display: auto`) shows it
     pub display: DisplayMode,
     #[serde(with = "crate::json::iso8601")]
-    pub created: DateTime<Utc>,
+    pub created: Date,
     /// Its omaflake ID words (spec §11.11), as many as `idLengths.vm`
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub identity: Option<String>,
@@ -294,7 +294,7 @@ pub struct ImageDto {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub store_path: Option<String>,
     #[serde(with = "crate::json::iso8601")]
-    pub created: DateTime<Utc>,
+    pub created: Date,
     pub line: String,
     pub path: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -342,7 +342,7 @@ pub struct VersionDto {
     pub id: String,
     pub source: String,
     #[serde(default, skip_serializing_if = "Option::is_none", with = "crate::json::iso8601::option")]
-    pub added: Option<DateTime<Utc>>,
+    pub added: Option<Date>,
     /// The line's newest version
     pub newest: bool,
     /// In a local folder source (edited in place, not a downloaded copy)
@@ -358,7 +358,7 @@ pub struct InstalledDto {
     pub source: String,
     pub version: String,
     #[serde(with = "crate::json::iso8601")]
-    pub installed: DateTime<Utc>,
+    pub installed: Date,
 }
 
 /// A recipe (api.md §4.3): the recipe.toml values plus what omaflake knows about it
@@ -662,7 +662,7 @@ pub struct DoctorReport {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub cli: Option<CliLinkDto>,
     #[serde(with = "crate::json::iso8601")]
-    pub checked: DateTime<Utc>,
+    pub checked: Date,
 }
 
 /// The `omaf` command's link (plan B122)
@@ -778,7 +778,7 @@ pub struct BaseDto {
     /// New macOS images are built from it
     pub newest: bool,
     #[serde(default, skip_serializing_if = "Option::is_none", with = "crate::json::iso8601::option")]
-    pub created: Option<DateTime<Utc>>,
+    pub created: Option<Date>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub size_bytes: Option<i64>,
     /// The credential its user was created from or assigned (plan B139); None: not known yet
@@ -1174,12 +1174,12 @@ pub struct JobDto {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub progress: Option<JobProgress>,
     #[serde(default, skip_serializing_if = "Option::is_none", with = "crate::json::iso8601::option")]
-    pub started: Option<DateTime<Utc>>,
+    pub started: Option<Date>,
     #[serde(default, skip_serializing_if = "Option::is_none", with = "crate::json::iso8601::option")]
-    pub finished: Option<DateTime<Utc>>,
+    pub finished: Option<Date>,
     /// When the job last wrote a line (a stalled build shows it)
     #[serde(default, skip_serializing_if = "Option::is_none", with = "crate::json::iso8601::option")]
-    pub last_output: Option<DateTime<Utc>>,
+    pub last_output: Option<Date>,
     /// Lines so far (`jobs.log` reads them)
     pub log_lines: usize,
     /// Routine lines left out of the log (still in `logFile`)

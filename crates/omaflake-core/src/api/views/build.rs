@@ -83,9 +83,9 @@ pub struct Progress {
     pub count: Option<Text>,
     pub fraction: f64,
     #[serde(default, skip_serializing_if = "Option::is_none", with = "crate::json::iso8601::option")]
-    pub started: Option<chrono::DateTime<chrono::Utc>>,
+    pub started: Option<crate::json::Date>,
     #[serde(default, skip_serializing_if = "Option::is_none", with = "crate::json::iso8601::option")]
-    pub last_output: Option<chrono::DateTime<chrono::Utc>>,
+    pub last_output: Option<crate::json::Date>,
     pub quiet_warning: u32,
     pub quiet_help: Text,
 }

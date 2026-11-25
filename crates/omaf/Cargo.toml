@@ -16,7 +16,7 @@ path = "src/main.rs"
 [dependencies]
 omaflake-core.workspace = true
 omaflake-tui = { path = "../omaflake-tui" }
-chrono.workspace = true
+jiff.workspace = true
 libc.workspace = true
 serde_json.workspace = true
 # The CLI's own parser (swift-argument-parser in the Swift CLI); not a workspace dependency – only omaf uses it

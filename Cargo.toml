@@ -34,7 +34,8 @@ omaflake-macros = { path = "crates/omaflake-macros" }
 serde = { version = "=1.0.229", features = ["derive"] }
 serde_json = "=1.0.154"
 toml = "=1.1.8"
-chrono = { version = "=0.4.45", default-features = false, features = ["std", "clock", "serde"] }
+# Dates (plan B167: replaces chrono, RUSTSEC-2026-0543); the local time zone from the system's zoneinfo
+jiff = { version = "=0.2.42", default-features = false, features = ["std", "serde", "tz-system", "tzdb-zoneinfo"] }
 sha2 = "=0.11.1"
 hex = "=0.4.3"
 base64 = "=0.22.1"

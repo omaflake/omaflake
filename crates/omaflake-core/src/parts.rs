@@ -11,11 +11,11 @@ use std::collections::BTreeMap;
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 
 use crate::error::{IoContext, Result, codes};
 use crate::file_format::{FileFormat, Step, write_atomic};
+use crate::json::Date;
 use crate::models::GuestKind;
 use crate::paths::{Paths, Settings};
 use crate::recipe_sources::{CatalogFile, RecipeRef, RecipeSourceKind, SourceClient};
@@ -145,7 +145,7 @@ pub struct InstalledPart {
     /// The catalog's content hash it was installed at (an update has another)
     pub hash: String,
     #[serde(with = "crate::json::iso8601")]
-    pub installed: DateTime<Utc>,
+    pub installed: Date,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize)]
@@ -375,7 +375,7 @@ impl PartStore {
                     source: client.source.id(),
                     version: part.version.to_string(),
                     hash: part.hash.to_string(),
-                    installed: Utc::now(),
+                    installed: crate::json::Date::now(),
                 },
             );
             self.save(&installed)
@@ -493,7 +493,7 @@ pub(crate) fn sample_file() -> Vec<u8> {
             source: "github:omaflake/catalog@main".into(),
             version: "1.0.0".into(),
             hash: "ab".into(),
-            installed: Utc::now(),
+            installed: crate::json::Date::now(),
         },
     )]);
     PartStore::FILE_FORMAT.encode(&InstalledPartsFile { parts }).unwrap()

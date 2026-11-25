@@ -563,7 +563,7 @@ fn guest_helpers_command(c: &InstanceConfig) -> String {
 fn note_in_runner_log(file: &Path, line: &str) {
     use std::io::Write;
     if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open(file) {
-        let _ = writeln!(f, "[{}] {line}", chrono::Local::now().format("%Y-%m-%d %H:%M:%S"));
+        let _ = writeln!(f, "[{}] {line}", crate::json::local_now("%Y-%m-%d %H:%M:%S"));
     }
 }
 

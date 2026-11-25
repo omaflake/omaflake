@@ -8,7 +8,6 @@
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use chrono::{DateTime, Utc};
 use serde_json::Value;
 
 use crate::data_folder::DataFolder;
@@ -16,6 +15,7 @@ use crate::error::{IoContext, Result};
 use crate::image_store::{ImageInfo, ImageStore};
 use crate::instance_store::InstanceStore;
 use crate::json;
+use crate::json::Date;
 use crate::mac_vm::MacVmBundle;
 use crate::models::{GuestKind, RecipeId};
 use crate::omaflake_id::OmaflakeId;
@@ -75,10 +75,11 @@ impl ImageStore {
             let legacy = Self::recipe_of_image(&name);
             let revision = Self::legacy_revision(&name, &legacy);
             // When the old image was made (not when it was migrated); the link itself, not its store target
-            let created: DateTime<Utc> = fs::symlink_metadata(&entry)
+            let created: Date = fs::symlink_metadata(&entry)
                 .and_then(|m| m.created())
-                .map(DateTime::<Utc>::from)
-                .unwrap_or_else(|_| json::now());
+                .ok()
+                .and_then(crate::json::from_system_time)
+                .unwrap_or_else(json::now);
             let dest = fs::read_link(&entry).ok().map(|d| d.to_string_lossy().into_owned());
             if let Some(dest) = dest.filter(|d| d.starts_with("/nix/store/")) {
                 // NixOS: the symlink becomes a folder with result → store path (registered as a GC root again)

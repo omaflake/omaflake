@@ -25,7 +25,7 @@ pub struct DoctorPage {
     /// The checks run now
     pub checking: bool,
     #[serde(default, skip_serializing_if = "Option::is_none", with = "crate::json::iso8601::option")]
-    pub checked: Option<chrono::DateTime<chrono::Utc>>,
+    pub checked: Option<crate::json::Date>,
     /// "Check Again"
     pub actions: Vec<Action>,
     pub sections: Vec<DoctorSection>,
@@ -934,7 +934,7 @@ pub struct MacBaseRow {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub user: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none", with = "crate::json::iso8601::option")]
-    pub created: Option<chrono::DateTime<chrono::Utc>>,
+    pub created: Option<crate::json::Date>,
     /// It knows omaflake's own SSH key (plan B160)
     pub own_key: bool,
     /// Why to look at it: made before omaflake's own key, not installed completely, no credential

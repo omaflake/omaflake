@@ -5,7 +5,6 @@
 
 use std::collections::VecDeque;
 
-use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 
@@ -13,6 +12,7 @@ use super::common::*;
 use super::text::{Text, tf};
 use crate::api::protocol::RpcError;
 use crate::api::types::*;
+use crate::json::Date;
 use crate::models::RecipeId;
 
 /// Entries kept (the app kept 30; a TUI's list may be longer)
@@ -25,7 +25,7 @@ pub struct ActivityEntry {
     /// remembering the highest id it has shown – higher ones are unseen (api.md §10.6)
     pub id: u64,
     #[serde(with = "crate::json::iso8601")]
-    pub time: DateTime<Utc>,
+    pub time: Date,
     pub level: Level,
     pub text: Text,
     /// What a system notification says, when one belongs to it (VM ready or ended, image built or failed) – the UI

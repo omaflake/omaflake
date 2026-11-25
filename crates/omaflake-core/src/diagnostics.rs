@@ -445,7 +445,7 @@ impl<'a> Diagnosis<'a> {
         // Ready means it said hello
         let Some(hello) = state.hello.clone() else { return CheckResult::new(id, CheckStatus::Fail, NO_AGENT) };
         let os = hello.os_name.clone().or(hello.os.clone()).unwrap_or_default();
-        let age = state.status_at.or(state.hello_at).map(|t| (crate::json::now() - t).num_seconds());
+        let age = state.status_at.or(state.hello_at).map(|t| crate::json::seconds_between(crate::json::now(), t));
         (self.log)(&format!(
             "    agent {} · {os} · features {} · last report {} s ago",
             hello.agent,
@@ -739,7 +739,7 @@ pub fn bytes(n: u64) -> String {
 
 /// `<data>/logs/diagnostics-<vm>-<time>.log`, a new file per run
 pub fn log_file(paths: &Paths, vm: &str) -> PathBuf {
-    let stamp = chrono::Local::now().format("%Y%m%d-%H%M%S");
+    let stamp = crate::json::local_now("%Y%m%d-%H%M%S");
     let base = paths.logs().join(format!("diagnostics-{vm}-{stamp}.log"));
     if !base.exists() {
         return base;

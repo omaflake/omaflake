@@ -466,7 +466,7 @@ impl MacBaseInstaller {
                 let dir = paths.bases().join(&name);
                 let os_build = crate::mac_vm::MacVmBundle::new(dir.clone()).load_config().ok().and_then(|c| c.os_build);
                 let created =
-                    fs::metadata(&dir).and_then(|m| m.modified()).ok().map(chrono::DateTime::<chrono::Utc>::from);
+                    fs::metadata(&dir).and_then(|m| m.modified()).ok().and_then(crate::json::from_system_time);
                 let record = BaseRecord::of(&dir);
                 // The newest of its credential (plan B166)
                 let newest = crate::mac_image_builder::MacImageBuilder::newest_base_for(
@@ -819,7 +819,7 @@ pub struct BaseInfo {
     pub ready: bool,
     /// The newest ready base of its credential: macOS images with that credential are built from it (plan B166)
     pub newest: bool,
-    pub created: Option<chrono::DateTime<chrono::Utc>>,
+    pub created: Option<crate::json::Date>,
     /// Allocated blocks of its files (the disk is sparse)
     pub size_bytes: Option<i64>,
 }
