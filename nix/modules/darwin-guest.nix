@@ -82,7 +82,15 @@ in
     # (pbpaste does reach the pasteboard). Exits at once when the VM runs without the agent port.
     (pkgs.writeShellScriptBin "omaflake-agent-start" ''
       pgrep -xq omaflake-agent && exit 0
-      nohup ${omaflakeAgent}/bin/omaflake-agent >/tmp/omaflake-agent.log 2>&1 </dev/null &
+      # The log outlives restarts (/tmp is emptied at each): the last five starts are kept, so what the agent saw
+      # before a restart that "fixed it" can still be read (plan B183)
+      logs="$HOME/Library/Logs/omaflake"
+      mkdir -p "$logs"
+      for n in 4 3 2 1; do
+        [ -f "$logs/agent.$n.log" ] && mv -f "$logs/agent.$n.log" "$logs/agent.$((n + 1)).log"
+      done
+      [ -f "$logs/agent.log" ] && mv -f "$logs/agent.log" "$logs/agent.1.log"
+      nohup ${omaflakeAgent}/bin/omaflake-agent >"$logs/agent.log" 2>&1 </dev/null &
     '')
   ];
 

@@ -80,7 +80,7 @@ public indirect enum TextArg: Decodable, Sendable, Equatable, Hashable {
 // MARK: - Building blocks (§10.3)
 
 /// A colour role (design tokens)
-public enum Tone: String, OpenEnum { case normal, accent, success, warning, danger, unknown }
+public enum Tone: String, OpenEnum { case normal, accent, success, warning, danger, special, unknown }
 
 public enum LampState: String, OpenEnum { case on, off, attention, working, unknown }
 

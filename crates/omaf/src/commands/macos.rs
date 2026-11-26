@@ -8,6 +8,7 @@ use omaflake_core::MacBaseInstaller;
 use omaflake_core::api::service::socket_path;
 use omaflake_core::credentials::Credentials;
 use omaflake_core::mac_base_installer::{BaseOutcome, BaseRequest};
+use omaflake_core::mac_base_unchain::UnchainRequest;
 use omaflake_core::{Error, Paths};
 use serde_json::{Value, json};
 
@@ -107,6 +108,9 @@ pub fn bases() -> Outcome {
             credentials.get(&r.credential).map(|c| c.name).unwrap_or_else(|| format!("{} (gone)", r.credential_name))
         });
         let mut notes = Vec::new();
+        if MacBaseInstaller::is_unchained(&b.path) {
+            notes.push("unchained: System Integrity Protection off".to_string());
+        }
         if b.newest {
             notes.push("newest of its credential".to_string());
         }
@@ -146,6 +150,54 @@ pub fn remove(a: &cli::MacRemove) -> Outcome {
     };
     omaflake_core::trash::Disposal::delete(&[&base.path])?;
     println!("Removed {} – macOS images and VMs made from it stay", a.base);
+    Ok(())
+}
+
+/// `omaf macos unchain <base>` (plan B184): the unchained copy of a base – here, never in the service: Recovery and
+/// the extension's approval are done by the person at this terminal, in the VM's window
+pub fn unchain(a: &cli::MacUnchain) -> Outcome {
+    let env = Env::new();
+    let Some(base) = MacBaseInstaller::list(&env.paths).into_iter().find(|b| b.name == a.base) else {
+        return Err(usage(
+            &["macos", "unchain"],
+            format!("No macOS base {} in {}", a.base, env.paths.bases().display()),
+        ));
+    };
+    let installer = MacBaseInstaller::new(env.paths.clone(), env.backends()?.vz()?.clone());
+    // Before any password is looked up: what cannot be unchained says so
+    let login = if base.ready && base.record.is_some() && !MacBaseInstaller::is_unchained(&base.path) {
+        Some(Credentials::new(env.paths.clone()).login_of_base(&base.path)?)
+    } else {
+        None
+    };
+    let tools = if a.no_tools { None } else { MacBaseInstaller::unchained_tools() };
+    if !a.no_tools && tools.is_none() {
+        println!(
+            "This omaflake has no omaflake Tools with the camera extension – the base gets System Integrity Protection off only."
+        );
+    }
+    let request = UnchainRequest {
+        source: base.path.clone(),
+        password: login.map(|l| l.password).unwrap_or_default(),
+        tools,
+        // This Mac's keyboard for the base (it has the US one): the password for the extension's approval is typed
+        keyboard: env.settings().host_keyboard,
+    };
+    let step = |n: u32, title: &str| println!("[{n}/{}] {title}", omaflake_core::mac_base_unchain::STEPS);
+    let outcome = installer.unchain(
+        &request,
+        &|line: &str| {
+            println!("{line}");
+            let _ = std::io::stdout().flush();
+        },
+        &step,
+    )?;
+    let (BaseOutcome::Created { dir, .. } | BaseOutcome::Existing(dir)) = outcome;
+    println!(
+        "Unchained macOS images: omaf build <recipe> --unchained (from {}). Their VMs run with System Integrity \
+         Protection off.",
+        last_component(&dir)
+    );
     Ok(())
 }
 

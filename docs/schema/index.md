@@ -21,12 +21,12 @@ one, and never removes a published version from this site. Editors use the URL t
 
 | Type | File | Schema |
 |---|---|---|
-| `image` | `image.json` in an image package | [v3](image/v3.json) |
+| `image` | `image.json` in an image package | [v4](image/v4.json) (unchained), [v3](image/v3.json) |
 | `instance` | `instance.json` in a VM package | [v1](instance/v1.json) |
 | `settings` | `~/.omaflake/config.json` | [v6](settings/v6.json) (credentials, locales, profiles, help switch) |
 | `installed` | `<data>/recipes/.installed.json` | [v1](installed/v1.json) |
 | `macos-vm` | `config.json` of a macOS VM folder | [v1](macos-vm/v1.json) |
-| `base` | `omaflake-base.json` in a macOS base folder – the credential of its guest user, whether it knows omaflake's own key | [v2](base/v2.json) (ownKey, version) |
+| `base` | `omaflake-base.json` in a macOS base folder – the credential of its guest user, whether it knows omaflake's own key | [v3](base/v3.json) (unchained), [v2](base/v2.json) (ownKey, version) |
 | `manifest` | `manifest.json` of an exported package | [v1](manifest/v1.json) |
 | `catalog` | `catalog.json` of a source | [v4](catalog/v4.json) (recipes v2, modules, key bindings, looks; plan B142), [v5](catalog/v5.json) (modules v2, key bindings v2; plan B147) |
 | `recipe` | `recipe.toml` of a recipe (TOML, checked as data) | [v2](recipe/v2.json) (data only, plan B142) |

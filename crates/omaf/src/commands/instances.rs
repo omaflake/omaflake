@@ -38,6 +38,45 @@ pub fn images_remove(name: &str) -> Outcome {
     Ok(())
 }
 
+/// `omaf images unchain <name>` (plan B184): the unchained copy of a macOS image – here, never in the service: the
+/// steps in Recovery and the extension's approval are done by the person at this terminal, in the VM's window
+pub fn images_unchain(name: &str, no_tools: bool) -> Outcome {
+    use omaflake_core::MacBaseInstaller;
+    use omaflake_core::credentials::Credentials;
+    let env = Env::new();
+    let image = env.images().image(&resolve_image(name, &env)?)?;
+    let credentials = Credentials::new(env.paths.clone());
+    let Some(credential) = image.info.credential.as_deref().and_then(|id| credentials.get(id)) else {
+        return Err(Error::new(format!(
+            "{} has no credential here – its guest user's password is needed for the unchained copy",
+            image.name
+        ))
+        .into());
+    };
+    let login = credentials.login(&credential)?;
+    let installer = MacBaseInstaller::new(env.paths.clone(), env.backends()?.vz()?.clone());
+    let tools = if no_tools { None } else { MacBaseInstaller::unchained_tools() };
+    if !no_tools && tools.is_none() {
+        println!(
+            "This omaflake has no omaflake Tools with the camera extension – the copy gets System Integrity Protection off only."
+        );
+    }
+    let step = |n: u32, title: &str| println!("[{n}/{}] {title}", omaflake_core::mac_base_unchain::STEPS);
+    let copy = installer.unchain_image(
+        &image,
+        &login.user,
+        &login.password,
+        tools.as_deref(),
+        &|line: &str| {
+            println!("{line}");
+            let _ = std::io::Write::flush(&mut std::io::stdout());
+        },
+        &step,
+    )?;
+    println!("A VM from it: omaf new <name> --image {}", copy.name);
+    Ok(())
+}
+
 pub fn images_list() -> Outcome {
     let env = Env::new();
     let backends = env.backends()?;
@@ -70,6 +109,12 @@ pub fn images_list() -> Outcome {
                 .unwrap_or_else(|| id.clone()),
         };
         println!("    Credential: {credential}");
+        if image.info.unchained {
+            println!(
+                "    Unchained: System Integrity Protection off – new VMs: omaf new <name> --image {}",
+                image.name
+            );
+        }
         println!("    Instances: {used}");
     }
     // Images this omaflake cannot read (too old, too new, damaged, plan B114)
@@ -155,10 +200,13 @@ pub fn new(a: &cli::New) -> Outcome {
     if let Some(v) = cli::inverted(a.camera, a.no_camera) {
         settings.camera = Some(v);
     }
-    if settings.kind == GuestKind::Macos && settings.camera == Some(true) {
+    if settings.kind == GuestKind::Macos && settings.camera == Some(true) && !image.info.unchained {
         eprintln!(
             "Note: in macOS VMs apps see the camera as \"OBS Virtual Camera\" – install OBS in the VM (plan B169)."
         );
+    }
+    if image.info.unchained {
+        eprintln!("Note: {} is unchained – this VM runs with System Integrity Protection off (plan B184).", image.name);
     }
     if let Some(v) = cli::inverted(a.midi, a.no_midi) {
         settings.midi = Some(v);
@@ -309,7 +357,10 @@ pub fn start(a: &cli::Start) -> Outcome {
     };
     let lock = InstanceLock::new(&env.paths.instance(&a.name))?;
     let display = display_for(a.window, a.headless, a.no_gl, &c, || Ok(backends.qemu()?.runtime.capabilities().gl))?;
-    let pid = backend.start(&c, StartOptions { display, gl })?;
+    if a.recovery && c.guest_kind() != GuestKind::Macos {
+        return Err(Error::new("--recovery is for macOS VMs").into());
+    }
+    let pid = backend.start(&c, StartOptions { display, gl, recovery: a.recovery })?;
     if a.window && c.guest_kind() == GuestKind::Nixos {
         let shown = if display == DisplayMode::Gpu {
             format!("3D (virtio-gpu-gl, gl={})", gl.as_str())

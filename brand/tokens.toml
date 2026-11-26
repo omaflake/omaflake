@@ -37,6 +37,10 @@ palette = "yellow"
 system = "orange"
 hex = "#FF9F0A"         # systemOrange, dark appearance (Apple HIG colour table)
 
+[color.special]         # unchained (plan B184): something more than the usual, not a warning
+system = "purple"
+hex = "#BF5AF2"         # systemPurple, dark appearance (Apple HIG colour table)
+
 [color.success]         # running, check passed
 system = "green"
 hex = "#30D158"         # systemGreen, dark appearance (Apple HIG colour table)

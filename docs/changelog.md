@@ -13,6 +13,58 @@ are collected under *Unreleased*. Releases: [GitHub](https://github.com/omaflake
 
 ## [Unreleased]
 
+## [0.8.1] – 2026-11-26
+
+The camera in macOS VMs: smooth with OBS, and without OBS in an "unchained" VM; omaflake Tools, omaflake's own app
+inside a macOS VM, with its camera. An unchained copy of an image or a base is made by one click – omaflake goes
+through macOS Recovery by itself and asks you only to approve the camera once. Much of it is new and only partly
+tried on a Mac; the notes say where. Rebuild your macOS images to get the new agent.
+
+### Added
+
+- **Unchained macOS images and bases.** In the app every macOS image has "Make Unchained Copy …": a second image,
+  the same but with System Integrity Protection off and omaflake's camera (`omaf images unchain <image>`). For
+  many images: Images → macOS Bases → a base's "Make Unchained Copy …" once, then "Build
+  Image" with the switch "Unchained"; unchained bases, images and VMs carry an orange badge. On the command line
+  `omaf macos unchain <base>` makes a copy of a base
+  with System Integrity Protection off (`bases/mac-unchained-…`): you type `csrutil disable` in macOS Recovery,
+  which omaflake goes through by itself (it reads Recovery's screen, clicks and types; when it finds no way on it
+  shows the window and the log says what to do), and approve omaflake's camera extension once – every image built from it with
+  `omaf build <recipe> --unchained`, and every VM of such an image, is then unchained. For what a normal VM refuses:
+  first of all omaflake's own camera in a macOS VM without OBS, before omaflake is signed – tried on a Mac: the VM
+  of such an image shows the Mac's camera as "omaflake Camera" without another approval of the extension. Never
+  the default: an unchained image is never its recipe's current image (`omaf new <name> --image <image>` makes a
+  VM from it), and such a VM has macOS's own protection switched off. The job shows its steps (6, two of them
+  yours only when needed: Recovery by hand, the camera's approval); the VM's window stays hidden until you are
+  needed. Before Recovery omaflake sets its language to English with a US keyboard in the copy (and puts it back
+  after). In Recovery's Terminal it first checks that Shift reaches the VM (a password with capitals or symbols
+  needs it – in a first try on a Mac it did not, and csrutil said the authentication failed) and tries three ways
+  of sending it before it hands over to you. Unchained is marked in purple, not in the orange of warnings. The way through Recovery was tried on a Mac step by step, the whole job in the app not yet.
+  image.json and omaflake-base.json have new versions (`unchained`); an older omaflake cannot read them.
+- **omaflake Tools and omaflake's own camera extension for macOS VMs – built, not yet delivered.** "omaflake
+  Tools.app" (in omaflake.app, `Contents/Resources/Guest`) is omaflake's app inside a macOS VM; its first part is a
+  camera extension that shows the Mac's camera to the apps in a VM directly, without OBS. macOS loads it only signed with a Developer ID, which omaflake does not have yet; ad hoc
+  signed as now it loads in a VM whose System Integrity Protection was switched off in Recovery – tried there: a
+  smooth picture in Photo Booth. Nothing installs it into a VM yet. Where it is active, **Diagnose** needs no OBS.
+- **`omaf start <name> --recovery`** starts a macOS VM into macOS Recovery, in a window – for what only Recovery can
+  change. Not for VMs that start from their image every time.
+
+### Fixed
+
+- **Camera in macOS VMs: one picture a second, and late.** OBS draws with OpenGL unless told otherwise, and a macOS
+  VM has no OpenGL on its graphics device: of 3962 pictures of the virtual camera OBS drew 142. The agent now
+  chooses OBS's Metal renderer (OBS 32 and later; in OBS's settings while OBS is not running – quit OBS once), and
+  **Diagnose** says when OBS still draws with OpenGL: 1725 of 1727 pictures drawn, 30 a second. And OBS's own H.264
+  decoder held every picture back for about 300 ms; the agent now decodes the Mac's H.264 itself (VideoToolbox) and
+  OBS reads raw pictures again – from the agent to an app in the VM 79 ms instead of 382 (measured with a test
+  picture; the Mac's part of the way is not in these numbers). Needs an image built with this version.
+
+### Changed
+
+- **The agent's log in macOS VMs** is `~/Library/Logs/omaflake/agent.log` instead of `/tmp/omaflake-agent.log`,
+  with the time on every line; the logs of the four starts before stay beside it (`agent.1.log` …), so what
+  happened before a restart can still be read.
+
 ## [0.8.0] – 2026-11-25
 
 A guided first start; VMs that grow, upgrade without losing their files and find each other by name; ports of other

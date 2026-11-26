@@ -118,6 +118,8 @@ pub(crate) fn page(ctx: &Ctx, p: &VmsParams) -> VmsPage {
 }
 
 /// macOS VMs (plan B169): until omaflake's own camera extension (M12) the guest's apps see the camera through OBS
+/// Unchained macOS VMs (plan B184) have omaflake's own camera extension from their base
+pub(crate) const CAMERA_UNCHAINED: &str = "In the VM, apps see this computer's camera as \"omaflake Camera\" – this VM is unchained and has omaflake's own camera extension";
 pub(crate) const CAMERA_MACOS: &str = "In the VM, apps see the camera as \"OBS Virtual Camera\": install OBS there, omaflake sets up its scene; then start OBS's virtual camera";
 
 pub fn unreadable(list: &[crate::api::types::Unreadable]) -> Vec<Hint> {
@@ -174,6 +176,12 @@ pub(crate) fn row(ctx: &Ctx, v: &Vm) -> VmRowView {
         badges.push(Badge::new("external", "external", Text::verbatim(location.clone()), Tone::Normal));
     }
     badges.extend(feature_badges(v));
+    // From an unchained image (plan B184): the VM runs without macOS's own protection
+    if ctx.images.iter().any(|i| i.name == v.image && i.unchained) {
+        badges.push(super::images::unchained_badge(Text::new(
+            "Unchained: this VM runs with macOS's System Integrity Protection off",
+        )));
+    }
     if v.upgradable {
         badges.push(Badge::new("upgradable", "upgrade", Text::new("Newer image available"), Tone::Warning));
     }
@@ -316,7 +324,13 @@ fn detail(ctx: &Ctx, v: &Vm) -> VmDetail {
         set("microphone", "Microphone", "microphone", v.microphone, microphone),
         {
             let camera = set("camera", "Camera", "camera", v.camera, json!({"name": name, "camera": !v.camera}));
-            if mac { camera.help(Text::new(CAMERA_MACOS)) } else { camera }
+            if mac && ctx.images.iter().any(|i| i.name == v.image && i.unchained) {
+                camera.help(Text::new(CAMERA_UNCHAINED))
+            } else if mac {
+                camera.help(Text::new(CAMERA_MACOS))
+            } else {
+                camera
+            }
         },
         // MIDI (plan B161): every guest kind – macOS through CoreMIDI, NixOS through the ALSA sequencer
         set("midi", "MIDI", "midi", v.midi, json!({"name": name, "midi": !v.midi}))

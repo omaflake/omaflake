@@ -79,6 +79,7 @@ pub fn lucide(name: &str) -> Option<Icon> {
         "official" => Icon::BadgeCheck,
         "lock" => Icon::Lock,
         "lock-warning" => Icon::ShieldAlert,
+        "unchained" => Icon::LockOpen,
         // Lucide dropped brand logos; a repository is a branch
         "github" => Icon::GitBranch,
         "url" => Icon::Globe,
@@ -120,7 +121,7 @@ mod tests {
         let documented = "vm image recipe activity nixos macos start-window start-headless stop terminal folder export \
             import external hide upgrade reset trash build new-vm create cancel install refresh download pause apply \
             clean guide log doctor settings quit up add clipboard sound microphone camera ephemeral network-isolated \
-            network-none upgradable outdated lab arch official lock lock-warning github url warning ok filter finished \
+            network-none upgradable outdated lab arch official lock lock-warning unchained github url warning ok filter finished \
             failed cancelled";
         for name in documented.split_whitespace() {
             assert!(glyph(name).is_some(), "{name}");

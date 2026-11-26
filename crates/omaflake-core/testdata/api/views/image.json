@@ -2,6 +2,41 @@
   "row": {
     "actions": [
       {
+        "confirm": {
+          "button": {
+            "key": "Make Copy",
+            "text": "Make Copy"
+          },
+          "destructive": false,
+          "text": {
+            "key": "A second image, the same as this one but with macOS's System Integrity Protection off – for what a normal VM refuses, first of all omaflake's own camera without OBS. It needs you twice, in the VM's window: in macOS Recovery you type csrutil disable in the Terminal, and in System Settings you approve omaflake's camera extension; the log says when. Its VMs run without that protection. This image stays as it is.",
+            "text": "A second image, the same as this one but with macOS's System Integrity Protection off – for what a normal VM refuses, first of all omaflake's own camera without OBS. It needs you twice, in the VM's window: in macOS Recovery you type csrutil disable in the Terminal, and in System Settings you approve omaflake's camera extension; the log says when. Its VMs run without that protection. This image stays as it is."
+          },
+          "title": {
+            "args": [
+              "image:omaflake/macos/dev:stone"
+            ],
+            "key": "Make an unchained copy of “%@”?",
+            "text": "Make an unchained copy of “image:omaflake/macos/dev:stone”?"
+          }
+        },
+        "enabled": false,
+        "icon": "unchained",
+        "id": "unchain",
+        "label": {
+          "key": "Make Unchained Copy …",
+          "text": "Make Unchained Copy …"
+        },
+        "method": "images.unchain",
+        "params": {
+          "name": "omaflake.macos.dev@stone-lamp"
+        },
+        "reason": {
+          "key": "A build of its recipe is running – wait until it ends",
+          "text": "A build of its recipe is running – wait until it ends"
+        }
+      },
+      {
         "enabled": true,
         "icon": "folder",
         "id": "reveal",

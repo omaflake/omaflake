@@ -186,8 +186,12 @@ impl VzBackend {
             "--pid-file".into(),
             path_string(&ip.runner_pid()),
         ];
-        if options.display != DisplayMode::None {
+        // Recovery is used by hand: always in a window
+        if options.display != DisplayMode::None || options.recovery {
             args.push("--window".into());
+        }
+        if options.recovery {
+            args.push("--recovery".into());
         }
         if c.network == NetworkMode::None {
             args.push("--no-network".into());
@@ -422,6 +426,13 @@ impl VmBackend for VzBackend {
             ));
         }
         self.check_entitlement()?;
+        if options.recovery && c.ephemeral {
+            return Err(vm_err!(
+                "\"{}\" starts from its image every time – what is changed in Recovery would be gone at the next \
+                 start. Use a VM that keeps its disk",
+                c.name
+            ));
+        }
         if c.ephemeral && ip.vm().exists() {
             self.reset(c)?;
         } else if !ip.vm().exists() {
@@ -879,6 +890,11 @@ pub(crate) mod tests {
         let headless = headless.unwrap();
         assert!(!headless.contains(&"--window".to_string()) && headless.contains(&"--clipboard".to_string()));
         assert!(!headless.contains(&"--midi".to_string()));
+        // Recovery (plan B184): in a window, whatever the display says
+        let recovery = StartOptions { recovery: true, ..StartOptions::new(DisplayMode::None) };
+        let a = vz.runner_arguments(&mac_config("m1", NetworkMode::Shared), recovery, &[]).unwrap();
+        assert!(a.contains(&"--window".to_string()) && a.contains(&"--recovery".to_string()));
+        assert!(!headless.contains(&"--recovery".to_string()));
         c.midi = Some(true);
         let a = vz.runner_arguments(&c, StartOptions::new(DisplayMode::None), &[]).unwrap();
         let at = a.iter().position(|x| x == "--agent-state").unwrap();

@@ -1060,7 +1060,10 @@ pub(crate) fn mac_base_page(ctx: &Ctx, p: &MacBaseParams) -> MacBasePage {
     let ipsw_build = if ipsw.is_none() { ipsw_item.and_then(|i| build_in(&i.detail)) } else { None };
     let existing = ipsw_build.as_deref().and_then(|build| {
         ctx.bases.iter().find(|b| {
-            b.ready && b.credential.as_deref() == Some(credential.as_str()) && b.os_build.as_deref() == Some(build)
+            b.ready
+                && !b.unchained
+                && b.credential.as_deref() == Some(credential.as_str())
+                && b.os_build.as_deref() == Some(build)
         })
     });
     let create = Action::call("create", Text::new("Create Base"), Some("create"), "macos.installBase", params)
@@ -1078,9 +1081,11 @@ pub(crate) fn mac_base_page(ctx: &Ctx, p: &MacBaseParams) -> MacBasePage {
             }),
         )
         .primary();
+    // Unchained bases (plan B184) are copies of these: made and removed in Images → macOS Bases, not created here
     let bases = ctx
         .bases
         .iter()
+        .filter(|b| !b.unchained)
         .map(|b| base_row(ctx, b, &credential, ipsw.as_deref(), installing || downloading.is_some()))
         .collect();
     MacBasePage {

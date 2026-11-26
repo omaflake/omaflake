@@ -679,6 +679,9 @@ impl View<'_> {
         let c = &row.config;
         let n = self.snap.lengths.vm;
         let latest = self.snap.current.get(&c.recipe).cloned();
+        // A VM of an unchained image (plan B184) is not offered the recipe's current image: that one is never
+        // unchained, an upgrade would chain the VM again
+        let unchained = self.snap.images.values().flatten().any(|i| i.name == c.image && i.info.unchained);
         Vm {
             name: c.name.clone(),
             recipe: c.recipe.clone(),
@@ -711,7 +714,7 @@ impl View<'_> {
             agent: row.agent.as_ref().and_then(|a| serde_json::to_value(a).ok()),
             accelerator: row.accelerator.map(|a| a.as_str().to_string()),
             location: row.location.clone(),
-            upgradable: latest.as_ref().is_some_and(|l| l != c.system_image.as_ref().unwrap_or(&c.image)),
+            upgradable: !unchained && latest.as_ref().is_some_and(|l| l != c.system_image.as_ref().unwrap_or(&c.image)),
             latest_image: latest,
             forwards: crate::models::PortForward::list_text(&c.forwards),
         }
@@ -746,6 +749,7 @@ impl View<'_> {
             credential_name: i.info.credential_name.clone(),
             locale: i.info.locale.clone(),
             locale_name: i.info.locale_name.clone(),
+            unchained: i.info.unchained,
             instances: self
                 .snap
                 .rows

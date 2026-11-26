@@ -8,9 +8,11 @@
 //! Frames go to the reader on a thread of their own, the newest only; a credit goes back to the Mac for each frame
 //! the reader took (or that a newer one replaced) – the reader's pace is the Mac's.
 //!
-//! Compressed (plan B174, the welcome enabled `camera-h264`): the Mac sends H.264 access units (Annex B) instead,
-//! and the stream is H.264. Those are never replaced – a lost frame would break the pictures after it until the
-//! next key frame –, so every frame waits for the reader; the Mac's credits bound how many there are.
+//! Compressed (plan B174, the welcome enabled `camera-h264`): the Mac sends H.264 access units (Annex B) instead.
+//! Those are never replaced – a lost frame would break the pictures after it until the next key frame –, so every
+//! frame waits for the writer thread; the Mac's credits bound how many there are. The thread decodes each one
+//! (h264.rs, VideoToolbox) and writes the raw picture, so the stream is raw NV12 either way (plan B183: OBS's own
+//! H.264 decoder holds pictures back for about 300 ms).
 
 use std::collections::VecDeque;
 use std::io::{self, ErrorKind, Write};
@@ -37,10 +39,20 @@ pub fn available() -> bool {
     true
 }
 
-/// The frames waiting for the writer thread (raw: the newest only), and the reader they go to
+/// Turns one H.264 access unit into its raw frame; None: no picture for it (before a key frame, refused)
+pub type Decode = Box<dyn FnMut(&[u8]) -> Option<Vec<u8>> + Send>;
+
+/// VideoToolbox, a new decoder for every reader (each starts with a key frame)
+fn video_toolbox() -> Decode {
+    let mut decoder = crate::h264::Decoder::new(WIDTH as usize, HEIGHT as usize);
+    Box::new(move |unit| decoder.decode(unit))
+}
+
+/// The frames waiting for the writer thread (raw: the newest only; `true`: H.264, to decode), and the reader they
+/// go to
 #[derive(Default)]
 struct Slot {
-    frames: VecDeque<Vec<u8>>,
+    frames: VecDeque<(bool, Vec<u8>)>,
     reader: Option<TcpStream>,
     /// Bumped with every new reader: a write that began for an earlier one returns no credit
     generation: u64,
@@ -62,15 +74,15 @@ pub struct Camera {
 impl Camera {
     /// Listens on `ADDRESS`; the writer thread sends credits back with `credit`
     pub fn open(credit: fn(u32)) -> io::Result<Camera> {
-        Self::open_at(ADDRESS, credit)
+        Self::open_at(ADDRESS, credit, video_toolbox)
     }
 
-    fn open_at(address: &str, credit: fn(u32)) -> io::Result<Camera> {
+    fn open_at(address: &str, credit: fn(u32), decoder: fn() -> Decode) -> io::Result<Camera> {
         let listener = TcpListener::bind(address)?;
         listener.set_nonblocking(true)?;
         let shared = Arc::new((Mutex::new(Slot::default()), Condvar::new()));
         let s = shared.clone();
-        std::thread::Builder::new().name("camera".into()).spawn(move || writer(&s, credit))?;
+        std::thread::Builder::new().name("camera".into()).spawn(move || writer(&s, credit, decoder))?;
         Ok(Camera { listener, reader: None, shared, active: false, last_frame: None, compressed: false })
     }
 
@@ -184,7 +196,7 @@ impl Camera {
         }
         // Raw: the newest frame only. H.264: every frame, in order (at most the credits granted)
         let replaced = !self.compressed && slot.frames.pop_front().is_some();
-        slot.frames.push_back(frame);
+        slot.frames.push_back((self.compressed, frame));
         wake.notify_one();
         self.last_frame = Some(Instant::now());
         Ok(u32::from(replaced))
@@ -194,11 +206,13 @@ impl Camera {
     pub fn keep_fresh(&mut self, _now: Instant) {}
 }
 
-/// Writes the newest frame to the reader; one credit back per frame written
-fn writer(shared: &(Mutex<Slot>, Condvar), credit: fn(u32)) {
+/// Writes the newest frame to the reader – an H.264 one decoded first; one credit back per frame taken
+fn writer(shared: &(Mutex<Slot>, Condvar), credit: fn(u32), decoder: fn() -> Decode) {
     let (lock, wake) = shared;
+    // The decoder of the current reader's stream
+    let mut decode: Option<(u64, Decode)> = None;
     loop {
-        let (frame, mut reader, generation) = {
+        let ((compressed, frame), mut reader, generation) = {
             let mut slot = lock.lock().unwrap_or_else(|e| e.into_inner());
             loop {
                 if !slot.frames.is_empty()
@@ -209,7 +223,17 @@ fn writer(shared: &(Mutex<Slot>, Condvar), credit: fn(u32)) {
                 slot = wake.wait(slot).unwrap_or_else(|e| e.into_inner());
             }
         };
-        let ok = reader.write_all(&frame).is_ok();
+        let raw = if compressed {
+            if decode.as_ref().is_none_or(|(g, _)| *g != generation) {
+                decode = Some((generation, decoder()));
+            }
+            let picture = decode.as_mut().and_then(|(_, d)| d(&frame));
+            picture.filter(|p| p.len() == FRAME_BYTES)
+        } else {
+            Some(frame)
+        };
+        // A frame without a picture (before the first key frame) is taken all the same: its credit goes back
+        let ok = raw.is_none_or(|raw| reader.write_all(&raw).is_ok());
         let mut slot = lock.lock().unwrap_or_else(|e| e.into_inner());
         if slot.generation != generation {
             continue; // the reader changed meanwhile: the Mac's credits started anew
@@ -246,7 +270,7 @@ mod tests {
 
     #[test]
     fn a_reader_gets_whole_frames_and_returns_credits() {
-        let mut cam = Camera::open_at("127.0.0.1:0", count).unwrap(); // a free port: an agent may run here
+        let mut cam = Camera::open_at("127.0.0.1:0", count, video_toolbox).unwrap(); // a free port: an agent may run here
         let address = cam.listener.local_addr().unwrap();
         assert!(!cam.active);
         assert_eq!(cam.write_frame(vec![1; FRAME_BYTES]).unwrap(), 0, "no reader: dropped, no credit");
@@ -273,13 +297,22 @@ mod tests {
         assert!(!cam.active);
     }
 
-    /// H.264 (plan B174): frames of any size, none replaced, in order, a credit for each
+    /// H.264 (plan B174, B183): frames of any size, none replaced, decoded in order, a credit for each – also for
+    /// one without a picture. The decoder here is a stand-in: a frame of zeros has no picture, any other becomes a
+    /// raw frame filled with its first byte
     #[test]
-    fn compressed_frames_all_reach_the_reader_in_order() {
+    fn compressed_frames_are_decoded_in_order() {
         static GOT: AtomicU32 = AtomicU32::new(0);
-        let mut cam = Camera::open_at("127.0.0.1:0", |n| {
-            GOT.fetch_add(n, Ordering::SeqCst);
-        })
+        fn stand_in() -> Decode {
+            Box::new(|unit| (unit[0] != 0).then(|| vec![unit[0]; FRAME_BYTES]))
+        }
+        let mut cam = Camera::open_at(
+            "127.0.0.1:0",
+            |n| {
+                GOT.fetch_add(n, Ordering::SeqCst);
+            },
+            stand_in,
+        )
         .unwrap();
         cam.compressed = true;
         assert_eq!(cam.credits(), CREDITS_COMPRESSED);
@@ -288,13 +321,14 @@ mod tests {
         reader.set_read_timeout(Some(Duration::from_secs(10))).unwrap();
         assert_eq!(events(&mut cam), Some(true));
         assert!(cam.write_frame(vec![]).is_err(), "an empty frame");
-        let frames: Vec<Vec<u8>> = (1..=4u8).map(|i| vec![i; 1000 * i as usize]).collect();
-        for f in &frames {
-            assert_eq!(cam.write_frame(f.clone()).unwrap(), 0, "never replaced");
+        for first in [0u8, 1, 2, 3] {
+            assert_eq!(cam.write_frame(vec![first; 1000 + first as usize]).unwrap(), 0, "never replaced");
         }
-        let mut got = vec![0u8; frames.iter().map(Vec::len).sum()];
-        reader.read_exact(&mut got).unwrap();
-        assert_eq!(got, frames.concat());
+        for expected in [1u8, 2, 3] {
+            let mut got = vec![0u8; FRAME_BYTES];
+            reader.read_exact(&mut got).unwrap();
+            assert!(got.iter().all(|&b| b == expected), "picture {expected}");
+        }
         let deadline = Instant::now() + Duration::from_secs(2);
         while GOT.load(Ordering::SeqCst) < 4 && Instant::now() < deadline {
             std::thread::sleep(Duration::from_millis(10));
@@ -305,7 +339,7 @@ mod tests {
     /// OBS's media source reconnects while the old connection is still open: the agent must ask the Mac again
     #[test]
     fn a_reader_replacing_another_counts_as_opened() {
-        let mut cam = Camera::open_at("127.0.0.1:0", |_| {}).unwrap();
+        let mut cam = Camera::open_at("127.0.0.1:0", |_| {}, video_toolbox).unwrap();
         let address = cam.listener.local_addr().unwrap();
         let _first = TcpStream::connect(address).unwrap();
         assert_eq!(events(&mut cam), Some(true));

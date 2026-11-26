@@ -99,6 +99,15 @@ impl MacImageBuilder {
         MacImageBuilder { paths, vz }
     }
 
+    /// `ImageStore::image_name`, with words of their own for an image from an unchained base
+    pub fn image_name(recipe: &str, system: &str, unchained: bool) -> String {
+        if unchained {
+            ImageStore::image_name(recipe, &format!("{system}#unchained"))
+        } else {
+            ImageStore::image_name(recipe, system)
+        }
+    }
+
     /// Newest base (`bases/mac-base-<os-build>` with the ready marker), None if there is none.
     pub fn newest_base(&self) -> Option<PathBuf> {
         Self::newest_base_in(&self.paths)
@@ -191,11 +200,19 @@ impl MacImageBuilder {
         if built.status != 0 || !system.starts_with("/nix/store/") {
             return Err(vm_err!("nix build of darwinConfigurations.{} failed ({}) – see log", r.recipe, built.status));
         }
-        let name = ImageStore::image_name(&r.recipe, &system);
+        // An image from an unchained base (plan B184) is another image than the one of the same system from a
+        // normal base: its own name, so neither stands in for the other
+        let unchained = MacBaseInstaller::is_unchained(&base);
+        if unchained {
+            log(&format!("{} is unchained: the image runs with System Integrity Protection off", file_name(&base)));
+        }
+        let name = Self::image_name(&r.recipe, &system, unchained);
         let image = paths.image_dir(&name);
         if image.exists() {
             log(&format!("Image exists already: {}", image.display()));
-            images.set_current(&name)?;
+            if !unchained {
+                images.set_current(&name)?;
+            }
             return images.image(&name);
         }
 
@@ -287,6 +304,7 @@ impl MacImageBuilder {
             json::now(),
         );
         info.set_choice(&r.choice);
+        info.unchained = unchained;
         ImageStore::write_info(&info, &work)?;
         fs::rename(&work, &image).with_path(&image)?;
         Shell::check(
@@ -294,7 +312,11 @@ impl MacImageBuilder {
             &["-R", "a-w", &path_string(&image)],
             &RunOptions::default(),
         )?;
-        images.set_current(&name)?;
+        // An unchained image never becomes its recipe's current one (plan B184): new VMs of the recipe stay normal,
+        // an unchained VM is made from this image by its name
+        if !unchained {
+            images.set_current(&name)?;
+        }
         library.keep(&r.recipe, &settings);
         library.prune_versions();
         log(&format!("Image ready: {}", image.display()));
@@ -786,6 +808,12 @@ mod tests {
         fs::create_dir_all(p.bases().join("mac-base-28A1")).unwrap();
         assert_eq!(b.newest_base().unwrap().file_name().unwrap(), "mac-base-27A200");
         assert_eq!(MacImageBuilder::newest_base_in(&p), b.newest_base());
+        // An image from an unchained base has a name of its own (plan B184)
+        let system = "/nix/store/00000000000000000000000000000000-darwin-system";
+        let plain = MacImageBuilder::image_name("omaflake.macos.minimal", system, false);
+        let unchained = MacImageBuilder::image_name("omaflake.macos.minimal", system, true);
+        assert_eq!(plain, ImageStore::image_name("omaflake.macos.minimal", system));
+        assert!(unchained.starts_with("omaflake.macos.minimal@") && unchained != plain);
     }
 
     #[test]

@@ -141,6 +141,8 @@ pub struct BuildValues {
     pub locale: Option<String>,
     /// macOS: the build VM in a window
     pub window: Option<bool>,
+    /// macOS: from the credential's unchained base (plan B184)
+    pub unchained: Option<bool>,
 }
 
 /// The credential and look fields of the build form, and the values they have now (the user's, else the defaults)
@@ -260,8 +262,8 @@ pub(crate) fn page(ctx: &Ctx, p: &BuildParams) -> BuildPage {
     let base = if mac {
         ctx.bases
             .iter()
-            .find(|b| b.ready && b.newest && b.credential.as_deref() == Some(credential.as_str()))
-            .or_else(|| ctx.bases.iter().find(|b| b.ready && b.newest && b.credential.is_none()))
+            .find(|b| b.ready && b.newest && !b.unchained && b.credential.as_deref() == Some(credential.as_str()))
+            .or_else(|| ctx.bases.iter().find(|b| b.ready && b.newest && !b.unchained && b.credential.is_none()))
     } else {
         None
     };
@@ -279,6 +281,19 @@ pub(crate) fn page(ctx: &Ctx, p: &BuildParams) -> BuildPage {
             .value_param("window");
         w.help = Some(Text::new("Shows the build VM in a window – to see where a build waits; off: headless"));
         fields.push(w);
+    }
+    // Unchained (macOS only, plan B184): offered once the chosen credential has an unchained base
+    let unchained_base =
+        mac && ctx.bases.iter().any(|b| b.unchained && b.ready && b.credential.as_deref() == Some(credential.as_str()));
+    let unchained = unchained_base && p.values.unchained.unwrap_or(false);
+    if unchained_base {
+        let mut u = Field::new("unchained", FieldKind::Toggle, Text::new("Unchained"), json!(unchained))
+            .param("unchained")
+            .value_param("unchained");
+        u.help = Some(Text::new(
+            "Builds from the credential's unchained base: the image and its VMs run with macOS's System Integrity Protection off and have omaflake's camera. Never a recipe's current image – make a VM from it with “New VM from this image”",
+        ));
+        fields.push(u);
     }
     let missing = parts.is_some_and(|x| x.issues.iter().any(crate::composition::Issue::blocks));
     let mut notes = parts.map(|x| super::recipes::notes(ctx, &p.recipe, x)).unwrap_or_default();
@@ -316,6 +331,9 @@ pub(crate) fn page(ctx: &Ctx, p: &BuildParams) -> BuildPage {
             );
             if mac {
                 build.params["window"] = json!(window);
+            }
+            if unchained {
+                build.params["unchained"] = json!(true);
             }
             // No password is asked: NixOS needs none, macOS takes the base credential's (plan B139)
             build = build

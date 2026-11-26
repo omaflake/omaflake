@@ -15,6 +15,8 @@ let package = Package(
         .library(name: "OmaflakeKit", targets: ["OmaflakeKit"]),
         .executable(name: "omaf-runner", targets: ["omaf-runner"]),
         .executable(name: "OmaflakeApp", targets: ["OmaflakeApp"]),
+        .executable(name: "omaflake-camera", targets: ["omaflake-camera"]),
+        .executable(name: "omaflake-tools", targets: ["omaflake-tools"]),
     ],
     targets: [
         // The Swift side of omaflake: the client of the Rust core (`omaf serve`, docs/api.md) with its types, what
@@ -29,6 +31,8 @@ let package = Package(
             linkerSettings: [
                 .linkedFramework("Virtualization"), .linkedFramework("AppKit"), .linkedFramework("AVFoundation"),
                 .linkedFramework("CoreMedia"), .linkedFramework("CoreVideo"),
+                // Reading the guest's screen (plan B184): Vision, and ScreenCaptureKit when the view gives no picture
+                .linkedFramework("Vision"), .linkedFramework("ScreenCaptureKit"),
                 // Usage descriptions for camera/microphone (a command-line tool has no bundle Info.plist)
                 .unsafeFlags(["-Xlinker", "-sectcreate", "-Xlinker", "__TEXT", "-Xlinker", "__info_plist",
                               "-Xlinker", packageRoot + "/App/omaf-runner-Info.plist"]),
@@ -36,6 +40,18 @@ let package = Package(
         ),
         // Menu bar app, a client of `omaf serve`; scripts/bundle-app.sh wraps it (and the Rust `omaf`) into omaflake.app
         .executableTarget(name: "OmaflakeApp", dependencies: ["OmaflakeKit"]),
+        // For macOS guests (plan B184): omaflake's camera extension (a CoreMediaIO system extension reading the
+        // agent's frames) and "omaflake Tools", the guest's app it ships in – for now it only asks macOS to activate
+        // the extension; what else needs an app in the guest goes there. scripts/bundle-tools.sh wraps both into
+        // "omaflake Tools.app"
+        .executableTarget(
+            name: "omaflake-camera", dependencies: ["OmaflakeKit"],
+            linkerSettings: [.linkedFramework("CoreMediaIO"), .linkedFramework("CoreMedia"), .linkedFramework("CoreVideo")]
+        ),
+        .executableTarget(
+            name: "omaflake-tools",
+            linkerSettings: [.linkedFramework("SystemExtensions"), .linkedFramework("AppKit")]
+        ),
         .testTarget(name: "OmaflakeKitTests", dependencies: ["OmaflakeKit"]),
     ]
 )

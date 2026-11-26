@@ -164,7 +164,7 @@ public enum DHCPLeases {
 /// Controls a running omaf-runner via its Unix socket (one JSON line out, one back; `ControlServer`).
 public enum RunnerClient {
     /// What `omaf-runner run`'s control socket answers
-    public static let commands = ["status", "stop", "kill", "show", "midi", "diagnose"]
+    public static let commands = ["status", "stop", "kill", "show", "midi", "diagnose", "type", "key", "click", "screen"]
     /// What `omaf-runner bridge --control` answers
     public static let bridgeCommands = ["status", "diagnose", "midi"]
 

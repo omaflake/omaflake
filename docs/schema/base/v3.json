@@ -1,0 +1,43 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://omaflake.dev/schema/base/v3.json",
+  "title": "omaflake macOS base",
+  "description": "omaflake-base.json in a macOS base folder (bases/mac-base-<build>/ or, for a further credential of the same build, bases/mac-base-<build>-<credential>/; plan B166): the credential its guest user was created from or assigned – macOS image builds log in with its user and stored password. Written right after the base is cloned. v2 adds ownKey and version (a v1 file reads as ownKey false); v3 adds unchained, for the unchained copy of a base in bases/mac-unchained-<…>/ (plan B184; a v2 file reads as unchained false).",
+  "type": "object",
+  "properties": {
+    "$schema": {
+      "const": "https://omaflake.dev/schema/base/v3.json"
+    },
+    "credential": {
+      "description": "The credential's ID in config.json (\"c-\" and 12 hex digits)",
+      "type": "string"
+    },
+    "credentialName": {
+      "description": "The credential's name when it was set",
+      "type": "string"
+    },
+    "user": {
+      "description": "The base's guest user",
+      "type": "string"
+    },
+    "ownKey": {
+      "description": "omaflake's own SSH key (plan B160) went into the guest's authorized_keys – false for bases made before it; their builds need the user's key in the ssh-agent",
+      "type": "boolean"
+    },
+    "version": {
+      "description": "The macOS version (\"27.0.1\") when it was known at creation (Apple's IPSW)",
+      "type": "string"
+    },
+    "unchained": {
+      "description": "An unchained base (plan B184): System Integrity Protection is off in it and in every image and VM made from it; left out when false",
+      "type": "boolean"
+    }
+  },
+  "required": [
+    "$schema",
+    "credential",
+    "credentialName",
+    "user"
+  ],
+  "additionalProperties": false
+}

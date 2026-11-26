@@ -208,6 +208,7 @@ pub(crate) fn ctx() -> Ctx {
                 own_key: true,
                 version: Some("27.0.1".into()),
                 in_use: false,
+                unchained: false,
             },
             crate::api::types::BaseDto {
                 name: "mac-base-25F71".into(),
@@ -223,6 +224,7 @@ pub(crate) fn ctx() -> Ctx {
                 own_key: false,
                 version: None,
                 in_use: true,
+                unchained: false,
             },
         ],
         settings: answer.settings.clone(),

@@ -69,8 +69,8 @@
       }
     },
     "footer": {
-      "key": "A base is a clean macOS installed from Apple's IPSW, one per macOS build and credential; macOS images are built from the newest base of their credential. Removing an older base frees its space.",
-      "text": "A base is a clean macOS installed from Apple's IPSW, one per macOS build and credential; macOS images are built from the newest base of their credential. Removing an older base frees its space."
+      "key": "A base is a clean macOS installed from Apple's IPSW, one per macOS build and credential; macOS images are built from the newest base of their credential. Removing an older base frees its space. An unchained copy of a base has macOS's System Integrity Protection off – for images built “Unchained”.",
+      "text": "A base is a clean macOS installed from Apple's IPSW, one per macOS build and credential; macOS images are built from the newest base of their credential. Removing an older base frees its space. An unchained copy of a base has macOS's System Integrity Protection off – for images built “Unchained”."
     },
     "job": {
       "actions": [],
@@ -137,6 +137,41 @@
     "rows": [
       {
         "actions": [
+          {
+            "confirm": {
+              "button": {
+                "key": "Make Copy",
+                "text": "Make Copy"
+              },
+              "destructive": false,
+              "text": {
+                "key": "A copy of this base with macOS's System Integrity Protection off – for what a normal VM refuses, first of all omaflake's own camera without OBS. It needs you twice, in the VM's window: in macOS Recovery you type csrutil disable in the Terminal, and in System Settings you approve omaflake's camera extension; the log says when. Images you build “Unchained”, and their VMs, run without that protection. This base stays as it is.",
+                "text": "A copy of this base with macOS's System Integrity Protection off – for what a normal VM refuses, first of all omaflake's own camera without OBS. It needs you twice, in the VM's window: in macOS Recovery you type csrutil disable in the Terminal, and in System Settings you approve omaflake's camera extension; the log says when. Images you build “Unchained”, and their VMs, run without that protection. This base stays as it is."
+              },
+              "title": {
+                "args": [
+                  "mac-base-26A434"
+                ],
+                "key": "Make an unchained copy of “%@”?",
+                "text": "Make an unchained copy of “mac-base-26A434”?"
+              }
+            },
+            "enabled": false,
+            "icon": "unchained",
+            "id": "unchain",
+            "label": {
+              "key": "Make Unchained Copy …",
+              "text": "Make Unchained Copy …"
+            },
+            "method": "macos.unchainBase",
+            "params": {
+              "name": "mac-base-26A434"
+            },
+            "reason": {
+              "key": "A macOS base is being created – its progress is above",
+              "text": "A macOS base is being created – its progress is above"
+            }
+          },
           {
             "enabled": true,
             "icon": "folder",
@@ -243,6 +278,41 @@
       },
       {
         "actions": [
+          {
+            "confirm": {
+              "button": {
+                "key": "Make Copy",
+                "text": "Make Copy"
+              },
+              "destructive": false,
+              "text": {
+                "key": "A copy of this base with macOS's System Integrity Protection off – for what a normal VM refuses, first of all omaflake's own camera without OBS. It needs you twice, in the VM's window: in macOS Recovery you type csrutil disable in the Terminal, and in System Settings you approve omaflake's camera extension; the log says when. Images you build “Unchained”, and their VMs, run without that protection. This base stays as it is.",
+                "text": "A copy of this base with macOS's System Integrity Protection off – for what a normal VM refuses, first of all omaflake's own camera without OBS. It needs you twice, in the VM's window: in macOS Recovery you type csrutil disable in the Terminal, and in System Settings you approve omaflake's camera extension; the log says when. Images you build “Unchained”, and their VMs, run without that protection. This base stays as it is."
+              },
+              "title": {
+                "args": [
+                  "mac-base-25F71"
+                ],
+                "key": "Make an unchained copy of “%@”?",
+                "text": "Make an unchained copy of “mac-base-25F71”?"
+              }
+            },
+            "enabled": false,
+            "icon": "unchained",
+            "id": "unchain",
+            "label": {
+              "key": "Make Unchained Copy …",
+              "text": "Make Unchained Copy …"
+            },
+            "method": "macos.unchainBase",
+            "params": {
+              "name": "mac-base-25F71"
+            },
+            "reason": {
+              "key": "A macOS base is being created – its progress is above",
+              "text": "A macOS base is being created – its progress is above"
+            }
+          },
           {
             "enabled": true,
             "icon": "folder",
@@ -942,6 +1012,41 @@
     },
     {
       "actions": [
+        {
+          "confirm": {
+            "button": {
+              "key": "Make Copy",
+              "text": "Make Copy"
+            },
+            "destructive": false,
+            "text": {
+              "key": "A second image, the same as this one but with macOS's System Integrity Protection off – for what a normal VM refuses, first of all omaflake's own camera without OBS. It needs you twice, in the VM's window: in macOS Recovery you type csrutil disable in the Terminal, and in System Settings you approve omaflake's camera extension; the log says when. Its VMs run without that protection. This image stays as it is.",
+              "text": "A second image, the same as this one but with macOS's System Integrity Protection off – for what a normal VM refuses, first of all omaflake's own camera without OBS. It needs you twice, in the VM's window: in macOS Recovery you type csrutil disable in the Terminal, and in System Settings you approve omaflake's camera extension; the log says when. Its VMs run without that protection. This image stays as it is."
+            },
+            "title": {
+              "args": [
+                "image:omaflake/macos/dev:stone"
+              ],
+              "key": "Make an unchained copy of “%@”?",
+              "text": "Make an unchained copy of “image:omaflake/macos/dev:stone”?"
+            }
+          },
+          "enabled": false,
+          "icon": "unchained",
+          "id": "unchain",
+          "label": {
+            "key": "Make Unchained Copy …",
+            "text": "Make Unchained Copy …"
+          },
+          "method": "images.unchain",
+          "params": {
+            "name": "omaflake.macos.dev@stone-lamp"
+          },
+          "reason": {
+            "key": "A build of its recipe is running – wait until it ends",
+            "text": "A build of its recipe is running – wait until it ends"
+          }
+        },
         {
           "enabled": true,
           "icon": "folder",

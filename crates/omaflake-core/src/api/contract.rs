@@ -332,6 +332,7 @@ pub(crate) fn image(size: bool) -> ImageDto {
         credential_name: Some("Work".into()),
         locale: Some("l-1".into()),
         locale_name: Some("German".into()),
+        unchained: false,
     }
 }
 
@@ -359,6 +360,7 @@ pub(crate) fn image_old() -> ImageDto {
         credential_name: None,
         locale: None,
         locale_name: None,
+        unchained: false,
     }
 }
 

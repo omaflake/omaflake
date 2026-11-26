@@ -486,7 +486,14 @@ Lume (trycua) only after a license review (OPEN).
 
 ---
 
-## 8. Next steps (as of 2026-11-25)
+## 8. Next steps (as of 2026-11-26)
+
+**Release 0.8.1 (2026-11-26, built locally for the maintainer's test – not tagged):** B183 (the camera with OBS:
+Metal, the agent decoding H.264, the agent's log kept) and B184 (omaflake Tools and omaflake's own camera
+extension; unchained copies of images and bases, Recovery without hands, `omaf start --recovery`). Maintainer:
+"mache ein Release 0.8.1 fertig, dass ich erstmal lokal testen kann". OPEN until tried: the whole unchain job in the
+app, the quiet window's picture, what `csrutil disable` asks word for word, the extension's approval without a
+click (a probe).
 
 **Release 0.8.0 (2026-11-25):** everything of the maintainer's list that needs no Developer ID ("Alles heißt wirklich
 alles, was keine Developer-ID braucht"): B167 (chrono → jiff), B177 (the dependencies looked through), B164 (a larger
@@ -498,6 +505,233 @@ DHCP server on the segment, SSH from the Mac to reach, a Go binary to ship – i
 real VMs); the camera over vsock – H.264 (B174) made the camera smooth at 30 fps, so vsock waits for the measurement on
 the Mac (VsockBench) to show it is needed; dragging in the Linux app and `omaf ui`. To try on the Mac: everything
 marked OPEN in B164, B178–B182 (they need images built with 0.8.0).
+
+**B184 (2026-11-26, built for 0.8.1): an "unchained" macOS base.** The maintainer's idea:
+beside the base a variant with macOS's protections off, for what a normal guest refuses – first of all omaflake's own
+camera extension before there is a Developer ID (B183, M12), then system extensions and drivers in general, debugging
+system processes, security research. Nothing of it is a crack: it is what Apple's own switches do (`csrutil disable`
+in Recovery, `systemextensionsctl developer on`, perhaps the boot argument that turns the entitlement check off).
+The name (the maintainer: "unchained ist gut"): **unchained** (not "cracked" – that reads as a pirated copy; "unlocked" was the plain
+alternative, "unsealed" would claim the sealed system volume is opened, which `csrutil disable` does not do).
+- *Rules:* never the default; chosen per image or VM and marked in the app like the other orange states; the guest
+  still reaches the Mac through the share folder, the clipboard and the network, so the notes say what is off. No
+  user must need it for a feature – the signed camera extension stays the way for everyone.
+- *Checked:* Virtualization.framework has no switch for it (SDK headers: only `startUpFromMacOSRecovery` and the
+  provisioning of the first start); in a guest `systemextensionsctl developer` answers "cannot be used if System
+  Integrity Protection is enabled".
+- *Built:* `omaf start <name> --recovery` (`StartOptions.recovery` → the runner's `--recovery`, always with
+  `--window`; refused for NixOS VMs and for VMs that start from their image every time). Tests: the runner's
+  arguments, the CLI's flags. The Mac: OPEN.
+- *By hand first (the maintainer, on the Mac):* a VM that keeps its disk → `omaf start <name> --recovery` → Terminal
+  in Recovery → `csrutil disable` → restart → in the guest `csrutil status`, `systemextensionsctl developer on`.
+- *Tried by hand on the Mac (2026-11-26, omaflake 0.8.0, guest macOS 27.2.1, image macos/minimal; the 0.8.0 runner's
+  `run <vm> --window --recovery`):* before `System Integrity Protection status: enabled.`; in Recovery's Terminal
+  `csrutil disable` was taken (under two minutes from start to shut down); after a normal start `disabled.` A clone
+  with a new identity (`omaf-runner clone`: new machine identifier and MAC address, as images and VMs are cloned)
+  started with `disabled.` too – **the state is in the VM's files and clones keep it**, so an unchained base hands it
+  to every image and VM made from it. `systemextensionsctl developer` now answers `Developer mode is off` (with
+  System Integrity Protection on it refused to answer); `on` needs root (not tried: sudo asks for the password).
+  `nvram boot-args` is empty.
+- *An ad hoc signed camera extension loads (2026-11-26, the same VM):* a prototype outside the repository – a
+  CoreMediaIO extension (one device, 1280×720 NV12, reads raw frames from the agent's `127.0.0.1:47042` and sends
+  each on at once; a test picture without the agent) in an app that asks for its activation, both signed ad hoc
+  (`codesign --sign -`), the app with `com.apple.developer.system-extension.install`. With System Integrity
+  Protection on (the development VM) macOS kills the app at once (exit 137). In the unchained VM it runs, the
+  activation asks for the user's approval in System Settings and finishes: `systemextensionsctl list` shows it
+  `[activated enabled]` with team ID `-`. **Nothing else was needed** – developer mode stayed off
+  (`systemextensionsctl developer on` over SSH: "no user interaction was possible"), no boot argument. Photo Booth
+  listed the camera, the Mac's camera light came on (the extension's connection to the agent started it); the
+  picture was coloured noise, as expected: the image's 0.8.0 agent serves H.264 there and the prototype reads raw
+  frames. *With the agent of B183* (its binary copied into the VM and started in place of the image's): Photo Booth
+  shows the Mac's camera through the prototype – the maintainer: "Flüssiges gutes Bild"; the agent at 3.5 % of a
+  core, the extension at 1.3 %. So the whole way of M12's camera works without OBS: Mac → H.264 → agent (decodes)
+  → extension → app. The delay is not measured yet.
+- *The extension in the repository (2026-11-26):* the prototype became `omaflake-camera` (the extension) and
+  `omaflake-tools` ("omaflake Tools.app", asks for the activation), two targets of Package.swift; what needs
+  no CoreMediaIO is OmaflakeKit's `CameraFrames` (a frame into a pixel buffer's planes, the test picture) and
+  `CameraStreamReader` (whole frames from the agent's port), with tests (`CameraFramesTests`).
+  `scripts/bundle-tools.sh` builds and signs the bundle (ad hoc; `SIGN_IDENTITY` with `TEAM_ID` for a Developer
+  ID – OPEN whether that needs a provisioning profile), `scripts/bundle-app.sh` puts it into omaflake.app
+  (`Contents/Resources/Guest`; `codesign --verify --deep --strict` of the app passes). Identifiers
+  `app.omaflake.guest` and `app.omaflake.guest.camera`, the device "omaflake Camera". The agent's diagnosis
+  knows it (`obs::own_extension_state`; `extension` in its data): active → pass without OBS. *This build in the
+  unchained VM (2026-11-26, as "omaflake Tools.app" with `app.omaflake.guest.camera`):* copied to /Applications,
+  started with `open`, approved, `FINISHED: completed`, `[activated enabled]` with team ID `-` beside the
+  prototype's; `omaf diagnose` (the 0.8.0 app with this agent in the guest): "Ready – omaflake's camera extension
+  is active …", and while Photo Booth showed it "omaflake's camera extension shows the Mac's camera (streaming)".
+  The maintainer: "Sehe Bild, sehr flüssig, gut, könnte auch die Kamera auf meinem Host sein." Not built: copying the app into a guest and activating it from
+  omaflake (the core, once SSH answers) – with the unchained base or the Developer ID, whichever comes first.
+- *omaflake Tools (the maintainer's idea, decided 2026-11-26):* not an app for the camera alone but omaflake's app
+  in the guest, where later features go that need an app there – key bindings (Accessibility, Input Monitoring),
+  MIDI, the setup of sound and camera, a status in the menu bar, and what is not known yet. The names were fixed
+  before anyone approved the extension (new identifiers would mean a new approval in every VM): the app "omaflake
+  Tools" (known from other VM software), identifiers that do not carry the display name. Rules: the agent stays
+  the core; the extension stays its own sandboxed process; nothing is built ahead of need. To mind: ad hoc signed,
+  an app with the entitlement to install system extensions is killed at once in an ordinary guest – until the
+  Developer ID a Tools app that does more must be built without that entitlement for ordinary guests (OPEN, with
+  the first such feature). An app could also enter itself as a login item and start the agent, replacing the start
+  over SSH (BM25): OPEN.
+- *The unchained base in omaflake (2026-11-26, built – unreleased; the Mac OPEN):* `mac_base_unchain.rs` –
+  `MacBaseInstaller::unchain`: a ready base with a credential → `omaf-runner clone` to `bases/mac-unchained-<…>`
+  (its own prefix: no search for a credential's base sees it; `omaflake-base.json` v3 with `unchained`) → started
+  in a window, `csrutil status` over SSH → when on: shut down, macOS Recovery in a window with the steps in the
+  log, the user types `csrutil disable` and shuts down (30 minutes at most), started and checked again → omaflake
+  Tools with the extension copied to /Applications (`scp`) and started, the user approves it, `systemextensionsctl
+  list` must show it `activated enabled` → shut down, ready marker, read-only. An unfinished one continues (with
+  the protection already off it skips Recovery). `omaf macos unchain <base> [--no-tools]`; `omaf macos bases`
+  lists and marks them; `omaf macos remove` removes one. Images: `omaf build <recipe> --unchained` takes the
+  credential's newest unchained base (also in the service: the base is a parameter there already), and an image
+  from an unchained base has words of its own in its name (`MacImageBuilder::image_name`) – without that the build
+  would find the normal image of the same system and do nothing. Tests: names and searches, what is refused,
+  reading `csrutil` and `systemextensionsctl`, finding the Tools beside `omaf`, the image's name.
+  **omaflake Tools in two builds** (the maintainer's idea) until there is a Developer ID: `scripts/bundle-tools.sh`
+  builds the plain one for every guest (no restricted entitlement, no extension – it starts and says there is
+  nothing to do) and `build/unchained/` with both; omaflake.app carries them as `Contents/Resources/Guest/` and
+  `Guest/unchained/`. With a Developer ID one build for all.
+- *On the Mac (2026-11-26, the development build's `omaf`, the maintainer's data folder):* `omaf macos unchain
+  mac-base-<build>-<credential>` ran from start to end – cloned, started, "System Integrity Protection is on", Recovery,
+  started again, "… is off", Tools copied, the extension approved and `activated enabled`, shut down,
+  `mac-unchained-<build>-<credential>` read-only; `omaf macos bases` lists both, the unchained one marked. Then `omaf build
+  macos/minimal --unchained` with this checkout's image flake: the system built (with this agent, its tests
+  passing in the Nix build), "… is unchained: the image runs with System Integrity Protection off", an image name
+  of its own, the base cloned, Nix installed, the closure copied – and **"Activation failed"**: `primary user … does not exist`. Not the
+  unchained base – the test built with the checkout's `nix/`, whose `local/settings.nix` (the developer's own)
+  sets a `macUser` that is not this base's user. The second run built with the image flake in the development
+  build's bundle (no `local/`): the image was built from the unchained base ("Activating", "Shutting down", "Image
+  ready"), a VM of it started with `System Integrity Protection status: disabled.` and
+  `app.omaflake.guest.camera … [activated enabled]` – **the approved extension survives the clones** (base → image
+  → VM); Photo Booth asked once for its own access to the camera (as for any camera) and showed the Mac's camera,
+  "flüssiges Bild, alles gut"; `omaf diagnose`: "Ready – omaflake's camera extension is active …". The first
+  diagnosis right after `start --wait` had no word from the agent yet (it is started after SSH answers – as
+  before). Seen there and changed since: the unchained image had become the recipe's current one (its new VMs
+  would have been unchained), and `omaf new --camera` still told to install OBS. *Built after it:* `unchained` in
+  image.json (v4) – set by the build from an unchained base; such an image is never made current, `prune` leaves
+  it, `omaf images` and `omaf new` say so, `omaf build --unchained` ends with how to make a VM from it. Not tried
+  on the Mac again (a development build now writes image.json v4, also when it only lists older images – the
+  installed 0.8.0 could not read them: tests only with a data folder of their own).
+- *The app (2026-11-26, built – unreleased; the Mac OPEN):* all in the core's page models, so the macOS app,
+  `omaf ui` and the Linux app show it without code of their own. `macos.unchainBase {name, noTools?}` – a job of
+  the kind that creates bases, its log carrying the steps that are the user's; `bases.list` and the API's image
+  carry `unchained`; `images.build` takes `unchained`. Images → macOS Bases: an orange "unchained" badge, "Make
+  Unchained Copy …" (with a confirm that says what it is and what it needs) on a ready base with a credential and
+  no copy yet, the job's row "Making the unchained copy – open it for the steps that are yours"; unchained copies
+  are left out of "Create macOS Base" and of every choice of "the credential's base". Build Image: the switch
+  "Unchained" once the credential has an unchained base. Images and VMs: the badge; a VM of an unchained image is
+  never offered an upgrade (the recipe's current image is never unchained) and its camera switch says "omaflake
+  Camera" instead of pointing to OBS. German for all of it; the golden file of the images page and the Swift
+  contract test follow. Tests: the texts' test builds the pages with an unchained base, image, VM and job.
+- *An image unchained directly (the maintainer's idea, 2026-11-26, built – unreleased; the Mac OPEN):* "Kann man
+  nicht einfach einen unchain-Button bei jeder macOS-Vorlage machen?" – and in the unchained base the keyboard was
+  the US one, so the password for the extension's approval could not be typed until it was changed by hand.
+  `MacBaseInstaller::unchain_image`: the image cloned into `.build-<name>` (as a build's folder), the same steps
+  (`unchain_steps`, now shared), its image.json with `unchained`, renamed to the name a build of the same system
+  from an unchained base gets – never current. `images.unchain {name, noTools?}` (a `build` job under the image's
+  recipe: its build page shows the log), "Make Unchained Copy …" on every macOS image that has no such copy, `omaf
+  images unchain`. The base keeps its way for those who build often (the steps once, every build after without);
+  it now gets this computer's keyboard before the approval (`UnchainRequest.keyboard` from `hostKeyboard`; the
+  layouts are darwin-guest.nix's table, a test reads both), restarting once when Recovery does not restart it
+  anyway. Tests: the copy's name, what is refused, the table, the commands.
+- *Recovery without hands in omaflake (2026-11-26, built for 0.8.1; the whole job on a Mac OPEN):*
+  `recovery_screen.rs` says which screen it is from the runner's `screen` (startup options, a language, a user,
+  the utilities, an open menu, the Terminal) and what `csrutil` asks (a question only in the last line – a test
+  caught one answered above being answered again); `Session::recovery_automatic` acts on it (the shortcut once
+  the utilities looked the same twice, twice, then the menu), types for the layout of the input menu, in the
+  Terminal `csrutil status`, `csrutil disable` with its answers, `halt`; gives up after 8 minutes, or without a
+  picture, or on an error of csrutil – then the window is shown and the log carries the steps by hand (the user
+  may take over any time). Before Recovery `prev-lang:kbd` is set to `en-US:0` in the copy and put back after (or
+  deleted when it was not set) – Recovery comes up in English with a US keyboard, no language to choose. Every
+  start of the copy uses the runner's new quiet window (`--quiet-window`: on screen for the window server at alpha
+  0, no Dock icon, not clickable; `show` makes it a normal window) – shown when the user is needed: Recovery by
+  hand, the extension's approval; without a picture for 45 s it is shown too (whether a quiet window is drawn:
+  OPEN). The job's progress has six steps (`STEP_TITLES`, German for each, a test checks), the CLI prints them.
+  The probe got the same: the shortcut later, `prev-lang:kbd` before and after (`--as-is` without).
+- *Shift in Recovery (2026-11-27):* the maintainer's first unchained base with 0.8.1 went through Recovery by itself up
+  to the password – csrutil said the authentication failed, and `csrutil disable` by hand worked. Most likely Shift
+  did not arrive: ⇧⌘T had done nothing in the probe (by hand it works), `csrutil status` (no capitals) had arrived,
+  and the password has capitals or symbols. *Changed:* the runner sends modifiers three ways (`modifiers`: `device`
+  – modifier events with the left key's device bit as a keyboard sends them, the default; `plain`; `keys` – the
+  flags on the key events only); in the Terminal the core types `echo SHIFTOK` with each until a line reads
+  "SHIFTOK" and keeps that one, and hands over to the user when none works and the password needs Shift
+  (`recovery_screen::shift_works`, `needs_shift`; tests). Which way works: OPEN until tried. Unchained is marked
+  with a tone of its own, `special` (purple, systemPurple – the maintainer: the orange of "outdated" was wrong, it
+  should look like an upgrade or experimental), and the icon `unchained` (an open lock).
+- *The extension's approval without a click:* OPEN, an idea to try – with System Integrity Protection off root may
+  write `/Library/SystemExtensions/db.plist`, where macOS keeps each extension's state; a probe outside the
+  repository lets the extension ask, sets its entry to `activated_enabled` and restarts. Whether macOS takes that:
+  not known. (VMs of an image or base whose extension was approved need nothing: the approval survives the clones.)
+- *Recovery without hands (2026-11-26, the instruments built – unreleased; nothing tried on a Mac):* the
+  maintainer asked whether `csrutil disable` can be automated. No switch exists (Virtualization.framework: only
+  `startUpFromMacOSRecovery`; the security policy of Apple silicon changes only from Recovery, which has no SSH), so
+  the way is to type for the user. What Recovery shows in a VM (the maintainer): a first screen with two large
+  icons, the disk and "Options" – choose Options, the VM restarts into Recovery –, then the choice of language, then
+  the utilities, from where Terminal opens. *Built:* the runner's control socket has `type {text}`, `key {key}`,
+  `click {x, y}` and `screen {png?}` (`Robot.swift`; `omaf-runner ctl <socket> <command> --args <json | ->`, `-`
+  reads the args from stdin so a typed password is in no argument). Keys are US key positions (`GuestKeys`, with
+  tests) sent to the VM's view as key events; `screen` takes the picture from the view's own layers (an IOSurface –
+  no screen recording permission) and recognizes its text on the Mac (Vision), answering each line with its place.
+  *First try on the Mac (2026-11-26):* the picture from the view's layers was black (the window's size, not its
+  content), and the answer came after the client's 5 s – the probe stopped before it typed anything. *Changed:*
+  `screen` tries the view's surface, its drawing and then ScreenCaptureKit (the window as the window server
+  composes it – asks once for screen recording), leaves out black pictures and says what each way gave; `ctl`
+  waits 90 s for `screen` and `type`; the probe goes on blind with keys only when there is no picture and asks
+  after each key what happened. *Second try (2026-11-26, a German image):* the view's surface gave the picture
+  (the first try had come before the screen showed anything), text recognition read it, and the probe's clicks
+  worked – "Optionen", then "Fortfahren". Recovery came up in German straight into the utilities, **without** a
+  language choice (the maintainer had seen one before – both happen), and its keyboard is the German one (the input
+  menu of the startup options says "Deutsch"); its Terminal is a root shell (`-bash-3.2#`), no login. The probe
+  waited for a language screen and never pressed ⇧⌘T. *Changed:* `GuestKeys.Layout` (`us`, `de` – the Mac's
+  German layout: Y and Z swapped, the symbols where they are; tests), `type {text, layout}`; the probe reads the
+  screen in a loop and acts on what it sees (startup options, a language choice, a user and password, the
+  utilities, the Terminal) and takes the layout from the input menu. *Third try (2026-11-26, the same VM,
+  System Integrity Protection already off):* the way ran through without hands – the layout read from the input
+  menu ("Deutsch"), "Optionen" and "Fortfahren" clicked, in the utilities ⇧⌘T opened nothing, the menu
+  "Dienstprogramme" → "Terminal" clicked did, `csrutil status` typed with the German layout and read back
+  ("disabled"), `halt` typed, the VM off – 52 s from start to off. OPEN: why the shortcut does nothing (modifier
+  events, or no such shortcut in Recovery); what `csrutil disable` asks word for word and whether the answers
+  arrive – that needs a VM with the protection still on. A probe outside the repository walks the way
+  with these commands and writes every screen as picture and text; the automatic steps in `mac_base_unchain.rs`
+  follow from what it finds, with today's steps by hand as the fallback. The approval of the camera extension in
+  System Settings stays the user's (a click in the running macOS): OPEN.
+- OPEN, to build: Virtualization.framework's limit of two macOS VMs
+  also counts the base being unchained.
+- OPEN: the delay of that way in numbers; whether the base build can do the Recovery steps without hands (they ask for an
+  administrator's password in Recovery's own windows – no SSH there); the app's side (choosing and marking it).
+
+**B183 (2026-11-26, built for 0.8.1): the camera in a macOS VM at one picture a second, and late.** The
+maintainer's first try of 0.8.0 on the Mac (a new macOS VM, OBS 33.0.3): the picture was choppy, came "a scant
+second" late (Camo in the same VM: no such feeling), and stayed black until the VM was restarted.
+- *One picture a second – OBS's renderer.* OBS's log of that session: `Loading up OpenGL on adapter Apple Inc. Apple
+  Software Renderer`, the virtual camera `Total drawn frames: 142 (3962 attempted)`, 96.4 % lagged, the graphics
+  thread's median 587 ms. A macOS VM has no OpenGL on its paravirtual device. B173's "94.5 % lagged" was the same,
+  taken for a slow start then. OBS 33.0.3 ships `libobs-metal.dylib`; with `[Video] Renderer=Metal` in global.ini it
+  starts on the "Apple Paravirtual device": graphics thread median 0.8 ms, the virtual camera 1725 of 1727 drawn
+  (0.1 % lagged) with the Mac's real camera. *Built:* `obs::renderer` sets it while OBS does not run (only when the
+  Metal library is there), logged; the diagnosis fails with "Quit OBS once …" while OBS runs with OpenGL, and
+  carries `obsRenderer`.
+- *Late – OBS's H.264 decoder.* Measured in the guest without the Mac: a stand-in serves a test stream on TCP (30
+  pictures a second, dark and bright in turn every second, the time of each change logged) to a copy of the scene
+  collection, and a small app reads "OBS Virtual Camera" (AVFoundation) and logs when the picture changes; OBS's
+  virtual camera started over obs-websocket (`--startvirtualcam` logs "Starting Virtual Camera output" and never
+  starts it – with OpenGL as with Metal; why: OPEN). Median of 24 changes each, stand-in → app: H.264 as 0.8.0 wrote
+  the source 382 ms (410 in a second run); `probesize=32` 432; hardware decoding 491; without
+  `use_wallclock_as_timestamps` 392; `flags=low_delay threads=1` 384 (the source's FFmpeg options reach the
+  demuxer, not the decoder); **raw NV12 79 ms**. So about 300 ms are OBS's decoder – FFmpeg's frame threads hold
+  back one picture per thread, eight cores here. *Built:* the agent decodes (`h264.rs`: Annex B split, VideoToolbox
+  through its C API, synchronous, NV12 out; `camera_mac.rs`: the writer thread decodes each frame and writes the raw
+  picture, a new decoder per reader, the credit back also for a frame without a picture), the scene's media source
+  is `rawvideo` again and one left as `h264` is changed back. Tests: the split, the access unit, the writer with a
+  stand-in decoder, the renderer and the source's format; VideoToolbox itself with `testdata/flip.h264` (ignored by
+  default – not in a build's sandbox; passes in the guest). *Tried in the maintainer's VM* with the agent built by
+  hand in place of the image's: the Mac's real camera, 30 pictures a second reaching the app, none skipped in OBS,
+  the agent at 5 % of a core.
+- *Not measured:* the Mac's part (capture, encoder, virtio port) – OPEN with B174's low-latency mode; and the whole
+  way with the real camera by eye (the maintainer).
+- *Black until a restart:* OPEN. In OBS's log of the black session the camera extension was replaced (33.0.2 →
+  33.0.3) 23 s before "Starting Virtual Camera output", and the line "Virtual Camera Start" never came – the output
+  did not start. The agent's log of that start was gone (`/tmp`, overwritten at each start). *Built:* the log is
+  `~/Library/Logs/omaflake/agent.log` with the time on every line, the four starts before it kept.
+- *The own camera extension without a Developer ID* (to have it ready for M12): OPEN – a guest with System Integrity
+  Protection off and `systemextensionsctl developer on`; see B184.
 
 **B182 (2026-11-25, built for 0.8.0): the Linux builder checked once a day; its disk's size.** Follow-ups of B175.
 `BuilderHealth::check_in_background`: a Doctor check of a running builder starts the probe in a thread when the last

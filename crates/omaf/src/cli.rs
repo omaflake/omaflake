@@ -484,6 +484,13 @@ pub struct Build {
         help = "macOS: base folder (default: the credential's newest ~/.omaflake/bases/mac-base-*)"
     )]
     pub base: Option<String>,
+    #[arg(
+        long,
+        conflicts_with = "base",
+        help = "macOS: from the credential's newest unchained base (omaf macos unchain) – the image and its VMs \
+                run with System Integrity Protection off"
+    )]
+    pub unchained: bool,
     #[arg(long, help = "macOS: keep a failed build folder for inspection instead of deleting it")]
     pub keep_failed: bool,
     #[arg(long, help = "macOS: show the build VM in a window – to see where it waits (NixOS: ignored)")]
@@ -656,6 +663,25 @@ pub enum ImagesCommand {
             help = "Image name as listed by omaf images, its omaflake ID, or the start of either"
         )]
         name: String,
+    },
+    #[command(
+        about = "Make the unchained copy of a macOS image: System Integrity Protection off, with omaflake's camera extension.",
+        long_about = "Makes a second image, the same as this one but with System Integrity Protection off and \
+                      omaflake Tools with omaflake's camera extension – without building anything. It needs you \
+                      twice, in the VM's window: in macOS Recovery you type csrutil disable in the Terminal, and in \
+                      System Settings you approve the camera extension. The copy is never its recipe's current \
+                      image: omaf new <name> --image <copy> makes a VM from it. The image stays as it is; an \
+                      unfinished copy continues. (omaf macos unchain does the same once for a base, for every image \
+                      built from it with omaf build --unchained.)"
+    )]
+    Unchain {
+        #[arg(
+            value_name = "name",
+            help = "Image name as listed by omaf images, its omaflake ID, or the start of either"
+        )]
+        name: String,
+        #[arg(long, help = "Without omaflake Tools and the camera extension: only System Integrity Protection off")]
+        no_tools: bool,
     },
 }
 
@@ -849,8 +875,14 @@ pub struct Start {
         help = "OpenGL path: on (native OpenGL, default) | es (ANGLE, only GL 3.0 in the guest)"
     )]
     pub gl: String,
-    #[arg(long, help = "Wait until SSH is ready")]
+    #[arg(long, conflicts_with = "recovery", help = "Wait until SSH is ready")]
     pub wait: bool,
+    #[arg(
+        long,
+        conflicts_with = "headless",
+        help = "macOS VMs: start into macOS Recovery, in a window (not for VMs that start from their image every time)"
+    )]
+    pub recovery: bool,
 }
 
 #[derive(Debug, Args)]
@@ -1095,6 +1127,24 @@ pub enum MacOsCommand {
                  image build uses it."
     )]
     Remove(MacRemove),
+    #[command(
+        about = "Make an unchained copy of a base: System Integrity Protection off, with omaflake's camera extension.",
+        long_about = "Makes bases/mac-unchained-<…>, a copy of a ready base with System Integrity Protection off – \
+                      for what a normal guest refuses, first of all omaflake's own camera extension while omaflake \
+                      is not signed with a Developer ID. It needs you twice, in the VM's window: in macOS Recovery \
+                      you type csrutil disable in the Terminal (only a person can), and in System Settings you \
+                      approve the camera extension. Images built with omaf build --unchained, and their VMs, are \
+                      unchained too. The base it is made from stays as it is; an unfinished one continues."
+    )]
+    Unchain(MacUnchain),
+}
+
+#[derive(Debug, Args)]
+pub struct MacUnchain {
+    #[arg(value_name = "base", help = "The base's name, e.g. mac-base-26A434")]
+    pub base: String,
+    #[arg(long, help = "Without omaflake Tools and the camera extension: only System Integrity Protection off")]
+    pub no_tools: bool,
 }
 
 #[derive(Debug, Args)]

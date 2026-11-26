@@ -91,9 +91,11 @@ pub fn run(command: Command) -> Outcome {
         Command::MacOs { command: MacOsCommand::Assign(a) } => macos::assign(&a),
         Command::MacOs { command: MacOsCommand::Bases } => macos::bases(),
         Command::MacOs { command: MacOsCommand::Remove(a) } => macos::remove(&a),
+        Command::MacOs { command: MacOsCommand::Unchain(a) } => macos::unchain(&a),
         Command::Images(i) => match i.command {
             None | Some(ImagesCommand::List) => instances::images_list(),
             Some(ImagesCommand::Remove { name }) => instances::images_remove(&name),
+            Some(ImagesCommand::Unchain { name, no_tools }) => instances::images_unchain(&name, no_tools),
         },
         Command::New(a) => instances::new(&a),
         Command::Set(a) => instances::set(&a),

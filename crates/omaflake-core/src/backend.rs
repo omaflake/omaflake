@@ -8,7 +8,7 @@
 use std::time::Duration;
 
 use crate::agent_protocol::AgentState;
-use crate::error::{Error, Result};
+use crate::error::{Error, Result, codes};
 use crate::image_store::Image;
 use crate::instance_store::InstanceStore;
 use crate::models::{
@@ -18,6 +18,7 @@ use crate::paths::Paths;
 use crate::qemu_runtime::QemuRuntime;
 use crate::spawn::Pid;
 use crate::ssh_command::SshCommand;
+use crate::vm_err;
 use crate::vz_backend::VzBackend;
 
 /// Options for `start`; `gl` only matters for QEMU windows with 3D.
@@ -25,12 +26,14 @@ use crate::vz_backend::VzBackend;
 pub struct StartOptions {
     pub display: DisplayMode,
     pub gl: GlBackend,
+    /// macOS guests: start into macOS Recovery, in a window (plan B184)
+    pub recovery: bool,
 }
 
 impl StartOptions {
     /// Swift default `gl: .on`
     pub fn new(display: DisplayMode) -> Self {
-        StartOptions { display, gl: GlBackend::On }
+        StartOptions { display, gl: GlBackend::On, recovery: false }
     }
 }
 
@@ -101,6 +104,9 @@ impl VmBackend for QemuBackend {
     /// Checks the system (`InstanceStore::check_config_runs_here`), then `QemuRuntime::start`
     fn start(&self, c: &InstanceConfig, options: StartOptions) -> Result<Pid> {
         InstanceStore::check_config_runs_here(c)?;
+        if options.recovery {
+            return Err(vm_err!(codes::UNSUPPORTED_SYSTEM, "Recovery is for macOS VMs"));
+        }
         self.runtime.start(c, options.display, options.gl)
     }
 

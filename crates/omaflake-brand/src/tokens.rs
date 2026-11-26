@@ -33,6 +33,8 @@ pub mod color {
     pub const LAB: Color = Color { rgba8: [245, 255, 59, 255], rgba: [0.960784, 1.0, 0.231373, 1.0] };
     /// warning (macOS: system orange)
     pub const WARNING: Color = Color { rgba8: [255, 159, 10, 255], rgba: [1.0, 0.623529, 0.039216, 1.0] };
+    /// special (macOS: system purple)
+    pub const SPECIAL: Color = Color { rgba8: [191, 90, 242, 255], rgba: [0.74902, 0.352941, 0.94902, 1.0] };
     /// success (macOS: system green)
     pub const SUCCESS: Color = Color { rgba8: [48, 209, 88, 255], rgba: [0.188235, 0.819608, 0.345098, 1.0] };
     /// text_primary (macOS: system primary)
@@ -152,6 +154,7 @@ pub const ALL: &[(&str, Token)] = &[
     ("color.danger", Token::Color(color::DANGER)),
     ("color.lab", Token::Color(color::LAB)),
     ("color.warning", Token::Color(color::WARNING)),
+    ("color.special", Token::Color(color::SPECIAL)),
     ("color.success", Token::Color(color::SUCCESS)),
     ("color.text_primary", Token::Color(color::TEXT_PRIMARY)),
     ("color.text_secondary", Token::Color(color::TEXT_SECONDARY)),

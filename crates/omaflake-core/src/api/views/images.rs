@@ -192,8 +192,14 @@ pub(crate) fn page(ctx: &Ctx, p: &ImagesParams) -> ImagesPage {
     ImagesPage { head, jobs, rows, unreadable: unreadable(&ctx.unreadable_images), bases }
 }
 
+/// The orange mark of what is unchained (plan B184): a base, an image, a VM
+pub(crate) fn unchained_badge(help: Text) -> Badge {
+    Badge::new("unchained", "unchained", help, Tone::Special).label(Text::new("unchained"))
+}
+
 /// The macOS bases (plan B137): removing one is refused while an image build uses it (plan B166)
 fn bases_section(ctx: &Ctx) -> BasesSection {
+    let base_job = ctx.active_job(JobKind::MacosInstall).is_some() || ctx.active_job(JobKind::IpswDownload).is_some();
     let rows = ctx
         .bases
         .iter()
@@ -215,15 +221,24 @@ fn bases_section(ctx: &Ctx) -> BasesSection {
                 parts.push(Text::fmt("%@", vec![Arg::bytes(size)]));
             }
             let mut badges = Vec::new();
+            if b.unchained {
+                badges.push(unchained_badge(Text::new(
+                    "Unchained: macOS's System Integrity Protection is off in it, and in every image and VM made from it",
+                )));
+            }
             if b.newest {
                 badges.push(
                     Badge::new(
                         "newest",
                         "ok",
-                        Text::new("New macOS images with its credential are built from this base"),
+                        if b.unchained {
+                            Text::new("Unchained macOS images with its credential are built from this base")
+                        } else {
+                            Text::new("New macOS images with its credential are built from this base")
+                        },
                         Tone::Accent,
                     )
-                        .label(Text::new("newest")),
+                    .label(Text::new("newest")),
                 );
             }
             if !b.ready {
@@ -251,6 +266,28 @@ fn bases_section(ctx: &Ctx) -> BasesSection {
             let remove_text = Text::new(
                 "It is deleted and cannot be restored. macOS images and VMs made from it stay – they are copies. New macOS images need a base.",
             );
+            // "Make Unchained Copy …" (plan B184): for a ready base with a credential that has no unchained copy yet
+            let copy_name = b.name.strip_prefix("mac-base-").map(|rest| format!("mac-unchained-{rest}"));
+            let has_copy = copy_name.as_ref().is_some_and(|n| ctx.bases.iter().any(|o| &o.name == n && o.ready));
+            let unchain = (!b.unchained && b.ready && b.credential.is_some() && !has_copy).then(|| {
+                Action::call(
+                    "unchain",
+                    Text::new("Make Unchained Copy …"),
+                    Some("unchained"),
+                    "macos.unchainBase",
+                    json!({"name": b.name}),
+                )
+                .confirm(
+                    Confirm::new(
+                        tf!("Make an unchained copy of “%@”?", &b.name),
+                        Text::new(
+                            "A copy of this base with macOS's System Integrity Protection off – for what a normal VM refuses, first of all omaflake's own camera without OBS. It needs you twice, in the VM's window: in macOS Recovery you type csrutil disable in the Terminal, and in System Settings you approve omaflake's camera extension; the log says when. Images you build “Unchained”, and their VMs, run without that protection. This base stays as it is.",
+                        ),
+                    )
+                    .button("Make Copy"),
+                )
+                .enabled_if(!base_job, Some(Text::new("A macOS base is being created – its progress is above")))
+            });
             BaseRow {
                 name: b.name.clone(),
                 lamp: if b.newest {
@@ -271,6 +308,7 @@ fn bases_section(ctx: &Ctx) -> BasesSection {
                         )
                         .primary()
                     }),
+                    unchain,
                     Some(Action::call(
                         "reveal",
                         Text::new("Show in Finder"),
@@ -312,7 +350,7 @@ fn bases_section(ctx: &Ctx) -> BasesSection {
         job,
         create,
         footer: Text::new(
-            "A base is a clean macOS installed from Apple's IPSW, one per macOS build and credential; macOS images are built from the newest base of their credential. Removing an older base frees its space.",
+            "A base is a clean macOS installed from Apple's IPSW, one per macOS build and credential; macOS images are built from the newest base of their credential. Removing an older base frees its space. An unchained copy of a base has macOS's System Integrity Protection off – for images built “Unchained”.",
         ),
     }
 }
@@ -324,9 +362,17 @@ fn base_job_row(j: &JobDto) -> BuildJobRow {
     let progress = j.progress.as_ref().filter(|_| running);
     let title = match (j.state, progress) {
         (JobState::Queued, _) => Text::new("Waiting to create"),
+        // The unchained copy's steps (plan B184) are texts of their own, translated
+        (_, Some(p)) if j.title.starts_with(crate::mac_base_unchain::JOB_TITLE) => {
+            tf!("%lld/%lld %@", p.step, p.total, Text::new(&p.title))
+        }
         // Its steps name the macOS version ("Downloading macOS 27.0.1") – as they are
         (_, Some(p)) => tf!("%lld/%lld %@", p.step, p.total, Text::verbatim(&p.title)),
         _ if j.kind == JobKind::IpswDownload => Text::new("Downloading macOS from Apple …"),
+        // The unchained copy (plan B184) waits for the user twice: its newest line says for what
+        _ if j.title.starts_with(crate::mac_base_unchain::JOB_TITLE) => {
+            Text::new("Making the unchained copy – open it for the steps that are yours")
+        }
         _ => Text::new("Installing macOS …"),
     };
     BuildJobRow {
@@ -350,6 +396,10 @@ pub(crate) fn job_row(ctx: &Ctx, j: &JobDto) -> BuildJobRow {
         JobState::Checking => Text::new("Checking …"),
         JobState::Running => match &j.progress {
             Some(p) => tf!("%lld/%lld %@", p.step, p.total, Text::new(&p.title)),
+            // The unchained copy of an image (plan B184) waits for the user twice: its log says for what
+            None if j.title.starts_with(crate::mac_base_unchain::JOB_TITLE) => {
+                Text::new("Making the unchained copy – open it for the steps that are yours")
+            }
             None => Text::verbatim(&j.title),
         },
         JobState::Failed => Text::new("Build failed – show log"),
@@ -394,6 +444,11 @@ pub(crate) fn row(ctx: &Ctx, i: &ImageDto) -> ImageRowView {
     let used_by = i.instances.clone();
     let outdated = is_outdated(ctx, i);
     let mut badges = Vec::new();
+    if i.unchained {
+        badges.push(unchained_badge(Text::new(
+            "Unchained: its VMs run with macOS's System Integrity Protection off. Never its recipe's current image – “New VM from this image” makes a VM from it",
+        )));
+    }
     if outdated == Some(true) {
         badges.push(
             Badge::new(
@@ -428,7 +483,33 @@ pub(crate) fn row(ctx: &Ctx, i: &ImageDto) -> ImageRowView {
         json!({"path": i.path}),
     );
     let keys = super::keys::action(ctx, &i.recipe, json!({"image": i.name}));
-    let actions = keys.into_iter().chain([reveal, new_vm]).collect();
+    // "Make Unchained Copy …" (plan B184): for a macOS image that is not unchained and has no such copy yet
+    let copy = i
+        .store_path
+        .as_deref()
+        .map(|system| crate::mac_image_builder::MacImageBuilder::image_name(&i.recipe, system, true));
+    let has_copy = copy.as_ref().is_some_and(|n| ctx.images.iter().any(|o| &o.name == n));
+    let unchain = (ctx.host == super::HostOs::Macos && i.kind == GuestKind::Macos && !i.unchained && !has_copy).then(|| {
+        let building = ctx.builds().any(|b| b.state.is_active() && b.recipe.as_deref() == Some(i.recipe.as_str()));
+        Action::call(
+            "unchain",
+            Text::new("Make Unchained Copy …"),
+            Some("unchained"),
+            "images.unchain",
+            json!({"name": i.name}),
+        )
+        .confirm(
+            Confirm::new(
+                tf!("Make an unchained copy of “%@”?", &i.label),
+                Text::new(
+                    "A second image, the same as this one but with macOS's System Integrity Protection off – for what a normal VM refuses, first of all omaflake's own camera without OBS. It needs you twice, in the VM's window: in macOS Recovery you type csrutil disable in the Terminal, and in System Settings you approve omaflake's camera extension; the log says when. Its VMs run without that protection. This image stays as it is.",
+                ),
+            )
+            .button("Make Copy"),
+        )
+        .enabled_if(!building, Some(Text::new("A build of its recipe is running – wait until it ends")))
+    });
+    let actions = keys.into_iter().chain(unchain).chain([reveal, new_vm]).collect();
     ImageRowView {
         name: i.name.clone(),
         lamp: if used_by.is_empty() {

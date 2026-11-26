@@ -21,6 +21,7 @@ enum BrandTokens {
         static let danger = Palette.red
         static let lab = Palette.yellow
         static let warning = Color.orange
+        static let special = Color.purple
         static let success = Color.green
         static let textPrimary = Color.primary
         static let textSecondary = Color.secondary

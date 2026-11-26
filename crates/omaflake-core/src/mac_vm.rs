@@ -290,6 +290,29 @@ impl RunnerClient {
         serde_json::from_slice::<HashMap<String, String>>(&data)
             .map_err(|_| vm_err!("Invalid response from omaf-runner: {}", String::from_utf8_lossy(&data)))
     }
+
+    /// A request with fields (`{"command": …, "args": …}`) and its answer as JSON; an answer with `error` is an Err
+    /// with that text (the runner's `type`, `key`, `click`, `screen`, plan B184)
+    pub fn request(socket: &Path, request: &serde_json::Value, timeout: Duration) -> Result<serde_json::Value> {
+        let mut stream = connect_unix(socket, timeout)?;
+        let mut line = serde_json::to_vec(request)?;
+        line.push(b'\n');
+        let _ = stream.write_all(&line);
+        let mut data = Vec::new();
+        let mut buf = [0u8; 16384];
+        while !data.contains(&b'\n') {
+            match stream.read(&mut buf) {
+                Ok(0) | Err(_) => break,
+                Ok(n) => data.extend_from_slice(&buf[..n]),
+            }
+        }
+        let answer: serde_json::Value = serde_json::from_slice(&data)
+            .map_err(|_| vm_err!("Invalid response from omaf-runner: {}", String::from_utf8_lossy(&data)))?;
+        if let Some(e) = answer.get("error").and_then(|e| e.as_str()) {
+            return Err(vm_err!("omaf-runner: {}", e));
+        }
+        Ok(answer)
+    }
 }
 
 #[cfg(test)]

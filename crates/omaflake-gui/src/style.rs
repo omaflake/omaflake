@@ -22,6 +22,7 @@ pub const ACCENT: Color = rgba(brand::color::ACCENT);
 pub const DANGER: Color = rgba(brand::color::DANGER);
 pub const WARNING: Color = rgba(brand::color::WARNING);
 pub const SUCCESS: Color = rgba(brand::color::SUCCESS);
+pub const SPECIAL: Color = rgba(brand::color::SPECIAL);
 pub const TEXT: Color = rgba(brand::color::TEXT_PRIMARY);
 pub const SECONDARY: Color = rgba(brand::color::TEXT_SECONDARY);
 pub const CARD: Color = rgba(brand::color::CARD);
@@ -94,6 +95,7 @@ pub fn tone(t: Tone) -> Color {
         Tone::Success => SUCCESS,
         Tone::Warning => WARNING,
         Tone::Danger => DANGER,
+        Tone::Special => SPECIAL,
     }
 }
 

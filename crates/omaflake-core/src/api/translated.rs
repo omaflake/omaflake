@@ -163,6 +163,24 @@ fn every_view_text_has_german() {
         c.fetching = true;
         c.doctor = None;
         pages(&c, &format!("{from} empty"), &mut keys);
+        // Unchained (plan B184): a base's copy, the image built from it and its VM – and the copy being made
+        {
+            use crate::api::types::{JobKind, JobState};
+            let mut c = ctx();
+            c.host = host;
+            let mut copy = c.bases[0].clone();
+            copy.name = "mac-unchained-25F71".into();
+            copy.unchained = true;
+            c.bases.push(copy);
+            for i in c.images.iter_mut().filter(|i| i.kind == crate::models::GuestKind::Macos) {
+                i.unchained = true;
+            }
+            pages(&c, &format!("{from} unchained"), &mut keys);
+            let mut j = super::contract::job("u1", JobKind::MacosInstall, JobState::Running, None);
+            j.title = format!("{} mac-base-26A434", crate::mac_base_unchain::JOB_TITLE);
+            c.jobs = vec![j];
+            pages(&c, &format!("{from} unchaining"), &mut keys);
+        }
         // The diagnosis (plan B162): every check in every state with each of omaflake's own details, both guest kinds
         {
             use crate::api::views::{PageRef, build};
@@ -281,4 +299,12 @@ fn the_macro_and_the_reader_agree() {
     let e = crate::vm_err!(crate::error::codes::NOT_FOUND, "Image \"{}\" does not exist – {{x}} 5%", "a");
     let format = key::parse(&key::unquote(r#""Image \"{}\" does not exist – {{x}} 5%""#).unwrap()).unwrap();
     assert_eq!(e.key(), Some(format.key.as_str()));
+}
+
+/// The steps of an unchained copy (plan B184) are shown in a job's row, translated
+#[test]
+fn every_unchain_step_has_german() {
+    let missing: Vec<&str> =
+        crate::mac_base_unchain::STEP_TITLES.iter().copied().filter(|t| Language::German.lookup(t).is_none()).collect();
+    assert!(missing.is_empty(), "steps without German: {missing:?}");
 }

@@ -618,9 +618,31 @@ the Mac over one channel.
   The macOS agent also offers `camera-h264`; a runner that enables it encodes with VideoToolbox (real time, no frame
   reordering, 8 Mbit/s, a key frame every 2 s and with every "start") and each `0x0202` carries one access unit in
   Annex B (parameter sets before each key frame). Only frames with a credit are encoded, so the stream misses none;
-  the agent passes every frame on in order (none replaced), grants 4 credits, and the media source of "omaflake
-  Camera" follows the stream's format (`rawvideo` or `h264`) – changed only while OBS is not running. NixOS guests
-  keep raw frames (v4l2loopback). `OMAFLAKE_CAMERA_RAW=1` for the runner keeps raw frames.
+  the agent takes every frame in order (none replaced) and grants 4 credits. NixOS guests keep raw frames
+  (v4l2loopback). `OMAFLAKE_CAMERA_RAW=1` for the runner keeps raw frames.
+  **Decoded in the agent, Metal in OBS (plan B183):** the reader on `127.0.0.1:47042` always gets raw NV12 – the
+  agent decodes each access unit with VideoToolbox (one picture out for each one in; a new decoder for every reader,
+  which starts with a key frame) and gives the credit back once the picture is written. OBS's media source decoding
+  H.264 itself (0.7.6 to 0.8.0) held pictures back for about 300 ms (FFmpeg's frame threads; no option of the source
+  reaches the decoder); a media source left as `h264` is changed back to `rawvideo`. The agent also sets
+  `[Video] Renderer=Metal` in OBS's global.ini (OBS 32 and later): a macOS VM has no OpenGL on its graphics device,
+  and Apple's software renderer drew about one picture a second. Both only while OBS is not running.
+  **omaflake's own extension (plan B184; built, delivered with M12):** `omaflake-camera` (Sources/omaflake-camera)
+  is a CoreMediaIO system extension with one device, "omaflake Camera" – 1280×720 NV12, 30 a second. While an app
+  uses the camera it reads the same endpoint as OBS did (raw frames, `CameraStreamReader` in OmaflakeKit) and sends
+  each frame on at once; without frames it sends a test picture (grey, a bright bar moving right). It is sandboxed
+  (network client; its app group is its Mach service's name) and ships in "omaflake Tools.app"
+  (Sources/omaflake-tools; scripts/bundle-tools.sh → omaflake.app `Contents/Resources/Guest`), which asks
+  macOS to activate it (`--remove`: to deactivate) and logs the answer to `~/Library/Logs/omaflake/tools.log`; the
+  user approves it once in System Settings. **omaflake Tools** (`app.omaflake.guest`; the extension
+  `app.omaflake.guest.camera`) is omaflake's app in a macOS guest, decided 2026-11-26: a system extension must ship
+  in an app, and permissions a guest feature needs (Accessibility or Input Monitoring for key bindings, the
+  microphone) are given to an app, not to a program started over SSH – so what needs an app in the guest goes
+  there, one bundle to sign, install and approve. The agent stays the core (it runs without a logged-in user and
+  is the same for NixOS); the extension stays a process of its own. Nothing but the camera is in it yet. The app's entitlement to install a system extension is restricted: ad
+  hoc signed, macOS starts the app only with System Integrity Protection off (an "unchained" guest) – checked; with
+  a Developer ID (and TEAM_ID as the app group's prefix): OPEN, as is who copies the app into a guest. The agent's
+  diagnosis passes without OBS where the extension is `activated enabled`.
 - **Trust:** the guest is untrusted. The Mac side accepts only the defined messages, everything the guest may cause on
   the Mac is switched per VM in the app (as clipboard and camera today), and tunnels are started from the Mac only –
   nothing in the guest can run commands on the Mac.

@@ -143,6 +143,7 @@ struct Run: RunnerCommand {
         .value("lan-switch", "The network switch's datagram socket (vz.sock)"),
         .value("forward", "A port of another VM on the guest's localhost, <port>=<address>:<port> (again for more; over the agent)"),
         .flag("recovery", "Start into macOS Recovery"),
+        .flag("quiet-window", "A window nobody sees: for type/key/click/screen; `show` makes it visible (plan B184)"),
         .value("user", "First start after installation only: create a user (macOS 27 guest)"),
         .value("full-name", "Full name for --user"),
         .flag("password-stdin", "Read the password for --user from stdin (one line)"),
@@ -168,6 +169,7 @@ struct Run: RunnerCommand {
     let lanSwitch: [String]
     let forwards: [AgentForward]
     let recovery: Bool
+    let quietWindow: Bool
     let user: String?
     let fullName: String?
     let passwordStdin: Bool
@@ -197,6 +199,7 @@ struct Run: RunnerCommand {
             return f
         }
         recovery = a.flag("recovery")
+        quietWindow = a.flag("quiet-window")
         user = a.string("user")
         fullName = a.string("full-name")
         passwordStdin = a.flag("password-stdin")
@@ -228,10 +231,11 @@ struct Run: RunnerCommand {
             clipboard: clipboard, camera: camera, cameraTestPattern: cameraTestPattern, agentState: agentState.map(url),
             midi: midi, vmName: vmName,
             networks: try NetworkCard.parse(macs: lanMac, sockets: lanSocket, switches: lanSwitch),
-            forwards: forwards, recovery: recovery, provisioning: provisioning)
+            forwards: forwards, recovery: recovery, provisioning: provisioning, quietWindow: quietWindow)
         MainActor.assumeIsolated {
             let app = NSApplication.shared
-            app.setActivationPolicy(window ? .regular : .prohibited)
+            // A quiet window (plan B184) needs an app that may have windows, but no Dock icon
+            app.setActivationPolicy(window ? .regular : quietWindow ? .accessory : .prohibited)
             app.applicationIconImage = Brand.appIcon()   // a bare binary has no icon of its own
             let controller = RunController(request)
             app.delegate = controller
@@ -243,10 +247,10 @@ struct Run: RunnerCommand {
 struct Control: RunnerCommand {
     static let name = "ctl"
     static let abstract = "Control a running omaf-runner."
-    static let arguments = "<socket> <command>   (control socket; status | stop | kill | show | midi | diagnose)"
+    static let arguments = "<socket> <command>   (control socket; status | stop | kill | show | midi | diagnose | type | key | click | screen)"
     static let options: [Option] = [
         .value("check", "diagnose: the check (info, network, clipboard-read, …)"),
-        .value("args", "diagnose: the check's args as a JSON object, e.g. '{\"text\":\"x\"}'"),
+        .value("args", "the command's args as a JSON object, e.g. '{\"text\":\"x\"}'; \"-\" reads them from stdin (so a password typed into the guest is in no argument). type: {text, layout?: us|de, modifiers?: device|plain|keys}, key: {key, modifiers?}, click: {x, y}, screen: {png?}"),
     ]
     let socket: String
     let command: String
@@ -263,14 +267,16 @@ struct Control: RunnerCommand {
     func run() throws {
         var request: [String: Any] = ["command": command]
         if let check { request["check"] = check }
-        if let args {
+        if var args {
+            if args == "-" { args = String(decoding: FileHandle.standardInput.readDataToEndOfFile(), as: UTF8.self) }
             guard let obj = (try? JSONSerialization.jsonObject(with: Data(args.utf8))) as? [String: Any] else {
                 throw ValidationError("--args must be a JSON object")
             }
             request["args"] = obj
         }
-        // A diagnosis waits up to 15 s for the guest's agent
-        let reply = try RunnerClient.request(request, socket: url(socket), timeout: command == "diagnose" ? 20 : 5)
+        // A diagnosis waits up to 15 s for the guest; reading the screen (text recognition) and typing take a while
+        let timeout: TimeInterval = ["diagnose"].contains(command) ? 20 : ["screen", "type"].contains(command) ? 90 : 5
+        let reply = try RunnerClient.request(request, socket: url(socket), timeout: timeout)
         for (k, v) in reply.sorted(by: { $0.key < $1.key }) {
             if let s = v as? String { print("\(k): \(s)"); continue }
             let json = JSONSerialization.isValidJSONObject([v])

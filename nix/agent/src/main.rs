@@ -28,6 +28,7 @@ mod camera;
 mod clip;
 mod diagnose;
 mod forward;
+mod h264;
 mod midi;
 #[cfg(any(not(target_os = "macos"), test))]
 mod midi1;
@@ -102,8 +103,34 @@ extern "C" fn on_signal(_: libc::c_int) {
     STOP.store(true, Ordering::SeqCst);
 }
 
+/// Linux: to the journal, which adds the time. macOS: to a file (darwin-guest.nix, `omaflake-agent-start`), so each
+/// line carries the guest's local time – what happened is matched against OBS's log by it (plan B183)
 fn log(msg: &str) {
+    #[cfg(target_os = "macos")]
+    eprintln!("{} omaflake-agent: {msg}", clock());
+    #[cfg(not(target_os = "macos"))]
     eprintln!("omaflake-agent: {msg}");
+}
+
+/// The local date and time, `2026-11-26 19:47:10`
+#[cfg(target_os = "macos")]
+fn clock() -> String {
+    // SAFETY: time() takes a null pointer; localtime_r writes only into `tm`, which is valid for the call
+    let tm = unsafe {
+        let now = libc::time(std::ptr::null_mut());
+        let mut tm: libc::tm = std::mem::zeroed();
+        libc::localtime_r(&now, &mut tm);
+        tm
+    };
+    format!(
+        "{:04}-{:02}-{:02} {:02}:{:02}:{:02}",
+        tm.tm_year + 1900,
+        tm.tm_mon + 1,
+        tm.tm_mday,
+        tm.tm_hour,
+        tm.tm_min,
+        tm.tm_sec
+    )
 }
 
 #[derive(Deserialize)]
@@ -179,6 +206,7 @@ struct Agent {
     camera_retry: CameraRetry,
     /// macOS: OBS's scene collection for the camera (obs.rs), as last looked at
     obs: Option<obs::State>,
+    obs_renderer: Option<obs::Renderer>,
     /// The ports forwarded from localhost (plan B180)
     forwards: forward::Forwards,
     /// Why there is no MIDI here (Midi::new failed), for the diagnosis
@@ -262,19 +290,26 @@ impl Agent {
         }
     }
 
-    /// macOS: OBS's scene for the camera (obs.rs) – at the welcome and with every status, until it is there
+    /// macOS: OBS's scene for the camera and its renderer (obs.rs) – at the welcome and with every status, until
+    /// both are there
     fn obs_prepare(&mut self) {
-        if !cfg!(target_os = "macos")
-            || !self.enabled("camera")
-            || matches!(self.obs, Some(obs::State::Ready { .. } | obs::State::Updated { done: true }))
-        {
+        if !cfg!(target_os = "macos") || !self.enabled("camera") {
             return;
         }
-        let state = obs::prepare(self.enabled("camera-h264"));
-        if self.obs.as_ref() != Some(&state) {
-            log(&state.describe());
+        if !matches!(self.obs, Some(obs::State::Ready { .. } | obs::State::Updated { done: true })) {
+            let state = obs::prepare();
+            if self.obs.as_ref() != Some(&state) {
+                log(&state.describe());
+            }
+            self.obs = Some(state);
         }
-        self.obs = Some(state);
+        if !self.obs_renderer.as_ref().is_some_and(obs::Renderer::settled) {
+            let renderer = obs::renderer();
+            if self.obs_renderer.as_ref() != Some(&renderer) && renderer != obs::Renderer::Unknown {
+                log(&renderer.describe());
+            }
+            self.obs_renderer = Some(renderer);
+        }
     }
 
     /// The Mac's MIDI endpoints changed: the guest's follow, the Mac hears how many exist
@@ -406,8 +441,11 @@ impl Agent {
         if !self.enabled("camera") {
             return Outcome::new(Status::Skipped, "The camera is off for this VM");
         }
-        let state = obs::prepare(self.enabled("camera-h264"));
+        let state = obs::prepare();
+        let renderer = obs::renderer();
         let extension = obs::extension_state();
+        let own = obs::own_extension_state();
+        let own_active = own.as_deref() == Some(obs::ACTIVE);
         let mac = self.camera_status.as_ref();
         let reading = self.camera.as_ref().is_some_and(|c| c.active);
         let data = serde_json::json!({
@@ -415,12 +453,32 @@ impl Agent {
             "open": self.camera.is_some(),
             "inUse": reading,
             "obs": state.describe(),
+            "obsRenderer": renderer.describe(),
             "obsExtension": extension,
+            "extension": own,
             "macStatus": mac.map(|(s, _)| s),
             "macDetail": mac.map(|(_, d)| d),
         });
         let outcome = if self.camera.is_none() {
             Outcome::new(Status::Fail, format!("The agent could not open {}", camera::DEVICE))
+        } else if let Some((s, d)) = mac.filter(|(s, _)| own_active && s == "unavailable") {
+            Outcome::new(
+                Status::Fail,
+                format!("The Mac's camera is {s}{}", if d.is_empty() { String::new() } else { format!(": {d}") }),
+            )
+        } else if own_active {
+            // omaflake's own camera extension (plan B184): no OBS in the way
+            Outcome::new(
+                Status::Pass,
+                if reading {
+                    format!(
+                        "omaflake's camera extension shows the Mac's camera{}",
+                        mac.map(|(s, _)| format!(" ({s})")).unwrap_or_default()
+                    )
+                } else {
+                    "Ready – omaflake's camera extension is active; apps in the VM choose \"omaflake Camera\"".into()
+                },
+            )
         } else if state == obs::State::NotInstalled {
             Outcome::new(
                 Status::Fail,
@@ -433,11 +491,17 @@ impl Agent {
             Outcome::new(
                 Status::Fail,
                 format!(
-                    "Quit OBS once: the agent then changes the media source of \"{}\" to the camera's format",
+                    "Quit OBS once: the agent then changes the media source of \"{}\" to raw frames",
                     obs::COLLECTION
                 ),
             )
-        } else if extension.as_deref() != Some("activated enabled") {
+        } else if renderer == (obs::Renderer::Changed { done: false }) {
+            Outcome::new(
+                Status::Fail,
+                "Quit OBS once: the agent then changes OBS's renderer to Metal – OpenGL is drawn in software in a VM, \
+                 about one picture a second",
+            )
+        } else if extension.as_deref() != Some(obs::ACTIVE) {
             Outcome::new(
                 Status::Fail,
                 match extension {
@@ -892,6 +956,7 @@ fn main() {
         camera_status: None,
         camera_retry: CameraRetry::default(),
         obs: None,
+        obs_renderer: None,
         forwards: forward::Forwards::default(),
         midi_error,
         midi_state: (0, vec![]),

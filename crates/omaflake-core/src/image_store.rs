@@ -58,7 +58,12 @@ fn image_v2_to_v3(_: &mut Map<String, Value>) -> Result<()> {
     Ok(())
 }
 
-static IMAGE_STEPS: [Step; 3] = [image_v0_to_v1, image_v1_to_v2, image_v2_to_v3];
+/// image.json 3 → 4 (plan B184): `unchained` – optional, an image from before is not
+fn image_v3_to_v4(_: &mut Map<String, Value>) -> Result<()> {
+    Ok(())
+}
+
+static IMAGE_STEPS: [Step; 4] = [image_v0_to_v1, image_v1_to_v2, image_v2_to_v3, image_v3_to_v4];
 
 /// Contents of `image.json` (Swift `ImageStore.Info`). Keys: recipe, recipeSource, author, kind, system, name,
 /// source, revision, storePath, look, created (`.iso8601`); None fields left out.
@@ -101,6 +106,10 @@ pub struct ImageInfo {
     pub locale: Option<String>,
     #[serde(rename = "localeName", default, skip_serializing_if = "Option::is_none")]
     pub locale_name: Option<String>,
+    /// macOS: built from an unchained base (plan B184) – System Integrity Protection is off in it and its VMs. Never
+    /// its recipe's current image, and not deleted with a recipe's older images
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub unchained: bool,
     #[serde(with = "crate::json::iso8601")]
     pub created: Date,
 }
@@ -163,6 +172,7 @@ impl ImageInfo {
             credential_name: None,
             locale: None,
             locale_name: None,
+            unchained: false,
             created,
         }
     }
@@ -719,8 +729,12 @@ impl ImageStore {
     pub fn prune(&self, recipe: &str, used: &HashSet<String>) -> Vec<String> {
         let line = self.line_of(recipe);
         let current = self.current_name_in_line(&line);
-        let older: Vec<Image> =
-            self.images_in_line(&line).into_iter().filter(|i| Some(&i.name) != current.as_ref()).collect();
+        // Unchained images (plan B184) stand beside the line's history: never current, kept until removed by hand
+        let older: Vec<Image> = self
+            .images_in_line(&line)
+            .into_iter()
+            .filter(|i| Some(&i.name) != current.as_ref() && !i.info.unchained)
+            .collect();
         let mut removed = Vec::new();
         for image in older.into_iter().skip(Self::KEEP_PREVIOUS).filter(|i| !used.contains(&i.name)) {
             if Disposal::delete(&[self.paths.image_dir(&image.name)]).is_ok() {
@@ -939,6 +953,27 @@ mod tests {
         assert_eq!(left, HashSet::from(["a5".to_string(), "a4".to_string(), "a2".to_string()]));
     }
 
+    /// An unchained image (plan B184) is beside its recipe's history: old and unused it stays, and it does not take
+    /// the place of "the one before"
+    #[test]
+    fn prune_leaves_unchained_images() {
+        let (_t, p) = temp_paths();
+        let store = ImageStore::new(p.clone());
+        for (i, name) in ["u1", "a2", "a3", "a4"].iter().enumerate() {
+            let dir = p.image_dir(name);
+            fs::create_dir_all(&dir).unwrap();
+            let mut info = info("omaflake.macos.x", GuestKind::Macos, at(1000 + i as i64));
+            info.unchained = *name == "u1";
+            ImageStore::write_info(&info, &dir).unwrap();
+        }
+        assert!(ImageStore::read_info(&p.image_dir("u1")).unwrap().unchained);
+        assert!(!fs::read_to_string(p.image_dir("a2").join("image.json")).unwrap().contains("unchained"));
+        store.set_current("a4").unwrap();
+        assert_eq!(store.prune("omaflake.macos.x", &HashSet::new()), vec!["a2".to_string()]);
+        let left: HashSet<String> = store.images_of("omaflake.macos.x").into_iter().map(|i| i.name).collect();
+        assert_eq!(left, HashSet::from(["a4".to_string(), "a3".to_string(), "u1".to_string()]));
+    }
+
     /// Swift FileFormatTests.imageVersionZeroIsMigratedAndWrittenBack (with the shallow schema check)
     #[test]
     fn image_version_zero_is_migrated_and_written_back() {
@@ -950,9 +985,9 @@ mod tests {
         let i = ImageStore::read_info(&dir).unwrap();
         assert!(i.recipe == "omaflake.macos.minimal" && i.system == "aarch64-darwin");
         let written = fs::read_to_string(dir.join("image.json")).unwrap();
-        assert!(written.contains("https://omaflake.dev/schema/image/v3.json") && !written.contains("flavor"));
+        assert!(written.contains("https://omaflake.dev/schema/image/v4.json") && !written.contains("flavor"));
         // the keys are the schema's, its required ones are there
-        let schema_file = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../docs/schema/image/v3.json");
+        let schema_file = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../docs/schema/image/v4.json");
         let schema: Value = serde_json::from_slice(&fs::read(schema_file).unwrap()).unwrap();
         let object: Map<String, Value> = serde_json::from_str(&written).unwrap();
         let properties = schema["properties"].as_object().unwrap();

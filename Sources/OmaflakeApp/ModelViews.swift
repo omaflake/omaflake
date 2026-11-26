@@ -77,6 +77,7 @@ enum Icons {
         case "official": ("checkmark.seal.fill", nil)
         case "lock": ("lock.fill", nil)
         case "lock-warning": ("lock.trianglebadge.exclamationmark", nil)
+        case "unchained": ("lock.open.fill", nil)
         case "github": ("chevron.left.forwardslash.chevron.right", nil)
         case "url": ("globe", nil)
         case "warning": ("exclamationmark.triangle.fill", nil)
@@ -93,6 +94,7 @@ enum Icons {
         switch name {
         case "external": "externaldrive"
         case "upgrade": "arrow.up.circle.fill"
+        case "unchained": "lock.open.fill"
         default: symbol(name)?.main
         }
     }
@@ -105,6 +107,7 @@ extension Tone {
         case .success: BrandTokens.Colors.success
         case .warning: BrandTokens.Colors.warning
         case .danger: BrandStyle.red
+        case .special: BrandTokens.Colors.special
         case .normal, .unknown: .secondary
         }
     }

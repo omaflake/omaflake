@@ -41,6 +41,8 @@ pub enum Tone {
     Warning,
     Danger,
     Lab,
+    /// Purple: unchained (plan B184)
+    Special,
 }
 
 impl Tone {
@@ -50,6 +52,7 @@ impl Tone {
             Some("success") => Tone::Success,
             Some("warning") => Tone::Warning,
             Some("danger") => Tone::Danger,
+            Some("special") => Tone::Special,
             _ => Tone::Normal,
         }
     }
@@ -139,6 +142,7 @@ impl Theme {
             Tone::Warning => self.fg(color::WARNING).add_modifier(self.plain_emphasis()),
             Tone::Danger => self.fg(color::DANGER).add_modifier(self.plain_emphasis()),
             Tone::Lab => self.fg(color::LAB),
+            Tone::Special => self.fg(color::SPECIAL),
         }
     }
 

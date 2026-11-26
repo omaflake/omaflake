@@ -328,6 +328,10 @@ pub struct ImageDto {
     pub locale: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub locale_name: Option<String>,
+    /// macOS: built from an unchained base (plan B184) – System Integrity Protection is off in it and its VMs;
+    /// left out when false
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub unchained: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -799,6 +803,10 @@ pub struct BaseDto {
     /// An active job uses it (a macOS image build, or a new base replacing it): it cannot be removed now
     #[serde(default)]
     pub in_use: bool,
+    /// An unchained base (`mac-unchained-…`, plan B184): System Integrity Protection is off in it and in every image
+    /// and VM made from it; left out when false
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub unchained: bool,
 }
 
 /// A look omaflake can use (`looks.list`, plan B141): installed from a source, or in a local folder source

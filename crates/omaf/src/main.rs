@@ -123,7 +123,11 @@ mod tests {
         let Cli { command: cli::Command::Start(s) } = parse(&["start", "a", "--window", "--gl", "es"]).unwrap() else {
             panic!()
         };
-        assert!(s.window && s.gl == "es" && !s.wait);
+        assert!(s.window && s.gl == "es" && !s.wait && !s.recovery);
+        let Cli { command: cli::Command::Start(s) } = parse(&["start", "a", "--recovery"]).unwrap() else { panic!() };
+        assert!(s.recovery && !s.window, "the window is the backend's");
+        assert!(parse(&["start", "a", "--recovery", "--headless"]).is_err());
+        assert!(parse(&["start", "a", "--recovery", "--wait"]).is_err());
         let Cli { command: cli::Command::Log(l) } = parse(&["log", "a", "-n", "5", "-f"]).unwrap() else { panic!() };
         assert!(l.lines == 5 && l.follow && !l.qemu);
         let Cli { command: cli::Command::Wait(w) } = parse(&["wait", "a"]).unwrap() else { panic!() };

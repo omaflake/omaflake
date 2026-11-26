@@ -32,6 +32,8 @@ final class RunController: NSObject, NSApplicationDelegate, NSWindowDelegate, VZ
         var forwards: [AgentForward] = []
         var recovery: Bool
         var provisioning: Provisioning?
+        /// A window nobody sees (plan B184): there for keys and the screen's picture (`Robot`), shown by `show`
+        var quietWindow = false
     }
 
     struct Provisioning {
@@ -45,6 +47,8 @@ final class RunController: NSObject, NSApplicationDelegate, NSWindowDelegate, VZ
     private let request: Request
     private var vm: VZVirtualMachine!
     private var window: NSWindow?
+    /// Keys, clicks and the screen's text for the control socket (plan B184) – with the window
+    private var robot: Robot?
     private var server: ControlServer?
     private var clipboard: ClipboardBridge?
     private var camera: CameraBridge?
@@ -132,7 +136,7 @@ final class RunController: NSObject, NSApplicationDelegate, NSWindowDelegate, VZ
                 bench.attach(vm)
                 vsockBench = bench
             }
-            if request.window { showWindow() }
+            if request.window || request.quietWindow { showWindow(quiet: request.quietWindow) }
             if let socket = request.socket {
                 // The handler runs on the main queue (ControlServer's default); a diagnosis answers from a thread later
                 server = try ControlServer(path: socket) { [weak self] request, reply in
@@ -181,7 +185,7 @@ final class RunController: NSObject, NSApplicationDelegate, NSWindowDelegate, VZ
         log("Provisioning: user \(p.username), auto-login \(p.autoLogin ? "on" : "off"), SSH \(p.remoteLogin ? "on" : "off")")
     }
 
-    private func showWindow() {
+    private func showWindow(quiet: Bool = false) {
         let cfg = (try? request.bundle.loadConfig())?.display ?? MacVMConfig.Display()
         let view = VZVirtualMachineView()
         view.virtualMachine = vm
@@ -194,9 +198,18 @@ final class RunController: NSObject, NSApplicationDelegate, NSWindowDelegate, VZ
         w.contentView = view
         w.delegate = self
         w.center()
-        w.makeKeyAndOrderFront(nil)
-        NSApp.activate(ignoringOtherApps: true)
+        if quiet {
+            // On screen for the window server (so the view keeps drawing – OPEN whether it does at alpha 0), but
+            // invisible, not clickable and not activating the app
+            w.alphaValue = 0
+            w.ignoresMouseEvents = true
+            w.orderBack(nil)
+        } else {
+            w.makeKeyAndOrderFront(nil)
+            NSApp.activate(ignoringOtherApps: true)
+        }
         window = w
+        robot = Robot(view: view, window: w)
     }
 
     // Closing the window = let the guest shut down cleanly (no forced power-off)
@@ -210,8 +223,45 @@ final class RunController: NSObject, NSApplicationDelegate, NSWindowDelegate, VZ
         let command = request.object["command"] as? String ?? ""
         if command == "diagnose" {
             ControlServer.diagnose(agent, request, reply: reply)
+        } else if ["type", "key", "click", "screen"].contains(command) {
+            robotCommand(command, request.object["args"] as? [String: Any] ?? [:], reply: reply)
         } else {
             reply(handle(command))
+        }
+    }
+
+    /// `type {text, layout?}`, `key {key}`, `click {x, y}`, `screen {png?}` (plan B184) – only a VM with a window has
+    /// them; `layout` ("us" or "de", default "us"): the keyboard the guest reads; `modifiers` ("device", "plain",
+    /// "keys"): how Shift and the others are sent
+    private func robotCommand(_ command: String, _ args: [String: Any], reply: @escaping ControlServer.Reply) {
+        guard let robot else { return reply(["error": "this VM runs without a window (show first)"]) }
+        switch command {
+        case "type":
+            guard let text = args["text"] as? String else { return reply(["error": "type needs args {\"text\": …}"]) }
+            let name = args["layout"] as? String ?? "us"
+            guard let layout = GuestKeys.Layout(rawValue: name) else {
+                return reply(["error": "layout is us or de"])
+            }
+            guard let strokes = GuestKeys.strokes(for: text, layout: layout) else {
+                return reply(["error": "the text has a character the \(name) keyboard cannot type – nothing typed"])
+            }
+            let mode = Robot.Modifiers(rawValue: args["modifiers"] as? String ?? "device") ?? .device
+            robot.press(strokes, modifiers: mode) { reply(["ok": "typed \(strokes.count) keys"]) }
+        case "key":
+            guard let name = args["key"] as? String, let stroke = GuestKeys.stroke(named: name) else {
+                return reply(["error": "key needs args {\"key\": \"cmd+shift+t\" | \"return\" | \"right\" | …}"])
+            }
+            let mode = Robot.Modifiers(rawValue: args["modifiers"] as? String ?? "device") ?? .device
+            robot.press([stroke], modifiers: mode) { reply(["ok": "pressed \(name)"]) }
+        case "click":
+            guard let x = (args["x"] as? NSNumber)?.doubleValue, let y = (args["y"] as? NSNumber)?.doubleValue,
+                  (0...1).contains(x), (0...1).contains(y) else {
+                return reply(["error": "click needs args {\"x\", \"y\"} from 0 to 1 (origin top left)"])
+            }
+            robot.click(x: x, y: y)
+            reply(["ok": "clicked"])
+        default:
+            robot.screen(png: args["png"] as? String, reply: reply)
         }
     }
 
@@ -233,6 +283,11 @@ final class RunController: NSObject, NSApplicationDelegate, NSWindowDelegate, VZ
             if window == nil {
                 NSApp.setActivationPolicy(.regular)
                 showWindow()
+            } else if window?.alphaValue == 0 {
+                // the quiet window (plan B184) becomes a normal one
+                NSApp.setActivationPolicy(.regular)
+                window?.alphaValue = 1
+                window?.ignoresMouseEvents = false
             }
             window?.makeKeyAndOrderFront(nil)
             NSApp.activate(ignoringOtherApps: true)

@@ -5,6 +5,7 @@
 # omaf-runner is embedded as its own helper app, Contents/Helpers/omaf-runner.app (found there by
 # VZBackend.locateRunner) – a runner with a VM window inside Contents/MacOS made macOS take it for omaflake.app
 # (plan B65). It is signed first, with its own entitlement com.apple.security.virtualization; the app itself needs none.
+# "omaflake Tools.app" for macOS guests (scripts/bundle-tools.sh) lies in Contents/Resources/Guest, signed there.
 # The Rust core's `omaf` (crates/omaf, cargo) sits next to the app's executable, Contents/MacOS/omaf: the app starts
 # `omaf serve` and is its client (docs/api.md); it is signed like the runner, before the bundle.
 # Usage: scripts/bundle-app.sh [--install]   (--install: copy to ~/Applications)
@@ -46,6 +47,15 @@ cp -R "$root"/App/Resources/*.lproj "$app/Contents/Resources/"   # UI languages
 # The image flake (nix/): the app's default when no flake path is set – recipes come from sources (plan B107).
 # Without local/ (each developer's own), build output and Finder files.
 rsync -a --exclude local/ --exclude agent/target/ --exclude 'result*' --exclude .DS_Store "$root/nix/" "$app/Contents/Resources/nix/"
+# For macOS guests: "omaflake Tools.app" with omaflake's camera extension (plan B184), signed by its own script
+# (ad hoc two builds: the plain one, and Guest/unchained/ with the extension for unchained guests)
+tools=$("$root/scripts/bundle-tools.sh" | tail -1)
+mkdir -p "$app/Contents/Resources/Guest"
+cp -R "$tools/omaflake Tools.app" "$app/Contents/Resources/Guest/"
+if [[ -e $tools/unchained/omaflake\ Tools.app ]]; then
+  mkdir -p "$app/Contents/Resources/Guest/unchained"
+  cp -R "$tools/unchained/omaflake Tools.app" "$app/Contents/Resources/Guest/unchained/"
+fi
 mkdir -p "$app/Contents/Resources/Guides"                          # guides shown in the app (offline)
 cp "$root/docs/linux-builder.md" "$app/Contents/Resources/Guides/"
 # Inside out: the nested runner first, then the bundle (without --deep, which would drop the runner's entitlement)

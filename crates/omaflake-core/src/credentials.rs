@@ -438,6 +438,7 @@ impl Credentials {
             credential_name: c.name.clone(),
             user: login.user,
             own_key: previous.as_ref().is_some_and(|r| r.own_key),
+            unchained: previous.as_ref().is_some_and(|r| r.unchained),
             version: previous.and_then(|r| r.version),
         };
         record.write(dir)?;

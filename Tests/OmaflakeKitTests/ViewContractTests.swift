@@ -81,7 +81,7 @@ extension APIContractTests {
                 // On a Mac the macOS bases are a section of their own (plan B137)
                 let bases = try #require(p.bases)
                 // A base per macOS build and credential (plan B166)
-                #expect(bases.rows.map(\.name) == ["mac-base-26A434", "mac-base-25F71"] && bases.rows[0].actions.map(\.id) == ["reveal", "remove"])
+                #expect(bases.rows.map(\.name) == ["mac-base-26A434", "mac-base-25F71"] && bases.rows[0].actions.map(\.id) == ["unchain", "reveal", "remove"])
                 let job = try #require(p.jobs.first)
                 #expect(job.state == .running && job.fraction != nil && job.actions.first?.method == "jobs.cancel")
                 #expect(job.open.method == "ui.show" && job.open.params["page"] == .string("build") && job.open.primary)

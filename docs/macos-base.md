@@ -11,6 +11,17 @@ IPSW from Apple → `mac-fresh-<build>` → clone → headless first boot with p
 your `~/.ssh/*.pub` into `authorized_keys` → shutdown → read-only. The checklist below documents the manual M8 run
 that established these steps; it is kept as background, nothing in it needs to be done by hand any more.
 
+## The unchained copy of a base (plan B184)
+
+`omaf macos unchain <base>` makes `bases/mac-unchained-<…>` from a ready base: a clone with a new identity, with
+System Integrity Protection off and omaflake Tools with omaflake's camera extension in /Applications. Two steps are
+the user's, in the VM's window, because only a person can do them: `csrutil disable` in the Terminal of macOS
+Recovery (omaflake starts Recovery and says what to type), and the approval of the camera extension in System
+Settings. The state is in the VM's files – images built from it (`omaf build <recipe> --unchained`) and their VMs
+keep it. What that is for and what it costs: an unchained guest loads software macOS would refuse (an ad hoc signed
+system extension, as omaflake's camera extension is until omaflake has a Developer ID), and it runs without
+macOS's own protection of the system – never the default, never needed for a feature everyone should have.
+
 ## Background: checklist of the manual run (M8)
 
 The base contains **only** what cannot be done by script or nix-darwin.

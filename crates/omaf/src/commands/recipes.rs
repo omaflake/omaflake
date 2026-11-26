@@ -5,6 +5,7 @@
 use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
 
+use omaflake_core::MacBaseInstaller;
 use omaflake_core::mac_image_builder::BuildRequest;
 use omaflake_core::{
     BuildLog, Cancellation, Error, GuestKind, Lengths, MacImageBuilder, OmaflakeId, Platform, RecipeDefaults, RecipeId,
@@ -245,12 +246,21 @@ pub fn build(a: &cli::Build) -> Outcome {
         let builder = MacImageBuilder::new(env.paths.clone(), env.backends()?.vz()?.clone());
         // The chosen credential's newest base (plan B166)
         let chosen = choice.credential.as_ref().map(|c| (c.id.clone(), c.name.clone()));
-        let Some(base) = a
-            .base
-            .as_deref()
-            .map(folder_path)
-            .or_else(|| MacImageBuilder::base_for_credential(&env.paths, chosen.as_ref().map(|c| c.0.as_str())))
-        else {
+        let credential = chosen.as_ref().map(|c| c.0.as_str());
+        if a.unchained && MacBaseInstaller::newest_unchained_for(&env.paths, credential).is_none() {
+            let name = chosen.map(|c| c.1).unwrap_or_default();
+            return Err(Error::new(format!(
+                "No unchained macOS base for the credential “{name}” in {} – make one with: omaf macos unchain <base> \
+                 (omaf macos bases lists them)",
+                env.paths.bases().display()
+            ))
+            .into());
+        }
+        let Some(base) = (if a.unchained {
+            MacBaseInstaller::newest_unchained_for(&env.paths, credential)
+        } else {
+            a.base.as_deref().map(folder_path).or_else(|| MacImageBuilder::base_for_credential(&env.paths, credential))
+        }) else {
             let name = chosen.map(|c| c.1).unwrap_or_default();
             return Err(Error::new(format!(
                 "No macOS base for the credential “{name}” in {} – create one with: omaf macos install --credential \"{name}\"",
@@ -306,11 +316,20 @@ pub fn build(a: &cli::Build) -> Outcome {
     drop(interrupts);
     let image = built?;
     let n = Lengths::current(&env.paths);
-    println!(
-        "Image {} ready – new VMs of {} use it.",
-        OmaflakeId::image(&image, n.image),
-        OmaflakeId::recipe(&recipe, n.recipe)
-    );
+    if image.info.unchained {
+        // Never the recipe's current image (plan B184): its VMs are made from it by name
+        println!(
+            "Image {} ready – unchained, System Integrity Protection off. A VM from it: omaf new <name> --image {}",
+            OmaflakeId::image(&image, n.image),
+            image.name
+        );
+    } else {
+        println!(
+            "Image {} ready – new VMs of {} use it.",
+            OmaflakeId::image(&image, n.image),
+            OmaflakeId::recipe(&recipe, n.recipe)
+        );
+    }
     if let Ok(backends) = env.backends() {
         let used: HashSet<String> = backends.store.list().into_iter().map(|c| c.image).collect();
         for name in images.prune(&recipe, &used) {

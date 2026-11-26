@@ -92,8 +92,8 @@ The rest holds for both:
 The first request is `initialize`; anything before it is refused with `-32002`.
 
 ```json
-→ {"jsonrpc":"2.0","id":1,"method":"initialize","params":{"client":"omaflake-macos","clientVersion":"0.8.0","apiVersion":1,"language":"de","updateFeed":"https://…/feed.json"}}
-← {"jsonrpc":"2.0","id":1,"result":{"apiVersion":1,"omafVersion":"0.8.0","host":{"system":"aarch64-darwin","os":"macOS 27.0.1"},"dataFolder":"/Users/…/.omaflake","configFile":"/Users/…/.omaflake/config.json"}}
+→ {"jsonrpc":"2.0","id":1,"method":"initialize","params":{"client":"omaflake-macos","clientVersion":"0.8.1","apiVersion":1,"language":"de","updateFeed":"https://…/feed.json"}}
+← {"jsonrpc":"2.0","id":1,"result":{"apiVersion":1,"omafVersion":"0.8.1","host":{"system":"aarch64-darwin","os":"macOS 27.0.1"},"dataFolder":"/Users/…/.omaflake","configFile":"/Users/…/.omaflake/config.json"}}
 ```
 
 - `apiVersion` is an integer. Within a version, changes are **additive only** (new methods, new optional params, new
@@ -382,7 +382,7 @@ Params and results in short; the types are those of §4.
 | `modules.install` | `id, source` | Job `module-install` – a module (`<author>.<platform>.<name>`) or key binding set (`<author>.keymap.<name>`), every file checked against the catalog's SHA-256 |
 | `modules.installAll` | `items: [{id, source}]` | Job `module-install` – the modules and key binding sets the Modules tab offers, one after the other; one that fails does not keep the others out |
 | `modules.remove` | `id` | `null` – recipes made of it cannot be built until it is back |
-| `bases.list` | – | `[{name, path, osBuild?, user?, ready, newest, created?, sizeBytes?, credential?, credentialName?, ownKey, version?, inUse}]` – the macOS bases (`bases/mac-base-*`; plan B138), with the credential of their user (plan B139); `newest`: the newest ready base of its credential (plan B166); `ownKey`: it knows omaflake's own SSH key; `version`: the macOS version when known at creation; `inUse`: an active job uses it (an image build, or a new base replacing it) |
+| `bases.list` | – | `[{name, path, osBuild?, user?, ready, newest, created?, sizeBytes?, credential?, credentialName?, ownKey, version?, inUse, unchained?}]` – the macOS bases (`bases/mac-base-*`, and their unchained copies `bases/mac-unchained-*` with `unchained: true`, plan B184; plan B138), with the credential of their user (plan B139); `newest`: the newest ready base of its credential (plan B166); `ownKey`: it knows omaflake's own SSH key; `version`: the macOS version when known at creation; `inUse`: an active job uses it (an image build, or a new base replacing it) |
 | `bases.remove` | `name` | `null` – deletes the base; refused while a macOS base is installed or a macOS image is built (older; `macos.removeBase` refuses only while a job uses that base) |
 | `bases.assign` | `name, credential` | `null` – writes the credential (ID or name) into a base created before bases kept theirs (`omaflake-base.json`, plan B139); its user must be the base's |
 | `dataFolder.move` | `target` | Job `data-move` (all VMs must be stopped) |
@@ -419,7 +419,8 @@ Params and results in short; the types are those of §4.
 |---|---|---|
 | `images.list` | – | `{images: [Image], unreadable}` |
 | `images.get` | `name` | `Image` with `sizeBytes` |
-| `images.build` | `recipe, credential?, look?, locale?, base?, keepFailed?, window?` | Job `build` – `credential`: a credential's id, left out (or `""`) the default – without any credential `prerequisite`; `look`: an installed look (id, `<author>/<name>`, name or title), left out (or `""`) the default (plan B137, B141) – its data goes to the image flake (`settings.look`); without any look the Doctor blocks the build; left out, the recipe's suggested look when it is installed (plan B142);
+| `images.unchain` | `name, noTools?` | Job `build` (under the image's recipe, in the macOS builds' queue) → `result: {image, removed: []}` – the unchained copy of a macOS image (plan B184): a second image with `unchained: true`, the same system, System Integrity Protection off, omaflake Tools with the camera extension (`noTools`: without). Its log says what the user is to do in the VM's window, as for `macos.unchainBase`. The image needs its credential here (`prerequisite` without) |
+| `images.build` | `recipe, credential?, look?, locale?, base?, unchained?, keepFailed?, window?` | Job `build` – `credential`: a credential's id, left out (or `""`) the default – without any credential `prerequisite`; `look`: an installed look (id, `<author>/<name>`, name or title), left out (or `""`) the default (plan B137, B141) – its data goes to the image flake (`settings.look`); without any look the Doctor blocks the build; left out, the recipe's suggested look when it is installed (plan B142);
 `locale`: a locale's id or name, left out (or `""`) the default – without any locale the image gets this computer's
 values (plan B141). A recipe whose modules or key binding sets are not here is refused (`prerequisite`, plan B142). A macOS recipe is built on the newest base of the chosen credential (plan B166; without one: `prerequisite` "No macOS base for the credential …") with the base's user and the credential's stored password – nothing is asked (plan B139); when the credential has no base but a base without a credential exists, that one is taken and refused (`prerequisite`, assign a credential); `base`: the base folder, default as said; `keepFailed`: keep a failed build folder; `window`: the build VM in a window (`omaf-runner run --window`), NixOS builds ignore it) |
 | `images.remove` | `name` | `null` – refused while VMs use it (`in-use`) |
@@ -465,6 +466,7 @@ values (plan B141). A recipe whose modules or key binding sets are not here is r
 | `doctor.setPath` | `item: "nix"|"qemu"|"flake", path` | as `doctor.check` |
 | `macos.downloadIpsw` | – | Job `ipsw-download` → `result: {file, version}` (cancel pauses; it continues from there) |
 | `macos.removeBase` | `name` | `null` – removes a base (its folder, plan B166); refused while an image build uses it (`in-use`) |
+| `macos.unchainBase` | `name, noTools?` | Job `macos-install` → `result: {base, existing, ready}` – the unchained copy of a ready base (plan B184): `bases/mac-unchained-<…>`, System Integrity Protection off, with omaflake Tools and omaflake's camera extension (`noTools`: without). The job starts the copy in a window twice and its log says what the user is to do there: `csrutil disable` in macOS Recovery, the approval of the camera extension. The base it is copied from is `inUse` meanwhile. `images.build` with `unchained: true` builds from the credential's newest unchained base (none: `prerequisite`); an image from one has `unchained: true`, is never its recipe's current image and is left by the retention |
 | `macos.installBase` | `credential?, ipsw?, replace?` | Job `macos-install` → `result: {base, existing, ready}` – one base per macOS build and credential (plan B166): `mac-base-<build>` for the first, `mac-base-<build>-<credential>` for others; `replace`: a base to supersede – the new one is made first, the old one removed after it is ready – the guest user, full name and password from the credential (ID or name; default: the default credential), recorded in the base (plan B139); `user, fullName, password` directly still work (API version 1) |
 | `doctor.installCli` / `doctor.uninstallCli` | – | Job `cli-install` → `result: {link, installed, message}` – the `omaf` command (plan B122): a symlink to this omaflake's `omaf` (inside omaflake.app the bundled `Contents/MacOS/omaf`, else the running executable or the `omaf` next to it). macOS: `/usr/local/bin/omaf` through the administrator dialog (a dismissed dialog cancels the job); Linux: `~/.local/bin/omaf`, no root. Install replaces a link or an older `omaf` there and refuses another file (`exists`); Uninstall removes only omaflake's link (`not-found` otherwise); one at a time (`in-use`) |
 | `builder.installNix` / `builder.mountNix` / `builder.uninstallNix` / `builder.trust` | – | Job → `result: {message}` – the only steps that ask for an administrator (the system's own dialog; their output streams into the job): Nix with `--no-modify-profile --enable-flakes` and the user among `trusted-users`; mount the Nix Store; remove a half-done install (`/nix/nix-installer uninstall`); add the user to `trusted-users` for a Nix omaflake did not install (plan B160). A dismissed dialog cancels the job |
@@ -663,7 +665,7 @@ password asked twice, sent only when both agree. `check: {method, params, param}
 
 **Lamp** – `{state: on|off|attention|working, help}`: green on/active/built, grey off, orange needs attention, cyan
 pulsing something happens (plan B99). **Badge** – `{id, icon, help, tone, label?}` (`label`: a short text drawn instead
-of or with the icon: "x86_64", "outdated"). **Tone** – `normal`, `accent` (cyan), `success`, `warning`, `danger`
+of or with the icon: "x86_64", "outdated"). **Tone** – `normal`, `accent` (cyan), `success`, `warning`, `danger`, `special` (purple: unchained, plan B184 – a client that does not know it shows it as `normal`)
 (design tokens). **InfoLine** – `{label, value, note?, tone?, full?}`: "Label  value", `note` after the value in
 `tone`, `full` the whole value where the UI shortens it. **Hint** – `{icon, text, tone, action?, help?, keys?}`: an empty list, a
 filter that leaves nothing (with "Reset Filter"), an unreadable file, a source that failed; `keys` the keys it speaks of
@@ -704,7 +706,7 @@ a change at once: send `method` with `params` and the new value at `param` (`nul
 `export`, `import`, `external`, `hide`, `upgrade`, `reset`, `trash`, `build`, `new-vm`, `create`, `cancel`, `install`,
 `refresh`, `download`, `pause`, `apply`, `clean`, `guide`, `log`, `doctor`, `diagnose`, `settings`, `key`, `quit`, `up`, `add`,
 `clipboard`, `sound`, `microphone`, `camera`, `midi`, `ephemeral`, `network-isolated`, `network-none`, `network`, `upgradable`,
-`outdated`, `lab`, `arch`, `official`, `lock`, `lock-warning`, `github`, `url`, `warning`, `ok`, `filter`,
+`outdated`, `lab`, `arch`, `official`, `lock`, `lock-warning`, `unchained`, `github`, `url`, `warning`, `ok`, `filter`,
 `finished`, `failed`, `cancelled`. An unknown name is drawn as nothing (or its `label`).
 
 ### 10.4 What a UI does itself (`ui.*`)
@@ -911,6 +913,12 @@ user, created, ownKey (bool: it knows omaflake's own SSH key, B160), hint?, acti
 `macos.installBase {credential, ipsw?, replace: name}` with a confirm), remove ("Remove …", `macos.removeBase
 {name}`, destructive confirm; disabled while an image build uses it)]}]`, newest first; `hint` for a base without
 omaflake's key ("Made before omaflake's own SSH key – its builds need your key in the ssh-agent. Create it again.").
+Unchained copies (plan B184) are not listed here – they are made and removed in **images**' `bases`: a row of an
+unchained base has the badge `unchained` (orange), a ready base with a credential and no copy yet the action
+`unchain` ("Make Unchained Copy …", `macos.unchainBase {name}` with a confirm that names the two steps that are the
+user's). A macOS image's row has the same action for the image itself (`images.unchain {name}`), while it is not
+unchained and has no such copy. Unchained images and their VMs carry the same badge; **build** has the toggle `unchained` (param
+`unchained`) once the chosen credential has an unchained base; a VM of an unchained image is never `upgradable`.
 Row details: `build` the macOS build, `version` (absent when unknown – a base from a chosen IPSW file or from before
 plan B166), `credential` the credential's **name** (its current one, else the recorded one; absent for a base without
 one), `hint` a Hint object (also "Not installed completely …" and "No credential yet …"), `created` ISO 8601. Create

@@ -179,6 +179,14 @@ impl Job {
         d.unsent.push(line.to_string());
     }
 
+    /// Progress in steps (plan B184: an unchained copy): step `step` of `total`, what happens there
+    pub fn set_step(&self, step: u32, total: u32, title: &str) {
+        let mut d = self.lock();
+        let fraction = if total > 0 { (step.saturating_sub(1) as f64 / total as f64).clamp(0.0, 1.0) } else { 0.0 };
+        d.progress = Some(JobProgress { step, total, title: title.to_string(), done: 0, of: 0, fraction });
+        d.dirty = true;
+    }
+
     /// Progress in units (a download's bytes); keeps the title
     pub fn set_progress(&self, done: i64, of: i64, title: Option<&str>) {
         let mut d = self.lock();

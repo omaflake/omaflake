@@ -9,7 +9,7 @@ use super::text::{Text, tf};
 use crate::api::types::PrerequisiteDto;
 
 /// What something says at a glance: its colour role (design tokens: normal = secondary label, accent = cyan,
-/// success = green, warning = orange, danger = red)
+/// success = green, warning = orange, danger = red, special = purple)
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum Tone {
@@ -18,6 +18,8 @@ pub enum Tone {
     Success,
     Warning,
     Danger,
+    /// Purple: more than the usual, not a warning – unchained (plan B184); older clients show it as normal
+    Special,
 }
 
 /// The status lamp that opens a row (plan B99): green on/active/built, grey off, orange attention, cyan pulsing working

@@ -36,8 +36,9 @@ use crate::trash::Disposal;
 use crate::vm_err;
 use crate::vz_backend::VzBackend;
 
-/// v1 → v2 (plan B166): `ownKey` and `version` are new; a base from before does not know omaflake's own key
-static BASE_STEPS: [Step; 2] = [|_| Ok(()), |_| Ok(())];
+/// v1 → v2 (plan B166): `ownKey` and `version` are new; a base from before does not know omaflake's own key.
+/// v2 → v3 (plan B184): `unchained` is new; a base from before is not
+static BASE_STEPS: [Step; 3] = [|_| Ok(()), |_| Ok(()), |_| Ok(())];
 
 /// `omaflake-base.json` in a base folder (plan B139): the credential its guest user was created from – macOS image
 /// builds take its password from there, so nobody types one. Bases from before have none until one is assigned.
@@ -58,6 +59,10 @@ pub struct BaseRecord {
     /// The macOS version ("27.0.1") when it was known (Apple's IPSW)
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub version: Option<String>,
+    /// An unchained base (mac_base_unchain.rs, plan B184): System Integrity Protection is off in it and in every
+    /// image and VM made from it
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub unchained: bool,
 }
 
 impl BaseRecord {
@@ -438,6 +443,7 @@ impl MacBaseInstaller {
                     .public_key()
                     .is_some_and(|own| r.authorized_keys.iter().any(|k| k.trim() == own.trim())),
                 version,
+                unchained: false,
             }
             .write(&base_dir)?;
         }
@@ -452,12 +458,13 @@ impl MacBaseInstaller {
         Ok(BaseOutcome::Created { dir: base_dir, ready: true })
     }
 
-    /// The macOS bases in `bases/` (`mac-base-*`), newest name first (plan B137): ready or not, with what is known
+    /// The macOS bases in `bases/` (`mac-base-*`, and the unchained `mac-unchained-*` of plan B184), newest name
+    /// first (plan B137): ready or not, with what is known
     pub fn list(paths: &Paths) -> Vec<BaseInfo> {
         let mut names: Vec<String> = fs::read_dir(paths.bases())
             .map(|entries| entries.flatten().map(|e| e.file_name().to_string_lossy().into_owned()).collect())
             .unwrap_or_default();
-        names.retain(|n| n.starts_with("mac-base-"));
+        names.retain(|n| n.starts_with("mac-base-") || n.starts_with(Self::UNCHAINED_PREFIX));
         names.sort();
         names.reverse();
         names
@@ -468,11 +475,13 @@ impl MacBaseInstaller {
                 let created =
                     fs::metadata(&dir).and_then(|m| m.modified()).ok().and_then(crate::json::from_system_time);
                 let record = BaseRecord::of(&dir);
-                // The newest of its credential (plan B166)
-                let newest = crate::mac_image_builder::MacImageBuilder::newest_base_for(
-                    paths,
-                    record.as_ref().map(|r| r.credential.as_str()),
-                );
+                // The newest of its credential (plan B166) – among the unchained ones for an unchained base
+                let credential = record.as_ref().map(|r| r.credential.as_str());
+                let newest = if Self::is_unchained(&dir) {
+                    credential.and_then(|c| Self::newest_unchained_for(paths, Some(c)))
+                } else {
+                    crate::mac_image_builder::MacImageBuilder::newest_base_for(paths, credential)
+                };
                 BaseInfo {
                     ready: Self::is_ready(&dir),
                     user: Self::user_of(&dir, &paths.logs()),
@@ -934,6 +943,7 @@ mod tests {
                 user: "u".into(),
                 own_key,
                 version: None,
+                unchained: false,
             }
             .write(dir)
             .unwrap();
@@ -985,6 +995,7 @@ mod tests {
                 user: "u".into(),
                 own_key: true,
                 version: None,
+                unchained: false,
             }
             .write(&dir)
             .unwrap();

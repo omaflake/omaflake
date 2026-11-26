@@ -143,7 +143,12 @@ while omaflake is not in front (menu window closed, app window hidden or in the 
   base, space); one line per check – rows with actions open with a chevron into a set-off sub-line (hint left,
   buttons right), problems and running work start open. The base is created or
   continued on its own page ("Create macOS Base": IPSW from Apple or a chosen file, guest user, log); the Mac does
-  not sleep during downloads and builds. Linux builder row: "Clean Up …" (unused store paths) and "Apply Settings …"
+  not sleep during downloads and builds. **Unchained** (plan B184): a base's menu in Images → macOS Bases has "Make
+  Unchained Copy …" – a copy with macOS's System Integrity Protection off; its job's log says when to type `csrutil
+  disable` in the Recovery window and when to approve omaflake's camera extension. Unchained bases, images and VMs
+  carry an orange "unchained" badge; every macOS image has "Make Unchained Copy …" too – the same for exactly that
+  image, without building; "Build Image" offers the switch "Unchained" once the credential has such a
+  base, and an unchained image is never a recipe's current one ("New VM from this image" makes its VMs). Linux builder row: "Clean Up …" (unused store paths) and "Apply Settings …"
   (`darwin-rebuild switch` with omaflake's builder host; warns first when this Mac's nix-darwin system is not
   omaflake's) – both ask through macOS' administrator dialog (spec §11.5), log in `<data>/logs/linux-builder.log`;
   "Guide" opens the Linux builder guide (the file the core names, bundled and offline; without one its page on omaflake.dev).

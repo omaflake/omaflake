@@ -267,6 +267,7 @@ impl Server {
             "images.get" => self.images_get(&params::<Name>(p)?.name),
             "images.build" => self.images_build(params(p)?),
             "images.remove" => self.images_remove(&params::<Name>(p)?.name),
+            "images.unchain" => self.images_unchain(params(p)?),
             // macOS bases (plan B137)
             "bases.list" => Answer::of(base_dtos(&self.paths(), &self.bases_in_use())),
             "bases.remove" => self.bases_remove(&params::<Name>(p)?.name),
@@ -412,6 +413,7 @@ impl Server {
             "macos.downloadIpsw" => self.macos_download_ipsw(),
             "macos.installBase" => self.macos_install_base(params(p)?),
             "macos.removeBase" => self.macos_remove_base(&params::<Name>(p)?.name),
+            "macos.unchainBase" => self.macos_unchain_base(params(p)?),
             "builder.installNix" => self.builder_job(JobKind::BuilderInstallNix, false),
             "builder.mountNix" => self.builder_job(JobKind::BuilderMountNix, false),
             "builder.setup" => self.builder_job(JobKind::BuilderSetup, false),
@@ -772,7 +774,7 @@ impl Server {
             }
             if start {
                 let _lock = InstanceLock::new(&paths.instance(&p.name))?;
-                backend.start(&c, StartOptions { display: model::start_display(&c, gl, None), gl: GlBackend::On })?;
+                backend.start(&c, StartOptions::new(model::start_display(&c, gl, None)))?;
             }
             Ok(())
         })?;
@@ -827,7 +829,8 @@ impl Server {
         self.act(&p.name, true, |backends, _| {
             let c = backends.store.load(&p.name)?;
             let backend = backends.backend_for(&c)?;
-            backend.start(&c, StartOptions { display: model::start_display(&c, has_gl, display), gl })?;
+            backend
+                .start(&c, StartOptions { display: model::start_display(&c, has_gl, display), gl, recovery: false })?;
             Ok(())
         })?;
         self.when_reachable(&p.name);
@@ -1267,6 +1270,56 @@ impl Server {
         Ok(Answer::Value(Value::Null))
     }
 
+    /// `images.unchain` (plan B184): the unchained copy of a macOS image – a job in the builds' queue (one macOS build
+    /// at a time), under the image's recipe, so its recipe's build page shows the log with the steps that are the
+    /// user's
+    fn images_unchain(&self, p: UnchainImageParams) -> Reply {
+        let paths = self.paths();
+        let image = ImageStore::new(paths.clone()).image(&p.name).map_err(err)?;
+        // The image's guest user and its password: its credential's
+        let credential =
+            image.info.credential.as_deref().and_then(|id| Credentials::new(paths.clone()).get(id)).ok_or_else(
+                || {
+                    RpcError::from(vm_err!(
+                        codes::PREREQUISITE,
+                        "{} has no credential here – its guest user's password is needed for the unchained copy",
+                        image.name
+                    ))
+                },
+            )?;
+        let login = Credentials::new(paths.clone()).login(&credential).map_err(err)?;
+        let recipe = image.info.recipe.clone();
+        self.inner.jobs.drop_ended(JobKind::Build, &recipe);
+        let s = self.clone();
+        let no_tools = p.no_tools;
+        let title = format!("{} {}", crate::mac_base_unchain::JOB_TITLE, image.name);
+        let mut spec = JobSpec::new(
+            JobKind::Build,
+            title,
+            Box::new(move |ctx: &JobCtx| {
+                ctx.log(&format!("omaf images unchain {}", image.name));
+                let paths = s.paths();
+                let vz = crate::backend::Backends::new(paths.clone())?.vz()?.clone();
+                let installer = MacBaseInstaller::new(paths, vz);
+                let tools = if no_tools { None } else { MacBaseInstaller::unchained_tools() };
+                let log = ctx.log_sink();
+                let job = ctx.job.clone();
+                let step = move |n: u32, title: &str| job.set_step(n, crate::mac_base_unchain::STEPS, title);
+                let copy =
+                    installer.unchain_image(&image, &login.user, &login.password, tools.as_deref(), &*log, &step)?;
+                ctx.log(&format!("✓ Image {} ready – unchained", OmaflakeId::image(&copy, 3)));
+                result(BuildResult { image: copy.name, removed: vec![] })
+            }),
+        );
+        spec.recipe = Some(recipe.clone());
+        spec.guest_kind = Some(GuestKind::Macos);
+        spec.queue = Some(GuestKind::Macos);
+        spec.log_file = Some(paths.logs().join(format!("image-unchain-{recipe}.log")));
+        let s = self.clone();
+        spec.on_end = Some(Box::new(move |_| s.poke()));
+        Ok(Answer::Job(self.inner.jobs.submit(spec)))
+    }
+
     /// Queues a build (`AppModel.build`): one per guest kind at a time; a macOS recipe needs the guest user's password
     /// once (sudo in the build VM) – kept in the job's closure until the build uses it
     fn images_build(&self, p: BuildParams) -> Reply {
@@ -1323,12 +1376,18 @@ impl Server {
         if kind == GuestKind::Macos {
             // The chosen credential's newest base (plan B166)
             let chosen = choice.credential.as_ref().map(|c| (c.id.clone(), c.name.clone()));
-            let base = p
-                .base
-                .clone()
-                .filter(|b| !b.is_empty())
-                .map(PathBuf::from)
-                .or_else(|| MacImageBuilder::base_for_credential(&paths, chosen.as_ref().map(|c| c.0.as_str())))
+            let credential = chosen.as_ref().map(|c| c.0.as_str());
+            let given = p.base.clone().filter(|b| !b.is_empty()).map(PathBuf::from);
+            if p.unchained && given.is_none() && MacBaseInstaller::newest_unchained_for(&paths, credential).is_none() {
+                return Err(RpcError::from(vm_err!(
+                    codes::PREREQUISITE,
+                    "No unchained macOS base for the credential “{}” yet – make one (Images → macOS Bases → Make Unchained Copy …, or omaf macos unchain)",
+                    chosen.as_ref().map(|c| c.1.clone()).unwrap_or_default()
+                )));
+            }
+            let base = given
+                .or_else(|| p.unchained.then(|| MacBaseInstaller::newest_unchained_for(&paths, credential)).flatten())
+                .or_else(|| MacImageBuilder::base_for_credential(&paths, credential))
                 .ok_or_else(|| {
                     let name = chosen.as_ref().map(|c| c.1.clone()).unwrap_or_default();
                     RpcError::from(vm_err!(
@@ -2700,6 +2759,57 @@ impl Server {
         Ok(Answer::Job(job))
     }
 
+    /// `macos.unchainBase` (plan B184): the unchained copy of a base, as a job of the kind that creates bases – its
+    /// log says what the user is to do in the VM's window (macOS Recovery, the camera extension's approval)
+    fn macos_unchain_base(&self, p: UnchainBaseParams) -> Reply {
+        if let Some(job) = self.inner.jobs.any_active(&[JobKind::MacosInstall, JobKind::IpswDownload]) {
+            return Err(RpcError::from(crate::vm_err!(codes::IN_USE, "{} runs already", job.title)));
+        }
+        let base = MacBaseInstaller::list(&self.paths())
+            .into_iter()
+            .find(|b| b.name == p.name)
+            .ok_or_else(|| RpcError::from(vm_err!(codes::NOT_FOUND, "No macOS base \"{}\"", p.name)))?;
+        // Its guest user's password, from its credential's place in the secret store – for the shutdowns
+        let login = Credentials::new(self.paths()).login_of_base(&base.path).map_err(err)?;
+        let source = base.path.clone();
+        let name = base.name.clone();
+        let no_tools = p.no_tools;
+        let s = self.clone();
+        let mut spec = JobSpec::new(
+            JobKind::MacosInstall,
+            format!("{} {name}", crate::mac_base_unchain::JOB_TITLE),
+            Box::new(move |ctx: &JobCtx| {
+                ctx.log(&format!("omaf macos unchain {name}"));
+                let paths = s.paths();
+                let vz = crate::backend::Backends::new(paths.clone())?.vz()?.clone();
+                let installer = MacBaseInstaller::new(paths, vz);
+                let tools = if no_tools { None } else { MacBaseInstaller::unchained_tools() };
+                let keyboard = Settings::load(&s.paths()).host_keyboard;
+                let request =
+                    crate::mac_base_unchain::UnchainRequest { source, password: login.password, tools, keyboard };
+                let log = ctx.log_sink();
+                let job = ctx.job.clone();
+                let step = move |n: u32, title: &str| job.set_step(n, crate::mac_base_unchain::STEPS, title);
+                let (dir, existing) = match installer.unchain(&request, &*log, &step)? {
+                    BaseOutcome::Existing(dir) => (dir, true),
+                    BaseOutcome::Created { dir, .. } => (dir, false),
+                };
+                if !existing {
+                    ctx.log(&format!("✓ {} is ready – build an unchained macOS image next.", file_name(&dir)));
+                }
+                result(BaseResult { base: dir.to_string_lossy().into_owned(), existing, ready: true })
+            }),
+        );
+        spec.guest_kind = Some(GuestKind::Macos);
+        let s = self.clone();
+        spec.log_file = Some(self.paths().logs().join("macos-unchain.log"));
+        spec.on_end = Some(Box::new(move |_| s.poke()));
+        let job = self.inner.jobs.submit(spec);
+        // The base it is copied from cannot be removed meanwhile
+        lock(&self.inner.base_uses).insert(job.id.clone(), base.path);
+        Ok(Answer::Job(job))
+    }
+
     /// The bases an active job uses (plan B166): macOS image builds, and a base creation for the base it replaces
     pub(crate) fn bases_in_use(&self) -> Vec<PathBuf> {
         let active: HashSet<String> =
@@ -3586,6 +3696,9 @@ struct BuildParams {
     /// macOS: the base folder (default: the newest base)
     #[serde(default)]
     base: Option<String>,
+    /// macOS: from the credential's newest unchained base (plan B184) instead – `base` wins when both are given
+    #[serde(default)]
+    unchained: bool,
     /// macOS: keep a failed build folder for inspection
     #[serde(default)]
     keep_failed: bool,
@@ -3600,6 +3713,7 @@ pub(crate) fn base_dtos(paths: &Paths, in_use: &[PathBuf]) -> Vec<BaseDto> {
         .into_iter()
         .map(|b| BaseDto {
             in_use: in_use.contains(&b.path),
+            unchained: MacBaseInstaller::is_unchained(&b.path),
             own_key: b.record.as_ref().is_some_and(|r| r.own_key),
             version: b.record.as_ref().and_then(|r| r.version.clone()),
             path: b.path.to_string_lossy().into_owned(),
@@ -3945,6 +4059,26 @@ struct WelcomeSetup {
     full_name: Option<String>,
     #[serde(default)]
     password: Option<String>,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct UnchainImageParams {
+    /// The image to make an unchained copy of
+    name: String,
+    /// Without omaflake Tools and the camera extension: only System Integrity Protection off
+    #[serde(default)]
+    no_tools: bool,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct UnchainBaseParams {
+    /// The base to make an unchained copy of
+    name: String,
+    /// Without omaflake Tools and the camera extension: only System Integrity Protection off
+    #[serde(default)]
+    no_tools: bool,
 }
 
 #[derive(Deserialize)]
