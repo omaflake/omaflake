@@ -488,7 +488,7 @@ Lume (trycua) only after a license review (OPEN).
 
 ## 8. Next steps (as of 2026-11-26)
 
-**Release 0.8.1 (2026-11-26, built locally for the maintainer's test – not tagged):** B183 (the camera with OBS:
+**Release 0.8.1 (2026-11-27, built locally for the maintainer's test – not tagged):** B183 (the camera with OBS:
 Metal, the agent decoding H.264, the agent's log kept) and B184 (omaflake Tools and omaflake's own camera
 extension; unchained copies of images and bases, Recovery without hands, `omaf start --recovery`). Maintainer:
 "mache ein Release 0.8.1 fertig, dass ich erstmal lokal testen kann". OPEN until tried: the whole unchain job in the
@@ -505,6 +505,17 @@ DHCP server on the segment, SSH from the Mac to reach, a Go binary to ship – i
 real VMs); the camera over vsock – H.264 (B174) made the camera smooth at 30 fps, so vsock waits for the measurement on
 the Mac (VsockBench) to show it is needed; dragging in the Linux app and `omaf ui`. To try on the Mac: everything
 marked OPEN in B164, B178–B182 (they need images built with 0.8.0).
+
+**B185 (2026-11-27, built for 0.8.1; the Mac OPEN): networks edited where they are seen.** The maintainer: adding a
+VM opened a page of its own with one drop-down, taking one out was a row of buttons – "Denk dir was Besseres aus.
+Cool wäre auch Drag & Drop, ein Ziehen von Verbindungen". *Built:* a network's detail has one switch per VM
+(`member_switch`: on = member, `networks.join`/`networks.leave`, members first, a member that is no VM any more can
+only go; the help says "now" for a running NixOS VM – B179's live join – and "from its next start" otherwise); the
+macOS app draws switches in a detail as chips that wrap (`DetailActions`), the Linux app as chips (`action_button`
+gives a switch to `chip`), `omaf ui` already showed `[x]`. The picture (macOS app): a VM has a handle, a drag from
+the VM draws a line to the pointer (dashed until it is over a network, which then lights up), letting go over a
+network joins; each connection's address has × (the line turns red while the pointer is on it), its menu stays. The
+`networkMember` page stays for the API. Tests: the switches of both networks. OPEN on the Mac: how it feels.
 
 **B184 (2026-11-26, built for 0.8.1): an "unchained" macOS base.** The maintainer's idea:
 beside the base a variant with macOS's protections off, for what a normal guest refuses – first of all omaflake's own

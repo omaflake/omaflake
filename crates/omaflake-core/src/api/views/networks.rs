@@ -119,6 +119,27 @@ fn member_line(info: &NetworkInfo, vm: &str, host: u8, known: Option<&Vm>) -> In
     if port.is_some() { line.tone(Tone::Success) } else { line }
 }
 
+/// A VM as a switch of a network: on while it is a member; a click adds it (`networks.join`) or takes it out
+/// (`networks.leave`). A running NixOS VM joins and leaves at once (plan B179), a macOS VM at its next start
+pub(crate) fn member_switch(network: &str, v: &Vm, member: bool) -> Action {
+    let now = v.status == VmStatus::Running && v.kind == GuestKind::Nixos;
+    let help = match (member, now) {
+        (true, true) => tf!("In %@ – a click takes it out now", network),
+        (true, false) => tf!("In %@ – a click takes it out (from its next start)", network),
+        (false, true) => tf!("Not in %@ – a click adds it now", network),
+        (false, false) => tf!("Not in %@ – a click adds it (from its next start)", network),
+    };
+    Action::call(
+        &format!("member-{}", v.name),
+        Text::verbatim(v.name.clone()),
+        Some(if v.kind == GuestKind::Macos { "macos" } else { "nixos" }),
+        if member { "networks.leave" } else { "networks.join" },
+        json!({"network": network, "vm": v.name}),
+    )
+    .switch(member)
+    .help(help)
+}
+
 fn row(ctx: &Ctx, info: &NetworkInfo) -> CredentialRow {
     let n = &info.network;
     let id = json!({"name": n.name});
@@ -154,21 +175,24 @@ fn row(ctx: &Ctx, info: &NetworkInfo) -> CredentialRow {
                 .note(tf!("in the network's other VMs, for the Docker engine of %@", vm.as_str()), Tone::Normal),
         );
     }
-    let mut actions = vec![
-        Action::show("join", Text::new("Add VM …"), Some("add"), "networkMember", json!({"network": n.name}))
-            .primary()
-            .enabled_if(ctx.vms.iter().any(|v| !n.members.contains_key(&v.name)), Some(Text::new("Every VM is in it"))),
-    ];
-    for vm in n.members.keys() {
+    // One switch per VM (the maintainer, 2026-11-27: a form with one drop-down to add and a row of buttons to take
+    // out were hard to read): on = in the network, a click adds or takes out. Members first, then the others
+    let mut vms: Vec<&Vm> = ctx.vms.iter().collect();
+    vms.sort_by_key(|v| !n.members.contains_key(&v.name));
+    let mut actions: Vec<Action> =
+        vms.iter().map(|v| member_switch(&n.name, v, n.members.contains_key(&v.name))).collect();
+    // A member that is no VM any more can only go
+    for vm in n.members.keys().filter(|m| !ctx.vms.iter().any(|v| &&v.name == m)) {
         actions.push(
             Action::call(
-                &format!("leave-{vm}"),
-                tf!("Take %@ Out", vm.as_str()),
+                &format!("member-{vm}"),
+                Text::verbatim(vm.clone()),
                 Some("network-none"),
                 "networks.leave",
                 json!({"network": n.name, "vm": vm}),
             )
-            .help(Text::new("From its next start")),
+            .switch(true)
+            .help(Text::new("No such VM any more – a click takes it out")),
         );
     }
     actions.push(
@@ -262,7 +286,7 @@ pub(crate) fn page(ctx: &Ctx) -> NetworksPage {
         list: CredentialsPage {
             title: Text::new("Networks"),
             intro: Text::new(
-                "Networks between VMs: each VM in a network gets a second network card there and reaches the network's other VMs – NixOS and macOS alike, e.g. a Docker VM for several macOS VMs. Its own network (SSH, the internet) stays as it is. A change counts from the VM's next start.",
+                "Networks between VMs: each VM in a network gets a second network card there and reaches the network's other VMs – NixOS and macOS alike, e.g. a Docker VM for several macOS VMs. Its own network (SSH, the internet) stays as it is. Add a VM by drawing a line from it to a network in the picture, or with its switch under the network; × on a line takes it out. A running NixOS VM changes at once, a macOS VM at its next start.",
             ),
             rows: ctx.networks.iter().map(|n| row(ctx, n)).collect(),
             add: Action::show("add", Text::new("New Network …"), Some("add"), "network", json!({})).primary(),

@@ -13,7 +13,7 @@ are collected under *Unreleased*. Releases: [GitHub](https://github.com/omaflake
 
 ## [Unreleased]
 
-## [0.8.1] – 2026-11-26
+## [0.8.1] – 2026-11-27
 
 The camera in macOS VMs: smooth with OBS, and without OBS in an "unchained" VM; omaflake Tools, omaflake's own app
 inside a macOS VM, with its camera. An unchained copy of an image or a base is made by one click – omaflake goes
@@ -61,6 +61,11 @@ tried on a Mac; the notes say where. Rebuild your macOS images to get the new ag
 
 ### Changed
 
+- **Networks are edited where you see them.** In the picture of the Networks tab you draw a line from a VM's dot to a
+  network to add it, and × on a line takes it out (the line turns red while the pointer is on its ×). Under each
+  network, every VM is a switch – on while it is in the network, a click adds or takes it out; the form with one
+  drop-down and the row of "Take … Out" buttons are gone. A running NixOS VM changes at once, a macOS VM at its next
+  start (the switch's help says which).
 - **The agent's log in macOS VMs** is `~/Library/Logs/omaflake/agent.log` instead of `/tmp/omaflake-agent.log`,
   with the time on every line; the logs of the four starts before stay beside it (`agent.1.log` …), so what
   happened before a restart can still be read.

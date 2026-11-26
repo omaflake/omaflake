@@ -841,6 +841,13 @@
 "Keyring: %@" = "Schlüsselbund: %@";
 "Network mode \"isolated\" is not available for macOS guests (plan BM27) – use shared or none" = "Netzwerkmodus „isolated“ gibt es für macOS-Gäste nicht (Plan BM27) – nutze shared oder none";
 "Recovery is for macOS VMs" = "Recovery gibt es nur für macOS-VMs";
+"In %@ – a click takes it out (from its next start)" = "In %@ – ein Klick nimmt sie heraus (ab ihrem nächsten Start)";
+"In %@ – a click takes it out now" = "In %@ – ein Klick nimmt sie sofort heraus";
+"Not in %@ – a click adds it (from its next start)" = "Nicht in %@ – ein Klick fügt sie hinzu (ab ihrem nächsten Start)";
+"Not in %@ – a click adds it now" = "Nicht in %@ – ein Klick fügt sie sofort hinzu";
+"Networks between VMs: each VM in a network gets a second network card there and reaches the network's other VMs – NixOS and macOS alike, e.g. a Docker VM for several macOS VMs. Its own network (SSH, the internet) stays as it is. Add a VM by drawing a line from it to a network in the picture, or with its switch under the network; × on a line takes it out. A running NixOS VM changes at once, a macOS VM at its next start." = "Netze zwischen VMs: Jede VM in einem Netz bekommt dort eine zweite Netzwerkkarte und erreicht die anderen VMs des Netzes – NixOS und macOS gleichermaßen, z. B. eine Docker-VM für mehrere macOS-VMs. Ihr eigenes Netz (SSH, Internet) bleibt, wie es ist. Füge eine VM hinzu, indem du im Bild eine Linie von ihr zu einem Netz ziehst, oder mit ihrem Schalter unter dem Netz; × an einer Linie nimmt sie heraus. Eine laufende NixOS-VM ändert sich sofort, eine macOS-VM bei ihrem nächsten Start.";
+"Create a network below, then draw a line from a VM to it." = "Lege unten ein Netz an und zieh dann eine Linie von einer VM zu ihm.";
+"Draw a line from a VM's dot to a network to add it; × on a line takes it out." = "Zieh eine Linie vom Punkt einer VM zu einem Netz, um sie hinzuzufügen; × an einer Linie nimmt sie heraus.";
 "omaf-runner: %@" = "omaf-runner: %@";
 "Copying" = "Kopieren";
 "Starting the copy" = "Kopie starten";
@@ -1753,7 +1760,6 @@
 
 /* Networks between VMs (plan B170, spec §11.12) */
 "Networks" = "Netze";
-"Networks between VMs: each VM in a network gets a second network card there and reaches the network's other VMs – NixOS and macOS alike, e.g. a Docker VM for several macOS VMs. Its own network (SSH, the internet) stays as it is. A change counts from the VM's next start." = "Netze zwischen VMs: Jede VM in einem Netz bekommt dort eine zweite Netzwerkkarte und erreicht die anderen VMs des Netzes – NixOS wie macOS, z. B. eine Docker-VM für mehrere macOS-VMs. Ihr eigenes Netz (SSH, Internet) bleibt, wie es ist. Eine Änderung gilt ab dem nächsten Start der VM.";
 "Networks stay on this computer. omaflake runs each network's switch itself – no administrator rights, nothing reaches the network from outside. Every VM in a network can reach every service the others offer there." = "Netze bleiben auf diesem Computer. omaflake betreibt den Switch jedes Netzes selbst – ohne Administratorrechte, von außen erreicht nichts das Netz. Jede VM in einem Netz erreicht jeden Dienst, den die anderen dort anbieten.";
 "New Network …" = "Neues Netz …";
 "New Network" = "Neues Netz";

@@ -220,6 +220,10 @@ pub fn action_icon<'a>(a: &Action, pulse: bool) -> El<'a> {
 
 /// An action with symbol and name in a thin frame (`ActionButton`); `form` for a page's own action
 pub fn action_button<'a>(a: &Action, form: Option<&str>, pulse: bool) -> El<'a> {
+    // A switch (a network's VMs, plan B170) is a chip: cyan while on
+    if a.on.is_some() && form.is_none() {
+        return chip(a);
+    }
     let color = if a.destructive { style::RED } else { style::TEXT };
     let mut r = row![].spacing(spacing::S).align_y(Alignment::Center);
     if a.busy {

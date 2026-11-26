@@ -328,8 +328,18 @@ fn the_networks_tab() {
     assert!(info.iter().any(|l| l.starts_with("10.231.1.11 · ")), "{info:?}");
     let actions: Vec<&str> =
         dev["detail"]["actions"].as_array().unwrap().iter().map(|a| a["id"].as_str().unwrap()).collect();
-    assert_eq!(actions, ["join", "leave-research", "leave-work", "remove"]);
-    assert_eq!(dev["detail"]["actions"][0]["enabled"], false, "every VM is in it");
+    // One switch per VM (2026-11-27): on for a member; a click takes it out – a member of the other network is off
+    assert_eq!(actions, ["member-research", "member-work", "remove"]);
+    assert_eq!(dev["detail"]["actions"][0]["on"], true);
+    assert_eq!(dev["detail"]["actions"][0]["method"], "networks.leave");
+    let lab: Vec<(&str, bool, &str)> = page["rows"][1]["detail"]["actions"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter(|a| a.get("on").is_some())
+        .map(|a| (a["id"].as_str().unwrap(), a["on"].as_bool().unwrap(), a["method"].as_str().unwrap()))
+        .collect();
+    assert_eq!(lab, [("member-research", false, "networks.join"), ("member-work", false, "networks.join")]);
     assert_eq!(page["rows"][1]["subtitle"]["text"], "10.231.2.0/24 · no VMs");
     // The graph: NAT links of both VMs, two memberships of dev, the flow
     let g = &page["graph"];

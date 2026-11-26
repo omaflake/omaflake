@@ -102,8 +102,8 @@
     ]
   },
   "intro": {
-    "key": "Networks between VMs: each VM in a network gets a second network card there and reaches the network's other VMs – NixOS and macOS alike, e.g. a Docker VM for several macOS VMs. Its own network (SSH, the internet) stays as it is. A change counts from the VM's next start.",
-    "text": "Networks between VMs: each VM in a network gets a second network card there and reaches the network's other VMs – NixOS and macOS alike, e.g. a Docker VM for several macOS VMs. Its own network (SSH, the internet) stays as it is. A change counts from the VM's next start."
+    "key": "Networks between VMs: each VM in a network gets a second network card there and reaches the network's other VMs – NixOS and macOS alike, e.g. a Docker VM for several macOS VMs. Its own network (SSH, the internet) stays as it is. Add a VM by drawing a line from it to a network in the picture, or with its switch under the network; × on a line takes it out. A running NixOS VM changes at once, a macOS VM at its next start.",
+    "text": "Networks between VMs: each VM in a network gets a second network card there and reaches the network's other VMs – NixOS and macOS alike, e.g. a Docker VM for several macOS VMs. Its own network (SSH, the internet) stays as it is. Add a VM by drawing a line from it to a network in the picture, or with its switch under the network; × on a line takes it out. A running NixOS VM changes at once, a macOS VM at its next start."
   },
   "rows": [
     {
@@ -112,42 +112,21 @@
       "detail": {
         "actions": [
           {
-            "enabled": false,
-            "icon": "add",
-            "id": "join",
-            "label": {
-              "key": "Add VM …",
-              "text": "Add VM …"
-            },
-            "method": "ui.show",
-            "params": {
-              "page": "networkMember",
-              "params": {
-                "network": "dev"
-              }
-            },
-            "primary": true,
-            "reason": {
-              "key": "Every VM is in it",
-              "text": "Every VM is in it"
-            }
-          },
-          {
             "enabled": true,
             "help": {
-              "key": "From its next start",
-              "text": "From its next start"
-            },
-            "icon": "network-none",
-            "id": "leave-research",
-            "label": {
               "args": [
-                "research"
+                "dev"
               ],
-              "key": "Take %@ Out",
-              "text": "Take research Out"
+              "key": "In %@ – a click takes it out now",
+              "text": "In dev – a click takes it out now"
+            },
+            "icon": "nixos",
+            "id": "member-research",
+            "label": {
+              "text": "research"
             },
             "method": "networks.leave",
+            "on": true,
             "params": {
               "network": "dev",
               "vm": "research"
@@ -156,19 +135,19 @@
           {
             "enabled": true,
             "help": {
-              "key": "From its next start",
-              "text": "From its next start"
-            },
-            "icon": "network-none",
-            "id": "leave-work",
-            "label": {
               "args": [
-                "work"
+                "dev"
               ],
-              "key": "Take %@ Out",
-              "text": "Take work Out"
+              "key": "In %@ – a click takes it out (from its next start)",
+              "text": "In dev – a click takes it out (from its next start)"
+            },
+            "icon": "macos",
+            "id": "member-work",
+            "label": {
+              "text": "work"
             },
             "method": "networks.leave",
+            "on": true,
             "params": {
               "network": "dev",
               "vm": "work"
@@ -293,20 +272,45 @@
         "actions": [
           {
             "enabled": true,
-            "icon": "add",
-            "id": "join",
+            "help": {
+              "args": [
+                "lab"
+              ],
+              "key": "Not in %@ – a click adds it now",
+              "text": "Not in lab – a click adds it now"
+            },
+            "icon": "nixos",
+            "id": "member-research",
             "label": {
-              "key": "Add VM …",
-              "text": "Add VM …"
+              "text": "research"
             },
-            "method": "ui.show",
+            "method": "networks.join",
+            "on": false,
             "params": {
-              "page": "networkMember",
-              "params": {
-                "network": "lab"
-              }
+              "network": "lab",
+              "vm": "research"
+            }
+          },
+          {
+            "enabled": true,
+            "help": {
+              "args": [
+                "lab"
+              ],
+              "key": "Not in %@ – a click adds it (from its next start)",
+              "text": "Not in lab – a click adds it (from its next start)"
             },
-            "primary": true
+            "icon": "macos",
+            "id": "member-work",
+            "label": {
+              "text": "work"
+            },
+            "method": "networks.join",
+            "on": false,
+            "params": {
+              "network": "lab",
+              "vm": "work"
+            }
           },
           {
             "confirm": {

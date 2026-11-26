@@ -200,16 +200,28 @@ struct DetailActions: View {
     let model: AppModel
 
     var body: some View {
-        let leading = actions.filter { ["export", "update"].contains($0.id) }
-        let trailing = actions.filter { !["export", "update"].contains($0.id) }
-        let reason = actions.first { !$0.enabled && $0.reason != nil }?.reason
-        HStack(spacing: BrandTokens.Spacing.l) {
-            ForEach(leading) { ActionChip(action: $0, model: model) }
-            Spacer()
-            ForEach(trailing) { ActionChip(action: $0, model: model) }
+        // Switches (a network's VMs, plan B170) as chips that wrap, above the buttons
+        let switches = actions.filter { $0.on != nil }
+        let buttons = actions.filter { $0.on == nil }
+        let leading = buttons.filter { ["export", "update"].contains($0.id) }
+        let trailing = buttons.filter { !["export", "update"].contains($0.id) }
+        let reason = buttons.first { !$0.enabled && $0.reason != nil }?.reason
+        VStack(alignment: .leading, spacing: BrandTokens.Spacing.l) {
+            if !switches.isEmpty {
+                ChipFlow {
+                    ForEach(switches) { SwitchChip(action: $0, model: model) }
+                }
+            }
+            if !buttons.isEmpty {
+                HStack(spacing: BrandTokens.Spacing.l) {
+                    ForEach(leading) { ActionChip(action: $0, model: model) }
+                    Spacer()
+                    ForEach(trailing) { ActionChip(action: $0, model: model) }
+                }
+                .contentShape(Rectangle())
+                .help(Text(verbatim: model.t(reason)))
+            }
         }
-        .contentShape(Rectangle())
-        .help(Text(verbatim: model.t(reason)))
     }
 }
 
