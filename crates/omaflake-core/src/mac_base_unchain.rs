@@ -171,6 +171,27 @@ impl MacBaseInstaller {
         Self::unchained_tools_from(&exe)
     }
 
+    /// omaflake Tools for every macOS image (2026-11-27, the maintainer: "omaflake Tools immer installieren"): the
+    /// build for its kind of base – with the camera extension for an unchained one (`unchained_tools`), else the
+    /// plain one (`Contents/Resources/Guest/`, in a checkout `build/`; `OMAFLAKE_TOOLS_PLAIN` in development)
+    pub fn guest_tools(unchained: bool) -> Option<PathBuf> {
+        if unchained {
+            return Self::unchained_tools();
+        }
+        if let Some(custom) = std::env::var_os("OMAFLAKE_TOOLS_PLAIN").map(PathBuf::from) {
+            return custom.exists().then_some(custom);
+        }
+        let exe = std::env::current_exe().ok().and_then(|p| p.canonicalize().ok())?;
+        Self::plain_tools_from(&exe)
+    }
+
+    pub(crate) fn plain_tools_from(exe: &Path) -> Option<PathBuf> {
+        let dir = exe.parent()?;
+        [dir.join("../Resources/Guest").join(TOOLS_APP), dir.join("../../build").join(TOOLS_APP)]
+            .into_iter()
+            .find(|app| app.join("Contents/Info.plist").is_file())
+    }
+
     pub(crate) fn unchained_tools_from(exe: &Path) -> Option<PathBuf> {
         let dir = exe.parent()?;
         let has_extension = |app: &PathBuf| app.join("Contents/Library/SystemExtensions").is_dir();
@@ -1061,5 +1082,11 @@ mod tests {
         fs::create_dir_all(unchained.join("Contents/Library/SystemExtensions")).unwrap();
         let found = MacBaseInstaller::unchained_tools_from(&exe).unwrap();
         assert_eq!(found.canonicalize().unwrap(), unchained.canonicalize().unwrap());
+        // The plain build for every image: the one in Guest/ (an app – its Info.plist)
+        assert_eq!(MacBaseInstaller::plain_tools_from(&exe), None);
+        let plain = app.join("Resources/Guest").join(TOOLS_APP);
+        fs::write(plain.join("Contents/Info.plist"), "<plist/>").unwrap();
+        let found = MacBaseInstaller::plain_tools_from(&exe).unwrap();
+        assert_eq!(found.canonicalize().unwrap(), plain.canonicalize().unwrap());
     }
 }

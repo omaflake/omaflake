@@ -55,6 +55,9 @@ bundle() {
   mkdir -p "$app/Contents/MacOS"
   cp "$bindir/omaflake-tools" "$app/Contents/MacOS/omaflake-tools"
   cp "$root/App/omaflake-tools-Info.plist" "$app/Contents/Info.plist"
+  # omaflake's icon (a copy of omaflake/brand's, like the app's)
+  mkdir -p "$app/Contents/Resources"
+  cp "$root/brand/macos/omaflake.icns" "$app/Contents/Resources/omaflake.icns"
   plutil -insert CFBundleShortVersionString -string "$version" "$app/Contents/Info.plist"
   plutil -insert CFBundleVersion -string "$build" "$app/Contents/Info.plist"
   if [[ $extension == yes ]]; then

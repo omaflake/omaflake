@@ -41,11 +41,12 @@ tried on a Mac; the notes say where. Rebuild your macOS images to get the new ag
   needs it – in a first try on a Mac it did not, and csrutil said the authentication failed) and tries three ways
   of sending it before it hands over to you. Unchained is marked in purple, not in the orange of warnings. The way through Recovery was tried on a Mac step by step, the whole job in the app not yet.
   image.json and omaflake-base.json have new versions (`unchained`); an older omaflake cannot read them.
-- **omaflake Tools and omaflake's own camera extension for macOS VMs – built, not yet delivered.** "omaflake
-  Tools.app" (in omaflake.app, `Contents/Resources/Guest`) is omaflake's app inside a macOS VM; its first part is a
-  camera extension that shows the Mac's camera to the apps in a VM directly, without OBS. macOS loads it only signed with a Developer ID, which omaflake does not have yet; ad hoc
+- **omaflake Tools in every macOS VM, with omaflake's own camera extension.** "omaflake Tools" is omaflake's app
+  inside a macOS VM, with omaflake's icon; every macOS image built with this version has it in /Applications. Its
+  first part is a camera extension that shows the Mac's camera to the apps in a VM directly, without OBS. macOS loads it only signed with a Developer ID, which omaflake does not have yet; ad hoc
   signed as now it loads in a VM whose System Integrity Protection was switched off in Recovery – tried there: a
-  smooth picture in Photo Booth. Nothing installs it into a VM yet. Where it is active, **Diagnose** needs no OBS.
+  smooth picture in Photo Booth. Until then the Tools in an ordinary VM carry no extension, an unchained VM's do.
+  Where the extension is active, **Diagnose** needs no OBS.
 - **`omaf start <name> --recovery`** starts a macOS VM into macOS Recovery, in a window – for what only Recovery can
   change. Not for VMs that start from their image every time.
 
@@ -65,7 +66,8 @@ tried on a Mac; the notes say where. Rebuild your macOS images to get the new ag
   network to add it, and × on a line takes it out (the line turns red while the pointer is on its ×). Under each
   network, every VM is a switch – on while it is in the network, a click adds or takes it out; the form with one
   drop-down and the row of "Take … Out" buttons are gone. A running NixOS VM changes at once, a macOS VM at its next
-  start (the switch's help says which).
+  start (the switch's help says which). The same in the macOS app and the Linux app, which now draws the picture too.
+- **German: "entfesselt"** for unchained images, bases and VMs.
 - **The agent's log in macOS VMs** is `~/Library/Logs/omaflake/agent.log` instead of `/tmp/omaflake-agent.log`,
   with the time on every line; the logs of the four starts before stay beside it (`agent.1.log` …), so what
   happened before a restart can still be read.

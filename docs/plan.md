@@ -516,6 +516,16 @@ gives a switch to `chip`), `omaf ui` already showed `[x]`. The picture (macOS ap
 the VM draws a line to the pointer (dashed until it is over a network, which then lights up), letting go over a
 network joins; each connection's address has × (the line turns red while the pointer is on it), its menu stays. The
 `networkMember` page stays for the API. Tests: the switches of both networks. OPEN on the Mac: how it feels.
+*The Linux app too (same day; the maintainer: "Netz-Bild auch in der Linux-App – allgemein immer beide Varianten
+synchron halten"):* `crates/omaflake-gui/src/graph.rs` draws the same picture on iced's canvas (the feature `canvas`
+– lyon 1.0.19–1.0.23 and float_next_after 1.0.0 in Cargo.lock, all older than two weeks, `cargo deny` ok), above
+the list as in the macOS app: nodes, curves, a line drawn from a VM to the pointer, the network under it lit, × on
+each address; `Layout` is plain geometry with a test (rows, ends, what is under a point, the ×). Not tried in a
+Linux window here (no display in this VM): OPEN.
+*Also 2026-11-27:* omaflake Tools in every macOS image (the maintainer: "omaflake Tools immer installieren – bitte
+auch mit omaflake Icon"): the image build copies the build for its base into /Applications before it shuts down
+(`MacBaseInstaller::guest_tools` – the plain one, the one with the extension for an unchained base); both builds
+carry omaflake's icon (`brand/macos/omaflake.icns`, `CFBundleIconFile`). German "entfesselt" for unchained.
 
 **B184 (2026-11-26, built for 0.8.1): an "unchained" macOS base.** The maintainer's idea:
 beside the base a variant with macOS's protections off, for what a normal guest refuses – first of all omaflake's own

@@ -612,6 +612,28 @@ impl MacImageBuilder {
             "Activation",
         )?;
 
+        // omaflake Tools in /Applications of every image (plan B184): the build for an unchained base has the camera
+        // extension. Without one in this omaflake (a development build without bundle-tools.sh) the image has none
+        let unchained = r.base.as_deref().is_some_and(MacBaseInstaller::is_unchained);
+        match MacBaseInstaller::guest_tools(unchained) {
+            Some(tools) => {
+                log("Installing omaflake Tools");
+                let app = crate::mac_base_unchain::TOOLS_APP;
+                vm.check(&format!("rm -rf '/Applications/{app}'"), "removing an older omaflake Tools")?;
+                let mut args = vec!["-r".to_string()];
+                args.extend(BuildVm::ssh_options());
+                args.extend([
+                    tools.to_string_lossy().into_owned(),
+                    format!("{}@{}:/Applications/", r.user, vm.ip.as_deref().unwrap_or_default()),
+                ]);
+                let copied = Shell::run(&crate::platform::host_tool("/usr/bin/scp"), &args, &RunOptions::default())?;
+                if copied.status != 0 {
+                    return Err(vm_err!("Could not copy {} into the guest: {}", app, copied.stderr.trim()));
+                }
+            }
+            None => log("No omaflake Tools in this omaflake – the image gets none"),
+        }
+
         // 6. Remove the sudo rule, shut down
         vm.check(&format!("sudo rm -f {rule}"), "removing the temporary sudo rule")?;
         let _ = vm.ssh("sudo -n /sbin/shutdown -h now", None);

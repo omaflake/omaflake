@@ -7,6 +7,7 @@
 mod app;
 mod backend;
 mod gpu;
+mod graph;
 mod icons;
 mod pages;
 mod prefs;

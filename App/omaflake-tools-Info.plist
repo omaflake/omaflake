@@ -7,6 +7,8 @@
 	<string>app.omaflake.guest</string>
 	<key>CFBundleName</key>
 	<string>omaflake Tools</string>
+	<key>CFBundleIconFile</key>
+	<string>omaflake</string>
 	<key>CFBundleExecutable</key>
 	<string>omaflake-tools</string>
 	<key>CFBundlePackageType</key>
