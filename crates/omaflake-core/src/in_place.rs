@@ -96,11 +96,14 @@ impl InPlace {
     /// trusted users for the copy. The image build adds the line to the installer's nix.conf, but nix-darwin's
     /// activation replaces the file with its own (`trusted-users = root`; images from this fix on name the user) – so
     /// `nix copy --no-check-sigs` was refused. The symlink becomes a file with the line, and the daemon is restarted;
-    /// the switch puts nix-darwin's symlink back before it activates.
+    /// the switch puts nix-darwin's symlink back before it activates. Right after a start the guest's Nix daemon
+    /// may not run yet (its store is mounted a few seconds after SSH answers, BM19 – the copy then failed with "Nix
+    /// daemon disconnected"): it waits up to a minute for the daemon's socket first.
     pub fn trust_command(user: &str) -> String {
         let u = crate::builder_maintenance::shell_quote(user);
         let script = format!(
-            "f=/etc/nix/nix.conf; grep -Eq \"^trusted-users = (.* )?\"{u}\"( |$)\" \"$f\" && exit 0; \
+            "n=0; while [ ! -S /nix/var/nix/daemon-socket/socket ] && [ $n -lt 30 ]; do n=$((n + 1)); sleep 2; done; \
+             f=/etc/nix/nix.conf; grep -Eq \"^trusted-users = (.* )?\"{u}\"( |$)\" \"$f\" && exit 0; \
              t=$(mktemp) && grep -v '^trusted-users' \"$f\" > \"$t\" && echo \"trusted-users = root \"{u} >> \"$t\" && \
              rm -f \"$f\" && mv \"$t\" \"$f\" && chmod 644 \"$f\" && \
              launchctl kickstart -k system/org.nixos.nix-daemon && sleep 3"
@@ -108,8 +111,9 @@ impl InPlace {
         format!("sudo -S -p '' sh -c {}", crate::builder_maintenance::shell_quote(&script))
     }
 
-    /// The command in the guest that switches to `system` (sh); macOS reads the password from stdin
-    pub fn switch_command(kind: GuestKind, system: &str) -> String {
+    /// The command in the guest that switches to `system` (sh); macOS reads the password from stdin. An unchained
+    /// image's system also gets the boot argument its FSKit module needs (plan B190; from the VM's next start).
+    pub fn switch_command(kind: GuestKind, system: &str, unchained: bool) -> String {
         let q = crate::builder_maintenance::shell_quote(system);
         match kind {
             // Exactly the two commands vm-guest.nix allows without a password
@@ -121,19 +125,26 @@ impl InPlace {
                 "sudo -S -p '' sh -c {}",
                 crate::builder_maintenance::shell_quote(&format!(
                     "{{ [ -L /etc/nix/nix.conf ] || ln -sfn /etc/static/nix/nix.conf /etc/nix/nix.conf; }} && \
-                     /nix/var/nix/profiles/default/bin/nix-env -p /nix/var/nix/profiles/system --set {q} && {q}/activate"
+                     /nix/var/nix/profiles/default/bin/nix-env -p /nix/var/nix/profiles/system --set {q} && {q}/activate{}",
+                    if unchained {
+                        format!(" && {{ {}; }}", crate::mac_image_builder::MacImageBuilder::AMFI_BOOT_ARGUMENT_COMMAND)
+                    } else {
+                        String::new()
+                    }
                 ))
             ),
         }
     }
 
     /// Copies `system` into the running VM and switches to it. `ssh` is the VM's ssh command line without the remote
-    /// command (`VmBackend::ssh_arguments(c, &[])`); `password` the guest user's (macOS).
+    /// command (`VmBackend::ssh_arguments(c, &[])`); `password` the guest user's (macOS); `unchained` whether the
+    /// image is one of an unchained base (plan B184, B190).
     #[allow(clippy::too_many_arguments)]
     pub fn apply(
         &self,
         c: &InstanceConfig,
         system: &str,
+        unchained: bool,
         store: &str,
         ssh: &[String],
         password: Option<&str>,
@@ -163,7 +174,7 @@ impl InPlace {
         }
         log("Switching to the new system");
         let mut args = rest.to_vec();
-        args.push(Self::switch_command(kind, system));
+        args.push(Self::switch_command(kind, system, unchained));
         let r = Shell::run(program, &args, &RunOptions { input: input.as_deref(), ..Default::default() })?;
         for line in format!("{}{}", r.stdout, r.stderr).lines().filter(|l| !l.trim().is_empty()) {
             log(line);
@@ -203,13 +214,16 @@ mod tests {
 
     #[test]
     fn switch_commands() {
-        let n = InPlace::switch_command(GuestKind::Nixos, "/nix/store/abc-nixos-system");
+        let n = InPlace::switch_command(GuestKind::Nixos, "/nix/store/abc-nixos-system", false);
         assert_eq!(
             n,
             "sudo -n /run/current-system/sw/bin/nix-env -p /nix/var/nix/profiles/system --set '/nix/store/abc-nixos-system' && \
              sudo -n /nix/var/nix/profiles/system/bin/switch-to-configuration switch"
         );
-        let m = InPlace::switch_command(GuestKind::Macos, "/nix/store/abc-darwin-system");
+        let m = InPlace::switch_command(GuestKind::Macos, "/nix/store/abc-darwin-system", false);
+        assert!(!m.contains("amfi_get_out_of_my_way"));
+        let u = InPlace::switch_command(GuestKind::Macos, "/nix/store/abc-darwin-system", true);
+        assert!(u.contains("amfi_get_out_of_my_way=1"), "{u}");
         assert!(m.starts_with("sudo -S -p '' sh -c '"));
         assert!(m.contains(
             "--set '\\''/nix/store/abc-darwin-system'\\'' && '\\''/nix/store/abc-darwin-system'\\''/activate"
@@ -220,6 +234,7 @@ mod tests {
             t.starts_with("sudo -S -p '' sh -c '") && t.contains("trusted-users = root") && t.contains("nix-daemon"),
             "{t}"
         );
+        assert!(t.contains("daemon-socket/socket"), "{t}");
     }
 
     #[test]

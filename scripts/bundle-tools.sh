@@ -1,7 +1,8 @@
 #!/bin/bash
 # SPDX-License-Identifier: AGPL-3.0-or-later
 # Builds "omaflake Tools.app" (release) into <repo>/build/: omaflake's app in a macOS guest (/Applications), with
-# omaflake's camera extension inside (Contents/Library/SystemExtensions; plan B184). scripts/bundle-app.sh calls
+# omaflake's camera extension inside (Contents/Library/SystemExtensions; plan B184) and its FSKit module
+# (Contents/Extensions; plan B190). scripts/bundle-app.sh calls
 # this and puts the result into omaflake.app.
 #
 # Two builds until there is a Developer ID (plan B184): a camera extension is a system extension, and the app's
@@ -40,6 +41,10 @@ else
   group=$TEAM_ID.app.omaflake.guest.camera
 fi
 work=$(mktemp -d)
+# omaflake's FSKit module (plan B190): swiftc, not SwiftPM – entry point NSExtensionMain and no `main` of its own, as in
+# Apple's modules; a SwiftPM executable of the same source trapped in ExtensionFoundation (Package.swift)
+xcrun swiftc -target arm64-apple-macos27.0 -parse-as-library -O -module-name omaflake_volumes \
+  "$root"/Sources/omaflake-volumes/*.swift -o "$work/omaflake-volumes" -Xlinker -e -Xlinker _NSExtensionMain
 cp "$root/App/omaflake-camera.entitlements" "$work/extension.entitlements"
 plutil -insert com\\.apple\\.security\\.application-groups -json "[\"$group\"]" "$work/extension.entitlements"
 
@@ -47,6 +52,7 @@ plutil -insert com\\.apple\\.security\\.application-groups -json "[\"$group\"]" 
 bundle() {
   local app="$1/omaflake Tools.app" extension=$2
   local ext="$app/Contents/Library/SystemExtensions/app.omaflake.guest.camera.systemextension"
+  local volumes="$app/Contents/Extensions/omaflake-volumes.appex"
   if [[ -e $app ]]; then
     local trash
     trash=${VM_HOME:-$HOME/.omaflake}/_to_delete/$(date +%Y%m%d-%H%M%S)-$RANDOM-omaflake-Tools.app
@@ -67,11 +73,20 @@ bundle() {
     plutil -insert CFBundleShortVersionString -string "$version" "$ext/Contents/Info.plist"
     plutil -insert CFBundleVersion -string "$build" "$ext/Contents/Info.plist"
     plutil -insert CMIOExtension -json "{\"CMIOExtensionMachServiceName\": \"$group\"}" "$ext/Contents/Info.plist"
-    # Inside out: the extension first, then the app
+    # omaflake's FSKit module (plan B190) – its entitlement is restricted like the camera's, so it goes with it
+    mkdir -p "$volumes/Contents/MacOS"
+    cp "$work/omaflake-volumes" "$volumes/Contents/MacOS/omaflake-volumes"
+    cp "$root/App/omaflake-volumes-Info.plist" "$volumes/Contents/Info.plist"
+    plutil -insert CFBundleShortVersionString -string "$version" "$volumes/Contents/Info.plist"
+    plutil -insert CFBundleVersion -string "$build" "$volumes/Contents/Info.plist"
+    # Inside out: the extensions first, then the app
     codesign --force --sign "$identity" ${release_flags[@]+"${release_flags[@]}"} --entitlements "$work/extension.entitlements" "$ext"
+    codesign --force --sign "$identity" ${release_flags[@]+"${release_flags[@]}"} --entitlements "$root/App/omaflake-volumes.entitlements" "$volumes"
     codesign --force --sign "$identity" ${release_flags[@]+"${release_flags[@]}"} --entitlements "$root/App/omaflake-tools.entitlements" "$app"
     codesign -d --entitlements - "$ext" 2>/dev/null | grep -q "$group" \
       || { echo "the camera extension lacks its app group" >&2; exit 1; }
+    codesign -d --entitlements - "$volumes" 2>/dev/null | grep -q com.apple.developer.fskit.fsmodule \
+      || { echo "the FSKit module lacks its entitlement" >&2; exit 1; }
     codesign -d --entitlements - "$app" 2>/dev/null | grep -q com.apple.developer.system-extension.install \
       || { echo "omaflake Tools.app lacks its entitlement" >&2; exit 1; }
   else
@@ -80,7 +95,7 @@ bundle() {
       || { echo "the plain omaflake Tools.app must not carry the restricted entitlement" >&2; exit 1; }
   fi
   codesign --verify --strict "$app"
-  echo "Built: $app ($version, build $build$([[ $extension == yes ]] && echo ", with the camera extension"))" >&2
+  echo "Built: $app ($version, build $build$([[ $extension == yes ]] && echo ", with the camera extension and the FSKit module"))" >&2
 }
 
 if [[ $identity == - ]]; then

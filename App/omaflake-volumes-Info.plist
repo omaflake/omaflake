@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- SPDX-License-Identifier: AGPL-3.0-or-later -->
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>CFBundleIdentifier</key>
+	<string>app.omaflake.guest.volumes</string>
+	<key>CFBundleName</key>
+	<string>omaflake Volumes</string>
+	<key>CFBundleDisplayName</key>
+	<string>omaflake Volumes</string>
+	<key>CFBundleExecutable</key>
+	<string>omaflake-volumes</string>
+	<key>CFBundlePackageType</key>
+	<string>XPC!</string>
+	<key>CFBundleInfoDictionaryVersion</key>
+	<string>6.0</string>
+	<key>LSMinimumSystemVersion</key>
+	<string>27.0</string>
+	<!-- FSKit module (plan B190): the keys as in Apple's own modules (com.apple.fskit.ftp, read in a macOS 27 guest) -->
+	<key>EXAppExtensionAttributes</key>
+	<dict>
+		<key>EXExtensionPointIdentifier</key>
+		<string>com.apple.fskit.fsmodule</string>
+		<key>EXExtensionPrincipalClass</key>
+		<string>VolumeFileSystem</string>
+		<key>FSShortName</key>
+		<string>omaflakefs</string>
+		<key>FSSupportsPathURLs</key>
+		<true/>
+		<key>FSRequiresSecurityScopedPathURLResources</key>
+		<false/>
+		<key>FSSupportsBlockResources</key>
+		<false/>
+		<key>FSSupportsGenericURLResources</key>
+		<false/>
+		<key>FSSupportsServerURLs</key>
+		<false/>
+		<key>FSPersonalities</key>
+		<dict/>
+		<key>FSMediaTypes</key>
+		<dict/>
+		<key>FSActivateOptionSyntax</key>
+		<dict>
+			<key>shortOptions</key>
+			<string>o:</string>
+		</dict>
+	</dict>
+</dict>
+</plist>

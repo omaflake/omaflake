@@ -563,21 +563,22 @@ fn path_string(p: &Path) -> String {
 
 /// The shell command that starts a macOS guest's helpers for `c`: the clipboard helper when the clipboard is on, the
 /// omaflake agent always where the image has it (it carries MIDI and the diagnosis; older images: nothing to start),
-/// and what puts the VM's volumes in the Finder's sidebar.
+/// and what shows the VM's volumes in the Finder (plan B189, B190).
 /// It ends with a check that what it started runs (after a second: the clipboard helper exits at once without its
 /// port), so ssh's exit status tells whether the start took.
 fn guest_helpers_command(c: &InstanceConfig) -> String {
     const CLIPBOARD: &str = "/run/current-system/sw/bin/omaflake-clipboard-agent";
     const AGENT: &str = "/run/current-system/sw/bin/omaflake-agent-start";
-    const FAVORITES: &str = "/run/current-system/sw/bin/omaflake-volume-favorites";
+    const SESSION: &str = "/run/current-system/sw/bin/omaflake-volumes-session";
     let mut parts = Vec::new();
     if c.clipboard_on() {
         parts.push(CLIPBOARD.to_string());
     }
     parts.push(format!("{{ [ ! -x {AGENT} ] || {AGENT}; }}"));
-    // The VM's volumes as favorites in the Finder's sidebar (plan B189; images from this fix on) – in the background,
-    // it waits for the volumes to be mounted; over SSH, since a launch agent may not add paths under /Volumes
-    parts.push(format!("{{ [ ! -x {FAVORITES} ] || nohup {FAVORITES} >/dev/null 2>&1 </dev/null & }}"));
+    // The VM's volumes in the user's session (plan B189, B190; images from this fix on): FSKit volumes in unchained
+    // images, favorites in the Finder's sidebar otherwise – in the background, it waits for the volumes to be mounted;
+    // over SSH, since a launch agent may not add favorites under /Volumes and brings a notice at every start (BM25)
+    parts.push(format!("{{ [ ! -x {SESSION} ] || nohup {SESSION} >/dev/null 2>&1 </dev/null & }}"));
     parts.push("sleep 1".into());
     let mut checks = Vec::new();
     if c.clipboard_on() {
@@ -928,7 +929,7 @@ pub(crate) mod tests {
     fn guest_helpers_start_the_agent_always_and_check_they_run() {
         let agent = "{ [ ! -x /run/current-system/sw/bin/omaflake-agent-start ] || /run/current-system/sw/bin/omaflake-agent-start; }";
         let agent_runs = "{ [ ! -x /run/current-system/sw/bin/omaflake-agent-start ] || pgrep -xq omaflake-agent; }";
-        let fav = "/run/current-system/sw/bin/omaflake-volume-favorites";
+        let fav = "/run/current-system/sw/bin/omaflake-volumes-session";
         let agent = format!("{agent}; {{ [ ! -x {fav} ] || nohup {fav} >/dev/null 2>&1 </dev/null & }}");
         let mut c = mac_config("m1", NetworkMode::Shared);
         assert_eq!(

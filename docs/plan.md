@@ -181,7 +181,7 @@ BM2–BM7 concern tart; since BM10 (tart replaced) they are background/compariso
 | BM22 | Look and Dock by hand → keys | ✅ Set by hand in a guest, then diffed `defaults export` of all domains: dark = `AppleInterfaceStyle=Dark`; graphite = `AppleAccentColor=-1`, `AppleAquaColorVariant=6`, `AppleHighlightColor`; icon style Clear = `AppleIconAppearanceTheme=ClearDark` (nix-darwin option) + `NSGlassTintAmount=0`; folder color = `AppleIconAppearanceTintColor=Graphite`; solid black wallpaper = `~/Library/Application Support/com.apple.wallpaper/Store/Index.plist` (provider `com.apple.wallpaper.choice.color`, `systemColor black`). Applied in `mac-minimal.nix` and checked in a fresh clone. | `defaults export`, `plutil` |
 | BM23 | Per-host settings in clones | ⚠️ Every clone gets a new `IOPlatformUUID` (new machine identifier) → `~/Library/Preferences/ByHost/*.<UUID>.plist` (e.g. menu bar items in `com.apple.controlcenter`: `8` = hidden) do not carry over from the image. ✅ Writing the same keys to the any-host domain works: preferences fall back to it while the per-host file has no value (checked in a fresh clone). A login LaunchAgent also worked but adds a background item (BM25). | `ioreg`, `ls ByHost` |
 | BM24 | Safari settings and favorites | ✅ Settings live in the sandbox container `~/Library/Containers/com.apple.Safari/Data/Library/Preferences/com.apple.Safari.plist` (exists from the base's first login; writable over SSH). ⚠️ On its first launch Safari imports its default favorites and **overwrites** any `~/Library/Safari/Bookmarks.plist` put there before; it only starts that import once a bookmarks file exists. → build: seed an empty file, launch Safari, wait for the import, quit, then empty Favorites/bookmarks menu with `PlistBuddy` – stays empty across launches. `/Applications/Safari.app` is a symlink (alias arrow in the Dock); the Dock uses `/System/Volumes/Preboot/Cryptexes/App/System/Applications/Safari.app`. | `plutil`, Safari |
-| BM25 | "sh can run in the background" | ⚠️ macOS lists `org.nixos.nix-daemon`, `org.nixos.activate-system` (and any `launchd.user.agents`) as background items of `/bin/sh` with "not notified" and notifies in every clone; dismissing does not change the state (`sfltool dumpbtm`). Waiting before shutdown does not help. → no own LaunchAgents; the two Nix items remain (OPEN). 2026-10-17 research: a known open nix-darwin issue – its daemons run through `/bin/sh -c` (waiting for the store), so macOS names them "sh" ([nix-darwin#1678](https://github.com/nix-darwin/nix-darwin/issues/1678), [#558](https://github.com/nix-darwin/nix-darwin/issues/558)); no fix there. Left to try: a configuration profile with managed login items (`com.apple.servicemanagement`) installed once in the base – whether macOS 27 accepts it without MDM is **OPEN** (needs one approval click in the base). | `sfltool dumpbtm`, nix-darwin issues |
+| BM25 | "sh can run in the background" | ⚠️ macOS lists `org.nixos.nix-daemon`, `org.nixos.activate-system` (and any `launchd.user.agents`) as background items of `/bin/sh` with "not notified" and notifies in every clone; dismissing does not change the state (`sfltool dumpbtm`). Waiting before shutdown does not help. → no own LaunchAgents; the two Nix items remain (OPEN). 2026-10-17 research: a known open nix-darwin issue – its daemons run through `/bin/sh -c` (waiting for the store), so macOS names them "sh" ([nix-darwin#1678](https://github.com/nix-darwin/nix-darwin/issues/1678), [#558](https://github.com/nix-darwin/nix-darwin/issues/558)); no fix there. Left to try: a configuration profile with managed login items (`com.apple.servicemanagement`) installed once in the base – whether macOS 27 accepts it without MDM is **OPEN** (needs one approval click in the base). 2026-11-27 (B190): **no** – a profile with a `com.apple.servicemanagement` payload (rules `LabelPrefix` `org.nixos.` and `app.omaflake.`) is refused when installed by hand in a macOS 27 guest: "Das Profil muss von einem durch Benutzer:in genehmigten MDM-Server stammen." A launch agent of the user's is announced again at every start of the same VM, also after the notice was dismissed (checked by the maintainer) – so omaflake's own helpers stay started over SSH. **The "sh" notices are gone (2026-11-27):** macOS names a background item after the program it starts (its record in `/private/var/db/com.apple.backgroundtaskmanagement/BackgroundItems-v18-*.btm`, an NSKeyedArchiver file anyone can read: `name`, `disposition` – 0x3 allowed and enabled, 0xb also notified); darwin-guest.nix starts every launchd job that ran `/bin/sh` through `/usr/local/libexec/omaflake` (a script outside /nix, put there by the activation), so they are "omaflake". `AssociatedBundleIdentifiers` (omaflake Tools) was ignored – most likely only with one team for program and app (OPEN, with a Developer ID). Checked on the Mac: a fresh VM of the new image and the `test` VM upgraded in place show no notice at their starts, every item recorded as notified (0xb). Not understood: a fresh VM of an image built before had `nix-daemon` and `darwin-store` at 0x3 (and the notice), those of images built since have them at 0xb – most likely the build VM's run records them (OPEN). Not needed any more: approving the items in the base, writing the database (it is not protected by SIP – writable with sudo also with it on). | `sfltool dumpbtm`, nix-darwin issues |
 | BM26 | Desktop widgets | ✅ The base's first login places Calendar, Weather and Photos: `widgets` in `~/Library/Containers/com.apple.notificationcenterui/Data/Library/Preferences/com.apple.notificationcenterui.plist` (`DesktopWidgetPlacementStorage` + `instances`). Without the key Notification Center adds them again; an empty entry (no displays, no instances) stays. `StandardHideWidgets` does not cover "click wallpaper to reveal desktop". Language/region: `AppleLanguages`/`AppleLocale` (user and `/Library/Preferences/.GlobalPreferences`); "German – Standard" = `com.apple.keylayout.German-DIN-2137` (ID −18133). | `plutil`, maintainer in the window |
 | BM27 | `VZBackend` (M10) | ✅ 2026-10-16 on `mac-minimal`: `omaf new` (APFS clone 0.4 s) → `start --wait` (SSH after 11–18 s, NAT address in `omaf list`) → `ssh` (user `test`, macOS 27.0.1) → `stop` via SSH shutdown 14 s, no dialog → restart keeps a marker file → `reset` → marker gone → `rm` to the trash. Ephemeral: marker gone after stop/start. Third macOS VM refused before starting with a clear message (BM16). `--window` passes `--window` to the runner. **Decisions:** ephemeral = fresh clone per start (old clone to the trash; ephemeral instances are cloned only at start); `isolated` refused – Virtualization.framework NAT has no restricted mode, `VZVmnetNetworkDeviceAttachment` (macOS 26) needs the vmnet entitlement ("The vmnet framework requires an entitlement", SDK header), not grantable ad hoc. Disk size of the image is kept (APFS resize in the guest: OPEN); `omaf list` shows "clone" instead of a size (the private share of an APFS clone is not cheap to read). Host name in the guest is the flavor's (`mac-minimal`), not the instance name → BM28. | `omaf` cycle, `runner.log`, SDK `VZVmnetNetworkDeviceAttachment.h` |
 | BM28 | `omaf macos install`, `omaf build` for macOS, host name per instance (M10) | ✅ 2026-10-16: `omaf build mac-minimal` (`MacImageBuilder`, replaces `scripts/macos-build-image.sh`) – closure on the Mac, clone, Nix 2.34.9, copy, activate, shutdown: ~3 min, image read-only, `current/mac-minimal` switched. Wrong sudo password: clear error after ~30 s, runner killed, build folder to the trash. `omaf macos install` reuses `mac-fresh-26A434`/`mac-base-26A434` (Apple's latest build checked via `omaf-runner latest` first); a new installation goes to `bases/.install-*` and is renamed after its build. Host name: nix-darwin sets `HostName`/`LocalHostName` only in the activation script (`nix eval …activationScripts.networking.text`), so every clone kept `mac-minimal`; `omaf wait`/`start --wait` now set HostName, LocalHostName and ComputerName to the instance name via `scutil` (narrow `NOPASSWD` rule in `darwin-guest.nix`; older images keep the flavor's name). Checked: `new → start --wait → ssh` (all three names `m10a`) → stop/start keeps a marker → `reset` → marker gone → `rm`; ephemeral: marker gone, name set again after every start. The full install from an IPSW was not rerun (the base exists, M7/M8). | `omaf` cycle, `~/.omaflake/logs/build-*.log` |
@@ -505,6 +505,71 @@ DHCP server on the segment, SSH from the Mac to reach, a Go binary to ship – i
 real VMs); the camera over vsock – H.264 (B174) made the camera smooth at 30 fps, so vsock waits for the measurement on
 the Mac (VsockBench) to show it is needed; dragging in the Linux app and `omaf ui`. To try on the Mac: everything
 marked OPEN in B164, B178–B182 (they need images built with 0.8.0).
+
+**B191 (2026-11-27, proposed for after the Developer ID (M12) – not decided, not built): an MDM of omaflake's own
+for macOS guests.** Why: managed login items need a user-approved MDM (a profile installed by hand is refused, BM25,
+B190), and an MDM would take away several approvals at once. *Idea:* omaflake runs a small MDM server on the host
+(e.g. NanoMDM or MicroMDM); each macOS VM enrolls once (an enrollment profile, approved by the user – user-approved
+MDM) and then gets profiles a hand-installed one may not carry: managed login items (no background item notices,
+BM25 – own launch agents without that cost), privacy preferences (PPPC – e.g. network volumes, B189's favorites;
+Accessibility, Screen Recording), a system extension policy (the camera extension without its click, B184 – with a
+team id), managed preferences where nix-darwin has no option (BM22, BM23). *Not solved by it:* the restricted
+entitlements (B190's FSKit module) – they need the signature. *Hurdles:* Apple's MDM wakes devices only through APNs,
+so the server needs an MDM push certificate – a CSR signed by an MDM vendor (officially the Apple Developer Enterprise
+Program) and uploaded with an Apple ID, renewed yearly; for open source every user would need their own (OPEN: a way
+without the Enterprise Program); whether an enrolled base carries its enrollment to clones with their new machine
+identifiers (BM23) or every clone enrolls and is approved anew (OPEN); a server of its own (certificates, SCEP or
+identities, the command queue), the enrollment in image builds, renewals; "this Mac is managed" shown in every guest,
+and the server's rights over all VMs. *To decide with M12:* whether it is worth it, and as an option for users who
+want it.
+
+**B190 (2026-11-27, built for the next release in unchained images; checked on the Mac – see *Built*): volumes
+under Locations through FSKit.** The
+maintainer: each volume should show in the Finder like an external disk, as "My Shared Files" did (B189 made them
+favorites for now); the extension may need a Developer ID – "dann ist es erstmal nur für die unchained Images nutzbar".
+*What FSKit offers (macOS 27.2 SDK):* `FSPathURLResource` (FSKit V2) – a file system over a folder, no block device;
+Info.plist `EXAppExtensionAttributes` keys read from Apple's own modules in a guest (`com.apple.fskit.ftp`:
+`FSSupportsPathURLs`, `FSRequiresSecurityScopedPathURLResources`, `FSSupportsGenericURLResources`,
+`FSActivateOptionSyntax`); `FSClient.mountSingleVolume` (V3, entitlement `com.apple.developer.fskit.mount`) mounts in
+/Volumes; `mount -F -t <FSShortName> <folder> <mount point>` from the shell.
+*Prototype (outside the repository, like B184's camera):* a passthrough module in Swift (`FSUnaryFileSystem`,
+`FSVolume.Operations` and `.ReadWriteOperations` – deprecated in macOS 27 in favour of the `…Handler` protocols, they
+still work), in an app's `Contents/Extensions/*.appex`, sandboxed with a read-write exception for `/Volumes/`, signed
+ad hoc. Checked in macOS 27 guests:
+- *Enabled:* FSKit runs only modules in `~/Library/Group Containers/group.com.apple.fskit.settings/enabledModules.plist`
+  (what the switch in System Settings writes; "Module … is disabled!" otherwise); `fskit_agent` reads it at its start
+  (`launchctl kickstart -k user/<uid>/com.apple.fskit.fskit_agent`).
+- *Signature:* ad hoc, launchd refuses to start the extension – "Security policy issue" (163) – with System Integrity
+  Protection on **and** off: the entitlement `com.apple.developer.fskit.fsmodule` is restricted. It starts with
+  `amfi_get_out_of_my_way=1` in the boot arguments (an unchained VM, set by hand). So: a Developer ID with a
+  provisioning profile (M12), until then only unchained VMs with that boot argument.
+- *Start:* not as a Swift `@main AppExtension` (it trapped in `_EXRunningExtension._shared`), and not with an own
+  `main` calling `NSExtensionMain` (endless recursion) – like Apple's modules: entry point `_NSExtensionMain` (linker
+  `-e`), an Objective-C principal class (`EXExtensionPrincipalClass`).
+- *Result:* `mount -F -t omaflakefs /Volumes/plattentest ~/m` → `omaflakefs, local, …, fskit, mounted by <user>`;
+  `NSURLVolumeIsLocalKey` true (the virtio-fs mount below it: false), and **the Finder lists it under Locations like
+  an external disk** (seen by the maintainer). Reading, creating, appending, truncating, mode, times, renaming a
+  folder with its contents, symlinks and removing reach the host's folder. Reading a fresh 256 MB file: 1.1 GB/s
+  through FSKit, 3.6 GB/s through virtio-fs (both partly cached – an indication only).
+- *Side effects:* macOS makes `.fseventsd` (and the Finder `.Trashes` when it deletes) on the volume (it lands in the host's folder; `no_log` – OPEN); files the
+  sandboxed extension creates carry `com.apple.quarantine` on the host (to take off in the module – OPEN).
+*Built:* the module `Sources/omaflake-volumes/` (`VolumeFileSystem`, the prototype's passthrough; files it makes
+lose `com.apple.quarantine`), `App/omaflake-volumes-Info.plist` and `.entitlements` (sandbox exception for
+`/private/var/omaflake/volumes/`); `scripts/bundle-tools.sh` compiles it with swiftc and puts it into the unchained
+omaflake Tools (`Contents/Extensions/omaflake-volumes.appex`) – the same source as a SwiftPM executable trapped in
+ExtensionFoundation at its start (OPEN why; Package.swift keeps it as a library target, compiled only). An unchained
+image build sets `amfi_get_out_of_my_way=1` in the build VM's NVRAM, which its clones copy (checked), an upgrade in
+place to an unchained image does so for its next start. In the guest (darwin-guest.nix) `omaflake-volumes` mounts the
+volumes hidden at `/private/var/omaflake/volumes/<tag>` when the module is there and AMFI lets it start, and makes
+`/Volumes/<tag>` for the user; `omaflake-volumes-session` (started over SSH with the guest helpers – a launch agent
+would bring a notice at every start, BM25) registers the module, mounts each as `omaflakefs` at `/Volumes/<tag>` and
+switches the module on when FSKit says it is off (it makes `enabledModules.plist` at its first use in a fresh VM).
+Normal images stay at virtio-fs and favorites (B189). Checked on the Mac: a fresh VM of an unchained image with two
+volumes mounts both as `omaflakefs` at `/Volumes/<name>` by itself, writes reach the host's folder, and the Finder
+lists both under Locations (seen by the maintainer). OPEN: files written through the volume still carry
+`com.apple.quarantine` on the host (taking it off in the module did not hold – most likely the sandbox); hard links, xattrs, the `…Handler` protocols, many files
+at once, `.fseventsd` on the volume. The Finder copies a file onto the volume and deletes it again (checked by the
+maintainer).
 
 **B189 (2026-11-27, fix after 0.8.1): no VM saw its volumes after the upgrade.** The maintainer: "Keine VM hat Zugriff
 auf deren Volume derzeit." *Causes:* (1) images from before 0.8.1 have no `omaflake-volumes` daemon, and 0.8.1's runner no longer gives

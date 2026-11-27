@@ -52,6 +52,11 @@ let package = Package(
             name: "omaflake-tools",
             linkerSettings: [.linkedFramework("SystemExtensions"), .linkedFramework("AppKit")]
         ),
+        // For unchained macOS guests (plan B190): omaflake's FSKit module – each volume a volume of its own under the
+        // Finder's Locations. Here only compiled (checked); the extension's binary is made by scripts/bundle-tools.sh
+        // with swiftc and the entry point NSExtensionMain, as Apple's modules have it – the same source as a SwiftPM
+        // executable trapped in ExtensionFoundation at its start (checked in a macOS 27 guest; why: OPEN)
+        .target(name: "omaflake-volumes", linkerSettings: [.linkedFramework("FSKit")]),
         .testTarget(name: "OmaflakeKitTests", dependencies: ["OmaflakeKit"]),
     ]
 )

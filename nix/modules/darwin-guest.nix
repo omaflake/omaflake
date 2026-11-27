@@ -2,10 +2,13 @@
 # Guest module for macOS recipes (nix-darwin), applied on top of a base (docs/macos-base.md, spec §6.5).
 # The guest user (`macUser`, set by omaflake from the base) already exists in the base (created by provisioning); nix-darwin does not manage it
 # (it is not in users.knownUsers), it only adds settings for it.
-{ lib, pkgs, settings, ... }:
+{ config, lib, pkgs, settings, ... }:
 
 let
   user = settings.macUser;
+  # omaflake's FSKit module in omaflake Tools (unchained images, plan B190) and where its volumes' folders are mounted
+  fskitModule = "/Applications/omaflake Tools.app/Contents/Extensions/omaflake-volumes.appex";
+  fskitVolumes = "/private/var/omaflake/volumes";
   # The omaflake agent (spec §11.9): in macOS guests it carries MIDI (plan B161)
   omaflakeAgent = pkgs.callPackage ../agent/package.nix { };
 
@@ -100,22 +103,56 @@ in
     # added whose volume is gone (its list in Application Support) – the user's own favorites stay. omaflake starts it
     # over SSH with the helpers above, after each start (volumes change only then): from a launch agent the favorites
     # took no path under /Volumes (checked in a macOS 27 guest – /tmp worked, so most likely the privacy rules for
-    # network volumes; OPEN), over SSH they do. It waits up to 30 s for the volumes omaflake-volumes mounts.
-    (pkgs.writeShellScriptBin "omaflake-volume-favorites" ''
+    # network volumes; OPEN), over SSH they do – and a launch agent would bring a background item notice at every
+    # start (BM25). It waits up to 30 s for the volumes omaflake-volumes mounts.
+    # Plan B190: where the volumes' folders are hidden (an unchained image with omaflake's FSKit module), it first
+    # mounts each as a volume of the module at /Volumes/<tag> – under Locations like an external disk; it registers
+    # the module and switches it on (FSKit runs only modules in the user's enabledModules.plist – what System
+    # Settings writes – and fskit_agent reads that at its start). Those are no favorites.
+    (pkgs.writeShellScriptBin "omaflake-volumes-session" ''
+      mkdir -p "$HOME/Library/Logs/omaflake"
+      exec >> "$HOME/Library/Logs/omaflake/volumes-session.log" 2>&1
       tags=$(/usr/sbin/ioreg -r -c AppleVirtIOFS -d 1 2>/dev/null | /usr/bin/grep -c '"AppleVirtIOFSTag"' || true)
       n=0
-      while [ "$(/sbin/mount | /usr/bin/grep -c '^virtio-fs on /Volumes/')" -lt "''${tags:-0}" ] && [ "$n" -lt 15 ]; do
+      while [ "$(/sbin/mount | /usr/bin/grep -c '^virtio-fs on ')" -lt "''${tags:-0}" ] && [ "$n" -lt 15 ]; do
         n=$((n + 1)); /bin/sleep 2
       done
+      if [ -d ${fskitVolumes} ] && [ -d "${fskitModule}" ]; then
+        if ! /usr/bin/pluginkit -m -i app.omaflake.guest.volumes | /usr/bin/grep -q volumes; then
+          /System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister \
+            -f -R "/Applications/omaflake Tools.app"
+          /usr/bin/pluginkit -a "${fskitModule}"
+          /bin/sleep 2
+        fi
+        # FSKit makes enabledModules.plist at its first use in a fresh VM (checked) – so: mount, and when the module is
+        # off, switch it on and try again
+        enable() {
+          enabled="$HOME/Library/Group Containers/group.com.apple.fskit.settings/enabledModules.plist"
+          [ -f "$enabled" ] || return 0
+          /usr/bin/plutil -p "$enabled" | /usr/bin/grep -q '"app.omaflake.guest.volumes"' && return 0
+          /usr/bin/plutil -insert 0 -string app.omaflake.guest.volumes "$enabled"
+          /bin/launchctl kickstart -k "user/$(/usr/bin/id -u)/com.apple.fskit.fskit_agent"
+          echo "$(date): switched the FSKit module on"
+          /bin/sleep 3
+        }
+        for folder in ${fskitVolumes}/*; do
+          [ -d "$folder" ] || continue
+          tag=$(/usr/bin/basename "$folder")
+          /sbin/mount | /usr/bin/grep -qF " on /Volumes/$tag (" && continue
+          for try in 1 2 3 4 5; do
+            /sbin/mount -F -t omaflakefs "$folder" "/Volumes/$tag" && { echo "$(date): mounted $tag"; break; }
+            enable
+            /bin/sleep 2
+          done
+        done
+      fi
       set --
       while IFS= read -r p; do
         [ -n "$p" ] && set -- "$@" "$p"
       done <<EOF
       $(/sbin/mount | /usr/bin/sed -n 's|^virtio-fs on \(/Volumes/.*\) (AppleVirtIOFS.*|\1|p')
       EOF
-      mkdir -p "$HOME/Library/Logs/omaflake"
-      exec >> "$HOME/Library/Logs/omaflake/volume-favorites.log" 2>&1
-      echo "$(date): volumes: $*"
+      echo "$(date): favorites: $*"
       exec /usr/bin/osascript -l JavaScript ${pkgs.writeText "omaflake-volume-favorites.js" ''
       // argv: <state file> <mounted volume path>... – keeps the Finder sidebar's favorites in step with the volumes
       ObjC.import('CoreServices');
@@ -217,6 +254,29 @@ in
   power.sleep.display = "never";
   system.defaults.screensaver.askForPassword = false;
 
+  # Background items under a name (plan BM25): macOS announces every launch daemon as a background item, named after
+  # the program it starts – nix-darwin's own and omaflake's run through /bin/sh (they wait for the Nix store) and were
+  # announced as "sh". They start through /usr/local/libexec/omaflake instead – outside /nix, so it is there at boot –
+  # and are announced as "omaflake" (checked in a macOS 27 guest: a job started through a script of that kind is
+  # recorded under the script's name). AssociatedBundleIdentifiers (omaflake Tools) was ignored: most likely macOS
+  # takes it only when the program and the app share a team (OPEN, with a Developer ID). nix-darwin has no option for
+  # a job's plist beyond its serviceConfig, so the plists of the jobs that start /bin/sh are written again.
+  system.activationScripts.extraActivation.text = lib.mkAfter ''
+    mkdir -p /usr/local/libexec
+    install -m 0755 ${pkgs.writeText "omaflake-launchd-start" ''
+      #!/bin/sh
+      # omaflake's start for launchd jobs (plan BM25): macOS names a background item after this file
+      exec "$@"
+    ''} /usr/local/libexec/omaflake
+  '';
+  environment.launchDaemons = lib.mapAttrs' (_: daemon: {
+    name = "${daemon.serviceConfig.Label}.plist";
+    value.text = lib.mkForce (lib.generators.toPlist { escape = true; } (daemon.serviceConfig
+      // lib.optionalAttrs (lib.take 1 (daemon.serviceConfig.ProgramArguments or [ ]) == [ "/bin/sh" ]) {
+        ProgramArguments = [ "/usr/local/libexec/omaflake" ] ++ daemon.serviceConfig.ProgramArguments;
+      }));
+  }) config.launchd.daemons;
+
   # Cards on omaflake's networks between VMs (spec §11.12) come and go with the VM's networks: at every boot macOS
   # gets a network service (DHCP) for a card it has not seen. The switch hands out no router, so the default route
   # stays on the VM's own NAT. OPEN: checked in a guest with a second card.
@@ -232,7 +292,9 @@ in
   # not found (exit 127, the 0.8.1 images), so it waits for /nix/store like nix-darwin's own daemons
   # (`/bin/wait4path`); the devices may not be in the I/O Registry yet either – it waits up to a minute for them.
   # Each is mounted by root with the guest user as the owner of its files (`-u`/`-g`; checked in a macOS 27 guest: the
-  # host's files writable by the user).
+  # host's files writable by the user). Plan B190: where omaflake Tools carries the FSKit module and AMFI lets it start
+  # (an unchained image: the boot argument), the virtio-fs mount is hidden at ${fskitVolumes}/<tag> and /Volumes/<tag> is
+  # left to the user's session, which mounts the module's volume over it (omaflake-volumes-session).
   launchd.daemons.omaflake-volumes.serviceConfig = {
     ProgramArguments = [ "/bin/sh" "-c" "/bin/wait4path /nix/store && exec /bin/sh ${pkgs.writeText "omaflake-volumes.sh" ''
       set -u
@@ -247,17 +309,29 @@ in
           printf '%s\n' "$tag"
         done
       }
+      fskit=no
+      if [ -d "${fskitModule}" ] && /usr/sbin/nvram boot-args 2>/dev/null | /usr/bin/grep -q amfi_get_out_of_my_way=1; then
+        fskit=yes
+        /bin/mkdir -p ${fskitVolumes}
+        /bin/chmod 755 /private/var/omaflake ${fskitVolumes}
+      fi
       n=0
       while [ -z "$(tags)" ] && [ "$n" -lt 30 ]; do n=$((n + 1)); /bin/sleep 2; done
       tags | while IFS= read -r tag; do
-        /sbin/mount | /usr/bin/grep -qF " on /Volumes/$tag (" && continue
-        /bin/mkdir -p "/Volumes/$tag"
-        /usr/sbin/chown ${user}:staff "/Volumes/$tag"
-        if /sbin/mount_virtiofs -u ${user} -g staff "$tag" "/Volumes/$tag"; then
-          echo "$(date): mounted $tag"
+        at="/Volumes/$tag"
+        if [ "$fskit" = yes ]; then
+          at="${fskitVolumes}/$tag"
+          /bin/mkdir -p "/Volumes/$tag"
+          /usr/sbin/chown ${user}:staff "/Volumes/$tag"
+        fi
+        /sbin/mount | /usr/bin/grep -qF " on $at (" && continue
+        /bin/mkdir -p "$at"
+        /usr/sbin/chown ${user}:staff "$at"
+        if /sbin/mount_virtiofs -u ${user} -g staff "$tag" "$at"; then
+          echo "$(date): mounted $tag at $at"
         else
           echo "$(date): could not mount $tag"
-          /bin/rmdir "/Volumes/$tag" 2>/dev/null
+          /bin/rmdir "$at" 2>/dev/null
         fi
       done
     ''}" ];

@@ -18,6 +18,11 @@ are collected under *Unreleased*. Releases: [GitHub](https://github.com/omaflake
 - macOS VMs see their volumes again, each at `/Volumes/<name>`: the guest's launch daemon ran before the Nix store was
   mounted and mounted nothing; it now waits for it and for the devices, and mounts them as the guest user. The same
   fault kept a larger disk from being taken (B164). Rebuild your macOS images and upgrade their VMs.
+- No "sh can run in the background" notice in macOS VMs any more: the launchd jobs of the image start through
+  omaflake's own start script and are listed as "omaflake".
+- Unchained macOS VMs show each volume under Locations in the Finder, like an external disk: omaflake Tools brings
+  an FSKit file system of omaflake's (signed ad hoc, it needs the boot argument the image sets; with a Developer ID
+  later in every VM).
 - A macOS VM's volumes are favorites in the Finder's sidebar (macOS lists only "My Shared Files" under Locations).
 - Upgrading a macOS VM in place works: the guest's Nix refused the new system, since nix-darwin had dropped the guest
   user from its trusted users. Images now keep it, and VMs from before are let in during the upgrade.

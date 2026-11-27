@@ -1065,7 +1065,7 @@ impl Server {
                         GuestKind::Nixos => None,
                     };
                     let ssh = backend.ssh_arguments(&c, &[]);
-                    up.apply(&c, &system, &store, &ssh, password.as_deref(), &*log)?;
+                    up.apply(&c, &system, image.info.unchained, &store, &ssh, password.as_deref(), &*log)?;
                     c.system_image = Some(image.name.clone());
                     backends.store.save(&c)
                 })

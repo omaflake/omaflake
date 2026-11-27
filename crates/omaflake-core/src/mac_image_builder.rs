@@ -99,6 +99,11 @@ impl MacImageBuilder {
         MacImageBuilder { paths, vz }
     }
 
+    /// Adds `amfi_get_out_of_my_way=1` to the guest's boot arguments, keeping the others (plan B190)
+    pub(crate) const AMFI_BOOT_ARGUMENT_COMMAND: &'static str = "cur=$(/usr/sbin/nvram boot-args 2>/dev/null | cut -f2-); \
+         case \" $cur \" in *\" amfi_get_out_of_my_way=1 \"*) ;; \
+         *) sudo /usr/sbin/nvram boot-args=\"${cur:+$cur }amfi_get_out_of_my_way=1\" ;; esac";
+
     /// `ImageStore::image_name`, with words of their own for an image from an unchained base
     pub fn image_name(recipe: &str, system: &str, unchained: bool) -> String {
         if unchained {
@@ -632,6 +637,13 @@ impl MacImageBuilder {
                 }
             }
             None => log("No omaflake Tools in this omaflake – the image gets none"),
+        }
+        // An unchained image's FSKit module (plan B190) is signed ad hoc, and launchd starts an extension with its
+        // restricted entitlement only when AMFI lets it: the boot argument amfi_get_out_of_my_way=1, which needs System
+        // Integrity Protection off – as in an unchained base. It is in the VM's NVRAM, which its clones copy.
+        if unchained {
+            log("Letting the FSKit module of omaflake Tools start (boot argument)");
+            vm.check(Self::AMFI_BOOT_ARGUMENT_COMMAND, "setting the boot argument for the FSKit module")?;
         }
 
         // 6. Remove the sudo rule, shut down
