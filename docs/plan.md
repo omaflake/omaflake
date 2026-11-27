@@ -539,6 +539,15 @@ look without VMs; OPEN: checked on the Mac with a restart in the guest and the a
 `--idle-exit` (no launch agent installed) still ends after its idle time – a later restart in the guest then waits for
 the next client.
 
+**B195 (2026-11-27, found by the maintainer): pages taller than the window.** The diagnosis (nine checks with hints and
+the log), a build with notes and the macOS base page were plain stacks: taller than the window, they grew past its top
+– the page header with the way back out of reach, no scrolling. They are now in `PageScroll` (Components.swift):
+`ViewThatFits` – the page as it is while it fits (its log fills the room left), scrolled as a whole otherwise (the log
+at its minimum height, 160 – the build page's log has one now too). The other pages are forms and scroll themselves.
+`swift build` and `swift test` green with Xcode 27.2 (`CoreClientTests.coreIdentityComparison` compared with
+`/usr/local/bin/omaf`, which links to the app where it is installed – now a path that exists nowhere). OPEN: the look
+checked in the app.
+
 **B196 (2026-11-27): the app icons in Liquid Glass.** macOS 26+ draws app icons from layers (Icon Composer's `.icon`
 document, compiled into the asset catalog); a flat `.icns` only shows as a picture inside the system's tile.
 *Checked on the Mac (macOS 27.2.1, Xcode 27.2 – it is installed there, with Icon Composer 27.2):* `actool` takes a

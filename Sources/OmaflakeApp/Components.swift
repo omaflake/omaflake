@@ -300,6 +300,20 @@ struct LogView: View {
     }
 }
 
+/// A page laid out as it is while it fits and scrolled as a whole when it does not (plan B195): a page taller than the
+/// window (the diagnosis with its hints, a build with notes) otherwise grew past the window's top – out of reach, and
+/// the way back with it. Its log fills the room left while the page fits and keeps its minimum height when it scrolls.
+struct PageScroll<Content: View>: View {
+    @ViewBuilder let content: () -> Content
+
+    var body: some View {
+        ViewThatFits(in: .vertical) {
+            content()
+            ScrollView { content() }
+        }
+    }
+}
+
 struct LogTextView: NSViewRepresentable {
     let text: String
 

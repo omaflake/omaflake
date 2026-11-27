@@ -330,6 +330,10 @@ struct BuildView: View {
     let model: AppModel
 
     var body: some View {
+        PageScroll { content }
+    }
+
+    private var content: some View {
         VStack(alignment: .leading, spacing: BrandTokens.Spacing.xxl) {
             // What – the recipe with its guest kind, always the one it was opened for (plan B100) – and, on the same
             // line, go: build (a macOS recipe asks the password in a question) or cancel; other recipes can be queued
@@ -369,7 +373,7 @@ struct BuildView: View {
             } else if let newest = page.newest {
                 Text(verbatim: model.t(newest)).font(.caption).foregroundStyle(.secondary).lineLimit(1).truncationMode(.middle)
             }
-            JobLogView(log: page.log, model: model)
+            JobLogView(log: page.log, model: model, minHeight: 160)
         }
         .padding(BrandStyle.margin)
     }
@@ -595,6 +599,10 @@ struct DiagnosticsView: View {
     let model: AppModel
 
     var body: some View {
+        PageScroll { content }
+    }
+
+    private var content: some View {
         VStack(alignment: .leading, spacing: BrandTokens.Spacing.xl) {
             HStack(alignment: .firstTextBaseline, spacing: BrandTokens.Spacing.l) {
                 VStack(alignment: .leading, spacing: BrandTokens.Spacing.xxs) {
@@ -695,6 +703,11 @@ struct MacBaseView: View {
     let model: AppModel
 
     var body: some View {
+        PageScroll { content }
+            .onAppear { model.checkDoctor() }
+    }
+
+    private var content: some View {
         VStack(alignment: .leading, spacing: BrandTokens.Spacing.xxl) {
             HelpNote(page.intro, model: model)
             if let base = page.base {
@@ -725,7 +738,6 @@ struct MacBaseView: View {
             JobLogView(log: page.log, model: model, minHeight: 160)
         }
         .padding(16)
-        .onAppear { model.checkDoctor() }
     }
 }
 

@@ -245,7 +245,8 @@ struct CoreClientTests {
         other.size = 999
         #expect(!own.isSame(as: other))
         other = own
-        other.executable = "/usr/local/bin/omaf"
+        // A path that exists nowhere: isSame resolves links, and /usr/local/bin/omaf links to the app where it is installed
+        other.executable = "/nonexistent/omaflake-test/bin/omaf"
         #expect(!own.isSame(as: other))
         other = own
         other.modified = "2026-11-22T10:00:01Z"
