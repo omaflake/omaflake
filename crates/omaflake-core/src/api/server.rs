@@ -682,7 +682,9 @@ impl Server {
                         return Ok(None);
                     }
                     let started = vz.start_guest_helpers(&c, &host);
-                    if let Err(why) = &started {
+                    if let Err(why) = &started
+                        && why != crate::vz_backend::GUEST_NOT_READY
+                    {
                         s.log_helper_failure(&c, pid, why);
                     }
                     Ok(Some((pid, started)))

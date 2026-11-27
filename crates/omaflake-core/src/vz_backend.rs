@@ -326,6 +326,8 @@ impl VzBackend {
         let Some((exe, rest)) = args.split_first() else { return Err("no ssh".into()) };
         match Shell::run(exe, rest, &RunOptions::default()) {
             Ok(r) if r.status == 0 => Ok(()),
+            // The guest's system is not activated yet (an early start): not a failure, the next look tries again
+            Ok(r) if r.status == NOT_READY_STATUS => Err(GUEST_NOT_READY.into()),
             Ok(r) => {
                 let why = r.stderr.trim();
                 Err(if why.is_empty() {
@@ -571,7 +573,9 @@ fn guest_helpers_command(c: &InstanceConfig) -> String {
     const CLIPBOARD: &str = "/run/current-system/sw/bin/omaflake-clipboard-agent";
     const AGENT: &str = "/run/current-system/sw/bin/omaflake-agent-start";
     const SESSION: &str = "/run/current-system/sw/bin/omaflake-volumes-session";
-    let mut parts = Vec::new();
+    // Right after the guest's start SSH can answer before nix-darwin made /run/current-system: then say so with a status
+    // of its own instead of failing on the first helper (it was logged as a failed start at every start)
+    let mut parts = vec![format!("[ -d /run/current-system/sw/bin ] || exit {NOT_READY_STATUS}")];
     if c.clipboard_on() {
         parts.push(CLIPBOARD.to_string());
     }
@@ -592,6 +596,11 @@ fn guest_helpers_command(c: &InstanceConfig) -> String {
     parts.push(checks.join(" && "));
     parts.join("; ")
 }
+
+/// The exit status of the guest helpers' command while the guest's system is not activated yet
+const NOT_READY_STATUS: i32 = 75;
+/// `start_guest_helpers`' error for a guest whose system is not activated yet – not worth a log line
+pub const GUEST_NOT_READY: &str = "the guest's system is not activated yet";
 
 /// Appends a line with the time to a VM's runner.log (best effort)
 fn note_in_runner_log(file: &Path, line: &str) {
@@ -933,16 +942,17 @@ pub(crate) mod tests {
         let agent_runs = "{ [ ! -x /run/current-system/sw/bin/omaflake-agent-start ] || pgrep -xq omaflake-agent; }";
         let fav = "/run/current-system/sw/bin/omaflake-volumes-session";
         let agent = format!("{agent}; {{ [ ! -x {fav} ] || nohup {fav} >/dev/null 2>&1 </dev/null & }}");
+        let ready = "[ -d /run/current-system/sw/bin ] || exit 75";
         let mut c = mac_config("m1", NetworkMode::Shared);
         assert_eq!(
             guest_helpers_command(&c),
             format!(
-                "/run/current-system/sw/bin/omaflake-clipboard-agent; {agent}; sleep 1; pgrep -f 'clipboard-agent-macos[.]py' >/dev/null && {agent_runs}"
+                "{ready}; /run/current-system/sw/bin/omaflake-clipboard-agent; {agent}; sleep 1; pgrep -f 'clipboard-agent-macos[.]py' >/dev/null && {agent_runs}"
             )
         );
         c.midi = Some(true);
         c.clipboard = Some(false);
-        assert_eq!(guest_helpers_command(&c), format!("{agent}; sleep 1; {agent_runs}"));
+        assert_eq!(guest_helpers_command(&c), format!("{ready}; {agent}; sleep 1; {agent_runs}"));
         // The command never holds the helper's name as such: its start script's `pgrep -f clipboard-agent-macos.py`
         // would take this very shell for a running helper
         c.clipboard = Some(true);

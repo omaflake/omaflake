@@ -593,6 +593,11 @@ start's `wait_for_ssh` and the service's guest helpers (B194) – asks `Ports::s
 fresh `/usr/bin/nc` (macOS only). When only the helper gets the greeting the build goes on – its SSH and `nix copy`
 are processes of their own – and its log says so. Test: the helper reads a greeting from a local listener. OPEN: the
 cause; whether the helper gets through when the service does not (seen only from a shell, not yet from the service).
+*Checked with the development app (`~/.omaflake-dev`, 2026-11-27):* an image built at the first try; B194's VM started
+with `omaf start` (no `--wait`, no app) said hello after 37 s, after a restart after 26 s, the diagnosis all green with
+the camera ready. Found there: every start logged "the guest helpers did not start" – the service's first try came
+before nix-darwin had made `/run/current-system` in the guest. The helpers' command now exits 75 then
+(`GUEST_NOT_READY`), which is tried again without a log line.
 Also seen: with `omaf config --flake <checkout>/nix` the image flake reads the developer's `nix/local/settings.nix`,
 whose `macUser` named the user of an older development base – activation stopped ("primary user … does not exist").
 Building with the app's image flake and the local catalog as a source avoids it.
