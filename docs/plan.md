@@ -488,7 +488,8 @@ Lume (trycua) only after a license review (OPEN).
 
 ## 8. Next steps (as of 2026-11-26)
 
-**Release 0.8.1 (2026-11-27, built locally for the maintainer's test – not tagged):** B183 (the camera with OBS:
+**Release 0.8.1 (2026-11-27, published: tag v0.8.1, the unsigned app on GitHub and omaflake.app's update.json,
+every crate on crates.io – B192):** B183 (the camera with OBS:
 Metal, the agent decoding H.264, the agent's log kept) and B184 (omaflake Tools and omaflake's own camera
 extension; unchained copies of images and bases, Recovery without hands, `omaf start --recovery`). Maintainer:
 "mache ein Release 0.8.1 fertig, dass ich erstmal lokal testen kann". OPEN until tried: the whole unchain job in the
@@ -508,7 +509,23 @@ real VMs); the camera over vsock – H.264 (B174) made the camera smooth at 30 f
 the Mac (VsockBench) to show it is needed; dragging in the Linux app and `omaf ui`. To try on the Mac: everything
 marked OPEN in B164, B178–B182 (they need images built with 0.8.0).
 
-**B192 (2026-11-27, built for 0.8.1; first publish OPEN): omaflake's crates on crates.io.** The maintainer: falkOSS's other projects
+**B193 (2026-11-27, found while testing the catalog's Docker modules; OPEN): ports of other VMs in a macOS VM.** The
+catalog's `nixos/docker` 1.1.0 and `docker-client` (both platforms) checked on the Mac with a local source: a Docker
+VM, a NixOS and a macOS client in one network (`dockertest`), the forward `2375=<docker VM>`, one volume in all three.
+NixOS client: everything works – `docker` through `127.0.0.1:2375`, a container's bind mount of `/Volumes/<name>`
+reaching the host, a container with `restart: always` up after the Docker VM's reboot and seeing the volume's files
+(the engine started after omaflake-volumes.service). macOS client: the shell has `DOCKER_HOST`, and the Docker VM is
+reachable at its network address (`curl` over SSH), **but the forward fails**: the agent's connections to
+`10.231.2.10:2375` end in "No route to host" (EHOSTUNREACH), the client sees "connection reset by peer". At the VM's
+start that is right (the second card has no address yet), but it stays so: a restarted agent connected once and then
+failed again, while `curl` from the SSH session kept reaching the address. Most likely macOS's privacy rule for the
+local network refuses the agent (a program without an app's identity, started from SSH and then detached) – OPEN:
+the log does not say so in plain words. Ideas: the agent inside omaflake Tools (an app identity, the usage text for
+the local network) or an MDM profile (B191); retrying a failed connection in any case. Also OPEN: `DOCKER_HOST` for
+apps started from the Finder in a macOS VM (nix-darwin's `launchctl setenv` at activation is gone after the login;
+a launch agent would bring BM25's notice).
+
+**B192 (2026-11-27, done with 0.8.1): omaflake's crates on crates.io.** The maintainer: falkOSS's other projects
 (kernoid, aktujo, verkodo) have their crates on crates.io, omaflake was the odd one out. *Decided:* every crate is
 published, in step with omaflake's version (like aktujo: the crate with the project's name is the program, the rest
 `omaflake-…`):
@@ -545,7 +562,8 @@ writes them. Every crate has its README, keywords and categories; `cargo package
 package build (checked). CI job `crates` (ci.yml, on a tag `v*`, environment `crates-io`, after linux, dependencies,
 licences): checks the tag is on main and names the version, publishes in dependency order (macros, i18n, sdk, core,
 tui, omaflake, gui with `--no-verify`, agent), skipping what is there. Placeholders 0.0.0 of all eight published by
-hand (2026-11-27).
+hand (2026-11-27), then 0.8.1 of all eight by the `crates` job of the tag v0.8.1 (Trusted Publishing, approved by
+the maintainer) and the placeholders yanked; the token is revoked.
 
 **B191 (2026-11-27, proposed for after the Developer ID (M12) – not decided, not built): an MDM of omaflake's own
 for macOS guests.** Why: managed login items need a user-approved MDM (a profile installed by hand is refused, BM25,
@@ -669,7 +687,8 @@ Docker out of omaflake: no `DOCKER_HOST` line in the networks' details, examples
 Buildx, `DOCKER_HOST=tcp://127.0.0.1:2375` through the forward `2375=<docker VM>`, B180).
 *OPEN:* a macOS guest's volume mounted by root with `mount_virtiofs` – owner and permissions for the user; NixOS guests
 with several 9p devices; images before 0.8.1 mount nothing (rebuild); the Docker VM's daemon starting before the
-volumes are mounted (bind mounts of a container started at boot).
+volumes are mounted (bind mounts of a container started at boot) – fixed in the catalog's `nixos/docker` 1.1.0
+(2026-11-27: docker.service after omaflake-volumes.service and started at boot; checked on the Mac, B193).
 
 **B188 (2026-11-27, proposed for later – not this release): vaults and protected VMs.** The maintainer: someone else
 at this computer (a partner, a guest) should neither see sensitive files in the Finder nor start a sensitive VM.
