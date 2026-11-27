@@ -129,7 +129,7 @@ struct APIContractTests {
             },
             "sources.check": {
                 let c: SourceChecks = try load("sources.check")
-                #expect(c.results["github:omaflake/recipes@main"]?.ok == true && c.results.count == 2)
+                #expect(c.results["github:omaflake/catalog@main"]?.ok == true && c.results.count == 2)
             },
             "packages.inspect": {
                 let i: PackageInspection = try load("packages.inspect")
@@ -219,8 +219,8 @@ struct APIContractTests {
         let image = try #require(list.images.first)
         #expect(image.current && image.instances == ["research"] && image.sizeBytes == nil && image.outdated == false)
         #expect(image.label == "image:omaflake/nixos/dev:cedar" && image.omaflakeId.hasPrefix("image:omaflake/nixos/dev:cedar-"))
-        #expect(image.source == "github:omaflake/recipes@main" && image.revision == "abc123-dirty" && image.storePath != nil)
-        #expect(image.line == "omaflake.nixos.dev@github:omaflake/recipes@main" && image.kind == .nixos)
+        #expect(image.source == "github:omaflake/catalog@main" && image.revision == "abc123-dirty" && image.storePath != nil)
+        #expect(image.line == "omaflake.nixos.dev@github:omaflake/catalog@main" && image.kind == .nixos)
         let old = try #require(list.images.last)
         #expect(!old.current && old.outdated == nil && old.source == nil && old.storePath == nil && old.kind == .macos)
         #expect(list.unreadable.first?.name == "broken")
@@ -242,7 +242,7 @@ struct APIContractTests {
         #expect(lab.audio == nil && lab.display == nil && lab.installed == nil && lab.network == NetworkMode.none)
         // A lab recipe's switches fall back to the defaults a new VM gets
         #expect(lab.settings.audio && lab.settings.clipboard && !lab.settings.microphone)
-        #expect(list.lines["omaflake.nixos.dev@github:omaflake/recipes@main"]?.count == 2)
+        #expect(list.lines["omaflake.nixos.dev@github:omaflake/catalog@main"]?.count == 2)
         #expect(list.idLengths.recipe == 1 && list.qemuGL && !list.labHidden && list.unreadable.first?.name == "acme.nixos.x")
     }
 
