@@ -86,13 +86,16 @@ Cargo.toml, crates/        Rust core: omaflake-core (all logic), omaf (CLI and `
                            omaflake-gui (the Linux app, iced); omaflake-i18n (translations of omaf ui and the Linux app,
                            generated from App/Resources/de.lproj by scripts/translations.py); omaflake-macros
                            (vm_err!: an error's format string is its translation key, plan B125)
-Package.swift              OmaflakeKit (library), omaf-runner, OmaflakeApp
+Package.swift              OmaflakeKit (library), omaf-runner, OmaflakeApp, omaflake-camera, omaflake-tools
 Sources/OmaflakeKit/       Core/ + API/: client of `omaf serve` and the API's types; Runner/: agent protocol, macOS VM
                            bundle, sockets (for omaf-runner); Brand/: icons
 Sources/omaf-runner/       macOS guests on Virtualization.framework (needs entitlement)
 Sources/OmaflakeApp/       SwiftUI menu bar app – a client of `omaf serve`, presentation only
+Sources/omaflake-camera/   for macOS guests: omaflake's camera extension (CoreMediaIO; reads the agent's frames, plan B184)
+Sources/omaflake-tools/    "omaflake Tools.app", omaflake's app in a macOS guest: carries the extension and asks macOS to
+                           activate it; later what else needs an app in the guest
 App/                       Info.plist, runner entitlements
-scripts/                   bundle-app.sh, sign-runner.sh, bootprobe.sh, trim-target.sh (leftovers of interrupted builds)
+scripts/                   bundle-app.sh, bundle-tools.sh (omaflake Tools for macOS guests, into omaflake.app; ad hoc two builds, plan B184), sign-runner.sh, bootprobe.sh, trim-target.sh (leftovers of interrupted builds)
 qemu/                      QEMU build with virglrenderer + ANGLE, patches
 nix/modules/vm-guest.nix   guest module (root flake output nixosModules.vm-guest)
 docs/                      spec, plan, cli, app, macos-base, linux-builder
@@ -106,7 +109,7 @@ nix/local.example/         template for personal settings → nix/local/ (git-ig
 
 ## Next step
 
-State and order: **docs/plan.md §8** (2026-11-25, release 0.8.0 – a guided first start (B144), a larger disk (B164), upgrade in place (B178), names and live joins in networks (B179), ports of other VMs on localhost (B180), the graph edited by dragging (B181), the builder checked daily (B182), jiff (B167) and fewer dependencies (B177); 0.7.6 – a Linux builder that refuses the Mac's builds is recognized and repaired (B175), the camera in macOS VMs as H.264 and asked again after a stop (B173, B174); 0.7.5 – camera in macOS VMs through OBS (B169), networks between VMs and a Docker VM (B170), several displays for NixOS VMs (B171), the agent test that broke 0.7.4's image builds (B172); 0.7.4 – setup by one click without nix-darwin (B160), MIDI in macOS and NixOS guests (B161), the diagnosis (B162), a macOS base per credential (B166); 0.7.3 – B158 closed the OPEN items that need no Developer ID, only testing and M12 are left; 0.7.2 – parts too old to read can be updated, B156; 0.7.1: the loading screen of NixOS guests, B155; 0.7.0: key bindings with modes, the studios for recipes, key bindings and looks, the app in four groups, B146–B154): recipes as building blocks – platform, modules, look,
+State and order: **docs/plan.md §8** (2026-11-26, release 0.8.1 – the camera in macOS VMs smooth with OBS (B183), omaflake Tools with its own camera extension and unchained copies of images and bases with Recovery without hands (B184), networks edited in the picture (B185), volumes: several shared folders per VM, shared between VMs (B187; vaults proposed, B188); 0.8.0 – a guided first start (B144), a larger disk (B164), upgrade in place (B178), names and live joins in networks (B179), ports of other VMs on localhost (B180), the graph edited by dragging (B181), the builder checked daily (B182), jiff (B167) and fewer dependencies (B177); 0.7.6 – a Linux builder that refuses the Mac's builds is recognized and repaired (B175), the camera in macOS VMs as H.264 and asked again after a stop (B173, B174); 0.7.5 – camera in macOS VMs through OBS (B169), networks between VMs and a Docker VM (B170), several displays for NixOS VMs (B171), the agent test that broke 0.7.4's image builds (B172); 0.7.4 – setup by one click without nix-darwin (B160), MIDI in macOS and NixOS guests (B161), the diagnosis (B162), a macOS base per credential (B166); 0.7.3 – B158 closed the OPEN items that need no Developer ID, only testing and M12 are left; 0.7.2 – parts too old to read can be updated, B156; 0.7.1: the loading screen of NixOS guests, B155; 0.7.0: key bindings with modes, the studios for recipes, key bindings and looks, the app in four groups, B146–B154): recipes as building blocks – platform, modules, look,
 key bindings, requirements (B141, B142; modules and recipes in omaflake/catalog), locales, profiles, My Recipes; an image
 is a recipe with a credential, a look and a locale (B137–B141), looks for the guests (B135, installable since 0.6.0), the Linux host checked on an x86_64 PC (0.4.0, B124–B131); next the OPEN items in docs/linux.md and plan §8; M12 (signing, notarization, helper, macOS camera extension, self-update) once the Developer ID is there. Development base `mac-base-26A434`; develop with the `lab` recipes
 (developer mode in the app).

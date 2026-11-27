@@ -17,12 +17,19 @@ are collected under *Unreleased*. Releases: [GitHub](https://github.com/omaflake
 
 The camera in macOS VMs: smooth with OBS, and without OBS in an "unchained" VM; omaflake Tools, omaflake's own app
 inside a macOS VM, with its camera. An unchained copy of an image or a base is made by one click – omaflake goes
-through macOS Recovery by itself and asks you only to approve the camera once. Much of it is new and only partly
+through macOS Recovery by itself and asks you only to approve the camera once. And volumes: a VM can have several
+shared folders, and VMs can share them. Much of it is new and only partly
 tried on a Mac; the notes say where. Rebuild your macOS images to get the new agent.
 
 ### Added
 
-- **Unchained macOS images and bases.** In the app every macOS image has "Make Unchained Copy …": a second image,
+- **Volumes: several shared folders per VM, shared between VMs.** A volume is a folder of this computer – a new one in
+  `~/.omaflake/share/<name>` or one of yours. A VM has none, one or several, and several VMs can have the same one: the
+  new tab **Volumes** lists them with their VMs, "Add VM" gives one to a VM, "Take Out" takes it away; the New VM form
+  asks for a new volume, one there is, or none. A VM sees each volume at `/Volumes/<name>` – the same path in macOS
+  and NixOS VMs –, by default the folder's name, or one you give it for that VM ("Rename …"). On the command line:
+  `omaf volumes` (`create`, `rm`, `attach`, `detach`, `rename`) and `omaf new … --volume <volume>[=<name>]`. Removing a
+  volume never deletes its folder. **Diagnose** checks every volume both ways. Changes count from a VM's next start. In the app every macOS image has "Make Unchained Copy …": a second image,
   the same but with System Integrity Protection off and omaflake's camera (`omaf images unchain <image>`). For
   many images: Images → macOS Bases → a base's "Make Unchained Copy …" once, then "Build
   Image" with the switch "Unchained"; unchained bases, images and VMs carry an orange badge. On the command line
@@ -65,6 +72,14 @@ tried on a Mac; the notes say where. Rebuild your macOS images to get the new ag
 
 ### Changed
 
+- **The share folder is a volume now** – no longer at `/Volumes/My Shared Files` (macOS VMs) or `/mnt/share` (NixOS
+  VMs), but at `/Volumes/<name>`, by default the name of its folder: a VM from before keeps its folder as a volume
+  named after the VM. **Rebuild your images**: an image built before 0.8.1 does not mount volumes. instance.json has a
+  new version (`volumes`); an older omaflake cannot read it.
+- **omaflake knows nothing of Docker.** A Docker VM is a VM from the catalog's recipe like any other; the networks'
+  details no longer show a `DOCKER_HOST` line. The catalog's new module `docker-client` (macOS and NixOS) brings the
+  Docker command and points it at `127.0.0.1:2375` – give the VM the port of the Docker VM (`2375=<docker VM>` in its
+  ports of other VMs), and give both VMs the same volume under the same name for bind mounts.
 - **Networks are edited where you see them.** In the picture of the Networks tab you draw a line from a VM's dot to a
   network to add it, and × on a line takes it out (the line turns red while the pointer is on its ×). An opened
   network lists its VMs a line each – state, address, traffic and "Take Out" – and "Add VM" opens the list of the
