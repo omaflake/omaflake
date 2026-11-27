@@ -16,6 +16,7 @@ pub mod service;
 pub mod sources;
 pub mod status;
 pub mod ui;
+pub mod volumes;
 
 use omaflake_core::Error;
 
@@ -87,6 +88,14 @@ pub fn run(command: Command) -> Outcome {
             Some(NetworksCommand::Leave(a)) => networks::leave(&a.network, &a.vm),
         },
         Command::NetworkSwitch(a) => networks::switch(&a),
+        Command::Volumes(v) => match v.command {
+            None | Some(VolumesCommand::List) => volumes::list(),
+            Some(VolumesCommand::Create(a)) => volumes::create(&a.volume, a.path.as_deref()),
+            Some(VolumesCommand::Remove(a)) => volumes::remove(&a.volume),
+            Some(VolumesCommand::Attach(a)) => volumes::attach(&a.volume, &a.vm, a.mount.as_deref()),
+            Some(VolumesCommand::Detach(a)) => volumes::detach(&a.volume, &a.vm),
+            Some(VolumesCommand::Rename(a)) => volumes::rename(&a.volume, &a.vm, a.mount.as_deref()),
+        },
         Command::MacOs { command: MacOsCommand::Install(a) } => macos::install(&a),
         Command::MacOs { command: MacOsCommand::Assign(a) } => macos::assign(&a),
         Command::MacOs { command: MacOsCommand::Bases } => macos::bases(),

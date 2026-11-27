@@ -66,6 +66,14 @@ pub enum Command {
         args_conflicts_with_subcommands = true
     )]
     Networks(Networks),
+    /// Plan B187
+    #[command(
+        about = "Volumes: folders of this computer that VMs share – a VM has none, one or several, each at \
+                 /Volumes/<name> in the guest.",
+        alias = "vol",
+        args_conflicts_with_subcommands = true
+    )]
+    Volumes(Volumes),
     #[command(name = "macos", about = "macOS bases: install from Apple's IPSW with a credential, or assign one.")]
     #[command(subcommand_required = true, arg_required_else_help = true)]
     MacOs {
@@ -222,6 +230,64 @@ pub struct NetworkRef {
 pub struct NetworkMember {
     #[arg(value_name = "network")]
     pub network: String,
+    #[arg(value_name = "vm")]
+    pub vm: String,
+}
+
+#[derive(Debug, Args)]
+pub struct Volumes {
+    #[command(subcommand)]
+    pub command: Option<VolumesCommand>,
+}
+
+#[derive(Debug, Subcommand)]
+pub enum VolumesCommand {
+    #[command(about = "The volumes, their folders and VMs.")]
+    List,
+    #[command(about = "Create a volume: a folder ~/.omaflake/share/<name>, or one you choose (--path).")]
+    Create(VolumeCreate),
+    #[command(name = "rm", about = "Remove a volume: out of its VMs and forgotten – its folder and files stay.")]
+    Remove(VolumeRef),
+    #[command(about = "Give a VM a volume (from its next start).")]
+    Attach(VolumeOfVm),
+    #[command(about = "Take a volume out of a VM (from its next start; the folder stays).")]
+    Detach(VolumeOfVmPlain),
+    #[command(about = "Change the name a VM sees a volume under (/Volumes/<name>; without --as: the folder's name).")]
+    Rename(VolumeOfVm),
+}
+
+#[derive(Debug, Args)]
+pub struct VolumeRef {
+    #[arg(value_name = "volume", help = "Its name (lowercase letters, digits, dashes)")]
+    pub volume: String,
+}
+
+#[derive(Debug, Args)]
+pub struct VolumeCreate {
+    #[arg(value_name = "volume", help = "Its name (lowercase letters, digits, dashes)")]
+    pub volume: String,
+    #[arg(
+        long,
+        value_name = "folder",
+        help = "An existing folder on this computer (default: ~/.omaflake/share/<name>)"
+    )]
+    pub path: Option<String>,
+}
+
+#[derive(Debug, Args)]
+pub struct VolumeOfVm {
+    #[arg(value_name = "volume")]
+    pub volume: String,
+    #[arg(value_name = "vm")]
+    pub vm: String,
+    #[arg(long = "as", value_name = "name", help = "The name in the VM: /Volumes/<name> (default: the folder's name)")]
+    pub mount: Option<String>,
+}
+
+#[derive(Debug, Args)]
+pub struct VolumeOfVmPlain {
+    #[arg(value_name = "volume")]
+    pub volume: String,
     #[arg(value_name = "vm")]
     pub vm: String,
 }
@@ -722,17 +788,24 @@ pub struct New {
     #[arg(
         long,
         overrides_with = "no_share",
-        help = "Share the folder ~/.omaflake/share/<name> on this computer with the guest"
+        help = "A volume of its own: the folder ~/.omaflake/share/<name> on this computer"
     )]
     pub share: bool,
-    #[arg(long, overrides_with = "share", help = "No shared folder, whatever the recipe says")]
+    #[arg(long, overrides_with = "share", help = "No volume of its own, whatever the recipe says")]
     pub no_share: bool,
     #[arg(
         long,
         value_name = "share-dir",
-        help = "Share this existing folder on this computer instead (implies --share)"
+        help = "Its own volume in this existing folder on this computer instead (implies --share)"
     )]
     pub share_dir: Option<String>,
+    #[arg(
+        long = "volume",
+        value_name = "volume[=name]",
+        help = "A volume (made when there is none of that name), in the VM at /Volumes/<name> (default: its folder's \
+                name); repeatable, instead of a volume of its own – see omaf volumes"
+    )]
+    pub volume: Vec<String>,
     #[arg(long, overrides_with = "no_audio", help = "Sound from the VM to this computer (default on)")]
     pub audio: bool,
     #[arg(long, overrides_with = "audio", help = "No sound from the VM")]
@@ -842,7 +915,7 @@ pub struct Set {
     #[arg(
         long,
         value_name = "ports",
-        help = "Ports of other VMs on its localhost, e.g. \"5432=docker:5432, 2375=docker\" (\"\" for none; from the next start)"
+        help = "Ports of other VMs on its localhost, e.g. \"5432=db:5432, 8080=web\" (\"\" for none; from the next start)"
     )]
     pub forwards: Option<String>,
 }

@@ -66,6 +66,34 @@ struct NetworkName {
 }
 
 #[derive(Deserialize)]
+struct VolumeNew {
+    name: String,
+    #[serde(default)]
+    path: Option<String>,
+}
+
+#[derive(Deserialize)]
+struct VolumeOfVm {
+    volume: String,
+    vm: String,
+    /// The name in the VM; None or empty: the folder's name
+    #[serde(default, rename = "as")]
+    mount: Option<String>,
+}
+
+/// A volume for a new VM (`vms.create`, plan B187): an existing one, or a new one (`create`, in `path` or share/<name>)
+#[derive(Deserialize)]
+struct CreateVolume {
+    volume: String,
+    #[serde(default, rename = "as")]
+    mount: Option<String>,
+    #[serde(default)]
+    create: bool,
+    #[serde(default)]
+    path: Option<String>,
+}
+
+#[derive(Deserialize)]
 struct NetworkMember {
     network: String,
     vm: String,
@@ -116,6 +144,55 @@ impl Server {
                 crate::profiles::Profiles::new(self.paths()).set_default(&params::<Id>(p)?.id).map_err(err)?;
                 self.poke();
                 Answer::of(Value::Null)
+            }
+            // Volumes: folders VMs share (plan B187)
+            "volumes.list" => {
+                let instances = self.store().list();
+                Answer::of(crate::volumes::Volumes::new(self.paths()).dtos(&instances))
+            }
+            "volumes.create" => {
+                let p: VolumeNew = params(p)?;
+                let path = p.path.filter(|s| !s.trim().is_empty()).map(PathBuf::from);
+                let v = crate::volumes::Volumes::new(self.paths())
+                    .create(p.name.trim(), path.as_deref(), &self.store().list())
+                    .map_err(err)?;
+                self.poke();
+                Answer::of(json!({"name": v.name, "folder": v.folder.to_string_lossy()}))
+            }
+            "volumes.remove" => {
+                crate::volumes::Volumes::new(self.paths())
+                    .remove(&self.store(), &params::<NetworkName>(p)?.name)
+                    .map_err(err)?;
+                self.poke();
+                Answer::of(Value::Null)
+            }
+            "volumes.attach" => {
+                let p: VolumeOfVm = params(p)?;
+                crate::volumes::Volumes::new(self.paths())
+                    .attach(&self.store(), &p.volume, &p.vm, p.mount.as_deref())
+                    .map_err(err)?;
+                self.poke();
+                Answer::of(json!({"now": false}))
+            }
+            "volumes.detach" => {
+                let p: VolumeOfVm = params(p)?;
+                crate::volumes::Volumes::new(self.paths()).detach(&self.store(), &p.volume, &p.vm).map_err(err)?;
+                self.poke();
+                Answer::of(Value::Null)
+            }
+            "volumes.rename" => {
+                let p: VolumeOfVm = params(p)?;
+                crate::volumes::Volumes::new(self.paths())
+                    .rename_mount(&self.store(), &p.volume, &p.vm, p.mount.as_deref())
+                    .map_err(err)?;
+                self.poke();
+                Answer::of(Value::Null)
+            }
+            "volumes.reveal" => {
+                let name = params::<NetworkName>(p)?.name;
+                let volumes = crate::volumes::Volumes::new(self.paths());
+                let dir = volumes.prepare(&name, &self.store().list(), None).map_err(err)?;
+                Answer::of(PathAnswer { path: dir.to_string_lossy().into_owned() })
             }
             // Networks between VMs (plan B170, spec §11.12)
             "networks.list" => Answer::of(network_dtos(&self.paths())),
@@ -763,13 +840,29 @@ impl Server {
                 return Err(vm_err!("{} is a {} image, the settings are for {}", image.name, image.kind(), kind));
             }
             let mut c = backend.create(&p.name, image.recipe(), &image, &settings)?;
-            if settings.share
+            // Its volumes (plan B187): those asked for, else the recipe's own one (in the folder asked for)
+            let volumes = crate::volumes::Volumes::new(paths.clone());
+            if let Some(list) = &p.volumes {
+                c.set_volumes(vec![]);
+                backends.store.save(&c)?;
+                for v in list {
+                    let name = v.volume.trim();
+                    if v.create {
+                        let path = v.path.as_deref().filter(|s| !s.trim().is_empty()).map(Path::new);
+                        volumes.create(name, path, &backends.store.list())?;
+                    }
+                    c = volumes.attach(&backends.store, name, &p.name, v.mount.as_deref())?;
+                }
+            } else if settings.share
                 && let Some(share) = &p.share_path
             {
-                c.share_path = Some(share.clone());
+                let own = crate::volumes::Volumes::own_name(&p.name);
+                if !volumes.list(&backends.store.list()).iter().any(|v| v.name == own) {
+                    volumes.create(&own, Some(Path::new(share)), &backends.store.list())?;
+                }
             }
             c.displays = displays;
-            if c.share_path.is_some() || c.displays.is_some() {
+            if c.displays.is_some() {
                 backends.store.save(&c)?;
             }
             if start {
@@ -1109,7 +1202,7 @@ impl Server {
                 c.forwards = crate::models::PortForward::parse_list(text).map_err(|item| {
                     vm_err!(
                         codes::UNSUPPORTED_SYSTEM,
-                        "\"{}\" is no port: <port>=<vm>[:<port>], e.g. 5432=docker:5432",
+                        "\"{}\" is no port: <port>=<vm>[:<port>], e.g. 5432=db:5432",
                         item
                     )
                 })?;
@@ -1178,7 +1271,10 @@ impl Server {
     fn vms_share(&self, name: &str) -> Reply {
         let paths = self.paths();
         let c = self.store().load(name).map_err(err)?;
-        let dir = paths.prepare_share(&c, None).map_err(err)?;
+        let ready = crate::volumes::Volumes::new(paths).prepare_all(&c, None).map_err(err)?;
+        let Some((_, dir)) = ready.into_iter().next() else {
+            return Err(err(crate::vm_err!(codes::NOT_FOUND, "{name} has no volumes")));
+        };
         Answer::of(PathAnswer { path: dir.to_string_lossy().into_owned() })
     }
 
@@ -3570,6 +3666,9 @@ struct CreateParams {
     settings: RecipeSettings,
     #[serde(default)]
     share_path: Option<String>,
+    /// Its volumes (plan B187); None: the recipe's own one when it shares a folder
+    #[serde(default)]
+    volumes: Option<Vec<CreateVolume>>,
     #[serde(default)]
     start: bool,
 }
@@ -3625,7 +3724,7 @@ struct SetParams {
     /// Only larger, while stopped (plan B164)
     #[serde(default, rename = "diskGb", alias = "diskGB")]
     disk_gb: Option<u32>,
-    /// Ports of other VMs on its localhost, "5432=docker:5432, 2375=docker" (plan B180); from the next start. Given as
+    /// Ports of other VMs on its localhost, "5432=db:5432, 8080=web" (plan B180); from the next start. Given as
     /// null or "" (an emptied field): none
     #[serde(default, deserialize_with = "given")]
     forwards: Option<Value>,

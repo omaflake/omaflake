@@ -506,6 +506,39 @@ real VMs); the camera over vsock – H.264 (B174) made the camera smooth at 30 f
 the Mac (VsockBench) to show it is needed; dragging in the Linux app and `omaf ui`. To try on the Mac: everything
 marked OPEN in B164, B178–B182 (they need images built with 0.8.0).
 
+**B187 (2026-11-27, built for 0.8.1; the Mac and real guests OPEN): volumes – several shared folders per VM, shared
+between VMs (German "Platten").** The maintainer: "Einer VM kann man keinen, einen oder mehrere 'shared' Ordner
+zuweisen. Und VMs können sich auch welche teilen", the folder names in `share/` no longer tied to a VM's name, the New
+VM form with a new volume, one there is, or none; still in 0.8.1. And: "die Docker-VM ist … nichts besonderes" –
+omaflake knows nothing of Docker, all of it is in the catalog's modules `docker` and `docker-client`. Then: not under
+"My Shared Files", but each volume on its own under a name the user gives per VM, by default the folder's name.
+*Built (spec §11.13):* `volumes.rs` (volumes.json v1, a volume without a record at `share/<name>`, a VM from before
+with `sharePath` gives its own volume that folder), instance.json v2 (`volumes: [{volume, as?}]`, migration from
+`share`), QEMU one 9p device per volume (tag = the name in the VM, slots `0x7`, `0xe`–`0x14`), `omaf-runner --volume
+<name>=<folder>` one virtio-fs device each (no automount tag), the guests mount every tag at `/Volumes/<name>`
+(NixOS `omaflake-volumes.service`; macOS launch daemon reading `AppleVirtIOFSTag` from the I/O Registry – checked in a
+macOS 26 guest that `ioreg -r -c AppleVirtIOFS` lists the tag and `/sbin/mount_virtiofs` is there), the diagnosis
+checks every volume both ways (agent: `share-read/-write` with `volume`), API `volumes.*` and `vms.create`'s
+`volumes`, CLI `omaf volumes` and `omaf new --volume`, the Volumes tab in the app, the Linux app and `omaf ui` (the
+Credentials page shape: its VMs as lines with Rename and Take Out, Add VM inline), the New VM form's Volume section.
+Docker out of omaflake: no `DOCKER_HOST` line in the networks' details, examples neutral; catalog: `nixos/docker`
+1.1.0 without the `/Volumes/My Shared Files` link, `nixos/docker-client` and `macos/docker-client` (CLI, Compose,
+Buildx, `DOCKER_HOST=tcp://127.0.0.1:2375` through the forward `2375=<docker VM>`, B180).
+*OPEN:* a macOS guest's volume mounted by root with `mount_virtiofs` – owner and permissions for the user; NixOS guests
+with several 9p devices; images before 0.8.1 mount nothing (rebuild); the Docker VM's daemon starting before the
+volumes are mounted (bind mounts of a container started at boot).
+
+**B188 (2026-11-27, proposed for later – not this release): vaults and protected VMs.** The maintainer: someone else
+at this computer (a partner, a guest) should neither see sensitive files in the Finder nor start a sensitive VM.
+*Idea:* a vault is a volume encrypted at rest – on the host a file (`.omsafe`), not a folder; only when a VM that has it
+starts, or the app unlocks it, does it appear as a folder under `share/`, and it is locked again when the last VM stops
+(or by hand). A protected VM asks the same before it starts (its disk encrypted, or at least its start and its
+package). Unlock with a password, Touch ID or a hardware key (YubiKey). *To decide:* the container (an APFS encrypted
+sparse bundle on macOS – mounted by `hdiutil`, its key in the Keychain behind Touch ID; on Linux LUKS in a file or
+gocryptfs, which needs no root); where the key lives (Keychain item with `.userPresence` / Secure Enclave; a FIDO2
+hmac-secret for the YubiKey); what the CLI does without a GUI prompt; the folder while unlocked is visible to the
+user's account like any other – the protection is against someone without the unlock, not against a running session.
+
 **B185 (2026-11-27, built for 0.8.1; the Mac OPEN): networks edited where they are seen.** The maintainer: adding a
 VM opened a page of its own with one drop-down, taking one out was a row of buttons – "Denk dir was Besseres aus.
 Cool wäre auch Drag & Drop, ein Ziehen von Verbindungen". *Built:* a network's detail has one switch per VM

@@ -128,7 +128,7 @@ struct Run: RunnerCommand {
         .flag("window", "Show a window (headless otherwise)"),
         .value("socket", "Control socket (status/stop/kill/show)"),
         .value("pid-file", "PID file"),
-        .value("share", "Share a folder with the guest (appears under /Volumes/My Shared Files)"),
+        .value("volume", "A volume, <name>=<folder>: the guest mounts it at /Volumes/<name> (again for more, plan B187)"),
         .flag("no-network", "Without a network card"),
         .flag("audio", "Sound from the VM to the Mac"),
         .flag("microphone", "The Mac's microphone in the VM (with --audio; macOS asks for permission the first time)"),
@@ -154,7 +154,7 @@ struct Run: RunnerCommand {
     let window: Bool
     let socket: String?
     let pidFile: String?
-    let share: String?
+    let volumes: [(tag: String, folder: String)]
     let noNetwork: Bool
     let audio: Bool
     let microphone: Bool
@@ -181,7 +181,12 @@ struct Run: RunnerCommand {
         window = a.flag("window")
         socket = a.string("socket")
         pidFile = a.string("pid-file")
-        share = a.string("share")
+        volumes = try a.strings("volume").map { text in
+            guard let eq = text.firstIndex(of: "="), eq != text.startIndex, text.index(after: eq) != text.endIndex else {
+                throw ValidationError("--volume \(text): <name>=<folder>")
+            }
+            return (String(text[..<eq]), String(text[text.index(after: eq)...]))
+        }
         noNetwork = a.flag("no-network")
         audio = a.flag("audio")
         microphone = a.flag("microphone")
@@ -227,7 +232,7 @@ struct Run: RunnerCommand {
         }
         let request = RunController.Request(
             bundle: MacVMBundle(url(bundle)), window: window, socket: socket.map(url), pidFile: pidFile.map(url),
-            share: share.map(url), network: !noNetwork, audio: audio, microphone: audio && microphone,
+            volumes: volumes.map { ($0.tag, url($0.folder)) }, network: !noNetwork, audio: audio, microphone: audio && microphone,
             clipboard: clipboard, camera: camera, cameraTestPattern: cameraTestPattern, agentState: agentState.map(url),
             midi: midi, vmName: vmName,
             networks: try NetworkCard.parse(macs: lanMac, sockets: lanSocket, switches: lanSwitch),

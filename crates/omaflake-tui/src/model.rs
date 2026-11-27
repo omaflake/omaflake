@@ -596,13 +596,15 @@ pub fn page(ctx: &Ctx, name: &str, model: &Value) -> Page {
         "macBase" => mac_base(ctx, model, &mut p),
         "newVm" => new_vm(ctx, model, &mut p),
         "settings" => settings(ctx, model, &mut p),
-        "credentials" | "locales" | "profiles" => credentials(ctx, model, &mut p),
+        "credentials" | "locales" | "profiles" | "volumes" => credentials(ctx, model, &mut p),
         // Networks between VMs (plan B170): the credentials' shape and the graph as a tree
         "networks" => {
             credentials(ctx, model, &mut p);
             network_graph(ctx, &model["graph"], &mut p);
         }
         "network" => credential(ctx, "network", model, &mut p),
+        "volume" => credential(ctx, "volume", model, &mut p),
+        "volumeMount" => credential(ctx, "volumeMount", model, &mut p),
         "networkMember" => credential(ctx, "networkMember", model, &mut p),
         "locale" => credential(ctx, "locale", model, &mut p),
         "profile" => credential(ctx, "profile", model, &mut p),

@@ -274,6 +274,11 @@ impl Snapshot {
         })
     }
 
+    /// The VMs' configurations
+    pub fn instances(&self) -> Vec<InstanceConfig> {
+        self.rows.iter().map(|r| r.config.clone()).collect()
+    }
+
     pub fn row(&self, name: &str) -> Option<&VmRow> {
         self.rows.iter().find(|r| r.config.name == name)
     }
@@ -682,6 +687,7 @@ impl View<'_> {
         // A VM of an unchained image (plan B184) is not offered the recipe's current image: that one is never
         // unchained, an upgrade would chain the VM again
         let unchained = self.snap.images.values().flatten().any(|i| i.name == c.image && i.info.unchained);
+        let volumes = crate::volumes::Volumes::new(self.paths.clone()).dtos_of(c, &self.snap.instances());
         Vm {
             name: c.name.clone(),
             recipe: c.recipe.clone(),
@@ -695,7 +701,8 @@ impl View<'_> {
             disk_gb: c.disk_gb,
             network: c.network,
             share: c.share,
-            share_path: c.share.then(|| self.paths.share_dir(c).to_string_lossy().into_owned()),
+            share_path: volumes.first().map(|v| v.folder.clone()),
+            volumes,
             ephemeral: c.ephemeral,
             ssh_port: (c.kind == GuestKind::Nixos).then_some(c.ssh_port),
             user: c.guest_user(),

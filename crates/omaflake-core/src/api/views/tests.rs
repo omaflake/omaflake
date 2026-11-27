@@ -177,6 +177,7 @@ pub(crate) fn ctx() -> Ctx {
         looks: looks_fixture(),
         modules: modules_fixture(),
         networks: vec![],
+        volumes: vec![],
         profiles: vec![crate::api::types::ProfileDto {
             id: "p-1".into(),
             name: "Small".into(),
@@ -423,7 +424,7 @@ fn diagnosis_page_rows_and_actions() {
     assert_eq!(super::tests::ids(&sound["actions"]), ["heard", "notHeard"]);
     assert_eq!(sound["actions"][0]["params"], json!({"name": "research", "check": "sound", "ok": true}));
     assert_eq!(p["checks"][6]["detail"]["key"], "The microphone is off for this VM", "own words translated");
-    assert!(p["checks"][3]["hint"]["key"].as_str().unwrap().starts_with("The share folder is"));
+    assert!(p["checks"][3]["hint"]["key"].as_str().unwrap().starts_with("A guest mounts each volume"));
     assert_eq!(super::tests::ids(&p["actions"]), ["run", "copy", "reveal"]);
     assert_eq!(p["actions"][0]["label"]["key"], "Run Again");
     assert_eq!(p["actions"][0]["primary"], true);
@@ -504,7 +505,7 @@ fn vm_rows_say_what_the_app_said() {
     assert_eq!(remove["confirm"]["title"]["text"], "Remove “research”?");
     assert_eq!(
         remove["confirm"]["text"]["key"],
-        "The VM runs from %@ – it is deleted there and cannot be restored. Its share folder is kept if it holds files. To keep it there, choose Stop Listing instead."
+        "The VM runs from %@ – it is deleted there and cannot be restored. The folders of its volumes stay. To keep it there, choose Stop Listing instead."
     );
     assert_eq!(remove["confirm"]["destructive"], true);
     assert_eq!(
@@ -525,7 +526,7 @@ fn vm_rows_say_what_the_app_said() {
             "Resources",
             "Network",
             "SSH",
-            "Share folder",
+            "Volume",
             "Created",
             "Runs from",
             "Agent",
@@ -706,7 +707,7 @@ fn recipe_rows_by_line_with_offers_and_updates() {
     );
     assert_eq!(build["reason"]["key"], "Open the Doctor first: %@");
     let d = &dev["detail"];
-    assert_eq!(d["info"][3]["value"]["text"], "Clipboard · Sound · MIDI · Share folder");
+    assert_eq!(d["info"][3]["value"]["text"], "Clipboard · Sound · MIDI · Own volume");
     assert_eq!(d["info"][4]["value"]["key"], "%lld built, the newest %@");
     assert_eq!(ids(&d["actions"]), ["update", "copy", "removeAll"]);
     // What it is made of (plan B142): its modules, look, key bindings and what is wrong – its keys on a page of their own
@@ -824,8 +825,10 @@ fn new_vm_defaults_and_validation() {
             "camera",
             "midi",
             "network",
-            "share",
+            "volume",
+            "volumeName",
             "sharePath",
+            "mountAs",
             "start"
         ]
     );
@@ -838,8 +841,26 @@ fn new_vm_defaults_and_validation() {
     assert!(create["params"]["settings"].get("displays").is_none());
     let two = get(&c, "newVm", json!({"image": "omaflake.nixos.dev@cedar-mango-lift", "values": {"displays": 2}}));
     assert_eq!(action(&two["actions"], "create")["params"]["settings"]["displays"], 2);
-    let share = &page["sections"][2]["fields"][1];
+    // Its volume (plan B187): a new one by default when the recipe shares a folder, in share/<name>, named after it
+    let share = &page["sections"][2]["fields"][2];
     assert_eq!(share["placeholder"]["text"], "/data/share/dev");
+    assert_eq!(create["params"]["volumes"], json!([{"volume": "dev", "create": true}]));
+    let none = get(&c, "newVm", json!({"image": "omaflake.nixos.dev@cedar-mango-lift", "values": {"volume": ""}}));
+    let none_create = action(&none["actions"], "create");
+    assert_eq!(none_create["params"]["volumes"], json!([]));
+    assert_eq!(none_create["params"]["settings"]["share"], false);
+    let named = get(
+        &c,
+        "newVm",
+        json!({"image": "omaflake.nixos.dev@cedar-mango-lift", "values": {"volumeName": "projects", "mountAs": "My Code", "sharePath": "/x/Work"}}),
+    );
+    assert_eq!(
+        action(&named["actions"], "create")["params"]["volumes"],
+        json!([{"volume": "projects", "as": "My Code", "create": true, "path": "/x/Work"}])
+    );
+    let bad_mount =
+        get(&c, "newVm", json!({"image": "omaflake.nixos.dev@cedar-mango-lift", "values": {"mountAs": "a/b"}}));
+    assert_eq!(bad_mount["valid"], false);
     // Values the UI sends back: kept, checked
     let page = get(
         &c,
@@ -1968,7 +1989,10 @@ fn linux_hosts_get_their_own_words() {
     let home = get(&c, "home", json!({}));
     assert_eq!(action(&home["actions"], "dataFolder")["label"]["key"], "Show Data Folder");
     let new_vm = get(&c, "newVm", json!({"image": "omaflake.nixos.dev@cedar-mango-lift"}));
-    assert_eq!(action(&new_vm["sections"][2]["fields"], "share")["label"]["key"], "Share a folder with the VM");
+    assert_eq!(
+        action(&new_vm["sections"][2]["fields"], "volume")["help"]["key"],
+        "A folder of this computer the VM shares – with other VMs too, if they have it. More in the Volumes tab."
+    );
     let doctor = get(&c, "doctor", json!({}));
     assert_eq!(
         doctor["intro"]["key"],
@@ -2232,6 +2256,7 @@ fn looks_are_a_tab_with_their_colours_usage_and_offers() {
             "images",
             "activity",
             "networks",
+            "volumes",
             "recipes",
             "recipeStudio",
             "keymapStudio",
@@ -2539,4 +2564,54 @@ fn doctor_offers_a_new_builder_disk() {
     let new_disk = action(&item["actions"], "newDisk");
     assert_eq!(new_disk["method"], "builder.repair");
     assert_eq!(new_disk["confirm"]["button"]["key"], "New Disk");
+}
+
+// MARK: Volumes (plan B187)
+
+#[test]
+fn volumes_tab_and_forms() {
+    use crate::api::types::{VmVolumeDto, VolumeDto, VolumeVmDto};
+    let mut c = ctx();
+    let vm = c.vms[0].name.clone();
+    c.vms[0].volumes = vec![VmVolumeDto {
+        volume: "projects".into(),
+        mount: "Code".into(),
+        named: true,
+        folder: "/data/share/projects".into(),
+    }];
+    c.volumes = vec![VolumeDto {
+        name: "projects".into(),
+        folder: "/data/share/projects".into(),
+        custom: false,
+        vms: vec![VolumeVmDto { vm: vm.clone(), mount: "Code".into() }],
+    }];
+    let page = get(&c, "volumes", json!({}));
+    assert_eq!(page["title"]["key"], "Volumes");
+    let row = &page["rows"][0];
+    assert_eq!(row["name"], "projects");
+    let item = &row["detail"]["items"][0];
+    assert_eq!(item["subtitle"]["text"], "/Volumes/Code · named for this VM");
+    assert_eq!(ids(&item["actions"]), [format!("rename-{vm}"), format!("detach-{vm}")]);
+    let add = &row["detail"]["add"];
+    assert_eq!(add["actions"].as_array().unwrap().len(), c.vms.len() - 1, "the VMs without it");
+    assert_eq!(ids(&row["detail"]["actions"]), ["reveal", "remove"]);
+
+    let form = get(&c, "volume", json!({"values": {"name": "projects"}}));
+    assert_eq!(form["fields"][0]["error"]["key"], "There is a volume \"%@\" already");
+    let ok = get(&c, "volume", json!({"values": {"name": "music", "path": "/x/Music"}}));
+    assert_eq!(action(&ok["actions"], "create")["params"], json!({"name": "music", "path": "/x/Music"}));
+
+    let mount = get(&c, "volumeMount", json!({"volume": "projects", "vm": vm, "values": {}}));
+    assert_eq!(mount["fields"][0]["value"], "Code");
+    assert_eq!(mount["fields"][0]["placeholder"]["text"], "projects", "the folder's name");
+    let back = get(&c, "volumeMount", json!({"volume": "projects", "vm": vm, "values": {"as": ""}}));
+    assert_eq!(action(&back["actions"], "save")["params"], json!({"volume": "projects", "vm": vm, "as": ""}));
+    let bad = get(&c, "volumeMount", json!({"volume": "projects", "vm": vm, "values": {"as": ".x"}}));
+    assert_eq!(action(&bad["actions"], "save")["enabled"], false);
+    // New VM: the volumes there are to choose
+    let new_vm =
+        get(&c, "newVm", json!({"image": "omaflake.nixos.dev@cedar-mango-lift", "values": {"volume": "projects"}}));
+    let choices = &action(&new_vm["sections"][2]["fields"], "volume")["choices"];
+    assert_eq!(choices.as_array().unwrap().len(), 3);
+    assert_eq!(action(&new_vm["actions"], "create")["params"]["volumes"], json!([{"volume": "projects"}]));
 }

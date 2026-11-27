@@ -196,6 +196,15 @@
       }
     },
     {
+      "group": "run",
+      "icon": "volume",
+      "id": "volumes",
+      "label": {
+        "key": "Volumes",
+        "text": "Volumes"
+      }
+    },
+    {
       "badge": {
         "help": {
           "key": "A recipe changed since its image was built",

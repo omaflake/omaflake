@@ -25,8 +25,8 @@ extension APIContractTests {
                 guard case .home(let h) = try page("home", as: "home") else { throw Unexpected() }
                 #expect(h.actions.map(\.id) == ["doctor", "settings", "dataFolder", "quit"] && h.actions[0].badge == 3)
                 #expect(h.actions[3].confirm?.text.args == [.string("research")] && h.firstTab == "vms")
-                #expect(h.tabs.map(\.id) == ["vms", "images", "activity", "networks", "recipes", "recipeStudio", "keymapStudio", "lookStudio", "recipeCatalog", "modules", "looks", "keymaps", "sources", "credentials", "locales", "profiles"] && h.tabs[0].badge?.count == 1)
-                #expect(h.tabs[1].badge?.kind == "working" && h.tabs[4].badge?.tone == .warning && h.tabs[2].badge == nil)
+                #expect(h.tabs.map(\.id) == ["vms", "images", "activity", "networks", "volumes", "recipes", "recipeStudio", "keymapStudio", "lookStudio", "recipeCatalog", "modules", "looks", "keymaps", "sources", "credentials", "locales", "profiles"] && h.tabs[0].badge?.count == 1)
+                #expect(h.tabs[1].badge?.kind == "working" && h.tabs[5].badge?.tone == .warning && h.tabs[2].badge == nil)
                 // Two groups (plan B147): every tab names one of them, and each tab is one of the app's
                 #expect(h.groups.map(\.id) == ["run", "workshop", "catalog", "profiles"] && h.tabs.allSatisfy { t in h.groups.contains { $0.id == t.group } })
                 // The window's title is data; the header's short labels

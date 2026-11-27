@@ -139,7 +139,8 @@ pub struct QemuCommand {
     pub target: Target,
     pub firmware: String,
     pub paths: InstancePaths,
-    pub share_path: Option<String>,
+    /// The VM's volumes (plan B187) as (name, folder): one virtio-9p device each, the name its mount tag
+    pub volumes: Vec<(String, std::path::PathBuf)>,
     pub display: DisplayMode,
     pub gl: GlBackend,
     pub capabilities: QemuCapabilities,
@@ -157,7 +158,8 @@ pub mod slot {
     pub const NET: &str = "0x4";
     pub const GPU: &str = "0x5";
     pub const USB: &str = "0x6";
-    pub const SHARE: &str = "0x7";
+    /// Volumes (plan B187), in the order of the VM's volumes – the first where the one share folder was
+    pub const VOLUMES: [&str; 8] = ["0x7", "0xe", "0xf", "0x10", "0x11", "0x12", "0x13", "0x14"];
     pub const SERIAL: &str = "0x8";
     pub const SOUND: &str = "0x9";
     /// Cards on omaflake's networks (spec §11.12), in the order of the VM's networks
@@ -174,12 +176,17 @@ impl QemuCommand {
         ["-device", "qemu-xhci,addr=0x6", "-device", "usb-kbd", "-device", "usb-tablet"];
 
     /// Swift defaults: `gl` .on, capabilities without GL and guest owner, no initial resolution
-    pub fn new(firmware: &str, paths: InstancePaths, share_path: Option<String>, display: DisplayMode) -> Self {
+    pub fn new(
+        firmware: &str,
+        paths: InstancePaths,
+        volumes: Vec<(String, std::path::PathBuf)>,
+        display: DisplayMode,
+    ) -> Self {
         QemuCommand {
             target: Target::MAC,
             firmware: firmware.into(),
             paths,
-            share_path,
+            volumes,
             display,
             gl: GlBackend::On,
             capabilities: QemuCapabilities::default(),
@@ -337,23 +344,24 @@ impl QemuCommand {
             ]);
         }
 
-        if let (true, Some(share)) = (c.share, &self.share_path) {
+        for (i, ((name, folder), at)) in self.volumes.iter().zip(slot::VOLUMES).enumerate() {
+            let path = folder.to_string_lossy().replace(',', ",,");
             // With patch: Mac files appear in the guest as owned by the guest user → writable on both sides (plan B18).
             // Without patch: mapped-xattr, Mac files are read-only in the guest.
             let fsdev = if self.capabilities.guest_owner {
                 format!(
-                    "local,id=fs0,path={share},security_model=none,guest_owner_uid={},guest_owner_gid={}",
+                    "local,id=fs{i},path={path},security_model=none,guest_owner_uid={},guest_owner_gid={}",
                     Self::GUEST_UID,
                     Self::GUEST_GID
                 )
             } else {
-                format!("local,id=fs0,path={share},security_model=mapped-xattr")
+                format!("local,id=fs{i},path={path},security_model=mapped-xattr")
             };
             a.extend([
                 "-fsdev".into(),
                 fsdev,
                 "-device".into(),
-                format!("virtio-9p-pci,fsdev=fs0,mount_tag=share,addr={}", slot::SHARE),
+                format!("virtio-9p-pci,fsdev=fs{i},mount_tag={name},addr={at}"),
             ]);
         }
 
@@ -428,8 +436,13 @@ mod tests {
         config(NetworkMode::Shared, false, true)
     }
 
+    fn volume(share: Option<&str>) -> Vec<(String, PathBuf)> {
+        share.map(|s| ("t1".to_string(), PathBuf::from(s))).into_iter().collect()
+    }
+
     fn args_with(c: &InstanceConfig, display: DisplayMode, share: Option<&str>) -> Vec<String> {
-        QemuCommand::new("/fw.fd", ip(), share.map(String::from), display).arguments(c)
+        let share = if c.share { share } else { None };
+        QemuCommand::new("/fw.fd", ip(), volume(share), display).arguments(c)
     }
 
     fn args(c: &InstanceConfig) -> Vec<String> {
@@ -491,7 +504,7 @@ mod tests {
             qemu_socket: format!("/data/run/net/{name}/qemu.sock").into(),
             vz_socket: format!("/data/run/net/{name}/vz.sock").into(),
         };
-        let mut cmd = QemuCommand::new("/fw.fd", ip(), None, DisplayMode::None);
+        let mut cmd = QemuCommand::new("/fw.fd", ip(), vec![], DisplayMode::None);
         cmd.networks = vec![attachment("dev", 1), attachment("a,b", 2)];
         let a = cmd.arguments(&config(NetworkMode::None, false, false));
         assert_eq!(
@@ -526,9 +539,26 @@ mod tests {
         assert!(values(&args_with(&default_config(), DisplayMode::None, None), "-fsdev").is_empty());
     }
 
+    /// Volumes (plan B187): one 9p device each, the name its tag, a comma in a path doubled
+    #[test]
+    fn several_volumes() {
+        let v =
+            vec![("projects".to_string(), PathBuf::from("/data/projects")), ("a-b".to_string(), PathBuf::from("/x,y"))];
+        let a = QemuCommand::new("/fw.fd", ip(), v, DisplayMode::None).arguments(&default_config());
+        assert_eq!(
+            values(&a, "-fsdev"),
+            [
+                "local,id=fs0,path=/data/projects,security_model=mapped-xattr",
+                "local,id=fs1,path=/x,,y,security_model=mapped-xattr"
+            ]
+        );
+        assert!(has(&a, "-device", "virtio-9p-pci,fsdev=fs0,mount_tag=projects,addr=0x7"));
+        assert!(has(&a, "-device", "virtio-9p-pci,fsdev=fs1,mount_tag=a-b,addr=0xe"));
+    }
+
     #[test]
     fn gpu_mode() {
-        let mut cmd = QemuCommand::new("/fw.fd", ip(), None, DisplayMode::Gpu);
+        let mut cmd = QemuCommand::new("/fw.fd", ip(), vec![], DisplayMode::Gpu);
         cmd.gl = GlBackend::Es;
         cmd.capabilities = QemuCapabilities { gl: true, guest_owner: false, loading_image: true, displays: true };
         let a = cmd.arguments(&default_config());
@@ -541,34 +571,34 @@ mod tests {
     fn several_displays() {
         let mut c = default_config();
         c.displays = Some(2);
-        let mut cmd = QemuCommand::new("/fw.fd", ip(), None, DisplayMode::Gpu);
+        let mut cmd = QemuCommand::new("/fw.fd", ip(), vec![], DisplayMode::Gpu);
         cmd.initial_resolution = Some((2240, 1260));
         let a = cmd.arguments(&c);
         assert!(has(&a, "-device", "virtio-gpu-gl-pci,xres=2240,yres=1260,max_outputs=2,addr=0x5"));
         assert_eq!(values(&a, "-display"), ["cocoa,gl=on,zoom-to-fit=on"], "Cocoa opens the windows itself");
-        let a = QemuCommand::new("/fw.fd", ip(), None, DisplayMode::Window).arguments(&c);
+        let a = QemuCommand::new("/fw.fd", ip(), vec![], DisplayMode::Window).arguments(&c);
         assert!(has(&a, "-device", "virtio-gpu-pci,max_outputs=2,addr=0x5"));
 
-        let mut gtk = QemuCommand::new("/fw.fd", ip(), None, DisplayMode::Gpu);
+        let mut gtk = QemuCommand::new("/fw.fd", ip(), vec![], DisplayMode::Gpu);
         gtk.target = Target::linux(Arch::X86_64, Accel::Kvm, None);
         let a = gtk.arguments(&c);
         assert!(has(&a, "-device", "virtio-vga-gl,max_outputs=2,addr=0x5"));
         assert_eq!(values(&a, "-display"), ["gtk,gl=on,zoom-to-fit=on,show-tabs=on"]);
 
         // Headless: one output, whatever the VM says; out of range is clamped
-        let a = QemuCommand::new("/fw.fd", ip(), None, DisplayMode::None).arguments(&c);
+        let a = QemuCommand::new("/fw.fd", ip(), vec![], DisplayMode::None).arguments(&c);
         assert!(has(&a, "-device", "virtio-gpu-pci,addr=0x5"));
         c.displays = Some(9);
         assert_eq!(c.displays_count(), InstanceConfig::MAX_DISPLAYS);
         c.displays = Some(0);
         assert_eq!(c.displays_count(), 1);
-        let a = QemuCommand::new("/fw.fd", ip(), None, DisplayMode::Gpu).arguments(&c);
+        let a = QemuCommand::new("/fw.fd", ip(), vec![], DisplayMode::Gpu).arguments(&c);
         assert!(has(&a, "-device", "virtio-gpu-gl-pci,addr=0x5"), "one display: no max_outputs");
     }
 
     #[test]
     fn share_with_guest_owner_patch() {
-        let mut cmd = QemuCommand::new("/fw.fd", ip(), Some("/vm/share/t1".into()), DisplayMode::None);
+        let mut cmd = QemuCommand::new("/fw.fd", ip(), volume(Some("/vm/share/t1")), DisplayMode::None);
         cmd.capabilities = QemuCapabilities { gl: true, guest_owner: true, loading_image: true, displays: true };
         assert_eq!(
             values(&cmd.arguments(&default_config()), "-fsdev"),
@@ -583,7 +613,7 @@ mod tests {
         // 5K display with 2560×1440 points → 3840×2160
         let k = QemuCommand::initial_resolution_for((2560.0, 1440.0), 2.0);
         assert_eq!(k, (3840, 2160));
-        let mut cmd = QemuCommand::new("/fw.fd", ip(), None, DisplayMode::Gpu);
+        let mut cmd = QemuCommand::new("/fw.fd", ip(), vec![], DisplayMode::Gpu);
         cmd.capabilities = QemuCapabilities { gl: true, guest_owner: false, loading_image: true, displays: true };
         cmd.initial_resolution = Some(k);
         assert!(has(&cmd.arguments(&default_config()), "-device", "virtio-gpu-gl-pci,xres=3840,yres=2160,addr=0x5"));
@@ -708,7 +738,7 @@ mod tests {
             "-fsdev",
             "local,id=fs0,path=/vm/share/t1,security_model=mapped-xattr",
             "-device",
-            "virtio-9p-pci,fsdev=fs0,mount_tag=share,addr=0x7",
+            "virtio-9p-pci,fsdev=fs0,mount_tag=t1,addr=0x7",
             "-device",
             "virtio-serial-pci,addr=0x8",
             "-chardev",
@@ -733,7 +763,7 @@ mod tests {
             "/vm/instances/t1/qemu.pid",
         ];
         assert_eq!(headless, expected_head);
-        let mut cmd = QemuCommand::new("/fw.fd", ip(), None, DisplayMode::Gpu);
+        let mut cmd = QemuCommand::new("/fw.fd", ip(), vec![], DisplayMode::Gpu);
         cmd.capabilities = QemuCapabilities { gl: true, guest_owner: false, loading_image: true, displays: true };
         let gpu = cmd.arguments(&default_config());
         let window: Vec<&str> = vec![
@@ -754,7 +784,7 @@ mod tests {
     }
 
     fn linux(arch: Arch, accel: Accel, display: DisplayMode) -> QemuCommand {
-        let mut cmd = QemuCommand::new("/fw.fd", ip(), Some("/vm/share/t1".into()), display);
+        let mut cmd = QemuCommand::new("/fw.fd", ip(), volume(Some("/vm/share/t1")), display);
         cmd.target = Target::linux(arch, accel, Some("pipewire"));
         cmd.capabilities = QemuCapabilities { gl: true, guest_owner: false, loading_image: true, displays: true };
         cmd

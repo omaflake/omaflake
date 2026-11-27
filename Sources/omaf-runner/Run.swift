@@ -13,7 +13,7 @@ final class RunController: NSObject, NSApplicationDelegate, NSWindowDelegate, VZ
         var window: Bool
         var socket: URL?
         var pidFile: URL?
-        var share: URL?
+        var volumes: [(tag: String, folder: URL)] = []
         var network: Bool
         var audio = false
         var microphone = false
@@ -123,7 +123,7 @@ final class RunController: NSObject, NSApplicationDelegate, NSWindowDelegate, VZ
                 log("Agent: port \(AgentProtocol.portName)")
             }
             let config = try MachineConfiguration.make(request.bundle,
-                                                       .init(share: request.share, network: request.network,
+                                                       .init(volumes: request.volumes, network: request.network,
                                                              audio: request.audio, microphone: request.microphone,
                                                              clipboard: clipboardHandle, camera: cameraHandle,
                                                              agent: agentHandle,

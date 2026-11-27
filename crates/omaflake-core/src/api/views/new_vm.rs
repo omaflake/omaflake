@@ -61,6 +61,12 @@ pub struct NewVmValues {
     pub network: Option<NetworkMode>,
     pub share: Option<bool>,
     pub share_path: Option<String>,
+    /// Plan B187: "" none, "+" a new volume, else an existing volume's name
+    pub volume: Option<String>,
+    /// A new volume's name
+    pub volume_name: Option<String>,
+    /// The name in the VM (/Volumes/<name>); empty: the folder's name
+    pub mount_as: Option<String>,
     pub ephemeral: Option<bool>,
     pub audio: Option<bool>,
     pub microphone: Option<bool>,
@@ -164,10 +170,13 @@ pub(crate) fn page(ctx: &Ctx, p: &NewVmParams) -> Option<NewVmPage> {
     } else {
         None
     };
-    let share = get_bool("share");
     let share_path = v.share_path.clone().filter(|p| !p.is_empty());
-    let default_share =
-        format!("{}/share/{}", ctx.settings.data_folder, if name.is_empty() { "<name>" } else { name.as_str() });
+    // Its volume (plan B187): none, a new one (by default when the recipe shares a folder) or one there is
+    let volume = v.volume.clone().unwrap_or_else(|| if get_bool("share") { "+".into() } else { String::new() });
+    let own = crate::volumes::Volumes::own_name(&name);
+    let volume_name = v.volume_name.clone().unwrap_or_else(|| own.clone());
+    let volume_name = volume_name.trim().to_string();
+    let mount_as = v.mount_as.clone().unwrap_or_default().trim().to_string();
     let start = v.start.unwrap_or(true);
 
     let mut first = vec![
@@ -265,29 +274,7 @@ pub(crate) fn page(ctx: &Ctx, p: &NewVmParams) -> Option<NewVmPage> {
         .collect();
     resources.push(network);
 
-    let mut share_fields = vec![
-        Field::new(
-            "share",
-            FieldKind::Toggle,
-            Text::new(ctx.on_host("Share a Mac folder with the VM", "Share a folder with the VM")),
-            json!(share),
-        )
-        .param("settings.share")
-        .value_param("share"),
-    ];
-    if share {
-        let mut folder = Field::new("sharePath", FieldKind::Path, Text::new("Folder"), json!(share_path))
-            .param("sharePath")
-            .value_param("sharePath");
-        folder.placeholder = Some(Text::verbatim(default_share));
-        folder.ask = Some(
-            Ask::new("sharePath", AskKind::Folder, Text::new("Choose …"))
-                .prompt(Text::new("Folder to share with the VM"))
-                .button("Share"),
-        );
-        folder.help = Some(Text::new("Default"));
-        share_fields.push(folder);
-    }
+    let (share_fields, volume_error, volumes_param) = volume_fields(ctx, &volume, &volume_name, share_path, &mount_as);
     let start_field = Field::new("start", FieldKind::Toggle, Text::new("Start afterwards"), json!(start))
         .param("start")
         .value_param("start");
@@ -311,14 +298,14 @@ pub(crate) fn page(ctx: &Ctx, p: &NewVmParams) -> Option<NewVmPage> {
         warnings.push(tf!("%@ – the VM is created but not started.", reason));
     }
     let blockers = Blockers::of(&ctx.start_blockers(image.kind), ctx.host);
-    let valid = name_error.is_none();
-    let mut params = json!({"name": name, "image": image.name, "settings": s, "start": start});
-    if let (true, Some(path)) = (share, &share_path) {
-        params["sharePath"] = json!(path);
-    }
+    let valid = name_error.is_none() && volume_error.is_none();
+    let mut settings = s.clone();
+    settings["share"] = json!(!volume.is_empty());
+    let params =
+        json!({"name": name, "image": image.name, "settings": settings, "start": start, "volumes": volumes_param});
     let create = Action::call("create", Text::new("Create"), Some("create"), "vms.create", params)
         .then(Then::Back)
-        .enabled_if(valid, name_error)
+        .enabled_if(valid, name_error.or(volume_error))
         .primary();
     Some(NewVmPage {
         title: Text::new("New VM"),
@@ -332,11 +319,95 @@ pub(crate) fn page(ctx: &Ctx, p: &NewVmParams) -> Option<NewVmPage> {
         sections: vec![
             FormSection { title: None, fields: first },
             FormSection { title: Some(Text::new("Resources")), fields: resources },
-            FormSection { title: Some(Text::new("Share")), fields: share_fields },
+            FormSection { title: Some(Text::new("Volume")), fields: share_fields },
             FormSection { title: None, fields: vec![start_field] },
         ],
         warnings,
         valid,
         actions: vec![Action::call("cancel", Text::new("Cancel"), None, "ui.back", json!({})), create],
     })
+}
+
+/// The New VM page's volume (plan B187): none, a new one – its name and folder – or one there is; and the name in the
+/// VM. Returns the fields, what keeps it from being created, and `vms.create`'s `volumes`.
+fn volume_fields(
+    ctx: &Ctx,
+    volume: &str,
+    volume_name: &str,
+    share_path: Option<String>,
+    mount_as: &str,
+) -> (Vec<Field>, Option<Text>, serde_json::Value) {
+    let mut choices = vec![
+        Choice::new(json!(""), Text::new("No volume")).icon("minus"),
+        Choice::new(json!("+"), Text::new("A new volume")).icon("add"),
+    ];
+    choices
+        .extend(ctx.volumes.iter().map(|v| Choice::new(json!(v.name), Text::verbatim(v.name.clone())).icon("folder")));
+    let mut which = Field::new("volume", FieldKind::Choice, Text::new("Volume"), json!(volume))
+        .value_param("volume")
+        .help(Text::new(
+            "A folder of this computer the VM shares – with other VMs too, if they have it. More in the Volumes tab.",
+        ));
+    which.choices = choices;
+    let mut fields = vec![which];
+    let mut error = None;
+    let folder: Option<String> = if volume == "+" {
+        let mut n = Field::new("volumeName", FieldKind::Text, Text::new("Name"), json!(volume_name))
+            .value_param("volumeName")
+            .help(Text::new("Lowercase letters, digits and dashes – the volume's name in omaflake"));
+        if volume_name.is_empty() || crate::volumes::Volumes::validate_name(volume_name).is_err() {
+            n.error = Some(Text::new("1 to 31 lowercase letters, digits and dashes"));
+        } else if ctx.volumes.iter().any(|v| v.name == volume_name) {
+            n.error = Some(tf!("There is a volume \"%@\" already", volume_name));
+        }
+        error = n.error.clone();
+        fields.push(n);
+        let default = format!(
+            "{}/share/{}",
+            ctx.settings.data_folder,
+            if volume_name.is_empty() { "<name>" } else { volume_name }
+        );
+        let mut f =
+            Field::new("sharePath", FieldKind::Path, Text::new("Folder"), json!(share_path)).value_param("sharePath");
+        f.placeholder = Some(Text::verbatim(&default));
+        f.ask = Some(
+            Ask::new("sharePath", AskKind::Folder, Text::new("Choose …"))
+                .prompt(Text::new("Folder for the volume"))
+                .button("Choose"),
+        );
+        f.help = Some(Text::new("Default"));
+        fields.push(f);
+        Some(share_path.clone().unwrap_or(default))
+    } else {
+        ctx.volumes.iter().find(|v| v.name == volume).map(|v| v.folder.clone())
+    };
+    let Some(folder) = folder else { return (fields, error, json!([])) };
+    let default_mount = std::path::Path::new(&folder)
+        .file_name()
+        .map(|n| n.to_string_lossy().into_owned())
+        .filter(|n| crate::volumes::Volumes::validate_mount(n).is_ok())
+        .unwrap_or_else(|| if volume == "+" { volume_name.to_string() } else { volume.to_string() });
+    let mut m = Field::new("mountAs", FieldKind::Text, Text::new("Name in the VM"), json!(mount_as))
+        .value_param("mountAs")
+        .help(tf!(
+            "The VM sees it at /Volumes/%@",
+            if mount_as.is_empty() { default_mount.as_str() } else { mount_as }
+        ));
+    m.placeholder = Some(Text::verbatim(&default_mount));
+    if !mount_as.is_empty() && crate::volumes::Volumes::validate_mount(mount_as).is_err() {
+        m.error = Some(Text::new("1 to 31 characters, no “/”, “,”, “=” or “:”, not starting with “.”"));
+        error = error.or(m.error.clone());
+    }
+    fields.push(m);
+    let mut entry = json!({"volume": if volume == "+" { volume_name } else { volume }});
+    if !mount_as.is_empty() {
+        entry["as"] = json!(mount_as);
+    }
+    if volume == "+" {
+        entry["create"] = json!(true);
+        if let Some(p) = &share_path {
+            entry["path"] = json!(p);
+        }
+    }
+    (fields, error, json!([entry]))
 }

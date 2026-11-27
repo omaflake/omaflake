@@ -378,12 +378,12 @@
                   "text": "MIDI"
                 },
                 {
-                  "key": "Share folder",
-                  "text": "Share folder"
+                  "key": "Own volume",
+                  "text": "Own volume"
                 }
               ],
               "key": "%@ · %@ · %@ · %@",
-              "text": "Clipboard · Sound · MIDI · Share folder"
+              "text": "Clipboard · Sound · MIDI · Own volume"
             }
           },
           {

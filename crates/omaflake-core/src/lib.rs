@@ -67,6 +67,7 @@ pub mod ssh_identity;
 pub mod transfer;
 pub mod trash;
 pub mod update_check;
+pub mod volumes;
 pub mod vz_backend;
 pub mod word_list;
 

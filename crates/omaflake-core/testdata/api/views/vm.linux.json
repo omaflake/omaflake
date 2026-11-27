@@ -22,8 +22,8 @@
         "icon": "folder",
         "id": "showShare",
         "label": {
-          "key": "Show Share Folder",
-          "text": "Show Share Folder"
+          "key": "Show Volume",
+          "text": "Show Volume"
         },
         "method": "vms.share",
         "params": {
@@ -289,8 +289,8 @@
               "args": [
                 "/Volumes/Disk/research.omaflake-vm"
               ],
-              "key": "The VM runs from %@ – it is deleted there and cannot be restored. Its share folder is kept if it holds files. To keep it there, choose Stop Listing instead.",
-              "text": "The VM runs from /Volumes/Disk/research.omaflake-vm – it is deleted there and cannot be restored. Its share folder is kept if it holds files. To keep it there, choose Stop Listing instead."
+              "key": "The VM runs from %@ – it is deleted there and cannot be restored. The folders of its volumes stay. To keep it there, choose Stop Listing instead.",
+              "text": "The VM runs from /Volumes/Disk/research.omaflake-vm – it is deleted there and cannot be restored. The folders of its volumes stay. To keep it there, choose Stop Listing instead."
             },
             "title": {
               "args": [
@@ -407,8 +407,8 @@
         {
           "enabled": true,
           "help": {
-            "key": "On this VM's localhost: 5432=docker:5432 makes localhost:5432 reach port 5432 of the VM docker – a VM in a network with this one. Apart by commas; from the next start; images built with omaflake 0.8.0 or later.",
-            "text": "On this VM's localhost: 5432=docker:5432 makes localhost:5432 reach port 5432 of the VM docker – a VM in a network with this one. Apart by commas; from the next start; images built with omaflake 0.8.0 or later."
+            "key": "On this VM's localhost: 5432=db:5432 makes localhost:5432 reach port 5432 of the VM db – a VM in a network with this one. Apart by commas; from the next start; images built with omaflake 0.8.0 or later.",
+            "text": "On this VM's localhost: 5432=db:5432 makes localhost:5432 reach port 5432 of the VM db – a VM in a network with this one. Apart by commas; from the next start; images built with omaflake 0.8.0 or later."
           },
           "id": "forwards",
           "kind": "text",
@@ -569,11 +569,20 @@
         {
           "full": "/data/share/research",
           "label": {
-            "key": "Share folder",
-            "text": "Share folder"
+            "key": "Volume",
+            "text": "Volume"
           },
+          "note": {
+            "args": [
+              "research",
+              "/data/share/research"
+            ],
+            "key": "volume %@ · %@",
+            "text": "volume research · /data/share/research"
+          },
+          "tone": "normal",
           "value": {
-            "text": "/data/share/research"
+            "text": "/Volumes/research"
           }
         },
         {
@@ -810,7 +819,15 @@
       "status": "running",
       "system": "aarch64-linux",
       "upgradable": true,
-      "user": "alex"
+      "user": "alex",
+      "volumes": [
+        {
+          "folder": "/data/share/research",
+          "mount": "research",
+          "named": false,
+          "volume": "research"
+        }
+      ]
     }
   },
   "title": {

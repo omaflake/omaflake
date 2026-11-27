@@ -93,15 +93,15 @@
         "text": "the guest does not see this computer's file"
       },
       "hint": {
-        "key": "The share folder is /Volumes/My Shared Files in macOS guests, /mnt/share in NixOS guests.",
-        "text": "The share folder is /Volumes/My Shared Files in macOS guests, /mnt/share in NixOS guests."
+        "key": "A guest mounts each volume at /Volumes/<name> – images before 0.8.1 cannot: rebuild the image, then upgrade the VM.",
+        "text": "A guest mounts each volume at /Volumes/<name> – images before 0.8.1 cannot: rebuild the image, then upgrade the VM."
       },
       "icon": "folder",
       "id": "share",
       "status": "fail",
       "title": {
-        "key": "Share folder",
-        "text": "Share folder"
+        "key": "Volumes",
+        "text": "Volumes"
       }
     },
     {

@@ -1,0 +1,190 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://omaflake.dev/schema/instance/v2.json",
+  "title": "omaflake VM",
+  "description": "instance.json in a VM package (<name>.omaflake-vm): what makes up the VM.",
+  "type": "object",
+  "properties": {
+    "$schema": {
+      "const": "https://omaflake.dev/schema/instance/v2.json"
+    },
+    "name": {
+      "type": "string"
+    },
+    "recipe": {
+      "type": "string",
+      "description": "Recipe ID its image was built from"
+    },
+    "kind": {
+      "enum": [
+        "nixos",
+        "macos"
+      ],
+      "description": "Guest kind"
+    },
+    "system": {
+      "enum": [
+        "aarch64-linux",
+        "x86_64-linux",
+        "aarch64-darwin"
+      ],
+      "description": "Architecture as Nix names a system"
+    },
+    "image": {
+      "type": "string",
+      "description": "Name of its image"
+    },
+    "imagePath": {
+      "type": "string",
+      "description": "Where the image was when the VM was made (informational)"
+    },
+    "cpus": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "memoryGB": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "diskGB": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "network": {
+      "enum": [
+        "shared",
+        "isolated",
+        "none"
+      ]
+    },
+    "share": {
+      "type": "boolean",
+      "description": "Whether it has volumes (plan B187; before: a share folder)"
+    },
+    "ephemeral": {
+      "type": "boolean"
+    },
+    "sshPort": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "created": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "user": {
+      "type": "string",
+      "description": "Login user inside the guest; missing = the user running omaflake"
+    },
+    "audio": {
+      "type": "boolean"
+    },
+    "microphone": {
+      "type": "boolean"
+    },
+    "clipboard": {
+      "type": "boolean"
+    },
+    "camera": {
+      "type": "boolean"
+    },
+    "midi": {
+      "type": "boolean"
+    },
+    "displays": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 4,
+      "description": "NixOS VMs: monitors, each in a window of its own (missing = 1)"
+    },
+    "forwards": {
+      "type": "array",
+      "description": "Ports of other VMs on this VM's localhost, over its agent (plan B180)",
+      "items": {
+        "type": "object",
+        "required": [
+          "port",
+          "vm",
+          "to"
+        ],
+        "properties": {
+          "port": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 65535
+          },
+          "vm": {
+            "type": "string"
+          },
+          "to": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 65535
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "systemImage": {
+      "type": "string",
+      "description": "The image whose system runs after an upgrade in place (missing = image's); image stays the disk's base"
+    },
+    "display": {
+      "enum": [
+        "none",
+        "window",
+        "gpu"
+      ],
+      "description": "How a plain start shows the VM: headless, a window, a window with 3D"
+    },
+    "sharePath": {
+      "type": "string",
+      "description": "Share folder the user chose before volumes: the folder of the VM's own volume when volumes.json has no record of it"
+    },
+    "volumes": {
+      "description": "Its volumes (plan B187): each at /Volumes/<as> in the guest, <as> by default the name of the volume's folder",
+      "type": "array",
+      "maxItems": 8,
+      "items": {
+        "type": "object",
+        "properties": {
+          "volume": {
+            "type": "string",
+            "pattern": "^[a-z0-9][a-z0-9-]{0,30}$"
+          },
+          "as": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 31
+          }
+        },
+        "required": [
+          "volume"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "identity": {
+      "type": "string",
+      "description": "The VM's identity as words"
+    }
+  },
+  "required": [
+    "$schema",
+    "name",
+    "recipe",
+    "kind",
+    "system",
+    "image",
+    "imagePath",
+    "cpus",
+    "memoryGB",
+    "diskGB",
+    "network",
+    "share",
+    "ephemeral",
+    "sshPort",
+    "created"
+  ],
+  "additionalProperties": false
+}

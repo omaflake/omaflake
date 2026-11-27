@@ -54,7 +54,7 @@ struct HomeList: View {
             if p.labHidden, let hint = p.labHint { HintRow(hint: hint, model: model) }
         case .credentials(let p)?:
             // Credentials, locales, profiles: tabs of the workshop (plan B147)
-            CredentialsView(page: p, model: model)
+            CredentialsView(page: p, model: model, icon: tab == .volumes ? "externaldrive" : "key")
         case .networks(let p)?:
             // Networks between VMs (plan B170): the graph above the list
             CredentialsView(page: p.list, model: model, graph: p.graph)

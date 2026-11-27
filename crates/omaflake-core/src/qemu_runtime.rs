@@ -231,16 +231,13 @@ impl QemuRuntime {
                 self.qemu
             ));
         }
-        let mut share = None;
-        if config.share {
-            // The default folder is opened up for 9p (plan B18); a folder the user chose keeps its permissions
-            share = Some(self.paths.prepare_share(config, Some(0o777))?.to_string_lossy().into_owned());
-        }
+        // A default folder is opened up for 9p (plan B18); a folder the user chose keeps its permissions
+        let volumes = crate::volumes::Volumes::new(self.paths.clone()).prepare_all(config, Some(0o777))?;
         let target = self.target(&config.system);
         if let Some(template) = &self.firmware_vars {
             prepare_efivars(&ip.efivars(), Path::new(template))?;
         }
-        let mut cmd = QemuCommand::new(&self.firmware, ip.clone(), share, display);
+        let mut cmd = QemuCommand::new(&self.firmware, ip.clone(), volumes, display);
         cmd.networks = crate::networks::Networks::new(self.paths.clone()).prepare(&config.name)?;
         // Which network has which port while it runs (plan B179: joining and leaving while it runs)
         crate::networks::live::LiveCards::new(&self.paths, &config.name).started(&cmd.networks)?;

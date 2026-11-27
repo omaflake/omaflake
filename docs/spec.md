@@ -129,8 +129,8 @@ the settings file always stays at `~/.omaflake/config.json` and records the data
                                    status.json (§11.12)
   networks.json                    the networks between VMs and their members (§11.12)
   recipes/                         downloaded and imported recipes (§11.3), `.installed.json`
-  share/<name>/                    default share folder per instance (NixOS: 9p, macOS: virtiofs); a folder the user
-                                   chose instead is recorded as `sharePath` in instance.json
+  share/<name>/                    default folder of a volume (§11.13): NixOS guests 9p, macOS guests virtiofs
+  volumes.json                     the volumes the user made, with a folder of the user's where chosen (§11.13)
   qemu/<tag>/, qemu/current        own QEMU build (qemu/build.sh, relocatable)
   logs/                            image builds, first boot of a base
   cache/                           Dock icon for QEMU, askpass helper (no secrets)
@@ -222,7 +222,7 @@ External tools as child processes: `nix`, `qemu-img`, `qemu-system-aarch64`, `ss
 | `omaf stop <name>` | NixOS: QMP `system_powerdown`; macOS: `requestStop()` via the runner socket (with timeout); then hard stop |
 | `omaf reset <name>` | delete the instance state, recreate it from the image |
 | `omaf upgrade <name>` | switch instance to the current image of its recipe (old state deleted) |
-| `omaf rm <name>` | delete the instance (share folder stays) |
+| `omaf rm <name>` | delete the instance (the folders of its volumes stay) |
 | `omaf list` | instances of both guest kinds with status, recipe, image revision |
 | `omaf ssh <name>` | NixOS: `ssh -p <port> <user>@127.0.0.1`; macOS: `ssh <user>@<IP from /var/db/dhcpd_leases>` |
 | `omaf wait/log/images/config/doctor` | readiness, console, images (list, delete), settings, prerequisites (details: `docs/cli.md`) |
@@ -746,8 +746,9 @@ the Mac over one channel.
   `info` – `data: {os, user?, session (bool: a user is logged in to the desktop), helpers: {clipboard: bool}}`
   (macOS: the clipboard helper's process; NixOS: true, the agent carries the clipboard); `clipboard-read` –
   `data: {text}`, the guest's clipboard as text; `clipboard-write {text}` – put it on the guest's clipboard;
-  `share-write {name, text}` / `share-read {name}` – a file in the guest's share folder (macOS `/Volumes/My Shared
-  Files`, NixOS `/mnt/share`; `name` a plain file name), `data: {text}` for read, `fail` when the folder is missing;
+  `share-write {name, text, volume?}` / `share-read {name, volume?}` – a file in one of the guest's volumes
+  (`/Volumes/<volume>` on both platforms, §11.13; `name` and `volume` plain file names), `data: {text}` for read, `fail`
+  when the folder is missing;
   `network` – `data: {addresses, dns (bool, resolves omaflake.app), internet (bool, TCP to 1.1.1.1:443 within 3 s)}`;
   `sound` – plays a 1 s 440 Hz tone on the guest's default output → `confirm` (only the user hears it) or `fail` with
   why; `microphone` – records 2 s from the default input → `data: {level}` (RMS 0…1, peak), `pass` above 0.01, else
@@ -953,11 +954,13 @@ app as cards, `omaf ui` as a tree.
 
 **Docker VM.** The catalog's recipe `nixos/docker` (headless; modules `omaflake/shell`, `omaflake/docker`): Docker 29
 with Compose, listening on `/run/docker.sock` and TCP 2375 (socket activation, firewall open; the VM's NAT lets
-nothing in). A macOS VM in its network uses `DOCKER_HOST=tcp://<address>:2375` (the network's details show the line).
-The port has no TLS and no login – every VM of the network is root on the Docker VM; the module and the docs say so.
-Bind mounts: `/Volumes/My Shared Files` in the Docker VM links to `/mnt/share`, so `docker run -v "$PWD":/app` from a
-macOS VM works when both VMs share the same host folder. Ports published by containers are reached at the Docker VM's
-address, not at the client's `localhost`.
+nothing in). Another VM in its network uses it with the catalog's module `docker-client` (Docker CLI, Compose, Buildx,
+`DOCKER_HOST=tcp://127.0.0.1:2375`) and the forward `2375=<docker VM>` (plan B180), or directly at
+`tcp://<address>:2375`. The port has no TLS and no login – every VM of the network is root on the Docker VM; the
+module and the docs say so. Bind mounts work when both VMs have the same volume under the same name: it is
+`/Volumes/<name>` in every guest (§11.13). Ports published by containers are reached at the Docker VM's address, not at
+the client's `localhost`. omaflake itself knows nothing of Docker (plan B187): the Docker VM is a VM like any other, all
+of Docker is in the catalog's modules.
 
 **Names (plan B179).** The switch answers mDNS queries (224.0.0.251:5353, RFC 6762) for `<vm>.<network>.local` of
 its members with their addresses – the guests' own DNS stays as it is. macOS resolves any `.local` name over mDNS by
@@ -980,6 +983,30 @@ offers no `forward` and gets no list).
 switch (e.g. gvproxy as one port); dragging in the Linux app's and `omaf ui`'s graph; throughput measured against VZ's
 NAT. The macOS app's graph is edited by dragging since plan B181: a VM dropped on a network joins it, an address's
 menu takes the VM out.
+
+### 11.13 Volumes (DECIDED and built 2026-11-27 for 0.8.1, plan B187; German "Platten")
+
+A volume is a folder of the host that VMs share. A VM has none, one or several (at most 8: one PCI slot each for
+QEMU), and a volume may be in several VMs – as with networks, the user decides. A volume has a name (lowercase letters,
+digits, dashes, 1–31) and a folder: `<data>/share/<name>` by default, or one the user chose (`volumes.json`). A VM
+lists its volumes in instance.json (schema v2) with the name it sees each under – by default the folder's name, or
+one the user gives it for that VM (1–31 bytes, no `/`, `,`, `=`, `:`). That name is the device's tag: one virtio-9p
+device per volume for QEMU (slots `0x7`, `0xe`–`0x14`), one virtio-fs device per volume for Virtualization.framework
+(`omaf-runner run --volume <name>=<folder>`; not macOS's automount tag). The guest mounts every tag it finds at
+`/Volumes/<name>` – the same path in macOS and NixOS guests, so paths agree across VMs (a Docker VM's bind mounts):
+NixOS through `omaflake-volumes.service` (vm-guest.nix: the tags in `/sys/bus/virtio/drivers/9pnet_virtio`), macOS
+through the launch daemon `omaflake-volumes` (darwin-guest.nix: `AppleVirtIOFSTag` from the I/O Registry,
+`mount_virtiofs`). Changes take effect at the VM's next start.
+
+Migration: a VM from before (instance.json v1) with `share` on has one volume named after itself, its folder
+`share/<name>` or its `sharePath`. Removing a volume takes it out of its VMs and forgets it – its folder always stays;
+removing a VM deletes the default folder of its own volume only when nothing but metadata is in it and no other VM has
+the volume. API: `volumes.list/create/remove/attach/detach/rename/reveal`, `vms.create`'s `volumes`; CLI `omaf volumes`,
+`omaf new --volume <volume>[=<name>]`; the tab Volumes (Credentials page shape, its VMs as lines, "Add VM" inline) and
+the New VM form's Volume section (none, a new one, one there is; the name in the VM).
+
+**Later (OPEN).** Vaults: volumes encrypted at rest, a file on the host until a VM loads them or the app unlocks them
+(password, Touch ID, a hardware key); VMs that need the same to start (plan B188, proposed).
 
 ### 11.4 Prerequisites for release
 

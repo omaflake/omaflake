@@ -196,7 +196,7 @@ fn row(ctx: &Ctx, info: &NetworkInfo) -> CredentialRow {
         1 => tf!("%@ · 1 VM", n.subnet()),
         _ => tf!("%@ · %lld VMs", n.subnet(), count as i64),
     };
-    let mut info_lines = vec![
+    let info_lines = vec![
         InfoLine::new("Subnet", Text::verbatim(n.subnet())),
         InfoLine::new("Switch", Text::verbatim(n.switch_address().to_string())).note(
             Text::new(if info.status.is_some() {
@@ -213,18 +213,6 @@ fn row(ctx: &Ctx, info: &NetworkInfo) -> CredentialRow {
         .iter()
         .map(|(vm, host)| member_item(info, vm, *host, ctx.vms.iter().find(|v| &v.name == vm)))
         .collect();
-    let docker: Vec<&String> = n
-        .members
-        .keys()
-        .filter(|vm| ctx.vms.iter().any(|v| &&v.name == vm && v.recipe.contains(".nixos.docker")))
-        .collect();
-    for vm in docker {
-        let address = n.member_address(vm).map(|a| a.to_string()).unwrap_or_default();
-        info_lines.push(
-            InfoLine::new("Docker", Text::verbatim(format!("DOCKER_HOST=tcp://{address}:2375")))
-                .note(tf!("in the network's other VMs, for the Docker engine of %@", vm.as_str()), Tone::Normal),
-        );
-    }
     let mut actions = vec![];
     actions.push(
         Action::call("remove", Text::new("Remove …"), Some("trash"), "networks.remove", id).destructive().confirm(
@@ -317,7 +305,7 @@ pub(crate) fn page(ctx: &Ctx) -> NetworksPage {
         list: CredentialsPage {
             title: Text::new("Networks"),
             intro: Text::new(
-                "Networks between VMs: each VM in a network gets a second network card there and reaches the network's other VMs – NixOS and macOS alike, e.g. a Docker VM for several macOS VMs. Its own network (SSH, the internet) stays as it is. Add a VM by drawing a line from it to a network in the picture, or with “Add VM” under the network; × on a line or “Take Out” on its line takes it out. A running NixOS VM changes at once, a macOS VM at its next start.",
+                "Networks between VMs: each VM in a network gets a second network card there and reaches the network's other VMs – NixOS and macOS alike, e.g. one VM with services for several others. Its own network (SSH, the internet) stays as it is. Add a VM by drawing a line from it to a network in the picture, or with “Add VM” under the network; × on a line or “Take Out” on its line takes it out. A running NixOS VM changes at once, a macOS VM at its next start.",
             ),
             rows: ctx.networks.iter().map(|n| row(ctx, n)).collect(),
             add: Action::show("add", Text::new("New Network …"), Some("add"), "network", json!({})).primary(),

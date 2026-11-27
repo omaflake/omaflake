@@ -39,6 +39,7 @@ pub mod recipes;
 pub mod settings;
 pub mod text;
 pub mod vms;
+pub mod volumes;
 pub mod welcome;
 
 #[cfg(test)]
@@ -62,7 +63,7 @@ pub use activity::ActivityEntry;
 pub use text::{Arg, Text};
 
 /// Every page `views.get` knows
-pub const PAGES: [&str; 34] = [
+pub const PAGES: [&str; 37] = [
     "home",
     "welcome",
     "vms",
@@ -97,6 +98,9 @@ pub const PAGES: [&str; 34] = [
     "networks",
     "network",
     "networkMember",
+    "volumes",
+    "volume",
+    "volumeMount",
 ];
 
 /// The computer the core runs on (`initialize`'s `host`): texts that name the Mac, Finder or the Keychain have a
@@ -149,6 +153,8 @@ pub(crate) struct Ctx {
     pub profiles: Vec<crate::api::types::ProfileDto>,
     /// The networks between VMs, each with its running switch's status (plan B170)
     pub networks: Vec<networks::NetworkInfo>,
+    /// The volumes (plan B187)
+    pub volumes: Vec<crate::api::types::VolumeDto>,
     /// The looks here and what the catalogs fetched last offer (plan B141)
     pub looks: crate::api::types::LooksAnswer,
     /// The modules and key binding sets here and what the catalogs offer (plan B142)
@@ -337,6 +343,19 @@ pub(crate) fn build(ctx: &Ctx, page: &PageRef) -> Result<Value, RpcError> {
         "profiles" => to_value(profiles::page(ctx)),
         "networks" => to_value(networks::page(ctx)),
         "network" => to_value(networks::network_page(ctx, &page_params(p)?)),
+        "volumes" => to_value(volumes::page(ctx)),
+        "volume" => to_value(volumes::volume_page(ctx, &page_params(p)?)),
+        "volumeMount" => {
+            let p: volumes::MountParams = page_params(p)?;
+            to_value(volumes::mount_page(ctx, &p).ok_or_else(|| {
+                RpcError::from(crate::vm_err!(
+                    crate::error::codes::NOT_FOUND,
+                    "{} does not have the volume \"{}\"",
+                    p.vm,
+                    p.volume
+                ))
+            })?)
+        }
         "networkMember" => {
             let p: networks::MemberParams = page_params(p)?;
             to_value(networks::member_page(ctx, &p).ok_or_else(|| {
@@ -479,6 +498,7 @@ impl Server {
             locales: super::methods::locale_dtos(&state.paths),
             profiles: super::methods::profile_dtos(&state.paths),
             networks: network_infos(&state.paths),
+            volumes: crate::volumes::Volumes::new(state.paths.clone()).dtos(&state.snap.instances()),
             bases: super::methods::base_dtos(&state.paths, &self.bases_in_use()),
             settings: super::methods::settings_dto(&state.paths),
             settings_answer,

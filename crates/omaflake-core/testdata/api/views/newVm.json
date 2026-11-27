@@ -38,7 +38,13 @@
           "share": true,
           "user": "alex"
         },
-        "start": true
+        "start": true,
+        "volumes": [
+          {
+            "create": true,
+            "volume": "dev"
+          }
+        ]
       },
       "primary": true,
       "then": "back"
@@ -344,22 +350,58 @@
     {
       "fields": [
         {
+          "choices": [
+            {
+              "icon": "minus",
+              "label": {
+                "key": "No volume",
+                "text": "No volume"
+              },
+              "value": ""
+            },
+            {
+              "icon": "add",
+              "label": {
+                "key": "A new volume",
+                "text": "A new volume"
+              },
+              "value": "+"
+            }
+          ],
           "enabled": true,
-          "id": "share",
-          "kind": "toggle",
-          "label": {
-            "key": "Share a Mac folder with the VM",
-            "text": "Share a Mac folder with the VM"
+          "help": {
+            "key": "A folder of this computer the VM shares – with other VMs too, if they have it. More in the Volumes tab.",
+            "text": "A folder of this computer the VM shares – with other VMs too, if they have it. More in the Volumes tab."
           },
-          "param": "settings.share",
-          "value": true,
-          "valueParam": "share"
+          "id": "volume",
+          "kind": "choice",
+          "label": {
+            "key": "Volume",
+            "text": "Volume"
+          },
+          "value": "+",
+          "valueParam": "volume"
+        },
+        {
+          "enabled": true,
+          "help": {
+            "key": "Lowercase letters, digits and dashes – the volume's name in omaflake",
+            "text": "Lowercase letters, digits and dashes – the volume's name in omaflake"
+          },
+          "id": "volumeName",
+          "kind": "text",
+          "label": {
+            "key": "Name",
+            "text": "Name"
+          },
+          "value": "dev",
+          "valueParam": "volumeName"
         },
         {
           "ask": {
             "button": {
-              "key": "Share",
-              "text": "Share"
+              "key": "Choose",
+              "text": "Choose"
             },
             "kind": "folder",
             "label": {
@@ -368,8 +410,8 @@
             },
             "param": "sharePath",
             "prompt": {
-              "key": "Folder to share with the VM",
-              "text": "Folder to share with the VM"
+              "key": "Folder for the volume",
+              "text": "Folder for the volume"
             }
           },
           "enabled": true,
@@ -383,17 +425,37 @@
             "key": "Folder",
             "text": "Folder"
           },
-          "param": "sharePath",
           "placeholder": {
             "text": "/data/share/dev"
           },
           "value": null,
           "valueParam": "sharePath"
+        },
+        {
+          "enabled": true,
+          "help": {
+            "args": [
+              "dev"
+            ],
+            "key": "The VM sees it at /Volumes/%@",
+            "text": "The VM sees it at /Volumes/dev"
+          },
+          "id": "mountAs",
+          "kind": "text",
+          "label": {
+            "key": "Name in the VM",
+            "text": "Name in the VM"
+          },
+          "placeholder": {
+            "text": "dev"
+          },
+          "value": "",
+          "valueParam": "mountAs"
         }
       ],
       "title": {
-        "key": "Share",
-        "text": "Share"
+        "key": "Volume",
+        "text": "Volume"
       }
     },
     {

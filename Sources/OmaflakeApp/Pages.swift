@@ -16,7 +16,7 @@ struct PageView: View {
             switch model.pageModel(ref) {
             case .newVm(let p)?: NewVMView(page: p, ref: ref, model: model)
             case .build(let p)?: BuildView(page: p, ref: ref, model: model)
-            case .credentials(let p)?: CredentialsView(page: p, model: model)
+            case .credentials(let p)?: CredentialsView(page: p, model: model, icon: ref.page == "volumes" ? "externaldrive" : "key")
             case .networks(let p)?: CredentialsView(page: p.list, model: model, graph: p.graph)
             case .credential(let p)?: CredentialView(page: p, ref: ref, model: model)
             case .studio(let p)?: RecipeStudioView(page: p, ref: ref, model: model)
@@ -246,6 +246,8 @@ struct CredentialsView: View {
     let model: AppModel
     /// The Networks tab's picture (plan B170)
     var graph: NetworkGraph? = nil
+    /// The rows' symbol: a key (credentials, locales, profiles), a drive (volumes, plan B187)
+    var icon = "key"
 
     var body: some View {
         Form {
@@ -258,7 +260,7 @@ struct CredentialsView: View {
                     ExpandableRow {
                         HStack(spacing: BrandTokens.Spacing.xl) {
                             StatusLamp(state: .init(r.lamp.state)).help(Text(verbatim: model.t(r.lamp.help)))
-                            Image(systemName: graph == nil ? "key" : "network").frame(width: 16).foregroundStyle(.secondary)
+                            Image(systemName: graph == nil ? icon : "network").frame(width: 16).foregroundStyle(.secondary)
                             VStack(alignment: .leading, spacing: BrandTokens.Spacing.xxs) {
                                 HStack(spacing: BrandTokens.Spacing.m) {
                                     Text(verbatim: r.name).font(.callout.weight(.medium)).lineLimit(1)

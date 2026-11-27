@@ -168,7 +168,8 @@ sizes in bytes, paths absolute.
   "busy": false,                        // an action on it is in progress in this server
   "cpus": 4, "memoryGB": 8, "diskGB": 64,
   "network": "shared",                  // shared | isolated | none
-  "share": true, "sharePath": "/…",     // sharePath (when share is on): the default share/<name> or the user's folder
+  "share": true, "sharePath": "/…",     // share: it has volumes; sharePath: its first volume's folder
+  "volumes": [{"volume": "projects", "mount": "projects", "named": false, "folder": "/…"}],  // plan B187
   "ephemeral": false,
   "sshPort": 2201,                      // NixOS only
   "user": "alex",                       // guest user (SSH)
@@ -394,7 +395,7 @@ Params and results in short; the types are those of §4.
 |---|---|---|
 | `vms.list` | – | `{vms: [Vm], unreadable}` |
 | `vms.get` | `name` | `Vm` |
-| `vms.create` | `name, image, settings: RecipeSettings, sharePath?, start?` | `Vm` – from exactly that image (plan B100); `start` starts it after creating (a macOS VM beyond the limit is created, not started, with a `message`) |
+| `vms.create` | `name, image, settings: RecipeSettings, sharePath?, volumes?: [{volume, as?, create?, path?}], start?` | `Vm` – from exactly that image (plan B100); `volumes` (plan B187): its volumes – `create` makes a new one first (in `path` or `share/<volume>`), `as` the name in the VM; without `volumes` the recipe's own one when it shares a folder (in `sharePath`); `start` starts it after creating (a macOS VM beyond the limit is created, not started, with a `message`) |
 | `vms.start` | `name, display?: "auto"|"none"|"window"|"gpu", gl?: "on"|"es"` | `Vm` – `auto` (default): the UI's start – a window, with 3D where QEMU can; refused beyond the macOS limit (`mac-limit`) |
 | `vms.stop` | `name, timeout? (s, 60)` | `{result}` – `alreadyStopped`, `powerdown`, `quit`, `forcedOff`, `killed`; anything but `powerdown`/`alreadyStopped` is an activity line ("… forced off – the clean shutdown did not take") |
 | `vms.reset` / `vms.remove` | `name` | `null` – refused while running |
@@ -404,7 +405,14 @@ Params and results in short; the types are those of §4.
 | `vms.agent` | `name, wait? (s)` | the agent's report (spec §11.9; agent.json) or `null` – `wait`: up to that long for a report that says the agent is up |
 | `vms.log` | `name, lines? (200), qemu?` | `{lines: [string]}` – NixOS: the serial console (`qemu`: QEMU's own log); macOS: the runner's log |
 | `vms.wait` | `name, timeout? (s, 300)` | `{via}` – blocks until SSH or the agent answers; `vm-stopped` when it does not run |
-| `vms.share` | `name` | `{path}` – the share folder, created if it is the default one |
+| `vms.share` | `name` | `{path}` – the folder of its first volume, created if it is a default one |
+| `volumes.list` | – | `[{name, folder, custom, vms: [{vm, mount}]}]` (plan B187, spec §11.13) – `mount`: the VM sees it at `/Volumes/<mount>` |
+| `volumes.create` | `name, path?` | `{name, folder}` – lowercase letters, digits, dashes (1–31); `path` an existing folder, else `share/<name>` is made |
+| `volumes.remove` | `name` | `null` – out of its VMs and forgotten; the folder stays |
+| `volumes.attach` | `volume, vm, as?` | `{now: false}` – from the VM's next start; `as` the name in the VM (default the folder's); at most 8 per VM, no name twice in a VM |
+| `volumes.detach` | `volume, vm` | `null` – from the VM's next start |
+| `volumes.rename` | `volume, vm, as?` | `null` – the name in the VM; empty or missing: the folder's |
+| `volumes.reveal` | `name` | `{path}` – its folder, made if it is a default one |
 | `diagnostics.run` | `name` | Job `diagnostics` → `result: {checks, file}` – the running VM's diagnosis (plan B162; page `diagnostics`, §10.5); one per VM at a time (a second call answers the running job); `vm-stopped` when the VM does not run |
 | `diagnostics.confirm` | `name, check, ok` | the `diagnostics` page's model – a check waiting for the user (`confirm`: sound, microphone) becomes `pass` or `fail`, logged and kept |
 | `diagnostics.copy` | `name` | `{copied}` – the VM's newest diagnosis log on this computer's clipboard (macOS: pbcopy; Linux: the bridge's clipboard backend, else wl-copy or xclip) |

@@ -122,6 +122,9 @@ pub fn decode(page: &str, v: Value) -> Model {
         // Networks between VMs (plan B170): the list with its graph; the forms in the credential form's shape
         "networks" => de(v, Model::Networks),
         "network" | "networkMember" => de(v, Model::Credential),
+        // Volumes (plan B187): the credentials' list and form
+        "volumes" => de(v, Model::Credentials),
+        "volume" | "volumeMount" => de(v, Model::Credential),
         // The first start's questions (plan B144): a credential form's shape
         "welcome" => de(v, Model::Credential),
         "recipeStudio" => de(v, Model::Studio),

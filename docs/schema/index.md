@@ -22,7 +22,7 @@ one, and never removes a published version from this site. Editors use the URL t
 | Type | File | Schema |
 |---|---|---|
 | `image` | `image.json` in an image package | [v4](image/v4.json) (unchained), [v3](image/v3.json) |
-| `instance` | `instance.json` in a VM package | [v1](instance/v1.json) |
+| `instance` | `instance.json` in a VM package | [v1](instance/v1.json), [v2](instance/v2.json) – volumes (plan B187) |
 | `settings` | `~/.omaflake/config.json` | [v6](settings/v6.json) (credentials, locales, profiles, help switch) |
 | `installed` | `<data>/recipes/.installed.json` | [v1](installed/v1.json) |
 | `macos-vm` | `config.json` of a macOS VM folder | [v1](macos-vm/v1.json) |
@@ -35,6 +35,7 @@ one, and never removes a published version from this site. Editors use the URL t
 | `look` | `look.toml` of a look (TOML, checked as data; plan B140, B141) | [v1](look/v1.json) |
 | `installed-parts` | `<data>/looks/`, `<data>/modules/`, `<data>/keymaps/` `.installed.json` – what was installed from sources | [v1](installed-parts/v1.json) |
 | `networks` | `<data>/networks.json` – the networks between VMs and their members (spec §11.12) | [v1](networks/v1.json) |
+| `volumes` | `<data>/volumes.json` – the volumes the user made: folders VMs share (plan B187) | [v1](volumes/v1.json) |
 | `tokens` | `$XDG_CONFIG_HOME/omaflake/tokens.json` – tokens of private sources on Linux without a keyring | [v1](tokens/v1.json) |
 
 The schemas live in the repository's [docs/schema/](https://github.com/omaflake/omaflake/tree/main/docs/schema); how

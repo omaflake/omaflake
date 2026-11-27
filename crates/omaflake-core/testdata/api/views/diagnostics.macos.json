@@ -114,8 +114,8 @@
       "id": "share",
       "status": "pending",
       "title": {
-        "key": "Share folder",
-        "text": "Share folder"
+        "key": "Volumes",
+        "text": "Volumes"
       }
     },
     {

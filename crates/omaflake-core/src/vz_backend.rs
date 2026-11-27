@@ -222,8 +222,9 @@ impl VzBackend {
                 args.push("--camera-test-pattern".into());
             }
         }
-        if c.share {
-            args.extend(["--share".into(), path_string(&self.paths.prepare_share(c, None)?)]);
+        // Each volume as <name>=<folder> (plan B187): the guest mounts it at /Volumes/<name>
+        for (name, folder) in crate::volumes::Volumes::new(self.paths.clone()).prepare_all(c, None)? {
+            args.extend(["--volume".into(), format!("{name}={}", path_string(&folder))]);
         }
         // A second card per network (spec §11.12): the runner binds its end and sends to the switch
         for (i, n) in networks.iter().enumerate() {
@@ -875,14 +876,14 @@ pub(crate) mod tests {
         let mut c = mac_config("m1", NetworkMode::None);
         c.microphone = Some(true);
         c.clipboard = Some(false);
-        c.share = true;
+        c.set_volumes(vec![crate::models::VolumeMount::new("m1", None)]);
         let ip = p.instance("m1");
         let a = vz.runner_arguments(&c, StartOptions::new(DisplayMode::Window), &[]).unwrap();
         let s = |x: &Path| x.to_string_lossy().into_owned();
         let mut expected = vec!["run".to_string(), s(&ip.vm()), "--socket".into(), s(&ip.runner_socket())];
         expected.extend(["--pid-file".into(), s(&ip.runner_pid()), "--window".into(), "--no-network".into()]);
         expected.extend(["--audio".into(), "--microphone".into(), "--agent-state".into(), s(&ip.agent_state())]);
-        expected.extend(["--share".into(), s(&p.share("m1"))]);
+        expected.extend(["--volume".into(), format!("m1={}", s(&p.share("m1")))]);
         assert_eq!(a, expected);
         assert!(p.share("m1").is_dir());
         let headless =

@@ -25,6 +25,7 @@
     "status": "stopped",
     "system": "aarch64-darwin",
     "upgradable": false,
-    "user": "alex"
+    "user": "alex",
+    "volumes": []
   }
 }

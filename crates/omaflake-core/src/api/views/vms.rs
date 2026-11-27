@@ -200,14 +200,8 @@ pub(crate) fn row(ctx: &Ctx, v: &Vm) -> VmRowView {
     let mut actions: Vec<Action> = super::keys::action(ctx, &v.recipe, json!({"vm": name})).into_iter().collect();
     if v.share {
         actions.push(
-            Action::call(
-                "showShare",
-                Text::new("Show Share Folder"),
-                Some("folder"),
-                "vms.share",
-                json!({"name": name}),
-            )
-            .then(Then::Reveal),
+            Action::call("showShare", Text::new("Show Volume"), Some("folder"), "vms.share", json!({"name": name}))
+                .then(Then::Reveal),
         );
     }
     let start_blockers = ctx.start_blockers(v.kind);
@@ -373,7 +367,7 @@ fn detail(ctx: &Ctx, v: &Vm) -> VmDetail {
     {
         let mut f = Field::new("forwards", FieldKind::Text, Text::new("Ports of other VMs"), json!(v.forwards))
             .help(Text::new(
-                "On this VM's localhost: 5432=docker:5432 makes localhost:5432 reach port 5432 of the VM docker – a VM in a network with this one. Apart by commas; from the next start; images built with omaflake 0.8.0 or later.",
+                "On this VM's localhost: 5432=db:5432 makes localhost:5432 reach port 5432 of the VM db – a VM in a network with this one. Apart by commas; from the next start; images built with omaflake 0.8.0 or later.",
             ))
             .enabled_if(!v.busy, None);
         f.placeholder = Some(Text::new("none"));
@@ -442,8 +436,13 @@ fn detail(ctx: &Ctx, v: &Vm) -> VmDetail {
     let mut ssh_line = InfoLine::new("SSH", ssh);
     ssh_line.full = full;
     info.push(ssh_line);
-    if let (true, Some(dir)) = (v.share, &v.share_path) {
-        info.push(InfoLine::new("Share folder", Text::verbatim(dir)).full(dir));
+    // Its volumes (plan B187): where the guest sees each, its folder here in full
+    for m in &v.volumes {
+        info.push(
+            InfoLine::new("Volume", Text::verbatim(format!("/Volumes/{}", m.mount)))
+                .full(&m.folder)
+                .note(tf!("volume %@ · %@", &m.volume, &m.folder), Tone::Normal),
+        );
     }
     if v.ephemeral {
         info.push(InfoLine::new("Ephemeral", Text::new("changes are discarded on power-off")));
@@ -517,12 +516,10 @@ fn detail(ctx: &Ctx, v: &Vm) -> VmDetail {
     );
     let remove_text = match &v.location {
         Some(location) => tf!(
-            "The VM runs from %@ – it is deleted there and cannot be restored. Its share folder is kept if it holds files. To keep it there, choose Stop Listing instead.",
+            "The VM runs from %@ – it is deleted there and cannot be restored. The folders of its volumes stay. To keep it there, choose Stop Listing instead.",
             location
         ),
-        None => Text::new(
-            "The VM and its disk are deleted and cannot be restored. Its share folder is kept if it holds files.",
-        ),
+        None => Text::new("The VM and its disk are deleted and cannot be restored. The folders of its volumes stay."),
     };
     actions.push(
         Action::call("remove", Text::new("Remove …"), Some("trash"), "vms.remove", json!({"name": name}))

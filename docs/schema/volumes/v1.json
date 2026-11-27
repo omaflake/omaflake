@@ -1,0 +1,41 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://omaflake.dev/schema/volumes/v1.json",
+  "title": "omaflake volumes",
+  "description": "<data>/volumes.json: the volumes the user made (plan B187) – folders of this computer that VMs share. A volume without a record here has its folder at <data>/share/<name>; which VMs have it is in their instance.json.",
+  "type": "object",
+  "properties": {
+    "$schema": {
+      "const": "https://omaflake.dev/schema/volumes/v1.json"
+    },
+    "volumes": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "pattern": "^[a-z0-9][a-z0-9-]{0,30}$"
+          },
+          "path": {
+            "type": "string",
+            "description": "A folder the user chose; missing: <data>/share/<name>"
+          },
+          "created": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "name",
+          "created"
+        ],
+        "additionalProperties": false
+      }
+    }
+  },
+  "required": [
+    "$schema"
+  ],
+  "additionalProperties": false
+}

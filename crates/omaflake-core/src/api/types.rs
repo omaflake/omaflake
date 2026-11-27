@@ -144,9 +144,12 @@ pub struct Vm {
     pub disk_gb: u32,
     pub network: NetworkMode,
     pub share: bool,
-    /// The folder shared (the default share/<name> or the user's) – when `share` is on
+    /// The folder of its first volume – when `share` is on
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub share_path: Option<String>,
+    /// Its volumes (plan B187)
+    #[serde(default)]
+    pub volumes: Vec<VmVolumeDto>,
     pub ephemeral: bool,
     /// NixOS guests: the forwarded SSH port
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -188,7 +191,7 @@ pub struct Vm {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub latest_image: Option<String>,
     pub upgradable: bool,
-    /// Ports of other VMs on its localhost, "5432=docker:5432, 2375=docker" (plan B180); "" for none
+    /// Ports of other VMs on its localhost, "5432=db:5432, 8080=web" (plan B180); "" for none
     #[serde(default, skip_serializing_if = "String::is_empty")]
     pub forwards: String,
 }
@@ -945,6 +948,39 @@ pub struct LooksAnswer {
     pub fetched: bool,
 }
 
+/// A volume (`volumes.list`, plan B187): a folder of this computer that VMs share
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct VolumeDto {
+    pub name: String,
+    /// Its folder on this computer
+    pub folder: String,
+    /// A folder the user chose (not share/<name> in the data folder)
+    pub custom: bool,
+    /// The VMs that have it, with the name they see it under
+    pub vms: Vec<VolumeVmDto>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct VolumeVmDto {
+    pub vm: String,
+    /// The name in the VM: it sees the volume at /Volumes/<mount>
+    pub mount: String,
+}
+
+/// A volume of a VM (plan B187)
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct VmVolumeDto {
+    pub volume: String,
+    /// The name in the VM: /Volumes/<mount>
+    pub mount: String,
+    /// The user named it (otherwise it is the folder's name)
+    pub named: bool,
+    pub folder: String,
+}
+
 /// A network between VMs (`networks.list`, plan B170, spec §11.12)
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -1421,6 +1457,7 @@ mod tests {
             network: NetworkMode::Shared,
             share: true,
             share_path: Some("/s".into()),
+            volumes: vec![],
             ephemeral: false,
             ssh_port: Some(2201),
             user: "alex".into(),

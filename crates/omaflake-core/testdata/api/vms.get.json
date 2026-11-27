@@ -53,5 +53,13 @@
   "status": "running",
   "system": "aarch64-linux",
   "upgradable": true,
-  "user": "alex"
+  "user": "alex",
+  "volumes": [
+    {
+      "folder": "/data/share/research",
+      "mount": "research",
+      "named": false,
+      "volume": "research"
+    }
+  ]
 }

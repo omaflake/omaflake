@@ -163,7 +163,7 @@ while omaflake is not in front (menu window closed, app window hidden or in the 
   while idle
 - Instance list of both guest kinds with status dot and guest-kind icon (snowflake = NixOS, Apple logo = macOS),
   from the core's `vms.changed` events (it watches `~/.omaflake`) → also shows VMs started via the CLI; SSH port (NixOS) or NAT address (macOS, while running)
-- per instance, always in the same places: share folder (folder icon), start without window (terminal with a play
+- per instance, always in the same places: its first volume (folder icon), start without window (terminal with a play
   sub-symbol; the terminal with SSH while running), start in a window (monitor with a play sub-symbol, NixOS: 3D if the
   QEMU supports it; shut down while running). Small icons next to the name show what is on (clipboard, sound,
   microphone and camera in orange, ephemeral, isolated/no network); an orange arrow when a newer image is there
@@ -173,7 +173,7 @@ while omaflake is not in front (menu window closed, app window hidden or in the 
 - Every row starts with a status lamp and the guest kind and is at most two lines high (plan B99): green = on / active /
   built, grey = off / not active / not built, orange = needs attention, cyan pulsing = busy.
 - Every row (VM, image, recipe) opens with a click into its details (plan B94). A VM's details: its switches as chips
-  (clipboard | sound, microphone, camera), image, recipe, resources, network, SSH command, share folder, created, and
+  (clipboard | sound, microphone, camera), image, recipe, resources, network, SSH command, its volumes (/Volumes/<name> and the folder), created, and
   reset, switch to the newer image (when there is one) and remove (red) – there is no "…" menu any more
 - Sound, microphone, shared clipboard, camera and MIDI per VM: switches in "New VM …" and in the VM's details (from the next start). Clipboard: both guest kinds (text, PNG); camera: both guest kinds, on only while an app in the VM uses it (macOS guests: through OBS's virtual camera until omaflake's own camera extension, plan B169); MIDI: macOS guests – the Mac's MIDI devices in the VM, both ways (plan B161)
 - Packages (spec §11.10, plan B108, B109): "Export …" in the details of a VM (stopped), an image and a recipe, into a
@@ -205,8 +205,10 @@ while omaflake is not in front (menu window closed, app window hidden or in the 
   "2/4" with its name, packages done of announced, a bar – and the log as a coloured terminal; NixOS `nix build` and the macOS image pipeline (asks for the guest user's password once, never
   stored), live log; both can be cancelled – in that window or with the ✕ in the image row – which stops the running
   step, forces a macOS build VM off and deletes the half-built folder
-- "New VM …": share folder = default `share/<name>` or a folder chosen in the open panel – the only way the app
-  touches protected folders like Documents or Desktop
+- "New VM …": its volume (plan B187) – none, a new one (default `share/<name>` or a folder chosen in the open panel –
+  the only way the app touches protected folders like Documents or Desktop) or one there is, and the name in the VM
+- Tab "Volumes" (plan B187): the volumes with their folders and VMs, "Add VM" inline, a VM's line with "Rename …"
+  (the name it sees the volume under) and "Take Out"; "New Volume …"
 - Gear menu: launch at login (`SMAppService.mainApp`), "Install macOS Base …" (`omaf macos install`: user, full name,
   password, live log; fully automatic, BM29), Settings, show the data folder in Finder, quit. An image row's menu
   deletes the image ("Remove Image …", refused while VMs use it) or older images of the recipe. "Build Image …" and

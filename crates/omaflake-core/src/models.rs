@@ -409,7 +409,18 @@ fn instance_v0_to_v1(o: &mut Map<String, Value>) -> Result<()> {
     Ok(())
 }
 
-static INSTANCE_STEPS: [Step; 1] = [instance_v0_to_v1];
+/// 1 → 2: volumes (plan B187) – a VM with a share folder has one volume, named after itself (its folder stays where it
+/// was: `Volumes::folder` reads `sharePath`)
+fn instance_v1_to_v2(o: &mut Map<String, Value>) -> Result<()> {
+    let share = o.get("share").and_then(Value::as_bool).unwrap_or(false);
+    let name = o.get("name").and_then(Value::as_str).unwrap_or_default();
+    let volumes =
+        if share { vec![serde_json::json!({ "volume": crate::volumes::Volumes::own_name(name) })] } else { vec![] };
+    o.insert("volumes".into(), Value::Array(volumes));
+    Ok(())
+}
+
+static INSTANCE_STEPS: [Step; 2] = [instance_v0_to_v1, instance_v1_to_v2];
 
 /// Contents of instances/<name>.omaflake-vm/instance.json. Settings are copied from the recipe on
 /// `omaf new` and belong to the instance afterwards.
@@ -460,9 +471,14 @@ pub struct InstanceConfig {
     /// How a plain start shows the VM (from the recipe); None = headless in the CLI, a window in the app
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub display: Option<DisplayMode>,
-    /// Share folder the user chose (absolute path); None = the default `share/<name>` in omaflake's folder
+    /// Share folder the user chose before volumes (absolute path): the folder of the VM's own volume when volumes.json
+    /// has no record of it (`Volumes::folder`)
     #[serde(rename = "sharePath", default, skip_serializing_if = "Option::is_none")]
     pub share_path: Option<String>,
+    /// Its volumes (plan B187), each with the name the guest sees it under; None (only before schema 2): its own one
+    /// when `share`
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub volumes: Option<Vec<VolumeMount>>,
     /// The VM's identity as three words (its omaflake ID `vm:<name>:<words>`, plan B110): random when it is made, new
     /// for a copy under another name, kept by a restore
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -479,6 +495,21 @@ pub struct InstanceConfig {
     pub forwards: Vec<PortForward>,
 }
 
+/// A volume in a VM (plan B187): the guest sees it at `/Volumes/<mount>`
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct VolumeMount {
+    pub volume: String,
+    /// The name in the guest; None: the name of the volume's folder (`Volumes::mount_name`)
+    #[serde(rename = "as", default, skip_serializing_if = "Option::is_none")]
+    pub mount: Option<String>,
+}
+
+impl VolumeMount {
+    pub fn new(volume: &str, mount: Option<&str>) -> VolumeMount {
+        VolumeMount { volume: volume.into(), mount: mount.map(String::from) }
+    }
+}
+
 /// localhost:<port> in a VM → <vm>:<to> (plan B180)
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct PortForward {
@@ -488,7 +519,7 @@ pub struct PortForward {
 }
 
 impl PortForward {
-    /// "5432=docker:5432, 2375=docker" – each "<port>=<vm>[:<port>]" (the VM's port is the same when left out), apart
+    /// "5432=db:5432, 8080=web" – each "<port>=<vm>[:<port>]" (the VM's port is the same when left out), apart
     /// by commas or spaces; an empty text is none
     pub fn parse_list(text: &str) -> std::result::Result<Vec<PortForward>, String> {
         let mut out: Vec<PortForward> = Vec::new();
@@ -527,8 +558,28 @@ impl PortForward {
 }
 
 impl InstanceConfig {
-    /// instance.json (see `instance_v0_to_v1`)
+    /// instance.json (see `instance_v0_to_v1`, `instance_v1_to_v2`)
     pub const FILE_FORMAT: FileFormat = FileFormat::new("instance", "instance.json", 0, &INSTANCE_STEPS);
+
+    /// Its volumes with their names in the guest (plan B187)
+    pub fn volume_mounts(&self) -> Vec<VolumeMount> {
+        match &self.volumes {
+            Some(v) => v.clone(),
+            None if self.share => vec![VolumeMount::new(&crate::volumes::Volumes::own_name(&self.name), None)],
+            None => vec![],
+        }
+    }
+
+    /// The names of its volumes
+    pub fn volume_names(&self) -> Vec<String> {
+        self.volume_mounts().into_iter().map(|m| m.volume).collect()
+    }
+
+    /// Sets its volumes; `share` says whether it has any (what older clients read)
+    pub fn set_volumes(&mut self, mounts: Vec<VolumeMount>) {
+        self.share = !mounts.is_empty();
+        self.volumes = Some(mounts);
+    }
 
     /// Swift's `init(name:recipe:image:imagePath:system:settings:sshPort:created:)`; pass `json::now()` for Swift's
     /// default `created: Date()`
@@ -566,6 +617,11 @@ impl InstanceConfig {
             midi: settings.midi,
             display: settings.display,
             share_path: None,
+            volumes: Some(if settings.share {
+                vec![VolumeMount::new(&crate::volumes::Volumes::own_name(name), None)]
+            } else {
+                vec![]
+            }),
             identity: None,
             displays: None,
             system_image: None,
@@ -990,12 +1046,36 @@ pub(crate) mod tests {
     fn swift_instance_fixture_round_trips() {
         let data = include_bytes!("../testdata/instance-v1.json");
         let (c, migrated) = InstanceConfig::FILE_FORMAT.decode::<InstanceConfig>(data).unwrap();
-        assert!(!migrated);
+        assert!(migrated, "version 1 gets volumes");
         assert_eq!(c.memory_gb, 16);
         assert_eq!(c.share_path.as_deref(), Some("/Volumes/data/share"));
+        assert_eq!(c.volumes, Some(vec![VolumeMount::new("research", None)]));
         assert_eq!(crate::json::iso8601::format(&c.created), "2026-10-21T10:00:00Z");
         let written = InstanceConfig::FILE_FORMAT.encode(&c).unwrap();
-        assert_eq!(String::from_utf8(written).unwrap(), String::from_utf8_lossy(data).trim_end());
+        let expected = String::from_utf8_lossy(data)
+            .trim_end()
+            .replace("instance/v1.json", "instance/v2.json")
+            .replace(
+                "  \"system\" : \"aarch64-linux\"\n",
+                "  \"system\" : \"aarch64-linux\",\n  \"volumes\" : [\n    {\n      \"volume\" : \"research\"\n    }\n  ]\n",
+            );
+        assert_eq!(String::from_utf8(written).unwrap(), expected);
+    }
+
+    /// Schema 2 (plan B187): a VM with a share folder has its own volume, one without none
+    #[test]
+    fn instance_v1_gets_volumes() {
+        let without = r#"{"$schema":"https://omaflake.dev/schema/instance/v1.json","name":"b","recipe":"dev","image":"i","imagePath":"/i","cpus":2,"memoryGB":2,"diskGB":10,"network":"shared","share":false,"ephemeral":false,"sshPort":2222,"created":"2026-10-01T00:00:00Z","kind":"nixos","system":"aarch64-linux"}"#;
+        let (c, _) = InstanceConfig::FILE_FORMAT.decode::<InstanceConfig>(without.as_bytes()).unwrap();
+        assert_eq!(c.volumes, Some(vec![]));
+        let mut c = config("x");
+        assert_eq!(c.volume_names(), ["x"]);
+        c.set_volumes(vec![]);
+        assert!(!c.share && c.volume_names().is_empty());
+        c.set_volumes(vec![VolumeMount::new("a", None), VolumeMount::new("b", Some("B"))]);
+        assert!(c.share && c.volume_names() == ["a", "b"]);
+        let text = serde_json::to_string(&c.volumes).unwrap();
+        assert_eq!(text, r#"[{"volume":"a"},{"volume":"b","as":"B"}]"#);
     }
 
     fn d(author: &str, kind: GuestKind, name: &str) -> RecipeDefaults {

@@ -133,7 +133,7 @@ fn hint(id: &str, status: CheckStatus, kind: GuestKind) -> Option<Text> {
         }
         ("clipboard", CheckStatus::Fail) => "The agent carries the clipboard – check the agent first.",
         ("share", CheckStatus::Fail) => {
-            "The share folder is /Volumes/My Shared Files in macOS guests, /mnt/share in NixOS guests."
+            "A guest mounts each volume at /Volumes/<name> – images before 0.8.1 cannot: rebuild the image, then upgrade the VM."
         }
         ("network", CheckStatus::Fail) => "Check the VM's network setting and this computer's connection.",
         ("sound", CheckStatus::Confirm) => "A short tone played in the guest – did you hear it?",

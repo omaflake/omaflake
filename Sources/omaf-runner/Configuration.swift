@@ -7,7 +7,8 @@ import OmaflakeKit
 @MainActor
 enum MachineConfiguration {
     struct Options {
-        var share: URL?
+        /// Volumes (plan B187): each its own device, the tag its name in the guest – it mounts each at /Volumes/<tag>
+        var volumes: [(tag: String, folder: URL)] = []
         var network = true
         /// Sound out to the Mac
         var audio = false
@@ -74,10 +75,11 @@ enum MachineConfiguration {
             c.networkDevices.append(try card.device(handle))
         }
 
-        if let share = options.share {
-            let fs = VZVirtioFileSystemDeviceConfiguration(tag: VZVirtioFileSystemDeviceConfiguration.macOSGuestAutomountTag)
-            fs.share = VZSingleDirectoryShare(directory: VZSharedDirectory(url: share, readOnly: false))
-            c.directorySharingDevices = [fs]
+        for (tag, folder) in options.volumes {
+            try VZVirtioFileSystemDeviceConfiguration.validateTag(tag)
+            let fs = VZVirtioFileSystemDeviceConfiguration(tag: tag)
+            fs.share = VZSingleDirectoryShare(directory: VZSharedDirectory(url: folder, readOnly: false))
+            c.directorySharingDevices.append(fs)
         }
 
         if options.audio {

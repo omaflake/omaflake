@@ -317,7 +317,8 @@ impl InstanceStore {
             s.external_vms = s.external_vms.map(|l| l.into_iter().filter(|p| *p != dir).collect());
             s.save_file(&self.paths.config_file)?;
         }
-        if own_share {
+        // Its own volume's default folder, unless another VM has that volume (plan B187)
+        if own_share && !self.list().iter().any(|c| c.volume_names().iter().any(|v| v == name)) {
             Self::remove_share_if_empty(&self.paths.share(name));
         }
         // Out of its networks (spec §11.12); the VM is gone either way
@@ -441,7 +442,7 @@ mod tests {
             &file,
             written
                 .replace("\"recipe\"", "\"flavor\"")
-                .replace(r#""$schema" : "https://omaflake.dev/schema/instance/v1.json","#, ""),
+                .replace(r#""$schema" : "https://omaflake.dev/schema/instance/v2.json","#, ""),
         )
         .unwrap();
         assert!(!fs::read_to_string(&file).unwrap().contains("$schema"));

@@ -13,7 +13,7 @@ same CLI, `omaf ui` and a native app. macOS guests need a Mac.
 
 **What runs:** NixOS guests of the host's own architecture – an x86_64 PC runs `x86_64-linux` images, an aarch64
 machine `aarch64-linux` ones (a recipe lists what it can be built for in `systems`, recipe.toml). Everything else is the
-same as on a Mac: overlays on images, SSH forwarded to `127.0.0.1:<port>`, the share folder over 9p, the serial log,
+same as on a Mac: overlays on images, SSH forwarded to `127.0.0.1:<port>`, volumes over 9p, the serial log,
 QMP, ephemeral VMs, packages (export/import).
 
 **What it needs:**
@@ -160,7 +160,7 @@ OMAFLAKE_ACCEL=tcg omaf start t1 --headless --wait   # after a stop: the TCG fal
 omaf stop t1; omaf rm t1
 ```
 
-Look for: the boot to SSH time with KVM, the window (3D, resizing, keyboard), sound, the share folder (`/mnt/share`),
+Look for: the boot to SSH time with KVM, the window (3D, resizing, keyboard), sound, the volumes (`/Volumes/<name>`),
 and `omaf ui` / the app's Doctor and VM details. The integrations: `omaf agent t1` (the report), copying text and an
 image both ways, sound and the microphone (`omaf new t1 … --microphone`), the camera (`--camera`, then
 `mpv av://v4l2:/dev/video42` in the guest), and `run/t1/bridge.log`.

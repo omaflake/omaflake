@@ -146,6 +146,27 @@ in
     RunAtLoad = true;
   };
 
+  # Volumes (plan B187): folders of the host, one virtio-fs device each; its tag is the name the user gave the volume in
+  # this VM, mounted at /Volumes/<tag> – the same path as in NixOS guests. The tags are in the I/O Registry
+  # (AppleVirtIOFS, AppleVirtIOFSTag – checked in a macOS 26 guest); macOS's own automount tag is left to macOS.
+  # OPEN: owner and permissions of a volume mounted this way, checked in a guest with volumes.
+  launchd.daemons.omaflake-volumes.serviceConfig = {
+    ProgramArguments = [ "/bin/sh" "${pkgs.writeText "omaflake-volumes.sh" ''
+      set -u
+      exec >> /var/log/omaflake-volumes.log 2>&1
+      list=$(/usr/sbin/ioreg -r -c AppleVirtIOFS -d 1 -a) || exit 0
+      i=0
+      while tag=$(printf '%s' "$list" | /usr/bin/plutil -extract "$i.AppleVirtIOFSTag" raw -o - -); do
+        i=$((i + 1))
+        case "$tag" in ""|.*|*/*|com.apple.virtio-fs.automount) continue ;; esac
+        /sbin/mount | /usr/bin/grep -qF " on /Volumes/$tag (" && continue
+        /bin/mkdir -p "/Volumes/$tag"
+        /sbin/mount_virtiofs "$tag" "/Volumes/$tag" || echo "$(date): could not mount $tag"
+      done
+    ''}" ];
+    RunAtLoad = true;
+  };
+
   # A larger disk (plan B164): omaflake grows the VM's disk.img while it is stopped; at the next boot the system
   # container takes the new space. A macOS VM's disk is ISC container, system container, then the fallback recovery
   # container (Apple_APFS_Recovery, 5.4 GB, checked in a macOS 27 guest) – it sits behind the system container, so it

@@ -27,10 +27,17 @@ pub const MAX_TEXT: usize = 64 * 1024;
 /// Requests waiting while one runs (the Mac sends one at a time; more are refused)
 pub const MAX_QUEUE: usize = 8;
 
-#[cfg(target_os = "macos")]
+/// Where every guest sees its volumes, one folder each (plan B187)
 pub const SHARE: &str = "/Volumes/My Shared Files";
-#[cfg(not(target_os = "macos"))]
-pub const SHARE: &str = "/mnt/share";
+
+/// The folder of the volume the request names (`"volume"`), else all of them
+fn volume_dir(args: &Value) -> Result<std::path::PathBuf, String> {
+    match args.get("volume").and_then(Value::as_str) {
+        Some(v) if valid_name(v) => Ok(Path::new(SHARE).join(v)),
+        Some(v) => Err(format!("\"{v}\" is not a plain file name")),
+        None => Ok(Path::new(SHARE).into()),
+    }
+}
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Request {
@@ -197,8 +204,14 @@ pub fn run(req: &Request, ctx: Context, clipboard: Option<&dyn Clipboard>) -> An
             },
             (None, Ok(_)) => fail("No clipboard here"),
         },
-        "share-write" => share_write(Path::new(SHARE), &req.args),
-        "share-read" => share_read(Path::new(SHARE), &req.args),
+        "share-write" => match volume_dir(&req.args) {
+            Ok(dir) => share_write(&dir, &req.args),
+            Err(e) => fail(e),
+        },
+        "share-read" => match volume_dir(&req.args) {
+            Ok(dir) => share_read(&dir, &req.args),
+            Err(e) => fail(e),
+        },
         "sound" => sound(),
         "microphone" => microphone(),
         _ => return unknown(req),
@@ -864,6 +877,13 @@ mod tests {
         for bad in ["", ".", "..", "a/b", "/etc/passwd", "../x", "a\0b", &"x".repeat(256)] {
             assert!(!valid_name(bad), "{bad}");
         }
+    }
+
+    #[test]
+    fn volume_folders() {
+        assert_eq!(volume_dir(&json!({})).unwrap(), Path::new(SHARE));
+        assert_eq!(volume_dir(&json!({"volume": "projects"})).unwrap(), Path::new(SHARE).join("projects"));
+        assert!(volume_dir(&json!({"volume": "../etc"})).is_err());
     }
 
     #[test]

@@ -136,7 +136,7 @@ fn subscribes_home_activity_and_the_first_tab() {
 fn tab_goes_on_into_the_workshop() {
     let mut h = Harness::new(none);
     h.model("vms", json!({}), fixture("vms"));
-    for _ in 0..4 {
+    for _ in 0..5 {
         h.key(KeyCode::Tab);
     }
     assert_eq!(h.app.tab, "recipes", "the workshop's first tab: Build Images");
@@ -192,7 +192,7 @@ fn draws_the_vms_tab() {
         "i ⇩ Import",
         "r ↗ Run from There",
         "1 ⌨ Keys …",
-        "2 ▤ Show Share Folder",
+        "2 ▤ Show Volume",
         "3 ›_ Open Terminal with SSH",
         "4 ⚕ Diagnose …",
         "5 ■ Shut down",
@@ -438,7 +438,7 @@ fn enter_does_the_primary_action_only() {
     assert_eq!(row.default.map(|d| row.actions[d]["id"].clone()), Some(images["rows"][0]["actions"][2]["id"].clone()));
     // A hint without a primary (the lab hint) has no default: Enter opens its actions
     let mut h = Harness::new(none);
-    for _ in 0..8 {
+    for _ in 0..9 {
         h.key(KeyCode::Tab);
     }
     assert_eq!(h.app.tab, "recipeCatalog");
@@ -508,21 +508,21 @@ fn the_action_menu_scrolls_to_its_selection_in_a_small_terminal() {
     assert_eq!(actions[last]["id"], "remove");
     // 14 rows: the menu of eight actions (most with a second line) does not fit – the top is shown, more below
     let s = h.screen_sized(100, 14);
-    assert!(s.contains("Show Share Folder") && !s.contains("Remove …") && s.contains(" ↓ "), "{s}");
+    assert!(s.contains("Show Volume") && !s.contains("Remove …") && s.contains(" ↓ "), "{s}");
     for _ in 0..last {
         h.key(KeyCode::Char('j'));
     }
     let s = h.screen_sized(100, 14);
-    assert!(s.contains("Remove …") && !s.contains("Show Share Folder") && s.contains(" ↑ "), "{s}");
+    assert!(s.contains("Remove …") && !s.contains("Show Volume") && s.contains(" ↑ "), "{s}");
     // Back to the first: the top again
     for _ in 0..last {
         h.key(KeyCode::Char('k'));
     }
     let s = h.screen_sized(100, 14);
-    assert!(s.contains("Show Share Folder") && !s.contains("Remove …"), "{s}");
+    assert!(s.contains("Show Volume") && !s.contains("Remove …"), "{s}");
     // A terminal it fits into: everything, no arrows
     let s = h.screen();
-    assert!(s.contains("Show Share Folder") && s.contains("Remove …") && !s.contains(" ↓ "), "{s}");
+    assert!(s.contains("Show Volume") && s.contains("Remove …") && !s.contains(" ↓ "), "{s}");
 }
 
 #[test]

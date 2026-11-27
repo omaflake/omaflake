@@ -17,6 +17,7 @@ enum Icons {
         case "module": ("square.stack.3d.up", nil)
         case "gauge": ("gauge.with.dots.needle.33percent", nil)
         case "network": ("network", nil)
+        case "volume": ("externaldrive", nil)
         case "copy": ("doc.on.doc", nil)
         case "edit": ("pencil", nil)
         case "license": ("scroll", nil)

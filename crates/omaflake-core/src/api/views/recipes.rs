@@ -524,7 +524,7 @@ fn defaults_text(r: &RecipeDto) -> Text {
         on.push(Text::new("MIDI"));
     }
     if r.share {
-        on.push(Text::new("Share folder"));
+        on.push(Text::new("Own volume"));
     }
     if r.ephemeral {
         on.push(Text::new("Ephemeral"));

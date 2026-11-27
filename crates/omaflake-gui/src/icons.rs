@@ -21,6 +21,7 @@ pub fn lucide(name: &str) -> Option<Icon> {
         "module" => Icon::Blocks,
         "gauge" => Icon::Gauge,
         "network" => Icon::Network,
+        "volume" => Icon::HardDrive,
         "copy" => Icon::Copy,
         "edit" => Icon::Pencil,
         "license" => Icon::Scale,

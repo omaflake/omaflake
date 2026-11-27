@@ -36,7 +36,8 @@
           "network": "shared",
           "share": false
         },
-        "start": true
+        "start": true,
+        "volumes": []
       },
       "primary": true,
       "reason": {
@@ -294,21 +295,42 @@
     {
       "fields": [
         {
+          "choices": [
+            {
+              "icon": "minus",
+              "label": {
+                "key": "No volume",
+                "text": "No volume"
+              },
+              "value": ""
+            },
+            {
+              "icon": "add",
+              "label": {
+                "key": "A new volume",
+                "text": "A new volume"
+              },
+              "value": "+"
+            }
+          ],
           "enabled": true,
-          "id": "share",
-          "kind": "toggle",
-          "label": {
-            "key": "Share a Mac folder with the VM",
-            "text": "Share a Mac folder with the VM"
+          "help": {
+            "key": "A folder of this computer the VM shares – with other VMs too, if they have it. More in the Volumes tab.",
+            "text": "A folder of this computer the VM shares – with other VMs too, if they have it. More in the Volumes tab."
           },
-          "param": "settings.share",
-          "value": false,
-          "valueParam": "share"
+          "id": "volume",
+          "kind": "choice",
+          "label": {
+            "key": "Volume",
+            "text": "Volume"
+          },
+          "value": "",
+          "valueParam": "volume"
         }
       ],
       "title": {
-        "key": "Share",
-        "text": "Share"
+        "key": "Volume",
+        "text": "Volume"
       }
     },
     {

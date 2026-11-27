@@ -61,7 +61,15 @@
       "status": "running",
       "system": "aarch64-linux",
       "upgradable": true,
-      "user": "alex"
+      "user": "alex",
+      "volumes": [
+        {
+          "folder": "/data/share/research",
+          "mount": "research",
+          "named": false,
+          "volume": "research"
+        }
+      ]
     },
     {
       "audio": false,
@@ -88,7 +96,8 @@
       "status": "stopped",
       "system": "aarch64-darwin",
       "upgradable": false,
-      "user": "alex"
+      "user": "alex",
+      "volumes": []
     }
   ]
 }

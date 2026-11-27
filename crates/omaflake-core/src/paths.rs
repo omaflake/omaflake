@@ -2,7 +2,6 @@
 //! Port of Paths.swift: the data folder, a VM's files and the settings (config.json).
 
 use std::fs;
-use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
 
 use serde::{Deserialize, Serialize};
@@ -10,7 +9,6 @@ use serde_json::{Map, Value};
 
 use crate::error::{IoContext, Result};
 use crate::file_format::{FileFormat, Step, write_atomic};
-use crate::models::InstanceConfig;
 use crate::packages::{Package, PackageKind};
 use crate::platform::{expand_tilde, home_dir, standardize};
 use crate::recipe_sources::RecipeSource;
@@ -163,30 +161,9 @@ impl Paths {
         self.images().join(format!("{name}.{}", Package::IMAGE))
     }
 
-    /// Default share folder of an instance (created by omaflake)
+    /// Default folder of a volume (created by omaflake, plan B187)
     pub fn share(&self, name: &str) -> PathBuf {
         self.shares().join(name)
-    }
-
-    /// Share folder of an instance: the folder the user chose (`share_path`), otherwise the default one.
-    pub fn share_dir(&self, c: &InstanceConfig) -> PathBuf {
-        c.share_path.as_ref().map(PathBuf::from).unwrap_or_else(|| self.share(&c.name))
-    }
-
-    /// Creates the default share folder; a folder the user chose must exist and is left as it is.
-    pub fn prepare_share(&self, c: &InstanceConfig, mode: Option<u32>) -> Result<PathBuf> {
-        let dir = self.share_dir(c);
-        if c.share_path.is_some() {
-            if !dir.is_dir() {
-                return Err(vm_err!("Share folder missing: {}", dir.display()));
-            }
-            return Ok(dir);
-        }
-        fs::create_dir_all(&dir).with_path(&dir)?;
-        if let Some(mode) = mode {
-            fs::set_permissions(&dir, fs::Permissions::from_mode(mode)).with_path(&dir)?;
-        }
-        Ok(dir)
     }
 }
 
@@ -580,7 +557,6 @@ impl Settings {
 #[cfg(test)]
 pub(crate) mod tests {
     use super::*;
-    use crate::models::tests::config;
 
     /// Temporary ~/.omaflake replacement per test (Swift `tempPaths()`); keep the TempDir alive
     pub fn temp_paths() -> (tempfile::TempDir, Paths) {
@@ -595,29 +571,6 @@ pub(crate) mod tests {
             return;
         }
         assert_eq!(Paths::standard().root.file_name().unwrap(), ".omaflake");
-    }
-
-    #[test]
-    fn default_share_is_created_with_mode() {
-        let (_t, p) = temp_paths();
-        let c = config("s1");
-        let dir = p.prepare_share(&c, Some(0o777)).unwrap();
-        assert_eq!(dir, p.share("s1"));
-        assert_eq!(fs::metadata(&dir).unwrap().permissions().mode() & 0o7777, 0o777);
-    }
-
-    #[test]
-    fn chosen_share_must_exist_and_keeps_its_permissions() {
-        let (_t, p) = temp_paths();
-        let mut c = config("s2");
-        let mine = p.root.join("mine");
-        c.share_path = Some(mine.to_string_lossy().into_owned());
-        assert!(p.prepare_share(&c, None).is_err());
-        fs::create_dir_all(&mine).unwrap();
-        fs::set_permissions(&mine, fs::Permissions::from_mode(0o700)).unwrap();
-        assert_eq!(p.prepare_share(&c, Some(0o777)).unwrap(), mine);
-        assert_eq!(fs::metadata(&mine).unwrap().permissions().mode() & 0o7777, 0o700);
-        assert!(!p.share("s2").exists());
     }
 
     /// config.json pointing to <checkout>/flavors or <checkout>/recipes moves to <checkout>/nix once that has the flake

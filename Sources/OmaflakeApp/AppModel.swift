@@ -55,11 +55,11 @@ final class AppModel {
 
     /// Tabs of the main page (plan B91); the core's `home` page names them
     enum HomeTab: String, CaseIterable {
-        case vms, images, activity, networks, recipes, recipeStudio, keymapStudio, lookStudio, recipeCatalog, modules, looks, keymaps, sources
+        case vms, images, activity, networks, volumes, recipes, recipeStudio, keymapStudio, lookStudio, recipeCatalog, modules, looks, keymaps, sources
         case credentials, locales, profiles
 
         /// The studios, the sources, credentials, locales and profiles are forms that scroll themselves
-        var isForm: Bool { [.recipeStudio, .keymapStudio, .lookStudio, .sources, .credentials, .locales, .profiles, .networks].contains(self) }
+        var isForm: Bool { [.recipeStudio, .keymapStudio, .lookStudio, .sources, .credentials, .locales, .profiles, .networks, .volumes].contains(self) }
     }
 
     /// The group of the open tab (plan B147): `run` or `workshop`, as the core's tabs say

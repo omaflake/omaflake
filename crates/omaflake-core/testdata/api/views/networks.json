@@ -102,8 +102,8 @@
     ]
   },
   "intro": {
-    "key": "Networks between VMs: each VM in a network gets a second network card there and reaches the network's other VMs – NixOS and macOS alike, e.g. a Docker VM for several macOS VMs. Its own network (SSH, the internet) stays as it is. Add a VM by drawing a line from it to a network in the picture, or with “Add VM” under the network; × on a line or “Take Out” on its line takes it out. A running NixOS VM changes at once, a macOS VM at its next start.",
-    "text": "Networks between VMs: each VM in a network gets a second network card there and reaches the network's other VMs – NixOS and macOS alike, e.g. a Docker VM for several macOS VMs. Its own network (SSH, the internet) stays as it is. Add a VM by drawing a line from it to a network in the picture, or with “Add VM” under the network; × on a line or “Take Out” on its line takes it out. A running NixOS VM changes at once, a macOS VM at its next start."
+    "key": "Networks between VMs: each VM in a network gets a second network card there and reaches the network's other VMs – NixOS and macOS alike, e.g. one VM with services for several others. Its own network (SSH, the internet) stays as it is. Add a VM by drawing a line from it to a network in the picture, or with “Add VM” under the network; × on a line or “Take Out” on its line takes it out. A running NixOS VM changes at once, a macOS VM at its next start.",
+    "text": "Networks between VMs: each VM in a network gets a second network card there and reaches the network's other VMs – NixOS and macOS alike, e.g. one VM with services for several others. Its own network (SSH, the internet) stays as it is. Add a VM by drawing a line from it to a network in the picture, or with “Add VM” under the network; × on a line or “Take Out” on its line takes it out. A running NixOS VM changes at once, a macOS VM at its next start."
   },
   "rows": [
     {

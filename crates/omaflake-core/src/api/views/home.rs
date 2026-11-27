@@ -139,6 +139,7 @@ pub(crate) fn page(ctx: &Ctx) -> HomePage {
         tab("images", "Images", "image", "run", images_badge),
         tab("activity", "Activity", "activity", "run", None),
         tab("networks", "Networks", "network", "run", None),
+        tab("volumes", "Volumes", "volume", "run", None),
         tab(
             "recipes",
             "Build Images",

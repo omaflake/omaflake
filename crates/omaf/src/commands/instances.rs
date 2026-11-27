@@ -13,6 +13,7 @@ use omaflake_core::cli_link::CliLink;
 use omaflake_core::guest_choices::GuestChoices;
 use omaflake_core::linux_builder::LinuxBuilder;
 use omaflake_core::qemu_command::Accel;
+use omaflake_core::volumes::Volumes;
 use omaflake_core::{
     AgentState, DataFolder, DisplayMode, Error, GlBackend, GuestKind, GuestSettings, InstanceConfig, InstanceLock,
     Lengths, MacOsRelease, NetworkMode, OmaflakeId, Paths, Prerequisite, PrerequisiteStatus, Prerequisites,
@@ -256,7 +257,7 @@ pub fn new(a: &cli::New) -> Outcome {
     if let Some(dir) = &a.share_dir {
         let path = folder_path(dir);
         if !path.is_dir() {
-            return Err(Error::new(format!("Share folder missing: {}", path.display())).into());
+            return Err(Error::new(format!("No such folder: {}", path.display())).into());
         }
         share_path = Some(path.to_string_lossy().into_owned());
         settings.share = true;
@@ -277,10 +278,43 @@ pub fn new(a: &cli::New) -> Outcome {
     for n in &a.join {
         networks.get(n)?; // before the VM exists: a wrong name leaves nothing behind
     }
+    // Volumes (plan B187): each "<volume>[=<name in the VM>]", checked before the VM exists
+    let wanted: Vec<(String, Option<String>)> = a
+        .volume
+        .iter()
+        .map(|v| match v.split_once('=') {
+            Some((v, m)) => (v.trim().to_string(), Some(m.trim().to_string())),
+            None => (v.trim().to_string(), None),
+        })
+        .collect();
+    for (v, m) in &wanted {
+        Volumes::validate_name(v)?;
+        if let Some(m) = m {
+            Volumes::validate_mount(m)?;
+        }
+    }
+    let volumes = Volumes::new(env.paths.clone());
     let mut c = backend.create(&a.name, &recipe, &image, &settings)?;
-    c.share_path = share_path;
+    if let Some(path) = share_path {
+        let own = Volumes::own_name(&c.name);
+        if !volumes.list(&backends.store.list()).iter().any(|v| v.name == own) {
+            volumes.create(&own, Some(std::path::Path::new(&path)), &backends.store.list())?;
+        }
+    }
+    if !wanted.is_empty() {
+        if !a.share && a.share_dir.is_none() {
+            c.set_volumes(vec![]);
+            backends.store.save(&c)?;
+        }
+        for (v, m) in &wanted {
+            if !volumes.list(&backends.store.list()).iter().any(|x| &x.name == v) {
+                volumes.create(v, None, &backends.store.list())?;
+            }
+            c = volumes.attach(&backends.store, v, &c.name, m.as_deref())?;
+        }
+    }
     c.displays = displays;
-    if c.share_path.is_some() || c.displays.is_some() {
+    if c.displays.is_some() {
         backends.store.save(&c)?;
     }
     println!("{}", created_line(&c));

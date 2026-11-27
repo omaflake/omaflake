@@ -29,7 +29,7 @@ pub fn title(id: &str) -> &'static str {
         "agent" => "Agent",
         "ssh" => "SSH",
         "clipboard" => "Clipboard",
-        "share" => "Share folder",
+        "share" => "Volumes",
         "network" => "Network",
         "sound" => "Sound",
         "microphone" => "Microphone",
@@ -55,7 +55,7 @@ pub const OWN_DETAILS: [&str; 10] = [
     PASS_BOTH_WAYS,
 ];
 pub const SKIP_CLIPBOARD: &str = "Clipboard is off for this VM";
-pub const SKIP_SHARE: &str = "The share folder is off for this VM";
+pub const SKIP_SHARE: &str = "This VM has no volumes";
 pub const SKIP_NETWORK: &str = "No network for this VM";
 pub const SKIP_SOUND: &str = "Sound is off for this VM";
 pub const SKIP_MICROPHONE: &str = "The microphone is off for this VM";
@@ -221,8 +221,8 @@ pub trait Probe {
     /// `ssh -o BatchMode=yes … true`: None while there is no address; Err with ssh's stderr
     fn ssh(&self) -> Option<Result<(), String>>;
     fn clipboard(&self) -> Result<Box<dyn HostClipboard + '_>, String>;
-    /// The VM's share folder on this computer
-    fn share_dir(&self) -> PathBuf;
+    /// The VM's volumes: (name in the guest, folder on this computer) each (plan B187)
+    fn volumes(&self) -> Vec<(String, PathBuf)>;
 }
 
 /// The real one: the data folder, the VM's sockets, ssh, the clipboard
@@ -282,8 +282,12 @@ impl Probe for LiveProbe {
         host_clipboard()
     }
 
-    fn share_dir(&self) -> PathBuf {
-        self.paths.share_dir(&self.config)
+    fn volumes(&self) -> Vec<(String, PathBuf)> {
+        crate::volumes::Volumes::new(self.paths.clone())
+            .mounts(&self.config)
+            .into_iter()
+            .map(|(_, m, f)| (m, f))
+            .collect()
     }
 }
 
@@ -376,7 +380,7 @@ impl<'a> Diagnosis<'a> {
             "ssh" => self.ssh(),
             "clipboard" if !c.clipboard_on() => r(CheckStatus::Skipped, SKIP_CLIPBOARD.into()),
             "clipboard" => self.clipboard(),
-            "share" if !c.share => r(CheckStatus::Skipped, SKIP_SHARE.into()),
+            "share" if c.volume_names().is_empty() => r(CheckStatus::Skipped, SKIP_SHARE.into()),
             "share" => self.share(),
             "network" if c.network == NetworkMode::None => r(CheckStatus::Skipped, SKIP_NETWORK.into()),
             "network" => self.network(),
@@ -573,14 +577,30 @@ impl<'a> Diagnosis<'a> {
         }
     }
 
+    /// Every volume both ways (plan B187); the first that fails names the result
     fn share(&self) -> CheckResult {
         let id = "share";
         if let Some(why) = &self.unavailable {
             return CheckResult::new(id, CheckStatus::Skipped, why.clone());
         }
-        let dir = self.probe.share_dir();
+        let volumes = self.probe.volumes();
+        for (name, dir) in &volumes {
+            let r = self.volume(name, dir);
+            if r.status != CheckStatus::Pass {
+                return if volumes.len() > 1 {
+                    CheckResult::new(id, r.status, format!("{name}: {}", r.detail))
+                } else {
+                    r
+                };
+            }
+        }
+        CheckResult::new(id, CheckStatus::Pass, PASS_BOTH_WAYS)
+    }
+
+    fn volume(&self, volume: &str, dir: &Path) -> CheckResult {
+        let id = "share";
         if !dir.is_dir() {
-            return CheckResult::new(id, CheckStatus::Fail, format!("no share folder here: {}", dir.display()));
+            return CheckResult::new(id, CheckStatus::Fail, format!("no folder here: {}", dir.display()));
         }
         let (to_guest, from_guest) = (token(), token());
         let (name_in, name_out) = (format!(".{to_guest}.txt"), format!(".{from_guest}.txt"));
@@ -589,11 +609,11 @@ impl<'a> Diagnosis<'a> {
         if let Err(e) = std::fs::write(&file_in, &to_guest) {
             return CheckResult::new(id, CheckStatus::Fail, format!("cannot write {}: {e}", file_in.display()));
         }
-        let there = match self.guest("share-read", Some(json!({"name": name_in}))) {
+        let there = match self.guest("share-read", Some(json!({"name": name_in, "volume": volume}))) {
             Ok(a) => {
                 let ok = a.status == CheckStatus::Pass && a.data.get("text").and_then(Value::as_str) == Some(&to_guest);
                 if !ok {
-                    (self.log)(&format!("    guest share-read: {}", a.detail));
+                    (self.log)(&format!("    guest share-read ({volume}): {}", a.detail));
                 }
                 ok
             }
@@ -603,18 +623,19 @@ impl<'a> Diagnosis<'a> {
                 return self.not_asked(id, why);
             }
         };
-        let back = match self.guest("share-write", Some(json!({"name": name_out, "text": from_guest}))) {
-            Ok(a) if a.status == CheckStatus::Pass => self
-                .until(|| {
-                    (std::fs::read_to_string(&file_out).ok().as_deref() == Some(from_guest.as_str())).then_some(())
-                })
-                .is_some(),
-            Ok(a) => {
-                (self.log)(&format!("    guest share-write: {}", a.detail));
-                false
-            }
-            Err(_) => false,
-        };
+        let back =
+            match self.guest("share-write", Some(json!({"name": name_out, "text": from_guest, "volume": volume}))) {
+                Ok(a) if a.status == CheckStatus::Pass => self
+                    .until(|| {
+                        (std::fs::read_to_string(&file_out).ok().as_deref() == Some(from_guest.as_str())).then_some(())
+                    })
+                    .is_some(),
+                Ok(a) => {
+                    (self.log)(&format!("    guest share-write ({volume}): {}", a.detail));
+                    false
+                }
+                Err(_) => false,
+            };
         // omaflake's own temporary files
         let _ = std::fs::remove_file(&file_in);
         let _ = std::fs::remove_file(&file_out);
@@ -863,8 +884,8 @@ mod tests {
         fn clipboard(&self) -> Result<Box<dyn HostClipboard + '_>, String> {
             Ok(Box::new(HostSide(&self.clip)))
         }
-        fn share_dir(&self) -> PathBuf {
-            self.share.clone()
+        fn volumes(&self) -> Vec<(String, PathBuf)> {
+            vec![("t1".into(), self.share.clone())]
         }
     }
 
@@ -930,7 +951,7 @@ mod tests {
         let f = fake(dir.path());
         let mut c = crate::models::tests::config("t1");
         c.clipboard = Some(true);
-        c.share = true;
+        c.set_volumes(vec![crate::models::VolumeMount::new("t1", None)]);
         c.audio = Some(true);
         c.midi = Some(true);
         c.microphone = Some(false);

@@ -29,7 +29,7 @@ in
   options.vm.shareFolder.enable = lib.mkOption {
     type = lib.types.bool;
     default = true;
-    description = "Mount the shared Mac folder (virtio-9p, tag \"share\") at /mnt/share.";
+    description = "Mount omaflake's volumes (one virtio-9p device each) at /Volumes/<tag>.";
   };
 
   options.vm.bootSplash.enable = lib.mkOption {
@@ -165,7 +165,7 @@ in
     # endpoint); the sequencer core is loaded at boot, since the agent's ProtectKernelModules keeps it from loading it
     # on demand. UMP (MIDI 2.0) needs the kernel's SND_SEQ_UMP (Linux 6.5+): OPEN whether nixpkgs' kernel config has
     # it; without it the agent converts to MIDI 1.0 events.
-    boot.kernelModules = [ "v4l2loopback" "snd-seq" ];
+    boot.kernelModules = [ "v4l2loopback" "snd-seq" ] ++ lib.optionals config.vm.shareFolder.enable [ "9p" "9pnet_virtio" ];
     boot.extraModprobeConfig = ''
       options v4l2loopback devices=1 video_nr=42 card_label="Mac Camera" exclusive_caps=1 max_openers=10
     '';
@@ -186,11 +186,26 @@ in
     boot.consoleLogLevel = lib.mkIf config.vm.bootSplash.enable 3;
     boot.initrd.verbose = lib.mkIf config.vm.bootSplash.enable false;
 
-    # Shared folder from the Mac; the VM still boots if it is missing
-    fileSystems."/mnt/share" = lib.mkIf config.vm.shareFolder.enable {
-      device = "share";
-      fsType = "9p";
-      options = [ "trans=virtio" "version=9p2000.L" "nofail" "x-systemd.automount" ];
+    # Volumes (plan B187): folders of the host, one virtio-9p device each; its tag is the name the user gave the volume
+    # in this VM, mounted at /Volumes/<tag> – the same path as in macOS guests, so a path is the same in every VM that
+    # has the volume. Whatever devices this start has: none, one or several; the VM boots without them.
+    systemd.services.omaflake-volumes = lib.mkIf config.vm.shareFolder.enable {
+      description = "Mount omaflake's volumes at /Volumes/<name>";
+      wantedBy = [ "multi-user.target" ];
+      after = [ "systemd-modules-load.service" "local-fs.target" ];
+      before = [ "omaflake-agent.service" ];
+      path = [ pkgs.coreutils pkgs.util-linux ];
+      serviceConfig = { Type = "oneshot"; RemainAfterExit = true; };
+      script = ''
+        for f in /sys/bus/virtio/drivers/9pnet_virtio/virtio*/mount_tag; do
+          [ -e "$f" ] || continue
+          tag=$(tr -d '\000' < "$f")
+          case "$tag" in ""|.*|*/*) continue ;; esac
+          mkdir -p "/Volumes/$tag"
+          mountpoint -q "/Volumes/$tag" && continue
+          mount -t 9p -o trans=virtio,version=9p2000.L "$tag" "/Volumes/$tag" || echo "could not mount $tag"
+        done
+      '';
     };
   };
 }
