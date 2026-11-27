@@ -372,8 +372,20 @@ fn settings_v4_to_v5(o: &mut Map<String, Value>) -> Result<()> {
     Ok(())
 }
 
-static SETTINGS_STEPS: [Step; 6] =
-    [settings_v0_to_v1, settings_v1_to_v2, settings_v2_to_v3, settings_v3_to_v4, settings_v4_to_v5, settings_v5_to_v6];
+static SETTINGS_STEPS: [Step; 7] = [
+    settings_v0_to_v1,
+    settings_v1_to_v2,
+    settings_v2_to_v3,
+    settings_v3_to_v4,
+    settings_v4_to_v5,
+    settings_v5_to_v6,
+    settings_v6_to_v7,
+];
+
+/// Settings 6 → 7 (plan B200): `volumesInFinder` is new and on while left out – nothing to change
+fn settings_v6_to_v7(_o: &mut Map<String, Value>) -> Result<()> {
+    Ok(())
+}
 
 /// Settings 5 → 6 (plan B148): the help switch `help` is new and off while left out – nothing to change
 fn settings_v5_to_v6(_o: &mut Map<String, Value>) -> Result<()> {
@@ -444,6 +456,9 @@ pub struct Settings {
     /// None = off
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub help: Option<bool>,
+    /// The volumes in the Mac's Finder (plan B200): `~/omaflake` with a link to each, in the sidebar; None = on
+    #[serde(rename = "volumesInFinder", default, skip_serializing_if = "Option::is_none")]
+    pub volumes_in_finder: Option<bool>,
 }
 
 impl Settings {
@@ -612,9 +627,13 @@ pub(crate) mod tests {
         let (v5, migrated) =
             Settings::FILE_FORMAT.decode::<Settings>(include_bytes!("../testdata/config-v5.json")).unwrap();
         assert!(migrated && v5.help.is_none());
-        let data = include_bytes!("../testdata/config-v6.json");
+        let (v6, migrated) =
+            Settings::FILE_FORMAT.decode::<Settings>(include_bytes!("../testdata/config-v6.json")).unwrap();
+        assert!(migrated && v6.volumes_in_finder.is_none());
+        let data = include_bytes!("../testdata/config-v7.json");
         let (s, migrated) = Settings::FILE_FORMAT.decode::<Settings>(data).unwrap();
         assert!(!migrated);
+        assert_eq!(s.volumes_in_finder, Some(false));
         assert_eq!(s.default_credential.as_deref(), Some("c-1"));
         assert_eq!(s.credentials.as_ref().unwrap()[0].full_name.as_deref(), Some("Jane Doe"));
         assert_eq!(s.default_look.as_deref(), Some("omaflake.look.rose-pine-dawn"));
@@ -647,7 +666,7 @@ pub(crate) mod tests {
             assert_eq!((l.name.as_str(), l.time_zone.as_str()), ("Standard", "Europe/Berlin"));
             assert_eq!(s.default_locale.as_deref(), Some(l.id.as_str()));
             let written = String::from_utf8(Settings::FILE_FORMAT.encode(&s).unwrap()).unwrap();
-            assert!(written.starts_with("{\n  \"$schema\" : \"https://omaflake.dev/schema/settings/v6.json\""));
+            assert!(written.starts_with("{\n  \"$schema\" : \"https://omaflake.dev/schema/settings/v7.json\""));
             assert!(!written.contains("\"user\" : \"jane\",\n    \"look\""));
         }
         // 3 → 4 (plan B141): the guest look becomes the default look's id, omaflake/recipes becomes omaflake/catalog
@@ -679,7 +698,7 @@ pub(crate) mod tests {
         let s = Settings::load(&p);
         assert_eq!(s.flake.as_deref(), Some("/f"));
         let text = fs::read_to_string(&p.config_file).unwrap();
-        assert!(text.starts_with("{\n  \"$schema\" : \"https://omaflake.dev/schema/settings/v6.json\""));
+        assert!(text.starts_with("{\n  \"$schema\" : \"https://omaflake.dev/schema/settings/v7.json\""));
     }
 
     #[test]

@@ -13,6 +13,12 @@ are collected under *Unreleased*. Releases: [GitHub](https://github.com/omaflake
 
 ## [Unreleased]
 
+### Added
+
+- **Your volumes in the Finder** – a folder **omaflake** in your home folder, with omaflake's icon and in the Finder's
+  sidebar, holds every volume, so you no longer go into the hidden `.omaflake` folder. omaflake keeps it in step when
+  volumes come and go; take the sidebar entry out and it stays out. Off in Settings → **Volumes in the Finder**.
+
 ### Fixed
 
 - **A removed volume stays removed** – a volume whose folder held only what macOS leaves there came back in the list

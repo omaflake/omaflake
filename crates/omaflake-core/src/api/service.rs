@@ -42,6 +42,8 @@ const WRITE_TIMEOUT: Duration = Duration::from_secs(10);
 const LOOK: Duration = Duration::from_millis(200);
 /// How often the service looks for running macOS VMs whose guest helpers did not start yet (plan B194)
 const HELPERS_LOOK: Duration = Duration::from_secs(5);
+/// How often it brings `~/omaflake` in step with the volumes (plan B200; links only – cheap)
+const FINDER_LOOK: Duration = Duration::from_secs(10);
 
 /// Where the service of the data folder `paths` listens (docs/api.md §1)
 pub fn socket_path(paths: &Paths) -> PathBuf {
@@ -169,6 +171,7 @@ impl Listening {
         let next = AtomicU64::new(0);
         let mut idle_since: Option<Instant> = None;
         let mut helpers_looked: Option<Instant> = None;
+        let mut finder_looked: Option<Instant> = None;
         let ended = loop {
             let mut pfd = libc::pollfd { fd: self.listener.as_raw_fd(), events: libc::POLLIN, revents: 0 };
             // SAFETY: one valid pollfd for the listener, which lives as long as this call
@@ -192,6 +195,12 @@ impl Listening {
             if helpers_looked.is_none_or(|t| t.elapsed() >= HELPERS_LOOK) {
                 helpers_looked = Some(Instant::now());
                 server.keep_guest_helpers();
+            }
+            // The volumes in the Mac's Finder, whoever changed them (the apps, omaf, a VM made with a volume)
+            if finder_looked.is_none_or(|t| t.elapsed() >= FINDER_LOOK) {
+                finder_looked = Some(Instant::now());
+                let paths = server.paths();
+                std::thread::spawn(move || crate::finder_volumes::sync(&paths));
             }
             let busy = server.busy();
             if busy {

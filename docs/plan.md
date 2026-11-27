@@ -488,6 +488,12 @@ Lume (trycua) only after a license review (OPEN).
 
 ## 8. Next steps (as of 2026-11-27)
 
+**Next: release 0.8.4 (planned, 2026-11-27):** B199 (a removed volume stays removed) and B200 (the volumes in the Mac's
+Finder, stage 1) – both on main, not released. Before the tag: B200 looked at in the Finder and switched off and on
+in the app; the catalog's `xcode` 1.1.0 pushed once 0.8.3 is out (module/v3 needs it). Candidates if time allows: B193
+(the agent's forwards in a macOS VM – retrying, then the agent inside omaflake Tools for the local network rule). After
+M12: B200 stage 2, B191.
+
 **Release 0.8.3 (2026-11-27):** B198 (modules can need files nobody may pass on: module.toml v3 `[[files]]`, found and
 added to the Nix Store before a build, the build page and `omaf files add` asking for them – the catalog's `xcode`
 1.1.0 uses it), B189's double start of the volumes session fixed, B186 written down as a proposal. Gone through and
@@ -684,6 +690,23 @@ time). *Fixed:* `remove_share_if_empty` gives the owner permission on the metada
 the folder still stays, `volumes.remove` says so instead of reporting success, and `omaf volumes rm` says whether the
 folder stayed. Test: a share with a `.Trashes` of mode 1311 holding a file goes. The maintainer's `unchained` removed
 with it.
+
+**B200 (2026-11-27, the maintainer: "ein cooles Feature wäre, wenn man die Platten auf dem Host ähnlich wie bei der VM
+als externe Festplatte sieht oder zumindest ähnlich wie GoogleDrive in der Seitenleiste mit dem omaflake-Symbol …
+vollautomatisch über omaflake"): the volumes in the Mac's Finder.** *Decided, in two stages:* (1) now, without the
+Developer ID: a folder `~/omaflake` with omaflake's icon and one Finder sidebar entry, holding a link to each volume's
+folder; (2) after M12: a File Provider extension ("omaflake" under Locations, like Google Drive's) or FSKit volumes as
+in unchained guests (B190) – both need entitlements an ad hoc signature does not get. *Built (stage 1):*
+`finder_volumes.rs` – the core service brings the folder in step every 10 s (links made, changed, and taken out for
+volumes that are gone; nothing else in the folder touched), the icon from the app's `omaflake.icns`
+(`NSWorkspace.setIcon`, JXA), the sidebar entry once through `LSSharedFileList` (deprecated – as in the guests, B189;
+a mark in the folder remembers it, so an entry the user took out stays out); a folder `~/omaflake` that is not
+omaflake's is left alone; only for the user's data folder (not with `VM_HOME`, not for tests); one sync at a time. The
+setting `volumesInFinder` (settings v7, default on; off: the links, the mark, the icon file, the entry and an empty
+folder go), shown on the Mac's settings page. Tests: links made and forgotten, a user's file kept, a foreign folder
+left alone, settings v6 → v7. *Checked on the maintainer's Mac (2026-11-27):* a service of this build made `~/omaflake`
+with the four volumes, set the icon and put the folder into the sidebar (listed by `LSSharedFileList`). OPEN: the
+look in the Finder; the setting switched off in the app; stage 2.
 
 **B192 (2026-11-27, done with 0.8.1): omaflake's crates on crates.io.** The maintainer: falkOSS's other projects
 (kernoid, aktujo, verkodo) have their crates on crates.io, omaflake was the odd one out. *Decided:* every crate is

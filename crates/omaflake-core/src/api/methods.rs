@@ -688,6 +688,9 @@ impl Server {
         if let Some(v) = flag("help")? {
             s.help = v.unwrap_or(false).then_some(true);
         }
+        if let Some(v) = flag("volumesInFinder")? {
+            s.volumes_in_finder = (!v.unwrap_or(true)).then_some(false);
+        }
         for key in ["flake", "qemu", "nix", "runner"] {
             if let Some(v) = text(key)? {
                 match key {
@@ -740,6 +743,11 @@ impl Server {
         if before.host_keyboard != s.host_keyboard {
             // Images without a locale take this computer's keyboard: the lists say "outdated" now (plan B135)
             self.check_freshness();
+        }
+        if before.volumes_in_finder != s.volumes_in_finder {
+            // At once, not at the service's next look (plan B200)
+            let paths = paths.clone();
+            std::thread::spawn(move || crate::finder_volumes::sync(&paths));
         }
         if paths_changed
             || before.developer_mode != s.developer_mode
@@ -3629,6 +3637,7 @@ pub(crate) fn settings_dto(paths: &Paths) -> SettingsDto {
         notifications: s.notifications.unwrap_or(true),
         keep_recipe_versions: s.keep_recipe_versions.unwrap_or(false),
         help: s.help.unwrap_or(false),
+        volumes_in_finder: s.volumes_in_finder.unwrap_or(true),
         default_credential: Credentials::new(paths.clone()).default_credential().map(|c| c.id),
         host_keyboard: s.host_keyboard.clone(),
         default_locale: crate::locales::Locales::new(paths.clone()).default_locale().map(|l| l.id),

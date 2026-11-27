@@ -10,5 +10,6 @@
   "help": false,
   "hostKeyboard": "ch",
   "keepRecipeVersions": false,
-  "notifications": false
+  "notifications": false,
+  "volumesInFinder": true
 }

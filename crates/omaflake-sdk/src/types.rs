@@ -992,6 +992,9 @@ pub struct SettingsDto {
     pub keep_recipe_versions: bool,
     /// The help switch (plan B148): explanations shown
     pub help: bool,
+    /// The volumes in the Mac's Finder: `~/omaflake` with a link to each, in the sidebar (plan B200)
+    #[serde(default = "yes")]
+    pub volumes_in_finder: bool,
     /// This computer's keyboard (plan B141): the physical one, preset for new locales; left out: as the system says
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub host_keyboard: Option<String>,
@@ -1409,6 +1412,10 @@ pub struct Inspection {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub conflict: Option<ConflictDto>,
     pub network_volume: bool,
+}
+
+fn yes() -> bool {
+    true
 }
 
 #[cfg(test)]

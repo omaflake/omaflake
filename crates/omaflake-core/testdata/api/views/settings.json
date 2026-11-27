@@ -144,6 +144,25 @@
       {
         "enabled": true,
         "help": {
+          "key": "A folder omaflake in your home folder, with omaflake's icon and in the Finder's sidebar, holding each volume – so you need not go into the hidden .omaflake folder.",
+          "text": "A folder omaflake in your home folder, with omaflake's icon and in the Finder's sidebar, holding each volume – so you need not go into the hidden .omaflake folder."
+        },
+        "id": "volumesInFinder",
+        "kind": "toggle",
+        "label": {
+          "key": "Volumes in the Finder",
+          "text": "Volumes in the Finder"
+        },
+        "set": {
+          "method": "settings.set",
+          "param": "volumesInFinder",
+          "params": {}
+        },
+        "value": true
+      },
+      {
+        "enabled": true,
+        "help": {
           "key": "When a newer version of a recipe comes (an update, an import, a change in a local folder after a build). Off: only the newest stays – and every version an image is built from, as long as the image is there.",
           "text": "When a newer version of a recipe comes (an update, an import, a change in a local folder after a build). Off: only the newest stays – and every version an image is built from, as long as the image is there."
         },

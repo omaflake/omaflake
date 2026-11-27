@@ -10,6 +10,7 @@ use super::text::tf;
 use omaflake_sdk::models::RecipeSourceKind;
 use omaflake_sdk::text::{Arg, Text};
 use omaflake_sdk::types::{SettingsAnswer, SourceDto};
+use omaflake_sdk::views::HostOs;
 use omaflake_sdk::views::common::*;
 
 // The page's model (plan B192: in omaflake-sdk); this file builds it
@@ -170,6 +171,14 @@ pub(crate) fn page(ctx: &Ctx, answer: &SettingsAnswer) -> SettingsPage {
         ],
         footer: None,
     };
+    // The volumes in the Mac's Finder (plan B200) – the Linux app has no such folder
+    let mut general = general;
+    if ctx.host == HostOs::Macos {
+        general.fields.insert(
+            2,
+            flag("volumesInFinder", "Volumes in the Finder", "A folder omaflake in your home folder, with omaflake's icon and in the Finder's sidebar, holding each volume – so you need not go into the hidden .omaflake folder.", s.volumes_in_finder),
+        );
+    }
 
     // This computer (plan B141): its keyboard – the physical one; language, region, time zone and the guests'
     // keyboards are a locale's

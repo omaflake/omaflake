@@ -23,6 +23,7 @@ pub mod data_folder;
 pub mod diagnostics;
 pub mod encoding;
 pub mod file_format;
+pub mod finder_volumes;
 pub mod guest_choices;
 pub mod guest_settings;
 pub mod host_bridge;

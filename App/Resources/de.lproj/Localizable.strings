@@ -1979,3 +1979,5 @@
 "Download %@ (your Apple Account)" = "%@ laden (mit deinem Apple-Account)";
 "Add %@" = "%@ hinzufügen";
 "%@ holds only what macOS left there but could not be deleted, so the volume stays in the list – delete the folder in the Finder" = "%@ enthält nur noch, was macOS dort abgelegt hat, ließ sich aber nicht löschen; deshalb bleibt die Platte in der Liste – lösche den Ordner im Finder";
+"Volumes in the Finder" = "Platten im Finder";
+"A folder omaflake in your home folder, with omaflake's icon and in the Finder's sidebar, holding each volume – so you need not go into the hidden .omaflake folder." = "Ein Ordner „omaflake“ in deinem Benutzerordner, mit omaflake-Symbol und in der Seitenleiste des Finders, mit jeder Platte darin – so musst du nicht in den versteckten Ordner .omaflake.";

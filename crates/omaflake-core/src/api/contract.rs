@@ -182,6 +182,7 @@ pub(crate) fn settings_answer() -> SettingsAnswer {
             notifications: false,
             keep_recipe_versions: false,
             help: false,
+            volumes_in_finder: true,
             default_credential: Some("c-1".into()),
             default_look: Some("omaflake.look.rose-pine-dawn".into()),
             host_keyboard: Some("ch".into()),
