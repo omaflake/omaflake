@@ -41,8 +41,14 @@ plutil -insert CFBundleExecutable -string omaf-runner "$helper/Contents/Info.pli
 plutil -insert CFBundlePackageType -string APPL "$helper/Contents/Info.plist"
 plutil -replace CFBundleName -string "omaflake VM" "$helper/Contents/Info.plist"   # name in the Dock and menu bar
 plutil -insert CFBundleShortVersionString -string "$(plutil -extract CFBundleShortVersionString raw "$root/App/Info.plist")" "$helper/Contents/Info.plist"
+# The runner's own icon in the Dock: omaflake's, Liquid Glass as the app's (plan B196)
+mkdir -p "$helper/Contents/Resources"
+cp "$root/brand/macos/omaflake.icns" "$helper/Contents/Resources/omaflake.icns"
+plutil -insert CFBundleIconFile -string omaflake "$helper/Contents/Info.plist"
+"$root/scripts/compile-icon.sh" "$helper"
 cp "$root/App/Info.plist" "$app/Contents/Info.plist"
 cp "$root/brand/macos/omaflake.icns" "$app/Contents/Resources/omaflake.icns"
+"$root/scripts/compile-icon.sh" "$app"   # Liquid Glass on macOS 26+ (Assets.car, CFBundleIconName; plan B196)
 cp -R "$root"/App/Resources/*.lproj "$app/Contents/Resources/"   # UI languages
 # The image flake (nix/): the app's default when no flake path is set – recipes come from sources (plan B107).
 # Without local/ (each developer's own), build output and Finder files.

@@ -66,6 +66,7 @@ bundle() {
   cp "$root/brand/macos/omaflake.icns" "$app/Contents/Resources/omaflake.icns"
   plutil -insert CFBundleShortVersionString -string "$version" "$app/Contents/Info.plist"
   plutil -insert CFBundleVersion -string "$build" "$app/Contents/Info.plist"
+  "$root/scripts/compile-icon.sh" "$app"   # Liquid Glass on macOS 26+ (Assets.car, CFBundleIconName; plan B196)
   if [[ $extension == yes ]]; then
     mkdir -p "$ext/Contents/MacOS"
     cp "$bindir/omaflake-camera" "$ext/Contents/MacOS/omaflake-camera"

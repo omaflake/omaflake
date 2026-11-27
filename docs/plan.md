@@ -525,6 +525,36 @@ the local network) or an MDM profile (B191); retrying a failed connection in any
 apps started from the Finder in a macOS VM (nix-darwin's `launchctl setenv` at activation is gone after the login;
 a launch agent would bring BM25's notice).
 
+**B196 (2026-11-27): the app icons in Liquid Glass.** macOS 26+ draws app icons from layers (Icon Composer's `.icon`
+document, compiled into the asset catalog); a flat `.icns` only shows as a picture inside the system's tile.
+*Checked on the Mac (macOS 27.2.1, Xcode 27.2 – it is installed there, with Icon Composer 27.2):* `actool` takes a
+`.icon` folder as input (`folder.iconcomposer.icon` in Xcode's AssetCatalogCompiler.xcspec; `man actool`: `--app-icon`,
+`--standalone-icon-behavior none`, `--output-partial-info-plist`) and writes `Assets.car` (an `IconImageStack` each for
+`NSAppearanceNameAqua`, `NSAppearanceNameDarkAqua` and `ISAppearanceTintable`, flat renditions 16–1024 px) and the
+partial Info.plist with `CFBundleIconName` (and `CFBundleIconFile`) – the same pair Apple's Icon Composer.app carries.
+With the Command Line Tools alone there is no `actool` (`xcrun: unable to find utility "actool"`). Icon Composer's
+`Contents/Executables/ictool --export-image --rendition Default|Dark|TintedLight|TintedDark|ClearLight|ClearDark`
+renders a document without the app: every rendition looked at.
+*Built:* omaflake/brand's `generate.py` writes `macos/omaflake.icon` (keys from Xcode's template and
+IconComposerFoundation): `Assets/` – `flake.svg` (the hero's white core, `glass`), `split-red.svg`/`split-cyan.svg`,
+`noise.svg`, each the whole canvas, transparent; `icon.json` – the background `#121212` as a fill, pure black for
+`dark` (`fill-specializations`), the split and the noise hidden for `tinted` (`hidden-specializations`); `groups[0]`
+is drawn on top (checked with ictool). `copy.py` copies it to `brand/macos/omaflake.icon`. `scripts/compile-icon.sh`
+compiles it into a bundle's `Assets.car` and sets `CFBundleIconName` from actool's partial plist; the bundle keeps
+omaflake/brand's `omaflake.icns` (`CFBundleIconFile`, small glyph at 16/32 px). Without actool: a warning, the
+`.icns` alone. Called by `bundle-app.sh` (omaflake.app and the helper `omaf-runner.app`, which now also gets
+`omaflake.icns`) and `bundle-tools.sh` (omaflake Tools). omaf-runner no longer sets `applicationIconImage` when its
+bundle names an icon (`CFBundleIconName`) – it would cover the glass one; as a bare binary it still does.
+"Older systems": every bundle needs macOS 27 (`LSMinimumSystemVersion`), so the `.icns` is a fallback for tools that
+read only `CFBundleIconFile`. A test bundle with the compiled catalog showed the glass icon via
+`NSWorkspace.icon(forFile:)` (the Mac set to ClearDark). The whole `bundle-app.sh` run (ad hoc, 2026-11-27): all four
+bundles (omaflake.app, its omaf-runner.app, both omaflake Tools) carry `Assets.car`, `CFBundleIconName` and
+`CFBundleIconFile`, `codesign --verify --deep --strict` passes, and `NSWorkspace` shows the glass icon for the app, the
+runner and omaflake Tools. OPEN: the Dock icon of omaflake VM (the runner) while a VM runs, and of omaflake Tools in a
+guest, looked at; the icon at 16/32 px
+in the catalog's flat renditions (actool renders those from the `.icon`, not the small glyph); the look itself – a
+proposal for the maintainer (glass on the white flake, 0.4 translucency, pure black when dark).
+
 **B192 (2026-11-27, done with 0.8.1): omaflake's crates on crates.io.** The maintainer: falkOSS's other projects
 (kernoid, aktujo, verkodo) have their crates on crates.io, omaflake was the odd one out. *Decided:* every crate is
 published, in step with omaflake's version (like aktujo: the crate with the project's name is the program, the rest

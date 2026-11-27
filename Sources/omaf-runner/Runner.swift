@@ -241,7 +241,11 @@ struct Run: RunnerCommand {
             let app = NSApplication.shared
             // A quiet window (plan B184) needs an app that may have windows, but no Dock icon
             app.setActivationPolicy(window ? .regular : quietWindow ? .accessory : .prohibited)
-            app.applicationIconImage = Brand.appIcon()   // a bare binary has no icon of its own
+            // A bare binary has no icon of its own; in omaflake.app's helper bundle the bundle's Liquid Glass icon
+            // (CFBundleIconName, scripts/compile-icon.sh; plan B196) shows – a flat image set here would cover it
+            if Bundle.main.object(forInfoDictionaryKey: "CFBundleIconName") == nil {
+                app.applicationIconImage = Brand.appIcon()
+            }
             let controller = RunController(request)
             app.delegate = controller
             withExtendedLifetime(controller) { app.run() }

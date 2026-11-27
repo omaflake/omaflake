@@ -18,6 +18,9 @@ are collected under *Unreleased*. Releases: [GitHub](https://github.com/omaflake
 - **omaflake/recipes is gone** – the old recipe repository (deleted, replaced by
   [omaflake/catalog](https://github.com/omaflake/catalog) since 0.6.0) no longer counts as an official source; settings
   that still name it keep being moved to the catalog.
+- **The app icon in Liquid Glass** – omaflake.app, its VM window and omaflake Tools in macOS guests show omaflake's icon
+  in layers, as macOS 26 and later draw app icons: the flake as glass, its own variants for dark and tinted icons. A
+  build without Xcode keeps the flat icon.
 
 ### Fixed
 
