@@ -13,6 +13,15 @@ are collected under *Unreleased*. Releases: [GitHub](https://github.com/omaflake
 
 ## [Unreleased]
 
+### Fixed
+
+- macOS VMs see their volumes again, each at `/Volumes/<name>`: the guest's launch daemon ran before the Nix store was
+  mounted and mounted nothing; it now waits for it and for the devices, and mounts them as the guest user. The same
+  fault kept a larger disk from being taken (B164). Rebuild your macOS images and upgrade their VMs.
+- A macOS VM's volumes are favorites in the Finder's sidebar (macOS lists only "My Shared Files" under Locations).
+- Upgrading a macOS VM in place works: the guest's Nix refused the new system, since nix-darwin had dropped the guest
+  user from its trusted users. Images now keep it, and VMs from before are let in during the upgrade.
+
 ## [0.8.1] – 2026-11-27
 
 The camera in macOS VMs: smooth with OBS, and without OBS in an "unchained" VM; omaflake Tools, omaflake's own app

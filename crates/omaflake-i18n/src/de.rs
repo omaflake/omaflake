@@ -841,6 +841,7 @@ pub static DE: &[(&str, &str)] = &[
     ("Make Unchained Copy …", "Entfesselte Kopie anlegen …"),
     ("Make an unchained copy of “%@”?", "Eine entfesselte Kopie von „%@“ anlegen?"),
     ("Make this the default version", "Zur Standardversion machen"),
+    ("Making %@'s user trusted by its Nix failed (%@)", "Den Nutzer von %1$@ für dessen Nix vertrauenswürdig zu machen ist fehlgeschlagen (%2$@)"),
     ("Making the unchained copy – open it for the steps that are yours", "Die entfesselte Kopie entsteht – öffne sie für die Schritte, die deine sind"),
     ("Menu Bar", "Menüleiste"),
     ("Menu bar: a window at the omaflake icon, no Dock icon. Window: a regular window with a Dock icon. Both: the menu bar icon and the window.", "Menüleiste: ein Fenster am omaflake-Symbol, kein Dock-Symbol. Fenster: ein normales Fenster mit Dock-Symbol. Beides: das Symbol in der Menüleiste und das Fenster."),

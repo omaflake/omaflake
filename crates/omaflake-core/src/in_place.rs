@@ -92,6 +92,22 @@ impl InPlace {
         url
     }
 
+    /// macOS (plan B189): the command in the guest (sh, the password on stdin) that makes `user` one of its Nix's
+    /// trusted users for the copy. The image build adds the line to the installer's nix.conf, but nix-darwin's
+    /// activation replaces the file with its own (`trusted-users = root`; images from this fix on name the user) – so
+    /// `nix copy --no-check-sigs` was refused. The symlink becomes a file with the line, and the daemon is restarted;
+    /// the switch puts nix-darwin's symlink back before it activates.
+    pub fn trust_command(user: &str) -> String {
+        let u = crate::builder_maintenance::shell_quote(user);
+        let script = format!(
+            "f=/etc/nix/nix.conf; grep -Eq \"^trusted-users = (.* )?\"{u}\"( |$)\" \"$f\" && exit 0; \
+             t=$(mktemp) && grep -v '^trusted-users' \"$f\" > \"$t\" && echo \"trusted-users = root \"{u} >> \"$t\" && \
+             rm -f \"$f\" && mv \"$t\" \"$f\" && chmod 644 \"$f\" && \
+             launchctl kickstart -k system/org.nixos.nix-daemon && sleep 3"
+        );
+        format!("sudo -S -p '' sh -c {}", crate::builder_maintenance::shell_quote(&script))
+    }
+
     /// The command in the guest that switches to `system` (sh); macOS reads the password from stdin
     pub fn switch_command(kind: GuestKind, system: &str) -> String {
         let q = crate::builder_maintenance::shell_quote(system);
@@ -104,7 +120,8 @@ impl InPlace {
             GuestKind::Macos => format!(
                 "sudo -S -p '' sh -c {}",
                 crate::builder_maintenance::shell_quote(&format!(
-                    "/nix/var/nix/profiles/default/bin/nix-env -p /nix/var/nix/profiles/system --set {q} && {q}/activate"
+                    "{{ [ -L /etc/nix/nix.conf ] || ln -sfn /etc/static/nix/nix.conf /etc/nix/nix.conf; }} && \
+                     /nix/var/nix/profiles/default/bin/nix-env -p /nix/var/nix/profiles/system --set {q} && {q}/activate"
                 ))
             ),
         }
@@ -122,6 +139,21 @@ impl InPlace {
         password: Option<&str>,
         log: &(dyn Fn(&str) + Send + Sync),
     ) -> Result<()> {
+        let kind = c.guest_kind();
+        let (program, rest) = ssh.split_first().ok_or_else(|| vm_err!("No ssh command for {}", c.name))?;
+        let input = password.map(|p| format!("{p}\n").into_bytes());
+        if kind == GuestKind::Macos {
+            log("Letting the guest's Nix take the new system");
+            let mut args = rest.to_vec();
+            args.push(Self::trust_command(&c.guest_user()));
+            let r = Shell::run(program, &args, &RunOptions { input: input.as_deref(), ..Default::default() })?;
+            for line in format!("{}{}", r.stdout, r.stderr).lines().filter(|l| !l.trim().is_empty()) {
+                log(line);
+            }
+            if r.status != 0 {
+                return Err(vm_err!("Making {}'s user trusted by its Nix failed ({})", c.name, r.status));
+            }
+        }
         log("Copying the new system into the VM");
         let env = [("NIX_SSHOPTS", NIX_SSHOPTS)];
         let copy = ["copy", "--no-check-sigs", "--to", store, system];
@@ -130,11 +162,8 @@ impl InPlace {
             return Err(vm_err!("Copying the new system into {} failed ({}) – see the lines above", c.name, r.status));
         }
         log("Switching to the new system");
-        let kind = c.guest_kind();
-        let (program, rest) = ssh.split_first().ok_or_else(|| vm_err!("No ssh command for {}", c.name))?;
         let mut args = rest.to_vec();
         args.push(Self::switch_command(kind, system));
-        let input = password.map(|p| format!("{p}\n").into_bytes());
         let r = Shell::run(program, &args, &RunOptions { input: input.as_deref(), ..Default::default() })?;
         for line in format!("{}{}", r.stdout, r.stderr).lines().filter(|l| !l.trim().is_empty()) {
             log(line);
@@ -185,6 +214,12 @@ mod tests {
         assert!(m.contains(
             "--set '\\''/nix/store/abc-darwin-system'\\'' && '\\''/nix/store/abc-darwin-system'\\''/activate"
         ));
+        assert!(m.contains("ln -sfn /etc/static/nix/nix.conf /etc/nix/nix.conf"), "{m}");
+        let t = InPlace::trust_command("me");
+        assert!(
+            t.starts_with("sudo -S -p '' sh -c '") && t.contains("trusted-users = root") && t.contains("nix-daemon"),
+            "{t}"
+        );
     }
 
     #[test]

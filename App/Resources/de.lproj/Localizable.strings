@@ -1873,6 +1873,7 @@
 "No ssh command for %@" = "Kein ssh-Befehl für %@";
 "%@ cannot switch its system without a password – its image is older than omaflake 0.8.0. Upgrade it once with a fresh disk (Upgrade to New Image …)." = "%@ kann sein System nicht ohne Passwort wechseln – sein Image ist älter als omaflake 0.8.0. Stelle sie einmal mit frischer Festplatte um (Auf neue Vorlage umstellen …).";
 "Switching %@ to the new system failed (%@)" = "%1$@ auf das neue System umzustellen ist fehlgeschlagen (%2$@)";
+"Making %@'s user trusted by its Nix failed (%@)" = "Den Nutzer von %1$@ für dessen Nix vertrauenswürdig zu machen ist fehlgeschlagen (%2$@)";
 
 /* Plan B144: the first start's questions */
 "Welcome to omaflake" = "Willkommen bei omaflake";

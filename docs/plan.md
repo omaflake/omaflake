@@ -506,6 +506,40 @@ real VMs); the camera over vsock – H.264 (B174) made the camera smooth at 30 f
 the Mac (VsockBench) to show it is needed; dragging in the Linux app and `omaf ui`. To try on the Mac: everything
 marked OPEN in B164, B178–B182 (they need images built with 0.8.0).
 
+**B189 (2026-11-27, fix after 0.8.1): no VM saw its volumes after the upgrade.** The maintainer: "Keine VM hat Zugriff
+auf deren Volume derzeit." *Causes:* (1) images from before 0.8.1 have no `omaflake-volumes` daemon, and 0.8.1's runner no longer gives
+macOS's automount tag – nothing is mounted there; (2) in a 0.8.1 image the daemon never ran its script: launchd starts
+it at boot before the Nix store's volume is mounted, `/bin/sh` found no script in `/nix/store` (`launchctl print`:
+last exit code 127, an empty log). B164's `omaflake-grow-disk` had the same fault. *Fixed:* both daemons start as
+nix-darwin's own do, `/bin/wait4path /nix/store && exec …`; `omaflake-volumes` also waits up to a minute for the
+devices and mounts each as the guest user on a mount point it owns. Checked on the Mac with a rebuilt image and an
+ephemeral VM with two volumes: `/Volumes/plattentest` and `/Volumes/docker`, each its own mount ("mounted by <user>"),
+writable, no "My Shared Files"; `omaflake-grow-disk` exits 0. A compatibility device under the automount tag
+("My Shared Files" for old images) was tried and dropped – the maintainer: "My Shared Files soll es gar nicht mehr
+geben". So VMs on images from before this fix see their volumes only after an upgrade to a rebuilt image.
+The way there, an upgrade in place (B178), failed for every macOS VM: the guest user was not one of its Nix's
+trusted users (`nix store info`: `Trusted: 0`; "lacks a signature by a trusted key") – the image build adds
+`trusted-users` to the installer's nix.conf, and nix-darwin's activation writes its own over it. *Fixed:* darwin-guest.nix
+sets `nix.settings.trusted-users = [ user ]`; for VMs from before, `InPlace::apply` first makes the user trusted with
+the credential's password on sudo's stdin (nix.conf as a file with the line, the daemon restarted), and the switch puts
+nix-darwin's symlink back before `activate`. Checked on the Mac: the `test` VM (0.8.0 image) upgraded in place, its
+files kept, `/Volumes/test` mounted (also after a restart), nix.conf nix-darwin's symlink again.
+A volume did not show in the Finder's sidebar as "My Shared Files" had: macOS lists under Locations only what
+DiskArbitration mounts – the guest's virtiofs.fs takes media with the content hint AppleVirtIOFS, and only the device
+with the automount tag gets one; a volume mounted with `mount_virtiofs` (by the user or by root) is neither local nor
+a server's (`NSURLVolumeIsLocalKey` false), so the Finder shows it nowhere. *Now:* each volume is a favorite in the
+sidebar – `omaflake-volume-favorites` (darwin-guest.nix, LSSharedFileList through JXA) adds the mounted ones and takes
+out those it added whose volume is gone; omaflake starts it over SSH with the guest helpers after each start
+(`guest_helpers_command`). A launch agent could not: its inserts of paths under /Volumes never took (paths under /tmp
+did), over SSH they do – most likely the privacy rules for network volumes (OPEN). Checked on the Mac: a fresh VM
+with two volumes has both as favorites after its first start, the `test` VM its volume after an upgrade in place.
+*Next (the maintainer):* omaflake Tools brings an FSKit file system so that each volume is a volume under Locations
+(OPEN: whether FSKit on macOS 27 passes a path through without a block device, and whether the Finder lists it there).
+*OPEN:* the guest helpers ran twice at a start (the favorites log has two lines; harmless, nothing is added twice);
+`omaf upgrade --keep` printed nothing and exited 0 when the upgrade failed (the error only in
+`logs/upgrade-<vm>.log`); VMs on images from before 0.8.0 (agent 0.7.4) cannot upgrade in place – only with a fresh
+disk; NixOS images from before 0.8.1 (tag `share` at `/mnt/share`); a NixOS VM with several 9p devices.
+
 **B187 (2026-11-27, built for 0.8.1; the Mac and real guests OPEN): volumes – several shared folders per VM, shared
 between VMs (German "Platten").** The maintainer: "Einer VM kann man keinen, einen oder mehrere 'shared' Ordner
 zuweisen. Und VMs können sich auch welche teilen", the folder names in `share/` no longer tied to a VM's name, the New

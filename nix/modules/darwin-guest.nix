@@ -92,6 +92,81 @@ in
       [ -f "$logs/agent.log" ] && mv -f "$logs/agent.log" "$logs/agent.1.log"
       nohup ${omaflakeAgent}/bin/omaflake-agent >"$logs/agent.log" 2>&1 </dev/null &
     '')
+    # Volumes in the Finder's sidebar (plan B189): macOS lists under Locations only what DiskArbitration mounts – of
+    # virtio-fs only the device with its automount tag ("My Shared Files"; the guest's virtiofs.fs takes media with
+    # the content hint AppleVirtIOFS, and only that tag has one). A volume mounted with mount_virtiofs is neither local
+    # nor a server's (`NSURLVolumeIsLocalKey` false), so the Finder shows it nowhere. Until omaflake Tools brings its
+    # own file system (FSKit, next step), each volume is a favorite: this adds the mounted ones and takes out those it
+    # added whose volume is gone (its list in Application Support) – the user's own favorites stay. omaflake starts it
+    # over SSH with the helpers above, after each start (volumes change only then): from a launch agent the favorites
+    # took no path under /Volumes (checked in a macOS 27 guest – /tmp worked, so most likely the privacy rules for
+    # network volumes; OPEN), over SSH they do. It waits up to 30 s for the volumes omaflake-volumes mounts.
+    (pkgs.writeShellScriptBin "omaflake-volume-favorites" ''
+      tags=$(/usr/sbin/ioreg -r -c AppleVirtIOFS -d 1 2>/dev/null | /usr/bin/grep -c '"AppleVirtIOFSTag"' || true)
+      n=0
+      while [ "$(/sbin/mount | /usr/bin/grep -c '^virtio-fs on /Volumes/')" -lt "''${tags:-0}" ] && [ "$n" -lt 15 ]; do
+        n=$((n + 1)); /bin/sleep 2
+      done
+      set --
+      while IFS= read -r p; do
+        [ -n "$p" ] && set -- "$@" "$p"
+      done <<EOF
+      $(/sbin/mount | /usr/bin/sed -n 's|^virtio-fs on \(/Volumes/.*\) (AppleVirtIOFS.*|\1|p')
+      EOF
+      mkdir -p "$HOME/Library/Logs/omaflake"
+      exec >> "$HOME/Library/Logs/omaflake/volume-favorites.log" 2>&1
+      echo "$(date): volumes: $*"
+      exec /usr/bin/osascript -l JavaScript ${pkgs.writeText "omaflake-volume-favorites.js" ''
+      // argv: <state file> <mounted volume path>... – keeps the Finder sidebar's favorites in step with the volumes
+      ObjC.import('CoreServices');
+      function run(argv) {
+        const state = argv[0];
+        const real = p => $(p).stringByResolvingSymlinksInPath.js;
+        const mounted = argv.slice(1).map(real);
+        const s = $.NSString.stringWithContentsOfFileEncodingError(state, $.NSUTF8StringEncoding, null);
+        const ours = s.isNil() ? [] : s.js.split('\n').filter(l => l).map(real);
+        const list = $.LSSharedFileListCreate($(), $.kLSSharedFileListFavoriteItems, $());
+        const items = ObjC.castRefToObject($.LSSharedFileListCopySnapshot(list, null));
+        const present = [];
+        const log = [];
+        for (let i = 0; i < items.count; i++) {
+          const item = items.objectAtIndex(i);
+          let path = null;
+          try { path = real(ObjC.castRefToObject($.LSSharedFileListItemCopyResolvedURL(item, 3, null)).path.js); } catch (e) {}
+          const name = ObjC.castRefToObject($.LSSharedFileListItemCopyDisplayName(item)).js;
+          // One of ours whose volume is gone: its path is no volume now, or it no longer resolves (then by its name)
+          const gone = ours.find(p => mounted.indexOf(p) < 0 && (path === p || (path === null && name === p.split('/').pop())));
+          if (gone) { $.LSSharedFileListItemRemove(list, item); log.push('removed ' + gone); continue; }
+          if (path) present.push(path);
+        }
+        // At login an insert can get lost (the list's service not ready yet): check it, and try again for 20 s
+        const listed = () => {
+          const now = ObjC.castRefToObject($.LSSharedFileListCopySnapshot(list, null));
+          const paths = [];
+          for (let i = 0; i < now.count; i++) {
+            try {
+              paths.push(real(ObjC.castRefToObject(
+                $.LSSharedFileListItemCopyResolvedURL(now.objectAtIndex(i), 3, null)).path.js));
+            } catch (e) {}
+          }
+          return paths;
+        };
+        for (let attempt = 0; attempt < 10; attempt++) {
+          if (attempt > 0) delay(2);
+          const missing = mounted.filter(p => (attempt === 0 ? present : listed()).indexOf(p) < 0);
+          if (missing.length === 0) break;
+          for (const p of missing) {
+            $.LSSharedFileListInsertItemURL(list, $.kLSSharedFileListItemLast, $(), $(), $.NSURL.fileURLWithPath(p), $(), $());
+            log.push('added ' + p + (attempt > 0 ? ' (again)' : ""));
+          }
+        }
+        $.NSFileManager.defaultManager.createDirectoryAtPathWithIntermediateDirectoriesAttributesError(
+          $(state).stringByDeletingLastPathComponent, true, $(), null);
+        $(mounted.join('\n') + '\n').writeToFileAtomicallyEncodingError(state, true, $.NSUTF8StringEncoding, null);
+        return log.join('\n');
+      }
+      ''} "$HOME/Library/Application Support/omaflake/volume-favorites" "$@"
+    '')
   ];
 
   # Remote Login is switched on by provisioning in the base; keys only, no passwords (plan BM11)
@@ -110,6 +185,10 @@ in
 
   nix.enable = true;
   nix.settings.experimental-features = [ "nix-command" "flakes" ];
+  # The guest user may add the Mac's unsigned paths (`nix copy --no-check-sigs`, BM19) – an upgrade in place (B178).
+  # The image build adds this line to the installer's nix.conf, but nix-darwin writes its own over it (plan B189).
+  # (nix-darwin's default `root` stays: the list is merged)
+  nix.settings.trusted-users = [ user ];
 
   time.timeZone = lib.mkDefault settings.timeZone;
 
@@ -148,20 +227,38 @@ in
 
   # Volumes (plan B187): folders of the host, one virtio-fs device each; its tag is the name the user gave the volume in
   # this VM, mounted at /Volumes/<tag> – the same path as in NixOS guests. The tags are in the I/O Registry
-  # (AppleVirtIOFS, AppleVirtIOFSTag – checked in a macOS 26 guest); macOS's own automount tag is left to macOS.
-  # OPEN: owner and permissions of a volume mounted this way, checked in a guest with volumes.
+  # (AppleVirtIOFS, AppleVirtIOFSTag – checked in a macOS 27 guest); macOS's own automount tag is left to macOS.
+  # Plan B189: at boot launchd starts daemons before the Nix store's volume is mounted – the script in /nix/store was
+  # not found (exit 127, the 0.8.1 images), so it waits for /nix/store like nix-darwin's own daemons
+  # (`/bin/wait4path`); the devices may not be in the I/O Registry yet either – it waits up to a minute for them.
+  # Each is mounted by root with the guest user as the owner of its files (`-u`/`-g`; checked in a macOS 27 guest: the
+  # host's files writable by the user).
   launchd.daemons.omaflake-volumes.serviceConfig = {
-    ProgramArguments = [ "/bin/sh" "${pkgs.writeText "omaflake-volumes.sh" ''
+    ProgramArguments = [ "/bin/sh" "-c" "/bin/wait4path /nix/store && exec /bin/sh ${pkgs.writeText "omaflake-volumes.sh" ''
       set -u
       exec >> /var/log/omaflake-volumes.log 2>&1
-      list=$(/usr/sbin/ioreg -r -c AppleVirtIOFS -d 1 -a) || exit 0
-      i=0
-      while tag=$(printf '%s' "$list" | /usr/bin/plutil -extract "$i.AppleVirtIOFSTag" raw -o - -); do
-        i=$((i + 1))
-        case "$tag" in ""|.*|*/*|com.apple.virtio-fs.automount) continue ;; esac
+      tags() {
+        list=$(/usr/sbin/ioreg -r -c AppleVirtIOFS -d 1 -a 2>/dev/null) || return 0
+        [ -n "$list" ] || return 0
+        i=0
+        while tag=$(printf '%s' "$list" | /usr/bin/plutil -extract "$i.AppleVirtIOFSTag" raw -o - - 2>/dev/null); do
+          i=$((i + 1))
+          case "$tag" in ""|.*|*/*|com.apple.virtio-fs.automount) continue ;; esac
+          printf '%s\n' "$tag"
+        done
+      }
+      n=0
+      while [ -z "$(tags)" ] && [ "$n" -lt 30 ]; do n=$((n + 1)); /bin/sleep 2; done
+      tags | while IFS= read -r tag; do
         /sbin/mount | /usr/bin/grep -qF " on /Volumes/$tag (" && continue
         /bin/mkdir -p "/Volumes/$tag"
-        /sbin/mount_virtiofs "$tag" "/Volumes/$tag" || echo "$(date): could not mount $tag"
+        /usr/sbin/chown ${user}:staff "/Volumes/$tag"
+        if /sbin/mount_virtiofs -u ${user} -g staff "$tag" "/Volumes/$tag"; then
+          echo "$(date): mounted $tag"
+        else
+          echo "$(date): could not mount $tag"
+          /bin/rmdir "/Volumes/$tag" 2>/dev/null
+        fi
       done
     ''}" ];
     RunAtLoad = true;
@@ -171,9 +268,10 @@ in
   # container takes the new space. A macOS VM's disk is ISC container, system container, then the fallback recovery
   # container (Apple_APFS_Recovery, 5.4 GB, checked in a macOS 27 guest) – it sits behind the system container, so it
   # is removed first; the paired recovery volume inside the system container stays. Only when there is new space
-  # (more than 1 GiB not in any partition). OPEN: checked on a Mac with a grown VM.
+  # (more than 1 GiB not in any partition); it waits for /nix/store as omaflake-volumes does (plan B189). OPEN: checked on
+  # a Mac with a grown VM.
   launchd.daemons.omaflake-grow-disk.serviceConfig = {
-    ProgramArguments = [ "/bin/sh" "${pkgs.writeText "omaflake-grow-disk.sh" ''
+    ProgramArguments = [ "/bin/sh" "-c" "/bin/wait4path /nix/store && exec /bin/sh ${pkgs.writeText "omaflake-grow-disk.sh" ''
       set -u
       exec >> /var/log/omaflake-grow-disk.log 2>&1
       x() { plutil -extract "$1" raw -o - - 2>/dev/null; }
