@@ -24,6 +24,9 @@ are collected under *Unreleased*. Releases: [GitHub](https://github.com/omaflake
 
 ### Fixed
 
+- **The agent of a macOS VM starts after every start** – after a restart in the guest, or a start with `omaf start`
+  while the app was closed, the guest's agent (and with it the camera, MIDI and the diagnosis), the clipboard helper
+  and the volumes under Locations did not come; the core service now starts them by itself.
 - **The diagnosis checks volumes where they are** – the guest agent looked for them under `/Volumes/My Shared Files`
   instead of `/Volumes/<name>`, so the share check failed in VMs from 0.8.1 images (takes effect after a rebuild of
   the image).

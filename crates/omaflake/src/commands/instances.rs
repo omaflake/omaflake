@@ -414,6 +414,15 @@ pub fn start(a: &cli::Start) -> Outcome {
         }
     }
     drop(lock);
+    if c.guest_kind() == GuestKind::Macos && c.network != NetworkMode::None {
+        // The core service starts the guest's helpers – the agent with the camera, MIDI and the diagnosis – once SSH
+        // answers, also after a restart in the guest (plan B194); without it they only came with --wait
+        if let Err(e) = super::service::ensure_running(&env.paths) {
+            eprintln!(
+                "omaf: the core service did not start ({e}) – the guest's agent (camera, MIDI) starts with --wait"
+            );
+        }
+    }
     if a.wait {
         wait_for_ssh(&c, backend, 300.0)?;
     }

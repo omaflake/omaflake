@@ -525,6 +525,20 @@ the local network) or an MDM profile (B191); retrying a failed connection in any
 apps started from the Finder in a macOS VM (nix-darwin's `launchctl setenv` at activation is gone after the login;
 a launch agent would bring BM25's notice).
 
+**B194 (2026-11-27, found by the maintainer – the camera in a macOS VM stopped working after a restart): the guest
+helpers come without a client watching.** macOS guests get their helpers – the omaflake agent (camera, MIDI, the
+diagnosis), the clipboard helper and the volumes session – over SSH from the host (BM25). After a restart in the guest
+none came: `omaf start` without `--wait` does not start them, a start through the API tries once (`wait_for_ssh`) and
+does not say when that fails, and the retry (`ensure_clipboard_agents`) ran only in the watcher, which ends when no
+client subscribed (menu closed, no `omaf ui`). The runner's log showed no `hello` after the restart; the guest's agent
+log no start at all (`~/Library/Logs/omaflake`), and `/Volumes/<name>` came only with the next start over SSH.
+*Fixed:* the core service looks every 5 s on its own (`Server::keep_guest_helpers`, called from the service's accept
+loop) – cheap: the instances' config files and their runners' pid files, no QEMU lookup, nothing for a runner that got
+its helpers; `omaf start` of a macOS VM with a network makes sure the core service runs. Tests: the predicate and a
+look without VMs; OPEN: checked on the Mac with a restart in the guest and the app closed; a service started with
+`--idle-exit` (no launch agent installed) still ends after its idle time – a later restart in the guest then waits for
+the next client.
+
 **B196 (2026-11-27): the app icons in Liquid Glass.** macOS 26+ draws app icons from layers (Icon Composer's `.icon`
 document, compiled into the asset catalog); a flat `.icns` only shows as a picture inside the system's tile.
 *Checked on the Mac (macOS 27.2.1, Xcode 27.2 – it is installed there, with Icon Composer 27.2):* `actool` takes a

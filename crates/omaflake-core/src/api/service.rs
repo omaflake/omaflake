@@ -40,6 +40,8 @@ pub const SOCKET_NAME: &str = "omaf.sock";
 const WRITE_TIMEOUT: Duration = Duration::from_secs(10);
 /// How often the service looks at its end conditions while no client connects
 const LOOK: Duration = Duration::from_millis(200);
+/// How often the service looks for running macOS VMs whose guest helpers did not start yet (plan B194)
+const HELPERS_LOOK: Duration = Duration::from_secs(5);
 
 /// Where the service of the data folder `paths` listens (docs/api.md §1)
 pub fn socket_path(paths: &Paths) -> PathBuf {
@@ -166,6 +168,7 @@ impl Listening {
         let conns: Arc<Mutex<HashMap<u64, UnixStream>>> = Arc::default();
         let next = AtomicU64::new(0);
         let mut idle_since: Option<Instant> = None;
+        let mut helpers_looked: Option<Instant> = None;
         let ended = loop {
             let mut pfd = libc::pollfd { fd: self.listener.as_raw_fd(), events: libc::POLLIN, revents: 0 };
             // SAFETY: one valid pollfd for the listener, which lives as long as this call
@@ -184,6 +187,11 @@ impl Listening {
                     connection(&server, stream);
                     lock(&conns).remove(&id);
                 });
+            }
+            // Independent of subscriptions: a macOS VM started or restarted while no client watched gets its agent
+            if helpers_looked.is_none_or(|t| t.elapsed() >= HELPERS_LOOK) {
+                helpers_looked = Some(Instant::now());
+                server.keep_guest_helpers();
             }
             let busy = server.busy();
             if busy {

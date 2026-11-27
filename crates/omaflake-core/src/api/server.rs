@@ -627,12 +627,39 @@ impl Server {
     /// tried again at the next look and logged once per VM run – with ssh's stderr – in the instance's runner.log and
     /// the activity list.
     fn ensure_clipboard_agents(&self, snap: &Snapshot) {
-        for row in &snap.rows {
-            let c = &row.config;
-            if c.kind != GuestKind::Macos || row.status != VmStatus::Running || c.network == NetworkMode::None {
-                continue;
-            }
-            let name = c.name.clone();
+        let names = snap
+            .rows
+            .iter()
+            .filter(|r| r.status == VmStatus::Running && needs_guest_helpers(r.config.kind, r.config.network))
+            .map(|r| r.config.name.clone());
+        self.ensure_guest_helpers(names);
+    }
+
+    /// `ensure_clipboard_agents` without a snapshot, for the core service's own looks (plan B194): the watcher only
+    /// runs while a client subscribed, so a macOS VM that was started or restarted while no app or `omaf ui` was
+    /// open never got its agent – and with it no camera, MIDI or diagnosis. Cheap: the instances' config files and
+    /// their runners' pid files; a VM whose runner already got its helpers is skipped without a thread.
+    pub(crate) fn keep_guest_helpers(&self) {
+        // Only the macOS side: locating QEMU every few seconds would be wasted (no runner, as on Linux: nothing to do)
+        let paths = self.paths();
+        let Ok(runner) = crate::vz_backend::VzBackend::locate_runner(&paths) else { return };
+        let store = InstanceStore::new(paths.clone(), "qemu-img");
+        let vz = crate::vz_backend::VzBackend::new(paths, store.clone(), &runner);
+        let names: Vec<String> = {
+            let cb = lock(&self.inner.clipboard);
+            store
+                .list()
+                .into_iter()
+                .filter(|c| needs_guest_helpers(c.guest_kind(), c.network))
+                .filter_map(|c| vz.pid(&c).filter(|pid| cb.started.get(&c.name) != Some(pid)).map(|_| c.name))
+                .collect()
+        };
+        self.ensure_guest_helpers(names.into_iter());
+    }
+
+    /// Starts the guest helpers of the named running macOS VMs, each in a thread of its own (one at a time per VM)
+    fn ensure_guest_helpers(&self, names: impl Iterator<Item = String>) {
+        for name in names {
             let known = {
                 let mut cb = lock(&self.inner.clipboard);
                 if !cb.pending.insert(name.clone()) {
@@ -823,6 +850,12 @@ pub(crate) fn to_value<T: Serialize>(v: &T) -> Result<Value, RpcError> {
     serde_json::to_value(v).map_err(|e| RpcError::internal(e.to_string()))
 }
 
+/// Whether a running VM gets its guest helpers over SSH from the host: macOS guests with a network (NixOS guests start
+/// their agent themselves; without a network SSH can't reach the guest)
+fn needs_guest_helpers(kind: GuestKind, network: NetworkMode) -> bool {
+    kind == GuestKind::Macos && network != NetworkMode::None
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -857,5 +890,21 @@ mod tests {
         lock(&server.inner.busy).clear();
         let _ = std::panic::catch_unwind(AssertUnwindSafe(|| server.act("b", false, |_, _| Ok(()))));
         assert!(lock(&server.inner.busy).is_empty());
+    }
+
+    #[test]
+    fn only_macos_guests_with_a_network_get_helpers_from_the_host() {
+        assert!(needs_guest_helpers(GuestKind::Macos, NetworkMode::Shared));
+        assert!(!needs_guest_helpers(GuestKind::Macos, NetworkMode::None));
+        assert!(!needs_guest_helpers(GuestKind::Nixos, NetworkMode::Shared));
+    }
+
+    #[test]
+    fn keeping_the_helpers_without_vms_starts_nothing() {
+        let (_dir, paths) = temp_paths();
+        let (sink, _) = recorder();
+        let server = Server::for_tests(paths, sink);
+        server.keep_guest_helpers();
+        assert!(lock(&server.inner.clipboard).pending.is_empty());
     }
 }
