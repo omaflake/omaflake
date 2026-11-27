@@ -174,10 +174,41 @@ pub(crate) fn page(ctx: &Ctx, answer: &SettingsAnswer) -> SettingsPage {
     // The volumes in the Mac's Finder (plan B200) – the Linux app has no such folder
     let mut general = general;
     if ctx.host == HostOs::Macos {
-        general.fields.insert(
-            2,
-            flag("volumesInFinder", "Volumes in the Finder", "A folder omaflake in your home folder, with omaflake's icon and in the Finder's sidebar, holding each volume – so you need not go into the hidden .omaflake folder.", s.volumes_in_finder),
+        let toggle = flag(
+            "volumesInFinder",
+            "Volumes in the Finder",
+            "A folder with every volume, with omaflake's icon and in the Finder's sidebar – so you need not go into the hidden .omaflake folder.",
+            s.volumes_in_finder,
         );
+        let mut place = Field::new(
+            "volumesFolder",
+            FieldKind::Path,
+            Text::new("Where"),
+            json!(s.volumes_folder.clone().unwrap_or_default()),
+        )
+        .settings("volumesFolder", json!({}))
+        .help(tf!("Now: %@ – in the data folder unless you choose another folder", &s.volumes_folder_in_use));
+        place.placeholder = Some(Text::new("The data folder"));
+        place.ask = Some(
+            Ask::new("volumesFolder", AskKind::Folder, Text::new("Choose …"))
+                .prompt(Text::new("The folder to keep the volumes' folder in"))
+                .button("Use"),
+        );
+        let mut name = Field::new(
+            "volumesName",
+            FieldKind::Text,
+            Text::new("Name in the Finder"),
+            json!(s.volumes_name.clone().unwrap_or_default()),
+        )
+        .settings("volumesName", json!({}))
+        .help(Text::new("Its name in the Finder and the sidebar; empty: omaflake volumes"));
+        name.placeholder = Some(Text::new("omaflake volumes"));
+        let at = general.fields.len().min(2);
+        general.fields.insert(at, toggle);
+        if s.volumes_in_finder {
+            general.fields.insert(at + 1, place);
+            general.fields.insert(at + 2, name);
+        }
     }
 
     // This computer (plan B141): its keyboard – the physical one; language, region, time zone and the guests'

@@ -488,9 +488,10 @@ Lume (trycua) only after a license review (OPEN).
 
 ## 8. Next steps (as of 2026-11-27)
 
-**Next: release 0.8.4 (planned, 2026-11-27):** B199 (a removed volume stays removed) and B200 (the volumes in the Mac's
-Finder, stage 1) – both on main, not released. Before the tag: B200 looked at in the Finder and switched off and on
-in the app; the catalog's `xcode` 1.1.0 pushed once 0.8.3 is out (module/v3 needs it). Candidates if time allows: B193
+**Next: release 0.8.4 (planned, 2026-11-27):** B199 (a removed volume stays removed), B200 (the volumes in the Mac's
+Finder, stage 1: `<data>/volumes.localized`, "omaflake Platten" in the sidebar, place and name in the settings) and
+B201 (moving the data folder takes everything along) – on main, not released. Before the tag: B200 looked at in the
+Finder, its place, name and switch changed in the app; the catalog's `xcode` 1.1.0 pushed once 0.8.3 is out (module/v3 needs it). Candidates if time allows: B193
 (the agent's forwards in a macOS VM – retrying, then the agent inside omaflake Tools for the local network rule). After
 M12: B200 stage 2, B191.
 
@@ -696,17 +697,33 @@ als externe Festplatte sieht oder zumindest ähnlich wie GoogleDrive in der Seit
 vollautomatisch über omaflake"): the volumes in the Mac's Finder.** *Decided, in two stages:* (1) now, without the
 Developer ID: a folder `~/omaflake` with omaflake's icon and one Finder sidebar entry, holding a link to each volume's
 folder; (2) after M12: a File Provider extension ("omaflake" under Locations, like Google Drive's) or FSKit volumes as
-in unchained guests (B190) – both need entitlements an ad hoc signature does not get. *Built (stage 1):*
-`finder_volumes.rs` – the core service brings the folder in step every 10 s (links made, changed, and taken out for
-volumes that are gone; nothing else in the folder touched), the icon from the app's `omaflake.icns`
-(`NSWorkspace.setIcon`, JXA), the sidebar entry once through `LSSharedFileList` (deprecated – as in the guests, B189;
-a mark in the folder remembers it, so an entry the user took out stays out); a folder `~/omaflake` that is not
-omaflake's is left alone; only for the user's data folder (not with `VM_HOME`, not for tests); one sync at a time. The
-setting `volumesInFinder` (settings v7, default on; off: the links, the mark, the icon file, the entry and an empty
-folder go), shown on the Mac's settings page. Tests: links made and forgotten, a user's file kept, a foreign folder
-left alone, settings v6 → v7. *Checked on the maintainer's Mac (2026-11-27):* a service of this build made `~/omaflake`
-with the four volumes, set the icon and put the folder into the sidebar (listed by `LSSharedFileList`). OPEN: the
-look in the Finder; the setting switched off in the app; stage 2.
+in unchained guests (B190) – both need entitlements an ad hoc signature does not get. *Built (stage 1):* `finder_volumes.rs` – first `~/omaflake`, then, after the maintainer's review ("es sollte einfach ein
+weiterer Ordner in .omaflake sein … in der UI einstellen … im Deutschen omaflake Platten und im Englischen omaflake
+volumes"), a folder `volumes.localized` in the data folder (it moves with it) or in a folder the user chose
+(`volumesFolder`), with a link `volumes` next to it for the Terminal. Its name is macOS's localized folder name
+(`.localized/<language>.strings`, as /Applications shows as "Programme"): "omaflake volumes", in German "omaflake
+Platten", or the user's own (`volumesName`); a link would not do – macOS translates only a real folder's name, and a
+link named `….localized` keeps its own (both checked with `displayNameAtPath`, 2026-11-27). The core service brings it
+in step every 10 s (links made, changed, taken out for volumes that are gone; nothing else touched), the icon from the
+app's `omaflake.icns` (`NSWorkspace.setIcon`, JXA), the sidebar entry once through `LSSharedFileList` (deprecated – as
+in the guests, B189), remembered in `<data>/finder-volumes.json` with the folder's place: moved (another place, the
+first build's `~/omaflake`) the old folder goes and the entry moves along unless the user had taken it out; off, the
+folder, the link and the entry go – never the user's files; a folder of that name that is not omaflake's is left alone;
+only for the user's data folder (not with `VM_HOME`, not for tests); one sync at a time. Settings (v7, unreleased):
+`volumesInFinder` (default on), `volumesFolder`, `volumesName` – on the Mac's settings page (a switch, a folder to
+choose, a name) and `omaf config --volumes-in-finder/--volumes-folder/--volumes-name`. Tests: links made and forgotten,
+the names written, a user's name, a chosen place moving the folder, a user's file kept, a foreign folder left alone,
+settings v6 → v7. *Checked on the maintainer's Mac (2026-11-28):* a service of this build took out the first build's
+`~/omaflake` and its entry, made `~/.omaflake/volumes.localized` with the four volumes, the icon and the link, and the
+sidebar lists it as "omaflake Platten" (`LSSharedFileListItemCopyDisplayName`). OPEN: the look in the Finder; the place
+and name changed in the app; stage 2.
+
+**B201 (2026-11-28, found while building B200): moving the data folder left entries behind.** `DataFolder::move_to`
+moves only `Paths::DATA_ENTRIES`, and the list lacked `builder`, `keymaps`, `looks`, `modules`, `ssh` and
+`volumes.json` – all made in the data folder since (the Linux builder's folder, the parts of B142, omaflake's own SSH key
+B160, the volumes B187). After a move omaflake made a new SSH key that no VM knew, and forgot installed parts and the
+volumes. *Fixed:* they are in the list, with B200's `volumes.localized`, `volumes` and `finder-volumes.json`. OPEN: a
+data folder moved on the Mac with VMs, end to end.
 
 **B192 (2026-11-27, done with 0.8.1): omaflake's crates on crates.io.** The maintainer: falkOSS's other projects
 (kernoid, aktujo, verkodo) have their crates on crates.io, omaflake was the odd one out. *Decided:* every crate is

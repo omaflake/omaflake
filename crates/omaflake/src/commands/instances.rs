@@ -860,7 +860,30 @@ pub fn config(a: &cli::Config) -> Outcome {
         }
         s.keep_recipe_versions = Some(keep == "on");
     }
+    if let Some(on) = &a.volumes_in_finder {
+        if on != "on" && on != "off" {
+            return Err(usage(&["config"], "--volumes-in-finder: on or off"));
+        }
+        s.volumes_in_finder = (on == "off").then_some(false);
+    }
+    if let Some(f) = &a.volumes_folder {
+        s.volumes_folder = match f.as_str() {
+            "default" | "" => None,
+            f => Some(
+                std::fs::canonicalize(omaflake_core::platform::expand_tilde(f))
+                    .map_err(|_| Error::new(format!("--volumes-folder: no folder {f}")))?
+                    .to_string_lossy()
+                    .into_owned(),
+            ),
+        };
+    }
+    if let Some(n) = &a.volumes_name {
+        s.volumes_name = (n != "default" && !n.trim().is_empty()).then(|| n.trim().to_string());
+    }
     let changed = a.flake.is_some()
+        || a.volumes_in_finder.is_some()
+        || a.volumes_folder.is_some()
+        || a.volumes_name.is_some()
         || a.qemu.is_some()
         || a.runner.is_some()
         || a.nix.is_some()
@@ -920,6 +943,15 @@ pub fn config_lines(s: &omaflake_core::Settings, paths: &Paths, g: &GuestSetting
                 "the newest and those images use"
             }
         ),
+        if cfg!(target_os = "macos") && s.volumes_in_finder.unwrap_or(true) {
+            format!(
+                "volumes in the Finder: {} as “{}”",
+                omaflake_core::finder_volumes::folder(paths, s).display(),
+                s.volumes_name.as_deref().unwrap_or("omaflake volumes")
+            )
+        } else {
+            "volumes in the Finder: off".to_string()
+        },
     ]
 }
 

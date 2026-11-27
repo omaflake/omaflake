@@ -995,6 +995,15 @@ pub struct SettingsDto {
     /// The volumes in the Mac's Finder: `~/omaflake` with a link to each, in the sidebar (plan B200)
     #[serde(default = "yes")]
     pub volumes_in_finder: bool,
+    /// Where that folder goes (plan B200); left out: the data folder
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub volumes_folder: Option<String>,
+    /// Its name in the Finder; left out: "omaflake volumes" ("omaflake Platten" in German)
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub volumes_name: Option<String>,
+    /// The folder itself, as it is now (`<volumesFolder or data folder>/volumes.localized`)
+    #[serde(default)]
+    pub volumes_folder_in_use: String,
     /// This computer's keyboard (plan B141): the physical one, preset for new locales; left out: as the system says
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub host_keyboard: Option<String>,

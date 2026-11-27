@@ -28,7 +28,7 @@ pub struct Paths {
 impl Paths {
     /// Top-level entries of the data folder that belong to omaflake – moved by `DataFolder::move_to`; anything else
     /// in the folder stays where it is: the settings file and `developer/` (contributors' own local files).
-    pub const DATA_ENTRIES: [&'static str; 13] = [
+    pub const DATA_ENTRIES: [&'static str; 22] = [
         "images",
         "instances",
         "bases",
@@ -43,6 +43,17 @@ impl Paths {
         "run",
         // The networks between VMs and their members (spec §11.12)
         "networks.json",
+        // Missing until plan B201 – a moved data folder left them behind (omaflake's SSH key: the VMs refused it)
+        "builder",
+        "keymaps",
+        "looks",
+        "modules",
+        "ssh",
+        "volumes.json",
+        // The volumes in the Finder (plan B200), when the folder is in the data folder
+        "volumes.localized",
+        "volumes",
+        "finder-volumes.json",
     ];
 
     /// `config_file` None = `<root>/config.json`
@@ -456,9 +467,15 @@ pub struct Settings {
     /// None = off
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub help: Option<bool>,
-    /// The volumes in the Mac's Finder (plan B200): `~/omaflake` with a link to each, in the sidebar; None = on
+    /// The volumes in the Mac's Finder (plan B200): a folder with a link to each, in the sidebar; None = on
     #[serde(rename = "volumesInFinder", default, skip_serializing_if = "Option::is_none")]
     pub volumes_in_finder: Option<bool>,
+    /// Where that folder goes (`volumes.localized` in it, with a link `volumes`); None = the data folder
+    #[serde(rename = "volumesFolder", default, skip_serializing_if = "Option::is_none")]
+    pub volumes_folder: Option<String>,
+    /// Its name in the Finder; None = "omaflake volumes" ("omaflake Platten" in German)
+    #[serde(rename = "volumesName", default, skip_serializing_if = "Option::is_none")]
+    pub volumes_name: Option<String>,
 }
 
 impl Settings {

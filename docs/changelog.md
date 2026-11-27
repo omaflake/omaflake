@@ -15,12 +15,17 @@ are collected under *Unreleased*. Releases: [GitHub](https://github.com/omaflake
 
 ### Added
 
-- **Your volumes in the Finder** – a folder **omaflake** in your home folder, with omaflake's icon and in the Finder's
-  sidebar, holds every volume, so you no longer go into the hidden `.omaflake` folder. omaflake keeps it in step when
-  volumes come and go; take the sidebar entry out and it stays out. Off in Settings → **Volumes in the Finder**.
+- **Your volumes in the Finder** – a folder in omaflake's data folder holds every volume and is in the Finder's
+  sidebar with omaflake's icon – as **omaflake volumes**, in German **omaflake Platten** – so you no longer go into the
+  hidden `.omaflake` folder. omaflake keeps it in step when volumes come and go; take the sidebar entry out and it
+  stays out. In Settings you choose another place or name for it, or switch it off (**Volumes in the Finder**); on the
+  command line `omaf config --volumes-in-finder`, `--volumes-folder`, `--volumes-name`. In the Terminal it is
+  `~/.omaflake/volumes`.
 
 ### Fixed
 
+- **Moving the data folder takes everything along** – omaflake's own SSH key, the installed modules, key bindings and
+  looks, the volumes list and the Linux builder's folder stayed at the old place; VMs then refused the new key.
 - **A removed volume stays removed** – a volume whose folder held only what macOS leaves there came back in the list
   after "Remove" when the Finder in a VM had made its `.Trashes` without read permission; omaflake now deletes such a
   folder anyway, and says so when it cannot.

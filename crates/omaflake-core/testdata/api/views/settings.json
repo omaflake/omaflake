@@ -144,8 +144,8 @@
       {
         "enabled": true,
         "help": {
-          "key": "A folder omaflake in your home folder, with omaflake's icon and in the Finder's sidebar, holding each volume – so you need not go into the hidden .omaflake folder.",
-          "text": "A folder omaflake in your home folder, with omaflake's icon and in the Finder's sidebar, holding each volume – so you need not go into the hidden .omaflake folder."
+          "key": "A folder with every volume, with omaflake's icon and in the Finder's sidebar – so you need not go into the hidden .omaflake folder.",
+          "text": "A folder with every volume, with omaflake's icon and in the Finder's sidebar – so you need not go into the hidden .omaflake folder."
         },
         "id": "volumesInFinder",
         "kind": "toggle",
@@ -159,6 +159,71 @@
           "params": {}
         },
         "value": true
+      },
+      {
+        "ask": {
+          "button": {
+            "key": "Use",
+            "text": "Use"
+          },
+          "kind": "folder",
+          "label": {
+            "key": "Choose …",
+            "text": "Choose …"
+          },
+          "param": "volumesFolder",
+          "prompt": {
+            "key": "The folder to keep the volumes' folder in",
+            "text": "The folder to keep the volumes' folder in"
+          }
+        },
+        "enabled": true,
+        "help": {
+          "args": [
+            "/Users/jane/.omaflake/volumes.localized"
+          ],
+          "key": "Now: %@ – in the data folder unless you choose another folder",
+          "text": "Now: /Users/jane/.omaflake/volumes.localized – in the data folder unless you choose another folder"
+        },
+        "id": "volumesFolder",
+        "kind": "path",
+        "label": {
+          "key": "Where",
+          "text": "Where"
+        },
+        "placeholder": {
+          "key": "The data folder",
+          "text": "The data folder"
+        },
+        "set": {
+          "method": "settings.set",
+          "param": "volumesFolder",
+          "params": {}
+        },
+        "value": ""
+      },
+      {
+        "enabled": true,
+        "help": {
+          "key": "Its name in the Finder and the sidebar; empty: omaflake volumes",
+          "text": "Its name in the Finder and the sidebar; empty: omaflake volumes"
+        },
+        "id": "volumesName",
+        "kind": "text",
+        "label": {
+          "key": "Name in the Finder",
+          "text": "Name in the Finder"
+        },
+        "placeholder": {
+          "key": "omaflake volumes",
+          "text": "omaflake volumes"
+        },
+        "set": {
+          "method": "settings.set",
+          "param": "volumesName",
+          "params": {}
+        },
+        "value": ""
       },
       {
         "enabled": true,

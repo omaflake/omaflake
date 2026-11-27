@@ -50,6 +50,7 @@
     "hostKeyboard": "ch",
     "keepRecipeVersions": false,
     "notifications": false,
+    "volumesFolderInUse": "/Users/jane/.omaflake/volumes.localized",
     "volumesInFinder": true
   }
 }

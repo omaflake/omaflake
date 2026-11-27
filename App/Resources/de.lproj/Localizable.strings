@@ -1980,4 +1980,11 @@
 "Add %@" = "%@ hinzufügen";
 "%@ holds only what macOS left there but could not be deleted, so the volume stays in the list – delete the folder in the Finder" = "%@ enthält nur noch, was macOS dort abgelegt hat, ließ sich aber nicht löschen; deshalb bleibt die Platte in der Liste – lösche den Ordner im Finder";
 "Volumes in the Finder" = "Platten im Finder";
-"A folder omaflake in your home folder, with omaflake's icon and in the Finder's sidebar, holding each volume – so you need not go into the hidden .omaflake folder." = "Ein Ordner „omaflake“ in deinem Benutzerordner, mit omaflake-Symbol und in der Seitenleiste des Finders, mit jeder Platte darin – so musst du nicht in den versteckten Ordner .omaflake.";
+"A folder with every volume, with omaflake's icon and in the Finder's sidebar – so you need not go into the hidden .omaflake folder." = "Ein Ordner mit jeder Platte, mit omaflake-Symbol und in der Seitenleiste des Finders – so musst du nicht in den versteckten Ordner .omaflake.";
+"Where" = "Ort";
+"Now: %@ – in the data folder unless you choose another folder" = "Jetzt: %@ – im Datenordner, außer du wählst einen anderen Ordner";
+"The data folder" = "Der Datenordner";
+"The folder to keep the volumes' folder in" = "Der Ordner, in dem der Ordner der Platten liegen soll";
+"Name in the Finder" = "Name im Finder";
+"Its name in the Finder and the sidebar; empty: omaflake volumes" = "Sein Name im Finder und in der Seitenleiste; leer: omaflake Platten";
+"omaflake volumes" = "omaflake Platten";

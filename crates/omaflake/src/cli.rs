@@ -1112,6 +1112,27 @@ pub struct Config {
                 stay)"
     )]
     pub keep_recipe_versions: Option<String>,
+    #[arg(
+        long,
+        value_name = "volumes-in-finder",
+        help = "macOS: a folder with every volume, with omaflake's icon and in the Finder's sidebar – on or off \
+                (default on)"
+    )]
+    pub volumes_in_finder: Option<String>,
+    #[arg(
+        long,
+        value_name = "volumes-folder",
+        help = "macOS: the folder to keep that folder in (volumes.localized, with a link volumes) – \"default\" = the \
+                data folder"
+    )]
+    pub volumes_folder: Option<String>,
+    #[arg(
+        long,
+        value_name = "volumes-name",
+        help = "macOS: its name in the Finder and the sidebar – \"default\" = omaflake volumes (omaflake Platten in \
+                German)"
+    )]
+    pub volumes_name: Option<String>,
 }
 
 #[derive(Debug, Subcommand)]
