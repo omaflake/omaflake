@@ -732,7 +732,17 @@ pub(crate) mod tests {
                 return;
             }
         }
-        let mut child = std::process::Command::new(fake.join("sleep")).arg("30").spawn().unwrap();
+        // Linux: a copy just written may be "busy" for a moment – another test's fork can hold it open for writing
+        // until its exec (ETXTBSY; it failed CI once, 0.8.4)
+        let mut child = (0..50)
+            .find_map(|_| match std::process::Command::new(fake.join("sleep")).arg("30").spawn() {
+                Err(e) if e.kind() == std::io::ErrorKind::ExecutableFileBusy => {
+                    std::thread::sleep(Duration::from_millis(20));
+                    None
+                }
+                other => Some(other.unwrap()),
+            })
+            .expect("the copy of sleep stayed busy");
         std::fs::write(ip.runner_pid(), format!("{}\n", child.id())).unwrap();
         assert_eq!(vz.status(&c), VmStatus::Running);
         let started = Instant::now();
