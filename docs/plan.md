@@ -675,6 +675,16 @@ catalog's `xcode` 1.1.0 uses it (search: Downloads and Desktop – not /Applicat
 OPEN: the app's panel looked at; a build that adds a found file on its way (the same `files.add` code, not run inside
 a build yet).
 
+**B199 (2026-11-27, found by the maintainer – "Ich kann irgendwie nicht die Platte unchained entfernen"): a removed
+volume came back.** A volume is also a folder in `<data>/share/` (B187), so removing one deletes its default folder when
+it holds only macOS's metadata (`SHARE_METADATA`). The folder of `unchained` held `.Trashes` and `.fseventsd` only, but
+the Finder of an unchained VM (FSKit, B190) had made `.Trashes` as `d-wx--x--t` – no read permission, also not for its
+owner – so the deletion failed without a word, the folder stayed and the list showed the volume again ("removed" each
+time). *Fixed:* `remove_share_if_empty` gives the owner permission on the metadata first (`open_up_for_owner`); when
+the folder still stays, `volumes.remove` says so instead of reporting success, and `omaf volumes rm` says whether the
+folder stayed. Test: a share with a `.Trashes` of mode 1311 holding a file goes. The maintainer's `unchained` removed
+with it.
+
 **B192 (2026-11-27, done with 0.8.1): omaflake's crates on crates.io.** The maintainer: falkOSS's other projects
 (kernoid, aktujo, verkodo) have their crates on crates.io, omaflake was the odd one out. *Decided:* every crate is
 published, in step with omaflake's version (like aktujo: the crate with the project's name is the program, the rest

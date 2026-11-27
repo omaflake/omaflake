@@ -58,6 +58,7 @@ pub static DE: &[(&str, &str)] = &[
     ("%@ has version %lld – this omaflake reads up to %lld; update omaflake", "%1$@ hat Version %2$lld – dieses omaflake liest bis Version %3$lld; aktualisiere omaflake"),
     ("%@ has version %lld – too old for this omaflake, which reads %lld to %lld", "%1$@ hat Version %2$lld – zu alt für dieses omaflake, es liest Version %3$lld bis %4$lld"),
     ("%@ holds no %@", "%@ enthält kein %@"),
+    ("%@ holds only what macOS left there but could not be deleted, so the volume stays in the list – delete the folder in the Finder", "%@ enthält nur noch, was macOS dort abgelegt hat, ließ sich aber nicht löschen; deshalb bleibt die Platte in der Liste – lösche den Ordner im Finder"),
     ("%@ in the settings – a new build brings it", "%@ in den Einstellungen – ein neuer Build bringt ihn"),
     ("%@ is a %@ file, not %@", "%1$@ ist eine %2$@-Datei, keine %3$@"),
     ("%@ is a %@ image, the settings are for %@", "%1$@ ist eine %2$@-Vorlage, die Einstellungen gelten für %3$@"),

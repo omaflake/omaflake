@@ -326,12 +326,26 @@ impl InstanceStore {
         Ok(())
     }
 
-    /// Deletes a share folder that holds only metadata (`SHARE_METADATA`); returns whether it did.
+    /// Deletes a share folder that holds only metadata (`SHARE_METADATA`); returns whether it did. macOS makes some of
+    /// it without read permission for anyone – the Finder's `.Trashes` (`d-wx--x--t`) after deleting on a volume –,
+    /// which stopped the deletion: a removed volume came back in the list (plan B199). Its owner may change that, so
+    /// the metadata is opened up for the owner first.
     pub(crate) fn remove_share_if_empty(dir: &Path) -> bool {
+        if !Self::holds_only_metadata(dir) {
+            return false;
+        }
+        if let Ok(entries) = fs::read_dir(dir) {
+            for e in entries.flatten() {
+                open_up_for_owner(&e.path());
+            }
+        }
+        Disposal::delete(&[dir]).is_ok()
+    }
+
+    /// The folder holds nothing but what macOS leaves there (`SHARE_METADATA`)
+    pub(crate) fn holds_only_metadata(dir: &Path) -> bool {
         let Ok(entries) = fs::read_dir(dir) else { return false };
-        let only_metadata =
-            entries.flatten().all(|e| Self::SHARE_METADATA.iter().any(|m| e.file_name().to_str() == Some(m)));
-        only_metadata && Disposal::delete(&[dir]).is_ok()
+        entries.flatten().all(|e| Self::SHARE_METADATA.iter().any(|m| e.file_name().to_str() == Some(m)))
     }
 
     /// An image built for another architecture (plan B114) gives no VM here
@@ -349,6 +363,28 @@ impl InstanceStore {
             Ok(())
         } else {
             Err(Platform::not_here(&format!("\"{}\"", c.name), &c.system))
+        }
+    }
+}
+
+/// Gives the owner read, write and search permission on a folder and everything in it (best effort; links are left as
+/// they are)
+fn open_up_for_owner(path: &Path) {
+    use std::os::unix::fs::PermissionsExt;
+    let Ok(meta) = fs::symlink_metadata(path) else { return };
+    if meta.file_type().is_symlink() {
+        return;
+    }
+    let mode = meta.permissions().mode();
+    let wanted = if meta.is_dir() { mode | 0o700 } else { mode | 0o600 };
+    if wanted != mode {
+        let _ = fs::set_permissions(path, fs::Permissions::from_mode(wanted));
+    }
+    if meta.is_dir()
+        && let Ok(entries) = fs::read_dir(path)
+    {
+        for e in entries.flatten() {
+            open_up_for_owner(&e.path());
         }
     }
 }
@@ -486,6 +522,20 @@ mod tests {
         assert!(!empty.exists());
         assert!(!InstanceStore::remove_share_if_empty(&used));
         assert!(used.join("thesis.tex").exists());
+    }
+
+    /// The Finder's `.Trashes` without read permission (`d-wx--x--t`, plan B199) does not keep the folder
+    #[test]
+    fn unreadable_metadata_goes_too() {
+        use std::os::unix::fs::PermissionsExt;
+        let (_t, p) = temp_paths();
+        let dir = p.share("unchained");
+        let trashes = dir.join(".Trashes");
+        fs::create_dir_all(trashes.join("501")).unwrap();
+        fs::write(trashes.join("501").join("old.txt"), "x").unwrap();
+        fs::set_permissions(&trashes, fs::Permissions::from_mode(0o1311)).unwrap();
+        assert!(InstanceStore::remove_share_if_empty(&dir));
+        assert!(!dir.exists());
     }
 
     /// A NixOS image package in the data folder

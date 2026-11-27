@@ -37,8 +37,15 @@ pub fn create(name: &str, path: Option<&str>) -> Outcome {
 pub fn remove(name: &str) -> Outcome {
     let env = Env::new();
     let (volumes, store) = stores(&env);
+    let folder = volumes.list(&store.list()).into_iter().find(|v| v.name == name).map(|v| v.folder);
     volumes.remove(&store, name)?;
-    println!("Volume {name} removed – out of its VMs from their next start; its folder stays.");
+    // A default folder holding only what macOS leaves there goes with it; the user's files always stay
+    match folder.filter(|f| f.exists()) {
+        Some(f) => {
+            println!("Volume {name} removed – out of its VMs from their next start; its folder {} stays.", f.display())
+        }
+        None => println!("Volume {name} removed – out of its VMs from their next start; its empty folder is gone."),
+    }
     Ok(())
 }
 

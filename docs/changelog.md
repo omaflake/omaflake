@@ -13,6 +13,12 @@ are collected under *Unreleased*. Releases: [GitHub](https://github.com/omaflake
 
 ## [Unreleased]
 
+### Fixed
+
+- **A removed volume stays removed** – a volume whose folder held only what macOS leaves there came back in the list
+  after "Remove" when the Finder in a VM had made its `.Trashes` without read permission; omaflake now deletes such a
+  folder anyway, and says so when it cannot.
+
 ## [0.8.3] – 2026-11-27
 
 Modules can now need files nobody may pass on – the catalog's macOS recipe `xcode` brings Xcode 27.2 into a VM, and

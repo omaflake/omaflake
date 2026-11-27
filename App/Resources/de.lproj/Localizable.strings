@@ -1978,3 +1978,4 @@
 "Needs %@, which is not on this computer yet – download it, then choose it here" = "Braucht %@, das auf diesem Computer noch fehlt – lade es und wähle es dann hier aus";
 "Download %@ (your Apple Account)" = "%@ laden (mit deinem Apple-Account)";
 "Add %@" = "%@ hinzufügen";
+"%@ holds only what macOS left there but could not be deleted, so the volume stays in the list – delete the folder in the Finder" = "%@ enthält nur noch, was macOS dort abgelegt hat, ließ sich aber nicht löschen; deshalb bleibt die Platte in der Liste – lösche den Ordner im Finder";

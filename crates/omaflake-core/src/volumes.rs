@@ -392,9 +392,16 @@ impl Volumes {
         let mut f = self.read();
         f.volumes.retain(|x| x.name != name);
         self.write(&f)?;
-        // A default folder with nothing but what macOS leaves in it goes, so the list forgets it too
-        if !v.custom {
-            InstanceStore::remove_share_if_empty(&v.folder);
+        // A default folder with nothing but what macOS leaves in it goes, so the list forgets it too; one that stays
+        // would bring the volume back (plan B199) – said, not hidden
+        if !v.custom
+            && !InstanceStore::remove_share_if_empty(&v.folder)
+            && InstanceStore::holds_only_metadata(&v.folder)
+        {
+            return Err(vm_err!(
+                "{} holds only what macOS left there but could not be deleted, so the volume stays in the list – delete the folder in the Finder",
+                v.folder.display()
+            ));
         }
         Ok(())
     }
