@@ -6,13 +6,13 @@ use std::collections::HashMap;
 use std::io::{BufRead, Write};
 use std::path::{Path, PathBuf};
 
-use omaflake_core::json::Date;
 use omaflake_core::platform::{expand_tilde, standardize};
 use omaflake_core::recipe_sources::RecipeRef;
 use omaflake_core::{
     Backends, Error, ImageStore, LinePlace, OmaflakeId, OmaflakeIdKind, Paths, RecipeDefaults, RecipeId, RecipeLibrary,
     Result, Settings,
 };
+use omaflake_sdk::time::Date;
 
 /// How a command fails, and the exit code (swift-argument-parser's behaviour)
 #[derive(Debug)]
@@ -96,7 +96,7 @@ pub fn pad(s: &str, n: usize) -> String {
 
 /// A date in the Mac's time zone, e.g. "yyyy-MM-dd HH:mm" → `%Y-%m-%d %H:%M` (Swift `DateFormatter.dateFormat`)
 pub fn local_date(date: &Date, format: &str) -> String {
-    omaflake_core::json::local(*date, format)
+    omaflake_sdk::time::local(*date, format)
 }
 
 /// `~` expanded, then standardized (Swift `URL(fileURLWithPath: expandingTildeInPath).standardizedFileURL`)

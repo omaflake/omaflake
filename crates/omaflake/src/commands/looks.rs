@@ -4,7 +4,8 @@
 
 use omaflake_core::Settings;
 use omaflake_core::looks::LookStore;
-use omaflake_core::recipe_sources::{RecipeSource, RecipeSourceKind, SourceClient};
+use omaflake_core::recipe_sources::{RecipeSource, SourceClient};
+use omaflake_sdk::models::RecipeSourceKind;
 
 use crate::util::{Env, Outcome, pad, usage};
 

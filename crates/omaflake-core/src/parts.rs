@@ -13,14 +13,16 @@ use std::path::{Path, PathBuf};
 
 use serde::{Deserialize, Serialize};
 
-use crate::error::{IoContext, Result, codes};
+use crate::error::{IoContext, Result};
 use crate::file_format::{FileFormat, Step, write_atomic};
-use crate::json::Date;
-use crate::models::GuestKind;
 use crate::paths::{Paths, Settings};
-use crate::recipe_sources::{CatalogFile, RecipeRef, RecipeSourceKind, SourceClient};
+use crate::recipe_sources::{CatalogFile, RecipeRef, SourceClient};
 use crate::trash::Disposal;
 use crate::vm_err;
+use omaflake_sdk::codes;
+use omaflake_sdk::models::GuestKind;
+use omaflake_sdk::models::RecipeSourceKind;
+use omaflake_sdk::time::Date;
 
 /// The three kinds of parts
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -144,7 +146,7 @@ pub struct InstalledPart {
     pub version: String,
     /// The catalog's content hash it was installed at (an update has another)
     pub hash: String,
-    #[serde(with = "crate::json::iso8601")]
+    #[serde(with = "omaflake_sdk::time::iso8601")]
     pub installed: Date,
 }
 
@@ -375,7 +377,7 @@ impl PartStore {
                     source: client.source.id(),
                     version: part.version.to_string(),
                     hash: part.hash.to_string(),
-                    installed: crate::json::Date::now(),
+                    installed: omaflake_sdk::time::Date::now(),
                 },
             );
             self.save(&installed)
@@ -493,7 +495,7 @@ pub(crate) fn sample_file() -> Vec<u8> {
             source: "github:omaflake/catalog@main".into(),
             version: "1.0.0".into(),
             hash: "ab".into(),
-            installed: crate::json::Date::now(),
+            installed: omaflake_sdk::time::Date::now(),
         },
     )]);
     PartStore::FILE_FORMAT.encode(&InstalledPartsFile { parts }).unwrap()

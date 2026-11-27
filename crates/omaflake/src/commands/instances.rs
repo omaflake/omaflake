@@ -15,10 +15,11 @@ use omaflake_core::linux_builder::LinuxBuilder;
 use omaflake_core::qemu_command::Accel;
 use omaflake_core::volumes::Volumes;
 use omaflake_core::{
-    AgentState, DataFolder, DisplayMode, Error, GlBackend, GuestKind, GuestSettings, InstanceConfig, InstanceLock,
-    Lengths, MacOsRelease, NetworkMode, OmaflakeId, Paths, Prerequisite, PrerequisiteStatus, Prerequisites,
-    RecipeDefaults, RecipeId, RecipeLibrary, StartOptions, VmBackend, VmStatus, json,
+    AgentState, DataFolder, Error, GlBackend, GuestSettings, InstanceConfig, InstanceLock, Lengths, MacOsRelease,
+    OmaflakeId, Paths, Prerequisite, Prerequisites, RecipeDefaults, RecipeId, RecipeLibrary, StartOptions, VmBackend,
+    json,
 };
+use omaflake_sdk::models::{DisplayMode, GuestKind, NetworkMode, PrerequisiteStatus, VmStatus};
 
 use crate::cli;
 use crate::util::{
@@ -488,8 +489,8 @@ pub fn upgrade(name: &str, keep: bool) -> Outcome {
     // The answer is the ended job: its result's message, or its error – read wrong, a failed upgrade printed nothing and
     // exited 0 (plan B189)
     if keep {
-        use omaflake_core::api::types::{JobDto, JobState};
-        use omaflake_core::error::codes;
+        use omaflake_sdk::codes;
+        use omaflake_sdk::types::{JobDto, JobState};
         let done = omaflake_core::api::call_once("vms.upgrade", serde_json::json!({"name": name, "keep": true}))?;
         let job: JobDto =
             serde_json::from_value(done).map_err(|e| Error::new(format!("The service's upgrade job: {e}")))?;
@@ -659,14 +660,14 @@ pub fn agent(a: &cli::Agent) -> Outcome {
         println!("{}", String::from_utf8_lossy(&json::to_pretty(&state, true)?));
         return Ok(());
     }
-    for line in agent_lines(&state, omaflake_core::json::Date::now()) {
+    for line in agent_lines(&state, omaflake_sdk::time::Date::now()) {
         println!("{line}");
     }
     Ok(())
 }
 
 /// What `omaf agent` prints for a state, `now` for "Reported: … s ago"
-pub fn agent_lines(state: &AgentState, now: omaflake_core::json::Date) -> Vec<String> {
+pub fn agent_lines(state: &AgentState, now: omaflake_sdk::time::Date) -> Vec<String> {
     let mut out = Vec::new();
     if let Some(problem) = &state.problem {
         out.push(format!("Problem:  {problem}"));
@@ -705,7 +706,7 @@ pub fn agent_lines(state: &AgentState, now: omaflake_core::json::Date) -> Vec<St
             out.push(format!("Users:    {}", u.join(", ")));
         }
         if let Some(at) = state.status_at {
-            out.push(format!("Reported: {} s ago", omaflake_core::json::seconds_between(now, at)));
+            out.push(format!("Reported: {} s ago", omaflake_sdk::time::seconds_between(now, at)));
         }
     }
     if let Some(m) = &state.midi {
@@ -1087,7 +1088,8 @@ pub fn builder_repair(force: bool) -> Outcome {
 mod tests {
     use super::*;
     use omaflake_core::agent_protocol::{AgentAddress, AgentDisk, AgentMemory, ProtocolRange};
-    use omaflake_core::{AgentHello, AgentStatus, PrerequisiteItem};
+    use omaflake_core::{AgentHello, AgentStatus};
+    use omaflake_sdk::models::PrerequisiteItem;
 
     /// `omaf new -r` finds an imported image's recipe by its name, kind/name or author/kind/name
     #[test]
@@ -1125,7 +1127,7 @@ mod tests {
             "aarch64-linux",
             &d,
             2222,
-            json::now(),
+            omaflake_sdk::time::now(),
         )
     }
 
@@ -1223,7 +1225,7 @@ mod tests {
 
     #[test]
     fn agent_report() {
-        let now = omaflake_core::json::Date::now();
+        let now = omaflake_sdk::time::Date::now();
         let state = AgentState {
             hello: Some(AgentHello {
                 agent: "omaflake-agent 0.2.0".into(),

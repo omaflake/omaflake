@@ -6,13 +6,15 @@ use serde_json::json;
 
 use super::Ctx;
 use super::common::*;
-use super::text::{Text, tf};
+use super::text::tf;
 use super::vms::{kind_badge, recipe_name};
-use crate::api::types::{BuildResult, JobDto, JobProgress, JobState};
-use crate::models::GuestKind;
+use omaflake_sdk::models::GuestKind;
+use omaflake_sdk::text::Text;
+use omaflake_sdk::types::{BuildResult, JobDto, JobProgress, JobState};
+use omaflake_sdk::views::common::*;
 
 // The page's model (plan B192: in omaflake-sdk); this file builds it
-pub use omaflake_sdk::views::build::*;
+use omaflake_sdk::views::build::*;
 
 /// The credential and look fields of the build form, and the values they have now (the user's, else the defaults)
 fn choice_fields(
@@ -164,15 +166,15 @@ pub(crate) fn page(ctx: &Ctx, p: &BuildParams) -> BuildPage {
         ));
         fields.push(u);
     }
-    let missing = parts.is_some_and(|x| x.issues.iter().any(crate::composition::Issue::blocks));
+    let missing = parts.is_some_and(|x| x.issues.iter().any(omaflake_sdk::models::Issue::blocks));
     let mut notes = parts.map(|x| super::recipes::notes(ctx, &p.recipe, x)).unwrap_or_default();
     // A locale the recipe is not made for: a warning, the build stays possible (plan B141)
     if let (Some(x), Some(l)) = (parts, ctx.locales.iter().find(|l| l.id == locale)) {
         let text = match x.locales.outside(&l.locale) {
-            Some(crate::composition::Outside::Languages(langs)) => {
+            Some(omaflake_sdk::models::Outside::Languages(langs)) => {
                 Some(tf!("This recipe is made for %@ – not for the locale %@", langs.join(", "), &l.name))
             }
-            Some(crate::composition::Outside::RightToLeft) => {
+            Some(omaflake_sdk::models::Outside::RightToLeft) => {
                 Some(tf!("This recipe is not made for right-to-left languages like the locale %@", &l.name))
             }
             None => None,

@@ -7,15 +7,18 @@
 use serde_json::json;
 
 use super::Ctx;
-use super::common::*;
-use super::credentials::{ActionMenu, CredentialDetail, CredentialPage, CredentialRow, CredentialsPage, DetailItem};
-use super::text::{Text, tf};
-use crate::api::types::{Vm, VolumeDto};
-use crate::models::{GuestKind, VmStatus};
+use super::text::tf;
 use crate::volumes::Volumes;
+use omaflake_sdk::models::{GuestKind, VmStatus};
+use omaflake_sdk::text::Text;
+use omaflake_sdk::types::{Vm, VolumeDto};
+use omaflake_sdk::views::common::*;
+use omaflake_sdk::views::credentials::{
+    ActionMenu, CredentialDetail, CredentialPage, CredentialRow, CredentialsPage, DetailItem,
+};
 
 // The page's model (plan B192: in omaflake-sdk); this file builds it
-pub use omaflake_sdk::views::volumes::*;
+use omaflake_sdk::views::volumes::*;
 
 fn kind_icon(v: Option<&Vm>) -> &'static str {
     match v.map(|v| v.kind) {

@@ -17,11 +17,11 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::{Duration, Instant};
 
-use omaflake_core::api::client::Client;
 use omaflake_core::api::service::{self, Options, is_newer, socket_path};
-use omaflake_core::api::types::{CoreIdentity, InitializeResult, JobDto};
 use omaflake_core::platform::home_dir;
 use omaflake_core::{Error, Paths, Result};
+use omaflake_sdk::client::Client;
+use omaflake_sdk::types::{CoreIdentity, InitializeResult, JobDto};
 use serde_json::{Value, json};
 
 use crate::cli::{Serve, ServiceCommand};
@@ -552,7 +552,7 @@ mod tests {
         InitializeResult {
             api_version: 1,
             omaf_version: version.into(),
-            host: omaflake_core::api::types::Host { system: "aarch64-darwin".into(), os: "macOS".into() },
+            host: omaflake_sdk::types::Host { system: "aarch64-darwin".into(), os: "macOS".into() },
             data_folder: "/d".into(),
             config_file: "/d/config.json".into(),
             core,

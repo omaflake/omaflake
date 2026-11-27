@@ -9,10 +9,11 @@
 //! own architecture with KVM – TCG when /dev/kvm cannot be used – in GTK windows on PipeWire or PulseAudio. Everything
 //! else (disk, network, share, agent ports, QMP, serial log) is the same on every host.
 use crate::agent_protocol::AgentProtocol;
-use crate::models::{DisplayMode, GlBackend, InstanceConfig, NetworkMode, QemuCapabilities};
+use crate::models::{GlBackend, InstanceConfig, QemuCapabilities};
 use crate::networks::Attachment;
 use crate::networks::packets::mac_text;
 use crate::paths::InstancePaths;
+use omaflake_sdk::models::{DisplayMode, NetworkMode};
 
 /// The guest's architecture (always the host's: guests run natively, plan B114)
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -499,7 +500,7 @@ mod tests {
     fn a_second_card_per_network() {
         let attachment = |name: &str, number: u8| crate::networks::Attachment {
             network: name.into(),
-            mac: crate::networks::mac_for(number, 10),
+            mac: omaflake_sdk::networks::mac_for(number, 10),
             address: std::net::Ipv4Addr::new(10, 231, number, 10),
             qemu_socket: format!("/data/run/net/{name}/qemu.sock").into(),
             vz_socket: format!("/data/run/net/{name}/vz.sock").into(),

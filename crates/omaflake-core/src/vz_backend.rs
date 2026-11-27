@@ -21,12 +21,11 @@ use std::time::{Duration, Instant};
 
 use crate::agent_protocol::AgentState;
 use crate::backend::{StartOptions, VmBackend};
-use crate::error::{Error, IoContext, Result, codes};
+use crate::error::{Error, IoContext, Result};
 use crate::image_store::Image;
 use crate::instance_store::InstanceStore;
-use crate::json;
 use crate::mac_vm::{DhcpLeases, MacVmBundle, RunnerClient};
-use crate::models::{DisplayMode, GuestKind, InstanceConfig, NetworkMode, RecipeDefaults, StopResult, VmStatus};
+use crate::models::{InstanceConfig, RecipeDefaults};
 use crate::omaflake_id::OmaflakeId;
 use crate::paths::{Paths, Settings};
 use crate::platform::{expand_tilde, is_executable_file, resolve_symlinks, standardize};
@@ -37,6 +36,8 @@ use crate::spawn::{self, Pid};
 use crate::ssh_command::SshCommand;
 use crate::trash::Disposal;
 use crate::vm_err;
+use omaflake_sdk::codes;
+use omaflake_sdk::models::{DisplayMode, GuestKind, NetworkMode, StopResult, VmStatus};
 
 #[derive(Debug, Clone)]
 pub struct VzBackend {
@@ -387,7 +388,7 @@ impl VmBackend for VzBackend {
             &image.info.system,
             settings,
             22,
-            json::now(),
+            omaflake_sdk::time::now(),
         );
         config.identity = Some(OmaflakeId::random_words());
         // Ephemeral instances get their clone at every start
@@ -596,7 +597,7 @@ fn guest_helpers_command(c: &InstanceConfig) -> String {
 fn note_in_runner_log(file: &Path, line: &str) {
     use std::io::Write;
     if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open(file) {
-        let _ = writeln!(f, "[{}] {line}", crate::json::local_now("%Y-%m-%d %H:%M:%S"));
+        let _ = writeln!(f, "[{}] {line}", omaflake_sdk::time::local_now("%Y-%m-%d %H:%M:%S"));
     }
 }
 
@@ -627,7 +628,7 @@ pub(crate) mod tests {
             "aarch64-darwin",
             &s,
             22,
-            json::parse_date("1970-01-01T00:00:00Z").unwrap(),
+            omaflake_sdk::time::parse_date("1970-01-01T00:00:00Z").unwrap(),
         )
     }
 
@@ -660,8 +661,9 @@ pub(crate) mod tests {
     fn isolated_network_is_rejected() {
         let (_t, p) = temp_paths();
         let vz = backend(&p, "/usr/bin/false");
-        let info =
-            |recipe: &str, kind, system: &str| ImageInfo::new(recipe, None, kind, system, "", "abc", None, json::now());
+        let info = |recipe: &str, kind, system: &str| {
+            ImageInfo::new(recipe, None, kind, system, "", "abc", None, omaflake_sdk::time::now())
+        };
         let image = Image {
             name: "mac-minimal-abc-12345678".into(),
             info: info("omaflake.macos.minimal", GuestKind::Macos, "aarch64-darwin"),

@@ -5,13 +5,15 @@ use serde_json::json;
 
 use super::Ctx;
 use super::common::*;
-use super::text::{Arg, Text, tf};
+use super::text::tf;
 use crate::agent_protocol::{AgentState, AgentStatus};
-use crate::api::types::Vm;
-use crate::models::{GuestKind, NetworkMode, VmStatus};
+use omaflake_sdk::models::{GuestKind, NetworkMode, VmStatus};
+use omaflake_sdk::text::{Arg, Text};
+use omaflake_sdk::types::Vm;
+use omaflake_sdk::views::common::*;
 
 // The page's model (plan B192: in omaflake-sdk); this file builds it
-pub use omaflake_sdk::views::vms::*;
+use omaflake_sdk::views::vms::*;
 
 pub(crate) fn page(ctx: &Ctx, p: &VmsParams) -> VmsPage {
     let f = &p.filter;
@@ -63,7 +65,7 @@ pub(crate) fn page(ctx: &Ctx, p: &VmsParams) -> VmsPage {
 pub(crate) const CAMERA_UNCHAINED: &str = "In the VM, apps see this computer's camera as \"omaflake Camera\" – this VM is unchained and has omaflake's own camera extension";
 pub(crate) const CAMERA_MACOS: &str = "In the VM, apps see the camera as \"OBS Virtual Camera\": install OBS there, omaflake sets up its scene; then start OBS's virtual camera";
 
-pub fn unreadable(list: &[crate::api::types::Unreadable]) -> Vec<Hint> {
+pub fn unreadable(list: &[omaflake_sdk::types::Unreadable]) -> Vec<Hint> {
     list.iter()
         .map(|u| Hint::new("warning", Text::verbatim(format!("{}: {}", u.name, u.reason)), Tone::Warning))
         .collect()

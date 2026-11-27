@@ -25,14 +25,12 @@ use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
 use crate::cancellation::Cancellation;
-use crate::error::{IoContext, Result, codes};
+use crate::error::{IoContext, Result};
 use crate::guest_settings::BuildChoice;
 use crate::image_store::{Image, ImageInfo, ImageStore};
 use crate::ipsw_downloader::KeepAwake;
-use crate::json;
 use crate::mac_base_installer::MacBaseInstaller;
 use crate::mac_vm::{DhcpLeases, MacVmBundle, RunnerClient};
-use crate::models::GuestKind;
 use crate::paths::{Paths, Settings};
 use crate::platform::Platform;
 use crate::qemu_runtime::{FileLock, tail};
@@ -43,6 +41,8 @@ use crate::spawn::{self, Pid};
 use crate::trash::Disposal;
 use crate::vm_err;
 use crate::vz_backend::VzBackend;
+use omaflake_sdk::codes;
+use omaflake_sdk::models::GuestKind;
 
 /// A log callback that may borrow (`crate::Log` is `'static`-bounded as a type alias)
 type LogFn<'a> = dyn Fn(&str) + Send + Sync + 'a;
@@ -306,7 +306,7 @@ impl MacImageBuilder {
             &r.flake,
             &images.recipe_revision(&r.recipe, &r.flake),
             Some(system.clone()),
-            json::now(),
+            omaflake_sdk::time::now(),
         );
         info.set_choice(&r.choice);
         info.unchained = unchained;

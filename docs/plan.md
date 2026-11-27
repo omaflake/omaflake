@@ -536,8 +536,10 @@ everything an interface needs – `client` (its errors carry texts like the core
 switch's status), `diagnostics` (the checks), `views` (every page model with its building blocks – split from the
 core's builders, which stay in `api/views` and build these types; `Blockers::of` stayed as `blockers_of`: its hints
 are the Doctor's) and `brand` (the design tokens, the crate omaflake-brand before – the core uses none, the
-interfaces all; brand/tokens.py writes there). The core re-exports all of it at its old paths. `omaf ui` and the
-Linux app take everything from the SDK and the core only for its in-process server (when no service runs). Images the crates embed are copies in their
+interfaces all; brand/tokens.py writes there). No re-exports: every crate names `omaflake_sdk::…` where it uses the
+SDK, so each file shows what is the API's and what the core's own (before 1.0 nothing needs the old paths, B141).
+`omaf ui` and the Linux app take everything from the SDK and the core only for its in-process server (when no
+service runs). Images the crates embed are copies in their
 `assets/` (`omaflake-core`: Dock icon, loading picture; `omaflake-gui`: icons, glyph) – omaflake/brand's `copy.py`
 writes them. Every crate has its README, keywords and categories; `cargo package --workspace` and the agent's
 package build (checked). CI job `crates` (ci.yml, on a tag `v*`, environment `crates-io`, after linux, dependencies,

@@ -3,7 +3,8 @@
 
 use std::path::Path;
 
-use omaflake_core::{Error, Package, PackageKind, RecipeId, RecipeLibrary, Settings, Transfer, VmStatus};
+use omaflake_core::{Error, Package, PackageKind, RecipeId, RecipeLibrary, Settings, Transfer};
+use omaflake_sdk::models::VmStatus;
 
 use crate::util::{Env, Outcome, folder_path};
 

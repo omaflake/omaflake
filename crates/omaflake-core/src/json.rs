@@ -17,10 +17,6 @@ use serde_json::Value;
 use crate::error::Result;
 
 // The times of the API (plan B192: in omaflake-sdk)
-pub use omaflake_sdk::time::{
-    Date, from_system_time, iso8601, iso8601_fractional, local, local_now, now, parse_date, seconds_between,
-    whole_millis, whole_seconds,
-};
 
 /// `value` as Swift's `JSONEncoder` with `[.prettyPrinted, .sortedKeys]` writes it
 pub fn to_pretty<T: Serialize + ?Sized>(value: &T, escape_slashes: bool) -> Result<Vec<u8>> {
@@ -142,16 +138,5 @@ mod tests {
         // Swift's escaped slashes read back as slashes
         let back: Value = serde_json::from_str(&escaped).unwrap();
         assert_eq!(back["tz"], "Europe/Berlin");
-    }
-
-    #[test]
-    fn dates_as_swift_writes_them() {
-        let d = parse_date("2026-10-21T10:00:00Z").unwrap();
-        assert_eq!(iso8601::format(&d), "2026-10-21T10:00:00Z");
-        let f = parse_date("2026-10-18T17:13:59.619Z").unwrap();
-        assert_eq!(iso8601_fractional::format(&f), "2026-10-18T17:13:59.619Z");
-        assert_eq!(iso8601::format(&f), "2026-10-18T17:13:59Z");
-        assert!(parse_date("2026-10-18").is_none());
-        assert_eq!(now().subsec_nanosecond(), 0);
     }
 }

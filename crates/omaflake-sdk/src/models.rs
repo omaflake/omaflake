@@ -364,3 +364,14 @@ pub struct Swatches {
     #[serde(default)]
     pub terminal: Vec<String>,
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn stop_result_texts() {
+        assert_eq!(StopResult::Powerdown.to_string(), "shut down cleanly");
+        assert_eq!(StopResult::ForcedOff.to_string(), "forced off (omaf-runner kill)");
+    }
+}

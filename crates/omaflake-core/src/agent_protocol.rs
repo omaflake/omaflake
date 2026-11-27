@@ -27,7 +27,7 @@ use crate::Log;
 use crate::error::Result;
 use crate::file_format::write_atomic;
 use crate::json;
-use crate::json::Date;
+use omaflake_sdk::time::Date;
 
 /// Swift `enum AgentProtocol` (constants and frame encoding)
 pub enum AgentProtocol {}
@@ -765,7 +765,7 @@ pub struct AgentState {
         rename = "helloAt",
         default,
         skip_serializing_if = "Option::is_none",
-        with = "crate::json::iso8601::option"
+        with = "omaflake_sdk::time::iso8601::option"
     )]
     pub hello_at: Option<Date>,
     /// The version agreed in the welcome; None while there is none (no hello yet, or no common version)
@@ -777,14 +777,14 @@ pub struct AgentState {
         rename = "statusAt",
         default,
         skip_serializing_if = "Option::is_none",
-        with = "crate::json::iso8601::option"
+        with = "omaflake_sdk::time::iso8601::option"
     )]
     pub status_at: Option<Date>,
     #[serde(
         rename = "goodbyeAt",
         default,
         skip_serializing_if = "Option::is_none",
-        with = "crate::json::iso8601::option"
+        with = "omaflake_sdk::time::iso8601::option"
     )]
     pub goodbye_at: Option<Date>,
     /// Why the link does not work (no common version, too many malformed messages)
@@ -1116,8 +1116,11 @@ impl AgentLink {
                     return;
                 };
                 let hello = hello.sanitized();
-                self.state =
-                    AgentState { hello: Some(hello.clone()), hello_at: Some(json::now()), ..Default::default() };
+                self.state = AgentState {
+                    hello: Some(hello.clone()),
+                    hello_at: Some(omaflake_sdk::time::now()),
+                    ..Default::default()
+                };
                 if let Some(v) = AgentProtocol::agree(hello.protocol.min, hello.protocol.max) {
                     self.state.protocol_version = Some(v);
                     self.welcome(v);
@@ -1144,10 +1147,10 @@ impl AgentLink {
                     return;
                 };
                 self.state.status = Some(status.sanitized());
-                self.state.status_at = Some(json::now());
+                self.state.status_at = Some(omaflake_sdk::time::now());
             }
             AgentMessage::Goodbye => {
-                self.state.goodbye_at = Some(json::now());
+                self.state.goodbye_at = Some(omaflake_sdk::time::now());
                 (self.log)("agent: goodbye");
             }
             AgentMessage::Clipboard => {

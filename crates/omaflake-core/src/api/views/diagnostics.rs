@@ -8,14 +8,16 @@ use serde_json::json;
 
 use super::Ctx;
 use super::build::log_ref;
-use super::common::*;
-use super::text::{Text, tf};
-use crate::api::types::JobState;
-use crate::diagnostics::{CHECKS, CheckStatus, OWN_DETAILS, title};
-use crate::models::{GuestKind, VmStatus};
+use super::text::tf;
+use crate::diagnostics::OWN_DETAILS;
+use omaflake_sdk::diagnostics::{CHECKS, CheckStatus, title};
+use omaflake_sdk::models::{GuestKind, VmStatus};
+use omaflake_sdk::text::Text;
+use omaflake_sdk::types::JobState;
+use omaflake_sdk::views::common::*;
 
 // The page's model (plan B192: in omaflake-sdk); this file builds it
-pub use omaflake_sdk::views::diagnostics::*;
+use omaflake_sdk::views::diagnostics::*;
 
 fn icon(id: &str) -> &'static str {
     match id {

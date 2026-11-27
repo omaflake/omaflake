@@ -15,8 +15,9 @@ use serde::Serialize;
 use serde::de::DeserializeOwned;
 use serde_json::{Map, Value};
 
-use crate::error::{Error, Result, codes};
+use crate::error::{Error, Result};
 use crate::vm_err;
+use omaflake_sdk::codes;
 
 /// A migration step: turns the JSON object of version n into version n + 1 (Swift `FileFormat.Step`)
 pub type Step = fn(&mut Map<String, Value>) -> Result<()>;

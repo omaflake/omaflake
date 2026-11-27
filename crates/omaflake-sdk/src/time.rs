@@ -106,3 +106,19 @@ pub mod iso8601_fractional {
         parse_date(&text).ok_or_else(|| serde::de::Error::custom(format!("date {text}")))
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn dates_as_swift_writes_them() {
+        let d = parse_date("2026-10-21T10:00:00Z").unwrap();
+        assert_eq!(iso8601::format(&d), "2026-10-21T10:00:00Z");
+        let f = parse_date("2026-10-18T17:13:59.619Z").unwrap();
+        assert_eq!(iso8601_fractional::format(&f), "2026-10-18T17:13:59.619Z");
+        assert_eq!(iso8601::format(&f), "2026-10-18T17:13:59Z");
+        assert!(parse_date("2026-10-18").is_none());
+        assert_eq!(now().subsec_nanosecond(), 0);
+    }
+}

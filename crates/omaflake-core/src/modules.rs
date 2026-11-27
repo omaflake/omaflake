@@ -16,16 +16,18 @@ use std::path::{Path, PathBuf};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
-use crate::error::{IoContext, Result, codes};
+use crate::error::{IoContext, Result};
 use crate::file_format::{FileFormat, write_atomic};
-use crate::models::GuestKind;
 use crate::parts::{CatalogPart, PartKind, PartStore};
 use crate::paths::{Paths, Settings};
-use crate::recipe_sources::{CatalogFile, RecipeCatalog, RecipeSourceKind, SourceClient};
+use crate::recipe_sources::{CatalogFile, RecipeCatalog, SourceClient};
 use crate::vm_err;
+use omaflake_sdk::codes;
+use omaflake_sdk::models::GuestKind;
+use omaflake_sdk::models::RecipeSourceKind;
 
 // The API's kinds (plan B192: in omaflake-sdk)
-pub use omaflake_sdk::models::ModuleMode;
+use omaflake_sdk::models::ModuleMode;
 
 /// One key or mode, or several: module.toml and keymap.toml write a single one as a string, several as a list
 pub mod one_or_many {
@@ -387,7 +389,8 @@ impl ModuleStore {
 pub(crate) mod tests {
     use super::*;
     use crate::paths::tests::temp_paths;
-    use crate::recipe_sources::{RecipeSource, RecipeSourceKind};
+    use crate::recipe_sources::RecipeSource;
+    use omaflake_sdk::models::RecipeSourceKind;
 
     pub(crate) fn module_toml(provides: &[&str], needs: &[&str], actions: &[(&str, &str)]) -> String {
         let list = |l: &[&str]| l.iter().map(|x| format!("\"{x}\"")).collect::<Vec<_>>().join(", ");

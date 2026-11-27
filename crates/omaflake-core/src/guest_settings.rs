@@ -522,7 +522,7 @@ mod tests {
         )
         .unwrap();
         let folder = crate::recipe_sources::RecipeSource::new(
-            crate::recipe_sources::RecipeSourceKind::Folder,
+            omaflake_sdk::models::RecipeSourceKind::Folder,
             &src.path().to_string_lossy(),
             None,
             None,

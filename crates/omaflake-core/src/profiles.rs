@@ -7,9 +7,10 @@
 
 use serde::{Deserialize, Serialize};
 
-use crate::error::{Result, codes};
+use crate::error::Result;
 use crate::paths::{Paths, Settings};
 use crate::vm_err;
+use omaflake_sdk::codes;
 
 /// One profile in config.json
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]

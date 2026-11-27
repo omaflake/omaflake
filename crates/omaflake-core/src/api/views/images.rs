@@ -8,14 +8,17 @@ use serde_json::json;
 
 use super::Ctx;
 use super::common::*;
-use super::text::{Arg, Text, tf};
+use super::text::tf;
 use super::vms::{kind_badge, recipe_name, unreadable};
-use crate::api::types::{ImageDto, JobDto, JobKind, JobState};
 use crate::guest_choices::GuestChoices;
-use crate::models::{GuestKind, RecipeId};
+use crate::models::RecipeId;
+use omaflake_sdk::models::GuestKind;
+use omaflake_sdk::text::{Arg, Text};
+use omaflake_sdk::types::{ImageDto, JobDto, JobKind, JobState};
+use omaflake_sdk::views::common::*;
 
 // The page's model (plan B192: in omaflake-sdk); this file builds it
-pub use omaflake_sdk::views::images::*;
+use omaflake_sdk::views::images::*;
 
 pub(crate) fn page(ctx: &Ctx, p: &ImagesParams) -> ImagesPage {
     let f = &p.filter;
@@ -79,7 +82,7 @@ pub(crate) fn page(ctx: &Ctx, p: &ImagesParams) -> ImagesPage {
     } else {
         None
     };
-    let bases = (ctx.host == super::HostOs::Macos).then(|| bases_section(ctx));
+    let bases = (ctx.host == omaflake_sdk::views::HostOs::Macos).then(|| bases_section(ctx));
     ImagesPage { head, jobs, rows, unreadable: unreadable(&ctx.unreadable_images), bases }
 }
 
@@ -380,7 +383,7 @@ pub(crate) fn row(ctx: &Ctx, i: &ImageDto) -> ImageRowView {
         .as_deref()
         .map(|system| crate::mac_image_builder::MacImageBuilder::image_name(&i.recipe, system, true));
     let has_copy = copy.as_ref().is_some_and(|n| ctx.images.iter().any(|o| &o.name == n));
-    let unchain = (ctx.host == super::HostOs::Macos && i.kind == GuestKind::Macos && !i.unchained && !has_copy).then(|| {
+    let unchain = (ctx.host == omaflake_sdk::views::HostOs::Macos && i.kind == GuestKind::Macos && !i.unchained && !has_copy).then(|| {
         let building = ctx.builds().any(|b| b.state.is_active() && b.recipe.as_deref() == Some(i.recipe.as_str()));
         Action::call(
             "unchain",

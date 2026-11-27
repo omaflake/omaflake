@@ -9,10 +9,10 @@
 
 use std::fmt;
 
-use crate::api::views::text::{Arg, Text};
+use omaflake_sdk::text::{Arg, Text};
 
 /// Error codes (`Error::code`) = the error kinds of docs/api.md §3 – in omaflake-sdk since plan B192
-pub use omaflake_sdk::codes;
+use omaflake_sdk::codes;
 
 /// omaflake's error: a message (Swift `VMError.description`) as a text, and an optional code for the API.
 #[derive(Debug, Clone, PartialEq, Eq)]

@@ -18,9 +18,11 @@ use std::sync::mpsc;
 use std::time::{Duration, Instant};
 
 use crate::builder_maintenance::shell_quote;
-use crate::error::{IoContext, Result, codes};
+use crate::error::{IoContext, Result};
 use crate::platform::{home_dir, is_executable_file, login_shell, user_name};
-use crate::prerequisites::{Prerequisite, PrerequisiteItem, PrerequisiteStatus};
+use crate::prerequisites::Prerequisite;
+use omaflake_sdk::codes;
+use omaflake_sdk::models::{PrerequisiteItem, PrerequisiteStatus};
 
 /// How long the login shell may take to print its PATH
 const SHELL_TIMEOUT: Duration = Duration::from_secs(4);

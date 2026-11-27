@@ -6,21 +6,23 @@
 use serde_json::{Value, json};
 
 use super::Ctx;
-use super::common::*;
-use super::text::{Arg, Text, tf};
-use crate::api::types::{CliLinkDto, JobDto, JobKind, JobState, PrerequisiteDto, UpdateState};
-use crate::prerequisites::{PrerequisiteItem as I, PrerequisiteStatus as S, Prerequisites};
+use super::text::tf;
+use crate::prerequisites::Prerequisites;
+use omaflake_sdk::models::{PrerequisiteItem as I, PrerequisiteStatus as S};
+use omaflake_sdk::text::{Arg, Text};
+use omaflake_sdk::types::{CliLinkDto, JobDto, JobKind, JobState, PrerequisiteDto, UpdateState};
+use omaflake_sdk::views::common::*;
 
 // The page's model (plan B192: in omaflake-sdk); this file builds it
-pub use omaflake_sdk::views::doctor::*;
+use omaflake_sdk::views::doctor::*;
 
 /// The hint for a check; the base/recipe user mismatch names both users (`RequirementText.hint`); this host's texts
 pub fn hint(p: &PrerequisiteDto) -> Text {
-    hint_on(p, super::HostOs::this())
+    hint_on(p, omaflake_sdk::views::HostOs::this())
 }
 
 /// The hint for a check on `host` – a Linux host has its own texts for the host, KVM, flakes and QEMU (plan B124)
-pub fn hint_on(p: &PrerequisiteDto, host: super::HostOs) -> Text {
+pub fn hint_on(p: &PrerequisiteDto, host: omaflake_sdk::views::HostOs) -> Text {
     if let (I::MacBase, Some(base), Some(expected)) = (p.item, &p.base_user, &p.expected_user) {
         return tf!(
             "The base's user %@ differs from macUser %@ in your image flake's settings – set macUser to %@ in nix/local/settings.nix, or create the base again with %@.",
@@ -31,7 +33,7 @@ pub fn hint_on(p: &PrerequisiteDto, host: super::HostOs) -> Text {
         );
     }
     let limited = p.status == S::Limited;
-    let linux = host == super::HostOs::Linux;
+    let linux = host == omaflake_sdk::views::HostOs::Linux;
     Text::new(match p.item {
         I::Host if linux => "omaflake runs on Linux with x86_64 or aarch64.",
         I::Kvm if p.detail.starts_with("no /dev/kvm") => {
@@ -236,7 +238,7 @@ fn works_on(j: &JobDto, item: I) -> bool {
 }
 
 /// The `omaf` command's hint: a file in the way, or the link's folder missing from the PATH; else as `hint`
-fn cli_hint(p: &PrerequisiteDto, cli: Option<&CliLinkDto>, ctx_host: super::HostOs) -> Text {
+fn cli_hint(p: &PrerequisiteDto, cli: Option<&CliLinkDto>, ctx_host: omaflake_sdk::views::HostOs) -> Text {
     match cli {
         Some(c) if c.blocked && p.status != S::Ok => {
             tf!("%@ is there and is not omaflake's – remove or rename it, then install.", &c.link)
@@ -342,7 +344,7 @@ fn item(ctx: &Ctx, p: &PrerequisiteDto) -> DoctorItem {
         );
         a.help = p.install.as_ref().map(Text::verbatim);
         actions.push(a);
-    } else if p.item == I::Nix && p.status == S::Missing && ctx.host == super::HostOs::Macos {
+    } else if p.item == I::Nix && p.status == S::Missing && ctx.host == omaflake_sdk::views::HostOs::Macos {
         let mut a = no_task(
             Action::call("installNix", Text::new("Install …"), Some("install"), "builder.installNix", json!({})).confirm(
                 Confirm::new(
@@ -425,7 +427,7 @@ fn item(ctx: &Ctx, p: &PrerequisiteDto) -> DoctorItem {
                 .button("New Disk"),
             ),
         ));
-    } else if p.item == I::BuilderRunning && p.status == S::Ok && ctx.host == super::HostOs::Macos {
+    } else if p.item == I::BuilderRunning && p.status == S::Ok && ctx.host == omaflake_sdk::views::HostOs::Macos {
         actions.push(no_task(
             Action::call("check", Text::new("Test Build"), Some("ok"), "builder.check", json!({}))
                 .help(Text::new("Checks that the Linux builder accepts this Mac's builds (a tiny test build)")),
@@ -436,7 +438,7 @@ fn item(ctx: &Ctx, p: &PrerequisiteDto) -> DoctorItem {
                 .help(Text::new("Creates omaflake's own SSH key in the data folder"))
                 .primary(),
         );
-    } else if p.item == I::Qemu && p.install.is_some() && ctx.host == super::HostOs::Macos {
+    } else if p.item == I::Qemu && p.install.is_some() && ctx.host == omaflake_sdk::views::HostOs::Macos {
         let upgrade = p.install.as_deref() == Some(Prerequisites::UPGRADE_QEMU);
         let mut a = no_task(Action::call(
             "install",
@@ -642,7 +644,7 @@ pub(crate) fn page(ctx: &Ctx) -> DoctorPage {
                 section("nixos", "NixOS – before building images", report.map(|d| &d.nixos_preflight)),
             ];
             // macOS guests need a Mac: a Linux host has no macOS section (plan B124)
-            if ctx.host == super::HostOs::Macos {
+            if ctx.host == omaflake_sdk::views::HostOs::Macos {
                 sections.push(section("macos", "macOS – before building images", report.map(|d| &d.macos_preflight)));
             }
             sections
@@ -666,7 +668,7 @@ fn page_actions(ctx: &Ctx) -> Vec<Action> {
                 && !p.detail.starts_with("no hypervisor")
         })
     });
-    if ctx.host == super::HostOs::Macos && (missing || setup.is_some()) {
+    if ctx.host == omaflake_sdk::views::HostOs::Macos && (missing || setup.is_some()) {
         let label = match setup.and_then(|j| j.progress.as_ref()) {
             Some(p) if p.of > 0 => {
                 tf!("Setting up – step %@ of %@", (p.done + 1).min(p.of).to_string(), p.of.to_string())
@@ -715,7 +717,10 @@ fn update_line(ctx: &Ctx) -> UpdateLine {
             }
             Some(UpdateState::Off) => (Text::new("Check switched off (Settings)"), Tone::Normal, vec![]),
             Some(UpdateState::UpToDate) => (
-                Text::fmt("Up to date – checked %@", vec![Arg::date(u.checked.unwrap_or_else(crate::json::now))]),
+                Text::fmt(
+                    "Up to date – checked %@",
+                    vec![Arg::date(u.checked.unwrap_or_else(omaflake_sdk::time::now))],
+                ),
                 Tone::Normal,
                 vec![check],
             ),
@@ -755,7 +760,7 @@ fn build_in(detail: &str) -> Option<String> {
 }
 
 /// A base's row on the macBase page (plan B166)
-fn base_row(ctx: &Ctx, b: &crate::api::types::BaseDto, chosen: &str, ipsw: Option<&str>, busy: bool) -> MacBaseRow {
+fn base_row(ctx: &Ctx, b: &omaflake_sdk::types::BaseDto, chosen: &str, ipsw: Option<&str>, busy: bool) -> MacBaseRow {
     let credential_name = b.credential.as_ref().map(|id| {
         ctx.credentials
             .iter()

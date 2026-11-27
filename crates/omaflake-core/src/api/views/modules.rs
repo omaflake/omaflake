@@ -7,11 +7,13 @@ use serde_json::json;
 
 use super::Ctx;
 use super::common::*;
-use super::looks::{LookDetail, LookRow, LooksPage};
-use super::recipes::RecipesParams;
-use super::text::{Text, tf};
-use crate::api::types::PartDto;
-use crate::models::GuestKind;
+use super::text::tf;
+use omaflake_sdk::models::GuestKind;
+use omaflake_sdk::text::Text;
+use omaflake_sdk::types::PartDto;
+use omaflake_sdk::views::common::*;
+use omaflake_sdk::views::looks::{LookDetail, LookRow, LooksPage};
+use omaflake_sdk::views::recipes::RecipesParams;
 
 fn what(p: &PartDto) -> Text {
     match (p.kind.as_str(), p.platform) {
@@ -271,7 +273,7 @@ fn tab(ctx: &Ctx, kind: &str, f: &FilterParams) -> LooksPage {
             .help(Text::new("Look into the sources for modules and key bindings"))
             .busy(ctx.fetching),
     ];
-    let installing = ctx.active_job(crate::api::types::JobKind::ModuleInstall).is_some();
+    let installing = ctx.active_job(omaflake_sdk::types::JobKind::ModuleInstall).is_some();
     let shown = offered.iter().map(|r| (r.actions.as_slice(), r.badges.iter().any(|b| b.id == "official")));
     head.actions.extend(install_all("modules.installAll", shown, installing));
     let updates = a

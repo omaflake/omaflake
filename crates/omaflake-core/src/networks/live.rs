@@ -14,10 +14,11 @@ use serde_json::json;
 
 use super::packets::mac_text;
 use super::{Attachment, MAX_PER_VM};
-use crate::error::{IoContext, Result, codes};
+use crate::error::{IoContext, Result};
 use crate::paths::Paths;
 use crate::qmp_client::QmpClient;
 use crate::vm_err;
+use omaflake_sdk::codes;
 
 /// The ports of a running VM: network → slot index (0–3)
 pub type Ports = BTreeMap<String, usize>;
@@ -121,7 +122,7 @@ mod tests {
     fn card(network: &str) -> Attachment {
         Attachment {
             network: network.into(),
-            mac: super::super::mac_for(1, 10),
+            mac: omaflake_sdk::networks::mac_for(1, 10),
             address: std::net::Ipv4Addr::new(10, 231, 1, 10),
             qemu_socket: format!("/data/run/net/{network}/qemu.sock").into(),
             vz_socket: format!("/data/run/net/{network}/vz.sock").into(),

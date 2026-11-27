@@ -7,7 +7,7 @@ use std::ffi::CStr;
 use std::path::{Path, PathBuf};
 
 use crate::error::Error;
-use crate::models::GuestKind;
+use omaflake_sdk::models::GuestKind;
 
 /// Architectures, named like Nix names systems (plan B114): what a recipe can be built for (`systems` in recipe.toml),
 /// what an image was built for and what a VM runs as (`system` in image.json and instance.json).
@@ -68,7 +68,7 @@ impl Platform {
     /// The error for a guest that does not run here
     pub fn not_here(what: &str, system: &str) -> Error {
         vm_err!(
-            crate::error::codes::UNSUPPORTED_SYSTEM,
+            omaflake_sdk::codes::UNSUPPORTED_SYSTEM,
             "{what} is built for {system} – this computer runs {}",
             Self::host_description()
         )

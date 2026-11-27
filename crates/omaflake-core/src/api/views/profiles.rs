@@ -6,14 +6,15 @@
 use serde_json::json;
 
 use super::Ctx;
-use super::common::*;
-use super::credentials::{CredentialDetail, CredentialPage, CredentialRow, CredentialsPage};
-use super::text::{Text, tf};
-use crate::api::types::ProfileDto;
+use super::text::tf;
 use crate::profiles::Profiles;
+use omaflake_sdk::text::Text;
+use omaflake_sdk::types::ProfileDto;
+use omaflake_sdk::views::common::*;
+use omaflake_sdk::views::credentials::{CredentialDetail, CredentialPage, CredentialRow, CredentialsPage};
 
 // The page's model (plan B192: in omaflake-sdk); this file builds it
-pub use omaflake_sdk::views::profiles::*;
+use omaflake_sdk::views::profiles::*;
 
 fn size(p: &ProfileDto) -> Text {
     tf!("%lld CPU · %lld GB RAM", p.cpus, p.memory_gb)

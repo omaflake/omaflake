@@ -15,20 +15,21 @@ use std::path::PathBuf;
 use serde::Serialize;
 use serde_json::{Value, json};
 
-use super::protocol::{self, RpcError};
-use super::types::*;
+use super::protocol;
 use crate::agent_protocol::AgentState;
-use crate::error::codes;
-use crate::json::parse_date;
-use crate::models::{DisplayMode, GuestKind, NetworkMode, StopResult, VmStatus};
-use crate::prerequisites::{PrerequisiteItem, PrerequisiteStatus};
-use crate::recipe_sources::RecipeSourceKind;
+use omaflake_sdk::codes;
+use omaflake_sdk::models::RecipeSourceKind;
+use omaflake_sdk::models::{DisplayMode, GuestKind, NetworkMode, StopResult, VmStatus};
+use omaflake_sdk::models::{PrerequisiteItem, PrerequisiteStatus};
+use omaflake_sdk::protocol::RpcError;
+use omaflake_sdk::time::parse_date;
+use omaflake_sdk::types::*;
 
 fn dir() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("testdata/api")
 }
 
-pub(crate) fn date(s: &str) -> crate::json::Date {
+pub(crate) fn date(s: &str) -> omaflake_sdk::time::Date {
     parse_date(s).unwrap()
 }
 
@@ -120,7 +121,7 @@ fn goldens() -> Vec<(&'static str, Value)> {
             v(Inspection {
                 kind: PackageKindDto::Image,
                 valid: false,
-                reason: Some(super::views::Text::verbatim("Not an image package (.omaflake-image)")),
+                reason: Some(omaflake_sdk::text::Text::verbatim("Not an image package (.omaflake-image)")),
                 conflict: None,
                 network_volume: true,
             }),
@@ -244,7 +245,7 @@ pub(crate) fn vm_full() -> Vm {
         network: NetworkMode::Shared,
         share: true,
         share_path: Some("/data/share/research".into()),
-        volumes: vec![crate::api::types::VmVolumeDto {
+        volumes: vec![omaflake_sdk::types::VmVolumeDto {
             volume: "research".into(),
             mount: "research".into(),
             named: false,
@@ -483,7 +484,7 @@ pub(crate) fn recipe_list() -> RecipeList {
 
 /// What the dev recipe is made of: Hyprland and WezTerm here, Neovim missing; a key that breaks the rule
 pub(crate) fn recipe_parts() -> RecipePartsDto {
-    use crate::composition::{Binding, Issue, LocaleRules, Requirements};
+    use omaflake_sdk::models::{Binding, Issue, LocaleRules, Requirements};
     let binding = |module: &str, action: &str, title: &str, key: &str| Binding {
         module: module.into(),
         action: action.into(),
@@ -525,7 +526,8 @@ pub(crate) fn recipe_parts() -> RecipePartsDto {
                 ]
                 .into_iter()
                 .map(|(id, title, de, start)| {
-                    let mode = crate::modules::ModuleMode { title: title.into(), title_de: de.map(Into::into), start };
+                    let mode =
+                        omaflake_sdk::models::ModuleMode { title: title.into(), title_de: de.map(Into::into), start };
                     (id.to_string(), mode)
                 })
                 .collect(),
@@ -655,7 +657,7 @@ pub(crate) fn prerequisite(item: PrerequisiteItem, status: PrerequisiteStatus) -
     PrerequisiteDto {
         item,
         status,
-        title: super::model::requirement_title_on(item, super::views::HostOs::Macos).into(),
+        title: super::model::requirement_title_on(item, omaflake_sdk::views::HostOs::Macos).into(),
         required: !matches!(item, PrerequisiteItem::Git | PrerequisiteItem::Cli),
         detail: "/opt/homebrew/bin/qemu-system-aarch64".into(),
         hint: "Install QEMU".into(),
@@ -859,7 +861,8 @@ pub(crate) fn jobs() -> Vec<JobDto> {
 /// The page models (docs/api.md §10), in `testdata/api/views/`: every page from the views' test context
 /// (`views::tests::ctx`, built from the fixtures above), the `view.changed` event and what a client sends
 fn view_goldens() -> Vec<(&'static str, Value)> {
-    use super::views::{PageRef, build, import, tests::ctx};
+    use super::views::{build, import, tests::ctx};
+    use omaflake_sdk::views::PageRef;
     let c = ctx();
     let page = |p: &str, params: Value| build(&c, &PageRef { page: p.into(), params }).unwrap();
     let mut failed = ctx();
@@ -871,20 +874,21 @@ fn view_goldens() -> Vec<(&'static str, Value)> {
     mac.recipes.recipes[0].runs_here = true;
     let nets = super::views::tests::networks_ctx();
     let mut linux = ctx();
-    linux.host = super::views::HostOs::Linux;
+    linux.host = omaflake_sdk::views::HostOs::Linux;
     // A Linux host without usable KVM (VMs under TCG) and with a QEMU without 3D (plan B124)
     let mut linux_tcg = linux.clone();
     linux_tcg.vms[0].accelerator = Some("tcg".into());
     {
-        use crate::prerequisites::{PrerequisiteItem as I, PrerequisiteStatus as S, Prerequisites};
+        use crate::prerequisites::Prerequisites;
+        use omaflake_sdk::models::{PrerequisiteItem as I, PrerequisiteStatus as S};
         let dto = |p: &crate::prerequisites::Prerequisite| {
             let mut d = super::model::prerequisite_dto(p);
-            d.title = super::model::requirement_title_on(p.item, super::views::HostOs::Linux).into();
+            d.title = super::model::requirement_title_on(p.item, omaflake_sdk::views::HostOs::Linux).into();
             d
         };
         let report = linux_tcg.doctor.as_mut().unwrap();
         let mut qemu = prerequisite(I::Qemu, S::Limited);
-        qemu.title = super::model::requirement_title_on(I::Qemu, super::views::HostOs::Linux).into();
+        qemu.title = super::model::requirement_title_on(I::Qemu, omaflake_sdk::views::HostOs::Linux).into();
         report.prerequisites = vec![
             dto(&Prerequisites::linux_host_item("6.12.1", "x86_64")),
             dto(&Prerequisites::kvm_item(crate::qemu_host::KvmState::NoAccess, false)),
@@ -910,8 +914,11 @@ fn view_goldens() -> Vec<(&'static str, Value)> {
         }),
         network_volume: false,
     };
-    let import_params =
-        import::ImportParams { path: "/Volumes/Disk/research.omaflake-vm".into(), expect: None, external: false };
+    let import_params = omaflake_sdk::views::import::ImportParams {
+        path: "/Volumes/Disk/research.omaflake-vm".into(),
+        expect: None,
+        external: false,
+    };
     vec![
         ("home", page("home", json!({}))),
         ("vms", page("vms", json!({}))),
@@ -1054,11 +1061,11 @@ fn view_params_parse() {
         serde_json::from_str(&std::fs::read_to_string(dir().join("views").join(format!("{name}.json"))).unwrap())
             .unwrap()
     };
-    let get: super::views::PageRef = serde_json::from_value(read("views.get.params")).unwrap();
+    let get: omaflake_sdk::views::PageRef = serde_json::from_value(read("views.get.params")).unwrap();
     assert_eq!(get.page, "newVm");
     #[derive(serde::Deserialize)]
     struct Sub {
-        pages: Vec<super::views::PageRef>,
+        pages: Vec<omaflake_sdk::views::PageRef>,
     }
     let sub: Sub = serde_json::from_value(read("views.subscribe.params")).unwrap();
     assert_eq!(sub.pages.len(), 3);

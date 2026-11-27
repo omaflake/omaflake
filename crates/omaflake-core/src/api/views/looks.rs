@@ -7,12 +7,14 @@ use serde_json::json;
 
 use super::Ctx;
 use super::common::*;
-use super::text::{Text, tf};
-use crate::api::types::{LookDto, OfferedLookDto};
-use crate::looks::Swatches;
+use super::text::tf;
+use omaflake_sdk::models::Swatches;
+use omaflake_sdk::text::Text;
+use omaflake_sdk::types::{LookDto, OfferedLookDto};
+use omaflake_sdk::views::common::*;
 
 // The page's model (plan B192: in omaflake-sdk); this file builds it
-pub use omaflake_sdk::views::looks::*;
+use omaflake_sdk::views::looks::*;
 
 fn strip(s: &Option<Swatches>) -> Vec<String> {
     let Some(s) = s else { return vec![] };
@@ -183,7 +185,7 @@ fn offered_row(l: &OfferedLookDto) -> LookRow {
     }
 }
 
-pub(crate) fn page(ctx: &Ctx, p: &super::recipes::RecipesParams) -> LooksPage {
+pub(crate) fn page(ctx: &Ctx, p: &omaflake_sdk::views::recipes::RecipesParams) -> LooksPage {
     let a = &ctx.looks;
     // Those here, then those offered – searched, narrowed by chips (tags, light or dark), a page at a time (plan B148)
     enum Look<'a> {
@@ -217,7 +219,7 @@ pub(crate) fn page(ctx: &Ctx, p: &super::recipes::RecipesParams) -> LooksPage {
             .help(Text::new("Look into the sources for looks"))
             .busy(ctx.fetching),
     ];
-    let installing = ctx.active_job(crate::api::types::JobKind::LookInstall).is_some();
+    let installing = ctx.active_job(omaflake_sdk::types::JobKind::LookInstall).is_some();
     let shown = offered.iter().map(|r| (r.actions.as_slice(), r.badges.iter().any(|b| b.id == "official")));
     head.actions.extend(install_all("looks.installAll", shown, installing));
     let updates = a.looks.iter().filter(|l| l.update).map(|l| json!({"id": l.id, "source": l.source})).collect();

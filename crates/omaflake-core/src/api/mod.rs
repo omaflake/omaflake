@@ -17,8 +17,6 @@
 //! `contract` (golden JSON files shared with the Swift tests), `views` (the presentation model: what each page of a UI
 //! shows, `views.get`/`views.subscribe`, plan B121).
 
-// The client of the service's socket (plan B192: in omaflake-sdk)
-pub use omaflake_sdk::client;
 #[cfg(test)]
 mod contract;
 mod diagnostics;
@@ -32,7 +30,6 @@ pub mod service;
 mod stdio;
 #[cfg(test)]
 mod translated;
-pub mod types;
 pub mod views;
 
 use std::sync::Arc;
@@ -41,7 +38,6 @@ use std::time::Duration;
 use serde_json::{Value, json};
 
 pub use events::{Notify, Topic};
-pub use protocol::RpcError;
 pub use server::Server;
 
 use crate::paths::Paths;
@@ -70,10 +66,10 @@ pub fn call_once(method: &str, params: Value) -> crate::Result<Value> {
 mod tests {
     use super::events::tests::recorder;
     use super::jobs::{JobCtx, JobSpec};
-    use super::types::JobKind;
     use super::*;
     use crate::paths::Settings;
     use crate::paths::tests::temp_paths;
+    use omaflake_sdk::types::JobKind;
 
     fn request(id: i64, method: &str, params: Value) -> Value {
         json!({"jsonrpc": "2.0", "id": id, "method": method, "params": params})
@@ -136,7 +132,7 @@ mod tests {
         assert_eq!(s.host_keyboard.as_deref(), Some("ch"));
         assert!(server.call("settings.set", json!({"hostKeyboard": "xx"})).is_err());
         let e = server.call("settings.set", json!({"notifications": "yes"})).unwrap_err();
-        assert_eq!(e.code, protocol::INVALID_PARAMS);
+        assert_eq!(e.code, omaflake_sdk::protocol::INVALID_PARAMS);
         // Updates switched off: no feed is asked
         server.call("settings.set", json!({"checkForUpdates": false})).unwrap();
         assert_eq!(server.call("updates.check", Value::Null).unwrap(), json!({"state": "off"}));
@@ -175,7 +171,7 @@ mod tests {
         {
             match server.call(method, params) {
                 Ok(_) => {}
-                Err(e) => assert!(e.code == protocol::SERVER_ERROR, "{method}: {e:?}"),
+                Err(e) => assert!(e.code == omaflake_sdk::protocol::SERVER_ERROR, "{method}: {e:?}"),
             }
         }
         assert!(server.call("jobs.list", Value::Null).is_ok());
@@ -199,7 +195,7 @@ mod tests {
         let e = Server::for_tests(temp_paths().1, Arc::new(|_: &str, _: Value| {}))
             .call_and_wait("vms.list", Value::Null)
             .unwrap_err();
-        assert_eq!(e.code, protocol::NOT_INITIALIZED);
+        assert_eq!(e.code, omaflake_sdk::protocol::NOT_INITIALIZED);
     }
 }
 
@@ -227,7 +223,7 @@ mod integration {
         assert_eq!(server.call("images.list", Value::Null).unwrap(), json!({"images": [], "unreadable": []}));
         assert_eq!(server.call("vms.limits", Value::Null).unwrap()["macRunning"], json!([]));
         let e = server.call("vms.get", json!({"name": "nope"})).unwrap_err();
-        assert_eq!(e.kind, Some(crate::error::codes::NOT_FOUND));
+        assert_eq!(e.kind, Some(omaflake_sdk::codes::NOT_FOUND));
         let sources = server.call("sources.list", Value::Null).unwrap();
         assert_eq!(sources[0]["official"], json!(true));
         assert!(server.call("settings.get", Value::Null).unwrap()["choices"]["timeZones"].is_array());

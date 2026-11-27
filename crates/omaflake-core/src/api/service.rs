@@ -28,10 +28,11 @@ use serde_json::Value;
 use super::protocol;
 use super::server::{Server, lock};
 use super::stdio::{self, Writer};
-use crate::error::{Error, codes};
+use crate::error::Error;
 use crate::paths::Paths;
 use crate::qemu_runtime::FileLock;
 use crate::sockets::MAX_SOCKET_PATH;
+use omaflake_sdk::codes;
 
 /// The socket's name in `<data folder>/run`
 pub const SOCKET_NAME: &str = "omaf.sock";
@@ -272,10 +273,10 @@ pub fn already_running(e: &Error) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::api::client::Client;
     use crate::api::jobs::{JobCtx, JobSpec};
-    use crate::api::types::JobKind;
     use crate::paths::tests::temp_paths;
+    use omaflake_sdk::client::Client;
+    use omaflake_sdk::types::JobKind;
     use serde_json::json;
     use std::thread::JoinHandle;
 
@@ -339,7 +340,7 @@ mod tests {
         }
         // One's log read is the other's too; a message goes only to who subscribed to messages
         assert_eq!(b.call("jobs.log", json!({"id": job.id})).unwrap()["lines"], json!(["copying"]));
-        server.events().message(crate::api::types::Level::Info, "hello");
+        server.events().message(omaflake_sdk::types::Level::Info, "hello");
         // (other messages may come first: the temporary data folder has no flake)
         assert!(wait_until(&a, "message", |p| p["text"] == json!("hello")).is_some());
         // shutdown ends one session, not the service
@@ -387,7 +388,7 @@ mod tests {
         let (_d, _s, server, socket, thread) = service(None);
         let _a = client(&socket);
         let b = Client::connect(&socket).unwrap();
-        assert_eq!(b.call("jobs.list", Value::Null).unwrap_err().code, protocol::NOT_INITIALIZED);
+        assert_eq!(b.call("jobs.list", Value::Null).unwrap_err().code, omaflake_sdk::protocol::NOT_INITIALIZED);
         server.inner.restart.store(true, Ordering::SeqCst);
         assert_eq!(thread.join().unwrap(), Ended::Restart);
     }

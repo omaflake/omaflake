@@ -6,13 +6,15 @@ use serde_json::{Value, json};
 
 use super::Ctx;
 use super::common::*;
-use super::text::{Text, tf};
+use super::text::tf;
 use super::vms::{kind_badge, mac_limit, recipe_name};
-use crate::api::types::{ImageDto, RecipeDto};
-use crate::models::{GuestKind, NetworkMode};
+use omaflake_sdk::models::{GuestKind, NetworkMode};
+use omaflake_sdk::text::Text;
+use omaflake_sdk::types::{ImageDto, RecipeDto};
+use omaflake_sdk::views::common::*;
 
 // The page's model (plan B192: in omaflake-sdk); this file builds it
-pub use omaflake_sdk::views::new_vm::*;
+use omaflake_sdk::views::new_vm::*;
 
 /// A recipe's values for a new VM; switches a recipe leaves open: sound and clipboard on, microphone, camera and MIDI
 /// off

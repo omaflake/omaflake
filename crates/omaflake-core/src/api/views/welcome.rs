@@ -6,13 +6,16 @@
 
 use serde_json::json;
 
-use super::common::*;
-use super::credentials::{CredentialPage, valid_user};
-use super::text::{Text, tf};
-use super::{Ctx, HostOs};
+use super::Ctx;
+use super::credentials::valid_user;
+use super::text::tf;
+use omaflake_sdk::text::Text;
+use omaflake_sdk::views::HostOs;
+use omaflake_sdk::views::common::*;
+use omaflake_sdk::views::credentials::CredentialPage;
 
 // The page's model (plan B192: in omaflake-sdk); this file builds it
-pub use omaflake_sdk::views::welcome::*;
+use omaflake_sdk::views::welcome::*;
 
 pub(crate) fn page(ctx: &Ctx, p: &WelcomeParams) -> CredentialPage {
     let v = &p.values;

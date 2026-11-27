@@ -24,17 +24,19 @@ use serde_json::Value;
 use super::events::{ConnId, Events, Notify, Topic};
 use super::jobs::{Job, Jobs, panic_text};
 use super::model::{self, Doctor, RecipeCache, Snapshot, View};
-use super::protocol::{self, Incoming, RpcError};
-use super::types::{JobDto, Via, VmEnded, VmReady};
+use super::protocol::{self, Incoming};
 use crate::backend::{Backends, Readiness};
-use crate::error::{Error, codes};
+use crate::error::Error;
 use crate::instance_store::InstanceStore;
-use crate::models::{GuestKind, NetworkMode, VmStatus};
 use crate::paths::{Paths, Settings};
 use crate::qemu_runtime::InstanceLock;
 use crate::recipe_sources::RecipeCatalog;
 use crate::sockets::Ports;
 use crate::spawn::Pid;
+use omaflake_sdk::codes;
+use omaflake_sdk::models::{GuestKind, NetworkMode, VmStatus};
+use omaflake_sdk::protocol::RpcError;
+use omaflake_sdk::types::{JobDto, Via, VmEnded, VmReady};
 
 /// The watcher looks at the data folder this often while a client is subscribed (api.md §6)
 pub(crate) const WATCH_INTERVAL: Duration = Duration::from_secs(2);
@@ -129,7 +131,7 @@ pub(crate) struct Inner {
     pub views_last: Mutex<HashMap<(ConnId, String), Value>>,
     clipboard: Mutex<Clipboard>,
     /// VM → its newest diagnosis (plan B162; the page shows it while it belongs to the VM's current run)
-    pub diagnostics: Mutex<HashMap<String, super::views::diagnostics::DiagnosisRecord>>,
+    pub diagnostics: Mutex<HashMap<String, omaflake_sdk::views::diagnostics::DiagnosisRecord>>,
     /// Job ID → the macOS base it uses (plan B166: a base in use cannot be removed)
     pub base_uses: Mutex<HashMap<String, std::path::PathBuf>>,
     watch: Mutex<Watch>,
@@ -210,7 +212,7 @@ impl Server {
     /// A server on `paths` (`Paths::standard()` for the user's data folder); notifications go to `notify`
     pub fn new(paths: Paths, notify: Arc<Notify>) -> Server {
         // Which binary this is, taken now – before an update can replace it on disk
-        let _ = crate::api::types::CoreIdentity::at_start();
+        let _ = omaflake_sdk::types::CoreIdentity::at_start();
         Self::bare(paths, notify).with_view_hook()
     }
 
@@ -684,11 +686,11 @@ impl Server {
             let _ = writeln!(
                 f,
                 "{} omaflake: the guest helpers (clipboard, agent) did not start over SSH: {why}",
-                crate::json::iso8601::format(&crate::json::now())
+                omaflake_sdk::time::iso8601::format(&omaflake_sdk::time::now())
             );
         }
         self.events().record(
-            super::types::Level::Warning,
+            omaflake_sdk::types::Level::Warning,
             super::views::text::tf!(
                 "The guest helpers of “%@” did not start (clipboard, agent) – Diagnose … tells why: %@",
                 &c.name,

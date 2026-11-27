@@ -16,12 +16,12 @@ use serde_json::Value;
 use crate::error::{IoContext, Result};
 use crate::file_format::FileFormat;
 use crate::keymaps::Keymap;
-use crate::models::GuestKind;
 use crate::modules::{Capability, Module};
 use crate::vm_err;
+use omaflake_sdk::models::GuestKind;
 
 // The API's kinds (plan B192: in omaflake-sdk)
-pub use omaflake_sdk::models::{Binding, Issue, LocaleRules, Outside, Requirements};
+use omaflake_sdk::models::{Binding, Issue, LocaleRules, Requirements};
 
 /// A reference to a module, look or key binding set: "<author>/<name>" and which versions it allows – none given is
 /// the newest, else an exact version, or a minimum and/or a maximum (both included)
@@ -418,6 +418,7 @@ mod tests {
     use super::*;
     use crate::keymaps::KeyEntry;
     use crate::modules::ModuleAction;
+    use omaflake_sdk::models::Outside;
     use std::path::PathBuf;
 
     fn module(name: &str, provides: &[&str], needs: &[&str], actions: &[(&str, &str, Option<&str>)]) -> Module {
@@ -618,7 +619,7 @@ mod tests {
         "#;
         #[derive(Deserialize)]
         struct T {
-            modes: BTreeMap<String, crate::modules::ModuleMode>,
+            modes: BTreeMap<String, omaflake_sdk::models::ModuleMode>,
             actions: BTreeMap<String, ModuleAction>,
         }
         let t: T = toml::from_str(toml).unwrap();

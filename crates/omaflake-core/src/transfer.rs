@@ -19,11 +19,11 @@ use std::path::{Path, PathBuf};
 use crate::Log;
 use crate::backend::Backends;
 use crate::data_folder::DataFolder;
-use crate::error::{IoContext, Result, codes};
+use crate::error::{IoContext, Result};
 use crate::file_format::write_atomic;
 use crate::image_store::ImageStore;
 use crate::instance_store::InstanceStore;
-use crate::models::{GuestKind, InstanceConfig};
+use crate::models::InstanceConfig;
 use crate::omaflake_id::OmaflakeId;
 use crate::packages::{Manifest, Package, PackageKind};
 use crate::paths::Paths;
@@ -33,6 +33,8 @@ use crate::shell::{RunOptions, Shell};
 use crate::sockets::Ports;
 use crate::trash::Disposal;
 use crate::vm_err;
+use omaflake_sdk::codes;
+use omaflake_sdk::models::GuestKind;
 
 #[derive(Debug, Clone)]
 pub struct Transfer {
@@ -549,10 +551,11 @@ fn network_volume(_path: &Path) -> bool {
 mod tests {
     use super::*;
     use crate::image_store::ImageInfo;
-    use crate::models::{NetworkMode, RecipeDefaults};
+    use crate::models::RecipeDefaults;
     use crate::packages::Manifest;
     use crate::paths::Settings;
     use crate::paths::tests::temp_paths;
+    use omaflake_sdk::models::NetworkMode;
     use std::os::unix::fs::PermissionsExt;
 
     fn quiet() -> &'static Log<'static> {
@@ -571,7 +574,7 @@ mod tests {
             "aarch64-darwin",
             &s,
             22,
-            crate::json::parse_date("1970-01-01T00:00:00Z").unwrap(),
+            omaflake_sdk::time::parse_date("1970-01-01T00:00:00Z").unwrap(),
         );
         let ip = p.instance(name);
         fs::create_dir_all(ip.vm()).unwrap();
@@ -680,7 +683,7 @@ mod tests {
             "",
             "r",
             None,
-            crate::json::now(),
+            omaflake_sdk::time::now(),
         );
         ImageStore::write_info(&info, &dir).unwrap();
         fs::set_permissions(&dir, fs::Permissions::from_mode(0o555)).unwrap();
@@ -717,8 +720,16 @@ mod tests {
         let image_dir = p.image_dir("omaflake.nixos.minimal@a");
         fs::create_dir_all(&image_dir).unwrap();
         fs::write(image_dir.join("disk.qcow2"), "qcow").unwrap();
-        let info =
-            ImageInfo::new("omaflake.nixos.minimal", None, GuestKind::Nixos, system, "", "r", None, crate::json::now());
+        let info = ImageInfo::new(
+            "omaflake.nixos.minimal",
+            None,
+            GuestKind::Nixos,
+            system,
+            "",
+            "r",
+            None,
+            omaflake_sdk::time::now(),
+        );
         ImageStore::write_info(&info, &image_dir).unwrap();
         let mut c = crate::models::tests::config("n1");
         c.image = "omaflake.nixos.minimal@a".into();

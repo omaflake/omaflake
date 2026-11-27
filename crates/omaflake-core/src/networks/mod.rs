@@ -25,15 +25,16 @@ use std::time::{Duration, Instant};
 
 use serde::{Deserialize, Serialize};
 
-use crate::error::{IoContext, Result, codes};
+use crate::error::{IoContext, Result};
 use crate::file_format::{FileFormat, Step, write_atomic};
 use crate::paths::Paths;
 use crate::spawn::{Pid, live_pid, spawn_detached};
 use crate::vm_err;
-use packets::Mac;
+use omaflake_sdk::codes;
+use omaflake_sdk::networks::Mac;
 
 // In omaflake-sdk (plan B192): part of the API's page models
-pub use omaflake_sdk::networks::{MAC_PREFIX, Network, PREFIX, SWITCH_HOST, mac_for};
+use omaflake_sdk::networks::{MAC_PREFIX, Network};
 
 /// Host numbers VMs get
 pub const FIRST_HOST: u8 = 10;
@@ -178,7 +179,8 @@ impl Networks {
         let Some(number) = (1..=254u8).find(|k| all.iter().all(|n| n.number != *k)) else {
             return Err(vm_err!("No free network number (at most 254 networks)"));
         };
-        let network = Network { name: name.into(), number, created: crate::json::now(), members: BTreeMap::new() };
+        let network =
+            Network { name: name.into(), number, created: omaflake_sdk::time::now(), members: BTreeMap::new() };
         all.push(network.clone());
         all.sort_by(|a, b| a.name.cmp(&b.name));
         self.save(all)?;
@@ -362,7 +364,7 @@ impl Networks {
     }
 
     /// What the running switch last wrote (None: not running)
-    pub fn status(&self, name: &str) -> Option<switch::SwitchStatus> {
+    pub fn status(&self, name: &str) -> Option<omaflake_sdk::networks::SwitchStatus> {
         self.switch_pid(name)?;
         let data = std::fs::read(self.status_file(name)).ok()?;
         serde_json::from_slice(&data).ok()

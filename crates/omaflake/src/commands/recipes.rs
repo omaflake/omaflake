@@ -8,13 +8,14 @@ use std::path::PathBuf;
 use omaflake_core::MacBaseInstaller;
 use omaflake_core::mac_image_builder::BuildRequest;
 use omaflake_core::{
-    BuildLog, Cancellation, Error, GuestKind, Lengths, MacImageBuilder, OmaflakeId, Platform, RecipeDefaults, RecipeId,
-    RecipeLibrary, RecipeRef, RecipeSourceKind, SourceClient,
+    BuildLog, Cancellation, Error, Lengths, MacImageBuilder, OmaflakeId, Platform, RecipeDefaults, RecipeId,
+    RecipeLibrary, RecipeRef, SourceClient,
 };
+use omaflake_sdk::models::{GuestKind, RecipeSourceKind};
 
-use omaflake_core::api::client::Client;
-use omaflake_core::api::types::{BuildResult, JobState};
-use omaflake_core::error::codes;
+use omaflake_sdk::client::Client;
+use omaflake_sdk::codes;
+use omaflake_sdk::types::{BuildResult, JobState};
 use serde_json::{Value, json};
 
 use super::service;
@@ -494,7 +495,8 @@ pub fn versions(a: &cli::RecipesVersions) -> Outcome {
 /// `omaf recipes show`: what a recipe is made of (plan B142) – its modules (here or missing), look, key bindings, every
 /// key, and what is wrong; `--install` installs what is missing
 pub fn show(a: &cli::RecipesShow) -> Outcome {
-    use omaflake_core::composition::{Composition, Issue, RecipeSpec};
+    use omaflake_core::composition::{Composition, RecipeSpec};
+    use omaflake_sdk::models::Issue;
     let env = Env::new();
     let settings = env.settings();
     let library = RecipeLibrary::new(env.paths.clone());
@@ -583,7 +585,7 @@ pub fn show(a: &cli::RecipesShow) -> Outcome {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use omaflake_core::NetworkMode;
+    use omaflake_sdk::models::NetworkMode;
 
     #[test]
     fn recipe_rows() {

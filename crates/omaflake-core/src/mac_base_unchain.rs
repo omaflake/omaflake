@@ -23,7 +23,7 @@ use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
 use std::time::{Duration, Instant};
 
-use crate::error::{IoContext, Result, codes};
+use crate::error::{IoContext, Result};
 use crate::ipsw_downloader::KeepAwake;
 use crate::mac_base_installer::{BaseOutcome, BaseRecord, MacBaseInstaller};
 use crate::mac_image_builder::BuildVm;
@@ -33,6 +33,7 @@ use crate::shell::{RunOptions, Shell, ShellResult};
 use crate::sockets::{self, Ports};
 use crate::trash::Disposal;
 use crate::vm_err;
+use omaflake_sdk::codes;
 
 /// What `systemextensionsctl list` calls omaflake's camera extension (Sources/omaflake-camera)
 pub const CAMERA_EXTENSION: &str = "app.omaflake.guest.camera";
@@ -299,7 +300,7 @@ impl MacBaseInstaller {
         step: Steps<'_>,
     ) -> Result<crate::image_store::Image> {
         use crate::image_store::ImageStore;
-        if image.kind() != crate::models::GuestKind::Macos {
+        if image.kind() != omaflake_sdk::models::GuestKind::Macos {
             return Err(vm_err!("{} is not a macOS image", image.name));
         }
         if image.info.unchained {
@@ -336,7 +337,7 @@ impl MacBaseInstaller {
         let _ = Disposal::delete(&[&session.socket, &session.pid_file]);
         let mut info = image.info.clone();
         info.unchained = true;
-        info.created = crate::json::now();
+        info.created = omaflake_sdk::time::now();
         ImageStore::write_info(&info, &work)?;
         fs::rename(&work, &target).with_path(&target)?;
         Shell::check(
@@ -1026,7 +1027,7 @@ mod tests {
     fn an_images_unchained_copy_has_the_name_of_a_build_from_an_unchained_base() {
         use crate::image_store::{Image, ImageInfo};
         use crate::mac_image_builder::MacImageBuilder;
-        use crate::models::GuestKind;
+        use omaflake_sdk::models::GuestKind;
         let system = "/nix/store/00000000000000000000000000000000-darwin-system";
         let info = ImageInfo::new(
             "omaflake.macos.minimal",
@@ -1036,7 +1037,7 @@ mod tests {
             "/flake",
             "r",
             Some(system.into()),
-            crate::json::now(),
+            omaflake_sdk::time::now(),
         );
         let image = Image { name: "omaflake.macos.minimal@a".into(), info, path: PathBuf::from("/x") };
         let name = MacBaseInstaller::unchained_image_name(&image);

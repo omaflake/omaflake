@@ -25,7 +25,7 @@ use crate::ipsw_downloader::{IpswDownloader, MacOsRelease, free_space, gigabytes
 use crate::linux_builder::{LinuxBuilder, Stage};
 use crate::mac_base_installer::MacBaseInstaller;
 use crate::mac_image_builder::MacImageBuilder;
-use crate::models::{GuestKind, RecipeId};
+use crate::models::RecipeId;
 use crate::paths::{Paths, Settings};
 use crate::platform::{expand_tilde, home_dir, is_executable_file, kernel_release, machine};
 use crate::qemu_host::KvmState;
@@ -33,9 +33,10 @@ use crate::qemu_runtime::QemuRuntime;
 use crate::shell::{RunOptions, Shell};
 use crate::shell_setup::ShellSetup;
 use crate::sockets::{DEFAULT_TIMEOUT, Ports};
+use omaflake_sdk::models::GuestKind;
 
 // The API's kinds (plan B192: in omaflake-sdk)
-pub use omaflake_sdk::models::{PrerequisiteItem, PrerequisiteStatus};
+use omaflake_sdk::models::{PrerequisiteItem, PrerequisiteStatus};
 
 /// One check's result. JSON (docs/api.md §4.4): camelCase keys, the computed `required` and `settablePath` written as
 /// fields, optional fields left out when unset; reading ignores `required` and `settablePath`.
@@ -584,7 +585,7 @@ impl Prerequisites {
         let rt = match QemuRuntime::locate(&self.paths) {
             Ok((rt, _)) => rt,
             Err(e) => {
-                let firmware = e.code() == Some(crate::error::codes::PREREQUISITE);
+                let firmware = e.code() == Some(omaflake_sdk::codes::PREREQUISITE);
                 return Prerequisite::new(
                     PrerequisiteItem::Qemu,
                     PrerequisiteStatus::Missing,

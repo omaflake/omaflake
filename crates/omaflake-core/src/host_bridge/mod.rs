@@ -60,7 +60,8 @@ pub const STATUS_INTERVAL: u32 = 5;
 /// (the VM may still be starting: up to 60 s), picks the clipboard and camera of this host and logs to stderr (the
 /// instance's `bridge.log`).
 pub fn run(options: &BridgeOptions) -> Result<LinkEnd, String> {
-    let log: Arc<Log<'static>> = Arc::new(|line: &str| eprintln!("{} {line}", crate::json::local_now("%H:%M:%S")));
+    let log: Arc<Log<'static>> =
+        Arc::new(|line: &str| eprintln!("{} {line}", omaflake_sdk::time::local_now("%H:%M:%S")));
     let stream = connect(&options.agent, Duration::from_secs(60))?;
     let clipboard = if options.clipboard {
         match clipboard::detect() {

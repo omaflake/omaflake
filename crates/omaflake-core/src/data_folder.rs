@@ -17,13 +17,14 @@ use std::os::unix::fs::MetadataExt;
 use std::path::Path;
 
 use crate::Log;
-use crate::error::{IoContext, Result, codes};
+use crate::error::{IoContext, Result};
 use crate::instance_store::InstanceStore;
 use crate::models::InstanceConfig;
 use crate::paths::{Paths, Settings};
 use crate::platform::resolve_symlinks;
 use crate::spawn::live_pid;
 use crate::vm_err;
+use omaflake_sdk::codes;
 
 /// Swift `enum DataFolder` (namespace)
 pub enum DataFolder {}
@@ -122,9 +123,9 @@ impl DataFolder {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::models::GuestKind;
     use crate::models::tests::config;
     use crate::paths::tests::temp_paths;
+    use omaflake_sdk::models::GuestKind;
 
     #[test]
     fn moves_own_entries_rewrites_paths_keeps_others() {

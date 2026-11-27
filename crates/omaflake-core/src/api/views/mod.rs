@@ -52,17 +52,19 @@ use serde::de::DeserializeOwned;
 use serde_json::{Value, json};
 
 use super::model;
-use super::protocol::{RpcError, params};
+use super::protocol::params;
 use super::server::{Server, lock};
-use super::types::*;
-use crate::json::Date;
-use crate::models::{GuestKind, RecipeId};
+use crate::models::RecipeId;
 use crate::paths::Paths;
+use omaflake_sdk::models::GuestKind;
+use omaflake_sdk::protocol::RpcError;
+use omaflake_sdk::time::Date;
+use omaflake_sdk::types::*;
 
 // What every page names (plan B192: in omaflake-sdk)
-pub use activity::ActivityEntry;
-pub use omaflake_sdk::views::{HostOs, PageRef};
-pub use text::{Arg, Text};
+use omaflake_sdk::text::Text;
+use omaflake_sdk::views::activity::ActivityEntry;
+use omaflake_sdk::views::{HostOs, PageRef};
 
 /// Every page `views.get` knows
 pub const PAGES: [&str; 37] = [
@@ -136,17 +138,17 @@ pub(crate) struct Ctx {
     /// The credentials (plan B137)
     pub credentials: Vec<CredentialDto>,
     /// The locales (plan B141)
-    pub locales: Vec<crate::api::types::LocaleDto>,
+    pub locales: Vec<omaflake_sdk::types::LocaleDto>,
     /// The profiles (plan B142)
-    pub profiles: Vec<crate::api::types::ProfileDto>,
+    pub profiles: Vec<omaflake_sdk::types::ProfileDto>,
     /// The networks between VMs, each with its running switch's status (plan B170)
-    pub networks: Vec<networks::NetworkInfo>,
+    pub networks: Vec<omaflake_sdk::views::networks::NetworkInfo>,
     /// The volumes (plan B187)
-    pub volumes: Vec<crate::api::types::VolumeDto>,
+    pub volumes: Vec<omaflake_sdk::types::VolumeDto>,
     /// The looks here and what the catalogs fetched last offer (plan B141)
-    pub looks: crate::api::types::LooksAnswer,
+    pub looks: omaflake_sdk::types::LooksAnswer,
     /// The modules and key binding sets here and what the catalogs offer (plan B142)
-    pub modules: crate::api::types::ModulesAnswer,
+    pub modules: omaflake_sdk::types::ModulesAnswer,
     /// The macOS bases (plan B137)
     pub bases: Vec<BaseDto>,
     pub settings: SettingsDto,
@@ -171,7 +173,7 @@ pub(crate) struct Ctx {
     /// The UI's language ("de"): texts of modules and recipes in it where they have it
     pub language: Option<String>,
     /// VM → its newest diagnosis in its current run (plan B162)
-    pub diagnostics: BTreeMap<String, diagnostics::DiagnosisRecord>,
+    pub diagnostics: BTreeMap<String, omaflake_sdk::views::diagnostics::DiagnosisRecord>,
 }
 
 impl Ctx {
@@ -184,14 +186,14 @@ impl Ctx {
     }
 
     /// "Guide" for a doc of `docs/` (its file name and permalink on omaflake.dev)
-    pub fn guide(&self, file: &str, permalink: &str, title: &str) -> common::Action {
+    pub fn guide(&self, file: &str, permalink: &str, title: &str) -> omaflake_sdk::views::common::Action {
         let bundled = self
             .guides
             .as_ref()
             .map(|d| d.join(format!("{file}.md")))
             .filter(|p| p.exists())
             .map(|p| p.to_string_lossy().into_owned());
-        common::Action::guide(file, permalink, Text::new(title), bundled)
+        omaflake_sdk::views::common::Action::guide(file, permalink, Text::new(title), bundled)
     }
 
     pub fn start_blockers(&self, kind: GuestKind) -> Vec<PrerequisiteDto> {
@@ -274,23 +276,23 @@ pub(crate) fn build(ctx: &Ctx, page: &PageRef) -> Result<Value, RpcError> {
         "home" => to_value(home::page(ctx)),
         "vms" => to_value(vms::page(ctx, &page_params(p)?)),
         "vm" => {
-            let p: vms::VmParams = page_params(p)?;
+            let p: omaflake_sdk::views::vms::VmParams = page_params(p)?;
             to_value(vms::vm_page(ctx, &p).ok_or_else(|| {
-                RpcError::from(crate::vm_err!(crate::error::codes::NOT_FOUND, "Instance \"{}\" does not exist", p.name))
+                RpcError::from(crate::vm_err!(omaflake_sdk::codes::NOT_FOUND, "Instance \"{}\" does not exist", p.name))
             })?)
         }
         "images" => to_value(images::page(ctx, &page_params(p)?)),
         "image" => {
-            let p: images::ImageParams = page_params(p)?;
+            let p: omaflake_sdk::views::images::ImageParams = page_params(p)?;
             to_value(images::image_page(ctx, &p).ok_or_else(|| {
-                RpcError::from(crate::vm_err!(crate::error::codes::NOT_FOUND, "Image \"{}\" does not exist", p.name))
+                RpcError::from(crate::vm_err!(omaflake_sdk::codes::NOT_FOUND, "Image \"{}\" does not exist", p.name))
             })?)
         }
         "recipes" => to_value(recipes::page(ctx, &page_params(p)?)),
         "newVm" => {
-            let p: new_vm::NewVmParams = page_params(p)?;
+            let p: omaflake_sdk::views::new_vm::NewVmParams = page_params(p)?;
             to_value(new_vm::page(ctx, &p).ok_or_else(|| {
-                RpcError::from(crate::vm_err!(crate::error::codes::NOT_FOUND, "Image \"{}\" does not exist", p.image))
+                RpcError::from(crate::vm_err!(omaflake_sdk::codes::NOT_FOUND, "Image \"{}\" does not exist", p.image))
             })?)
         }
         "build" => to_value(build::page(ctx, &page_params(p)?)),
@@ -298,9 +300,9 @@ pub(crate) fn build(ctx: &Ctx, page: &PageRef) -> Result<Value, RpcError> {
         // The first start's questions (plan B144), in a credential form's shape
         "welcome" => to_value(welcome::page(ctx, &page_params(p)?)),
         "diagnostics" => {
-            let p: diagnostics::DiagnosticsParams = page_params(p)?;
+            let p: omaflake_sdk::views::diagnostics::DiagnosticsParams = page_params(p)?;
             to_value(diagnostics::page(ctx, &p).ok_or_else(|| {
-                RpcError::from(crate::vm_err!(crate::error::codes::NOT_FOUND, "Instance \"{}\" does not exist", p.name))
+                RpcError::from(crate::vm_err!(omaflake_sdk::codes::NOT_FOUND, "Instance \"{}\" does not exist", p.name))
             })?)
         }
         "macBase" => to_value(doctor::mac_base_page(ctx, &page_params(p)?)),
@@ -314,10 +316,10 @@ pub(crate) fn build(ctx: &Ctx, page: &PageRef) -> Result<Value, RpcError> {
         "volumes" => to_value(volumes::page(ctx)),
         "volume" => to_value(volumes::volume_page(ctx, &page_params(p)?)),
         "volumeMount" => {
-            let p: volumes::MountParams = page_params(p)?;
+            let p: omaflake_sdk::views::volumes::MountParams = page_params(p)?;
             to_value(volumes::mount_page(ctx, &p).ok_or_else(|| {
                 RpcError::from(crate::vm_err!(
-                    crate::error::codes::NOT_FOUND,
+                    omaflake_sdk::codes::NOT_FOUND,
                     "{} does not have the volume \"{}\"",
                     p.vm,
                     p.volume
@@ -325,26 +327,26 @@ pub(crate) fn build(ctx: &Ctx, page: &PageRef) -> Result<Value, RpcError> {
             })?)
         }
         "networkMember" => {
-            let p: networks::MemberParams = page_params(p)?;
+            let p: omaflake_sdk::views::networks::MemberParams = page_params(p)?;
             to_value(networks::member_page(ctx, &p).ok_or_else(|| {
-                RpcError::from(crate::vm_err!(crate::error::codes::NOT_FOUND, "No network \"{}\"", p.network))
+                RpcError::from(crate::vm_err!(omaflake_sdk::codes::NOT_FOUND, "No network \"{}\"", p.network))
             })?)
         }
         "recipeStudio" => {
-            let p: recipe_studio::StudioParams = page_params(p)?;
+            let p: omaflake_sdk::views::recipe_studio::StudioParams = page_params(p)?;
             to_value(recipe_studio::page(ctx, &p).ok_or_else(|| {
                 RpcError::from(crate::vm_err!(
-                    crate::error::codes::NOT_FOUND,
+                    omaflake_sdk::codes::NOT_FOUND,
                     "No recipe \"{}\"",
                     p.id.unwrap_or_default()
                 ))
             })?)
         }
         "profile" => {
-            let p: profiles::ProfileParams = page_params(p)?;
+            let p: omaflake_sdk::views::profiles::ProfileParams = page_params(p)?;
             to_value(profiles::profile_page(ctx, &p).ok_or_else(|| {
                 RpcError::from(crate::vm_err!(
-                    crate::error::codes::NOT_FOUND,
+                    omaflake_sdk::codes::NOT_FOUND,
                     "No profile \"{}\"",
                     p.id.unwrap_or_default()
                 ))
@@ -352,29 +354,29 @@ pub(crate) fn build(ctx: &Ctx, page: &PageRef) -> Result<Value, RpcError> {
         }
         "locale" => {
             let answer = ctx.settings_answer.as_ref().ok_or_else(|| RpcError::internal("settings not gathered"))?;
-            let p: locales::LocaleParams = page_params(p)?;
+            let p: omaflake_sdk::views::locales::LocaleParams = page_params(p)?;
             to_value(locales::locale_page(ctx, answer, &p).ok_or_else(|| {
                 RpcError::from(crate::vm_err!(
-                    crate::error::codes::NOT_FOUND,
+                    omaflake_sdk::codes::NOT_FOUND,
                     "No locale \"{}\"",
                     p.id.unwrap_or_default()
                 ))
             })?)
         }
         "credential" => {
-            let p: credentials::CredentialParams = page_params(p)?;
+            let p: omaflake_sdk::views::credentials::CredentialParams = page_params(p)?;
             to_value(credentials::credential_page(ctx, &p).ok_or_else(|| {
                 RpcError::from(crate::vm_err!(
-                    crate::error::codes::NOT_FOUND,
+                    omaflake_sdk::codes::NOT_FOUND,
                     "No credential \"{}\"",
                     p.id.unwrap_or_default()
                 ))
             })?)
         }
         "baseCredential" => {
-            let p: credentials::BaseCredentialParams = page_params(p)?;
+            let p: omaflake_sdk::views::credentials::BaseCredentialParams = page_params(p)?;
             to_value(credentials::base_credential_page(ctx, &p).ok_or_else(|| {
-                RpcError::from(crate::vm_err!(crate::error::codes::NOT_FOUND, "No macOS base \"{}\"", p.name))
+                RpcError::from(crate::vm_err!(omaflake_sdk::codes::NOT_FOUND, "No macOS base \"{}\"", p.name))
             })?)
         }
         "settings" => {
@@ -489,7 +491,7 @@ impl Server {
     /// `views.get`: one page's model
     pub(crate) fn view(&self, page: &PageRef) -> Result<Value, RpcError> {
         if page.page == "import" {
-            let p: import::ImportParams = page_params(&page.params)?;
+            let p: omaflake_sdk::views::import::ImportParams = page_params(&page.params)?;
             let inspection = self.packages_inspect_for(&p.path, p.expect, p.external)?;
             return to_value(import::page(&p, inspection));
         }
@@ -597,12 +599,12 @@ impl Server {
 }
 
 /// The networks and what each running switch last wrote (plan B170)
-pub(crate) fn network_infos(paths: &Paths) -> Vec<networks::NetworkInfo> {
+pub(crate) fn network_infos(paths: &Paths) -> Vec<omaflake_sdk::views::networks::NetworkInfo> {
     let store = crate::networks::Networks::new(paths.clone());
     store
         .list()
         .unwrap_or_default()
         .into_iter()
-        .map(|network| networks::NetworkInfo { status: store.status(&network.name), network })
+        .map(|network| omaflake_sdk::views::networks::NetworkInfo { status: store.status(&network.name), network })
         .collect()
 }

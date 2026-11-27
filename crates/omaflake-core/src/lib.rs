@@ -99,21 +99,16 @@ pub use ipsw_downloader::{IpswDownloader, KeepAwake, MacOsRelease, free_space, g
 pub use mac_base_installer::MacBaseInstaller;
 pub use mac_image_builder::MacImageBuilder;
 pub use mac_vm::{DhcpLeases, MacAddress, MacVmBundle, MacVmConfig, RunnerClient};
-pub use models::{
-    DisplayMode, GlBackend, GuestKind, InstanceConfig, LinePlace, NetworkMode, QemuCapabilities, RecipeDefaults,
-    RecipeId, StopResult, VmStatus,
-};
+pub use models::{GlBackend, InstanceConfig, LinePlace, QemuCapabilities, RecipeDefaults, RecipeId};
 pub use omaflake_id::{Lengths, OmaflakeId, OmaflakeIdKind};
 pub use packages::{Manifest as PackageManifest, Package, PackageKind};
 pub use paths::{InstancePaths, Paths, Settings};
 pub use platform::Platform;
-pub use prerequisites::{Prerequisite, PrerequisiteItem, PrerequisiteStatus, Prerequisites};
+pub use prerequisites::{Prerequisite, Prerequisites};
 pub use qemu_command::QemuCommand;
 pub use qemu_runtime::{FileLock, InstanceLock, QemuRuntime, tail};
 pub use qmp_client::QmpClient;
-pub use recipe_sources::{
-    RecipeCatalog, RecipeLibrary, RecipeRef, RecipeSource, RecipeSourceKind, SourceClient, SourceTokens,
-};
+pub use recipe_sources::{RecipeCatalog, RecipeLibrary, RecipeRef, RecipeSource, SourceClient, SourceTokens};
 pub use shell::{RunOptions, Shell, ShellResult, StreamOptions};
 pub use sockets::{Ports, connect_unix};
 pub use spawn::Pid;

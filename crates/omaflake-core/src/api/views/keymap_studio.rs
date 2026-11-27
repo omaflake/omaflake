@@ -18,17 +18,19 @@ use std::collections::BTreeMap;
 use serde_json::{Value, json};
 
 use super::Ctx;
-use super::common::*;
 use super::keys::{caps, key_caps, mode_title, ways};
-use super::text::{Text, tf};
-use crate::composition::{Binding, Composition, Issue, PartRef, RecipeSpec, parse_key};
+use super::text::tf;
+use crate::composition::{Composition, PartRef, RecipeSpec, parse_key};
 use crate::keymaps::{KeyEntry, Keymap, KeymapStore, Keys};
-use crate::models::GuestKind;
 use crate::modules::{Module, ModuleStore};
 use crate::my_recipes::MyRecipes;
+use omaflake_sdk::models::GuestKind;
+use omaflake_sdk::models::{Binding, Issue};
+use omaflake_sdk::text::Text;
+use omaflake_sdk::views::common::*;
 
 // The page's model (plan B192: in omaflake-sdk); this file builds it
-pub use omaflake_sdk::views::keymap_studio::*;
+use omaflake_sdk::views::keymap_studio::*;
 
 pub const PAGE: &str = "keymapStudio";
 
@@ -76,7 +78,7 @@ fn set_values(
 const DRAFTS: [&str; 4] = ["edit", "draft", "draftText", "draftAfter"];
 
 /// The keys a key is put together from: `value` as written, `label` as the cap shows it on this host
-fn key_groups(host: super::HostOs) -> Vec<KeyChoiceGroup> {
+fn key_groups(host: omaflake_sdk::views::HostOs) -> Vec<KeyChoiceGroup> {
     let choice = |v: &str| KeyChoice { value: v.to_string(), label: caps(v, host)[0][0].clone() };
     let group = |title: &str, keys: Vec<String>| KeyChoiceGroup {
         title: Text::new(title),

@@ -32,11 +32,9 @@ use serde_json::Value;
 
 use crate::agent_protocol::AgentState;
 use crate::backend::Readiness;
-use crate::error::{Error, IoContext, Result, codes, os_text};
+use crate::error::{Error, IoContext, Result, os_text};
 use crate::instance_store::InstanceStore;
-use crate::models::{
-    DisplayMode, GlBackend, GuestKind, InstanceConfig, NetworkMode, QemuCapabilities, StopResult, VmStatus,
-};
+use crate::models::{GlBackend, InstanceConfig, QemuCapabilities};
 use crate::nix_gl;
 use crate::paths::{InstancePaths, Paths, Settings};
 use crate::platform::{Platform, is_executable_file, resolve_symlinks};
@@ -50,6 +48,8 @@ use crate::spawn::{Pid, live_pid, reap_if_exited, send_signal, spawn_detached, w
 use crate::ssh_command::SshCommand;
 use crate::vm_err;
 use crate::vz_backend::VzBackend;
+use omaflake_sdk::codes;
+use omaflake_sdk::models::{DisplayMode, GuestKind, NetworkMode, StopResult, VmStatus};
 
 /// Starts, stops and monitors QEMU processes. QEMU runs in its own session (setsid)
 /// and outlives CLI/app; state is derived only from files/sockets (plan §3).
@@ -885,7 +885,7 @@ mod tests {
         let qemu = fake_qemu(&p.root, true, true);
         Settings { qemu: Some(qemu.to_string_lossy().into_owned()), ..Default::default() }.save(&p).unwrap();
         let old = Prerequisites::new(p.clone()).qemu();
-        assert_eq!(old.status, crate::prerequisites::PrerequisiteStatus::Limited);
+        assert_eq!(old.status, omaflake_sdk::models::PrerequisiteStatus::Limited);
         assert!(old.detail.ends_with("(3D, older patchset)"), "{}", old.detail);
         assert_eq!(old.install.as_deref(), Some("nix profile upgrade qemu"));
 
@@ -895,7 +895,7 @@ mod tests {
         assert!(QemuRuntime::new(p.clone(), &qemu.to_string_lossy(), "/fw.fd").capabilities().loading_image);
         // Patchset 6: the loading image, but no display windows (plan B171) – still an update
         let six = Prerequisites::new(p.clone()).qemu();
-        assert_eq!(six.status, crate::prerequisites::PrerequisiteStatus::Limited);
+        assert_eq!(six.status, omaflake_sdk::models::PrerequisiteStatus::Limited);
         assert!(six.detail.ends_with("(3D, older patchset)"), "{}", six.detail);
         assert!(six.hint.contains("further displays"), "{}", six.hint);
 
@@ -903,7 +903,7 @@ mod tests {
         std::fs::write(&qemu, text).unwrap();
         assert!(QemuRuntime::new(p.clone(), &qemu.to_string_lossy(), "/fw.fd").capabilities().displays);
         let current = Prerequisites::new(p).qemu();
-        assert_eq!((current.status, current.install), (crate::prerequisites::PrerequisiteStatus::Ok, None));
+        assert_eq!((current.status, current.install), (omaflake_sdk::models::PrerequisiteStatus::Ok, None));
         assert!(current.detail.ends_with(" (3D)"), "{}", current.detail);
     }
 

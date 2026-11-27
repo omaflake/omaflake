@@ -21,7 +21,7 @@ use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use serde::{Deserialize, Serialize};
 
-use crate::error::{IoContext, Result, codes};
+use crate::error::{IoContext, Result};
 use crate::file_format::{FileFormat, Step};
 use crate::ipsw_downloader::{IpswDownloader, KeepAwake, MacOsRelease, free_space, gigabytes};
 use crate::mac_image_builder::BuildVm;
@@ -35,6 +35,7 @@ use crate::sockets::{self, Ports};
 use crate::trash::Disposal;
 use crate::vm_err;
 use crate::vz_backend::VzBackend;
+use omaflake_sdk::codes;
 
 /// v1 → v2 (plan B166): `ownKey` and `version` are new; a base from before does not know omaflake's own key.
 /// v2 → v3 (plan B184): `unchained` is new; a base from before is not
@@ -473,7 +474,7 @@ impl MacBaseInstaller {
                 let dir = paths.bases().join(&name);
                 let os_build = crate::mac_vm::MacVmBundle::new(dir.clone()).load_config().ok().and_then(|c| c.os_build);
                 let created =
-                    fs::metadata(&dir).and_then(|m| m.modified()).ok().and_then(crate::json::from_system_time);
+                    fs::metadata(&dir).and_then(|m| m.modified()).ok().and_then(omaflake_sdk::time::from_system_time);
                 let record = BaseRecord::of(&dir);
                 // The newest of its credential (plan B166) – among the unchained ones for an unchained base
                 let credential = record.as_ref().map(|r| r.credential.as_str());
@@ -828,7 +829,7 @@ pub struct BaseInfo {
     pub ready: bool,
     /// The newest ready base of its credential: macOS images with that credential are built from it (plan B166)
     pub newest: bool,
-    pub created: Option<crate::json::Date>,
+    pub created: Option<omaflake_sdk::time::Date>,
     /// Allocated blocks of its files (the disk is sparse)
     pub size_bytes: Option<i64>,
 }

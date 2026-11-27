@@ -20,14 +20,12 @@ use serde_json::{Map, Value};
 
 use crate::Log;
 use crate::cancellation::Cancellation;
-use crate::error::{IoContext, Result, codes};
+use crate::error::{IoContext, Result};
 use crate::file_format::{FileFormat, Step, UnreadableFile, write_atomic};
 use crate::guest_settings::BuildChoice;
 use crate::instance_store::InstanceStore;
 use crate::ipsw_downloader::KeepAwake;
-use crate::json;
-use crate::json::Date;
-use crate::models::{GuestKind, RecipeDefaults, RecipeId};
+use crate::models::{RecipeDefaults, RecipeId};
 use crate::omaflake_id::OmaflakeId;
 use crate::packages::{Package, PackageKind};
 use crate::paths::{Paths, Settings};
@@ -38,6 +36,9 @@ use crate::shell::{RunOptions, Shell, ShellResult, StreamOptions};
 use crate::spawn::Pid;
 use crate::trash::Disposal;
 use crate::vm_err;
+use omaflake_sdk::codes;
+use omaflake_sdk::models::GuestKind;
+use omaflake_sdk::time::Date;
 
 /// image.json, schema `image` (plan B114). 0 → 1: "flavor" became "recipe" (plan B92), `system` added – every
 /// image before it was built on a Mac with Apple silicon
@@ -110,7 +111,7 @@ pub struct ImageInfo {
     /// its recipe's current image, and not deleted with a recipe's older images
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub unchained: bool,
-    #[serde(with = "crate::json::iso8601")]
+    #[serde(with = "omaflake_sdk::time::iso8601")]
     pub created: Date,
 }
 
@@ -143,7 +144,7 @@ impl ImageInfo {
     }
 
     /// Author and name come from the recipe ID ("local" and the ID itself when it has no parts); pass
-    /// `json::now()` for Swift's default `created: Date()`
+    /// `omaflake_sdk::time::now()` for Swift's default `created: Date()`
     #[allow(clippy::too_many_arguments)]
     pub fn new(
         recipe: &str,
@@ -433,7 +434,7 @@ impl ImageStore {
                 flake,
                 &rev,
                 Some(store_path.clone()),
-                json::now(),
+                omaflake_sdk::time::now(),
             );
             info.set_choice(choice);
             Self::write_info(&info, &dir)?;
@@ -851,7 +852,7 @@ mod tests {
         fs::write(dir.join("config.json"), "{}").unwrap();
         // without image.json it is not an image
         assert!(ImageStore::new(p.clone()).image(name).is_err());
-        let mut i = info("omaflake.macos.minimal", GuestKind::Macos, json::now());
+        let mut i = info("omaflake.macos.minimal", GuestKind::Macos, omaflake_sdk::time::now());
         i.revision = "abc1234567-dirty".into();
         ImageStore::write_info(&i, &dir).unwrap();
         let image = ImageStore::new(p.clone()).image(name).unwrap();

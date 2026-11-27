@@ -12,11 +12,12 @@ use serde_json::{Map, Value};
 
 use std::os::unix::fs::PermissionsExt;
 
-use crate::error::{IoContext, Result, codes};
+use crate::error::{IoContext, Result};
 use crate::file_format::{FileFormat, Step, write_atomic};
 use crate::platform::is_writable;
 use crate::sockets::connect_unix;
 use crate::vm_err;
+use omaflake_sdk::codes;
 
 /// The VM window's size (Swift `MacVMConfig.Display`; default 1920×1200 at 80 ppi)
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]

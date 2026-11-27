@@ -8,10 +8,9 @@ use std::collections::HashSet;
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use crate::error::{IoContext, Result, codes};
+use crate::error::{IoContext, Result};
 use crate::file_format::{UnreadableFile, write_atomic};
 use crate::image_store::{Image, ImageStore};
-use crate::json;
 use crate::models::{InstanceConfig, RecipeDefaults};
 use crate::omaflake_id::OmaflakeId;
 use crate::packages::{Package, PackageKind};
@@ -21,6 +20,7 @@ use crate::shell::{RunOptions, Shell};
 use crate::sockets::Ports;
 use crate::trash::Disposal;
 use crate::vm_err;
+use omaflake_sdk::codes;
 
 #[derive(Debug, Clone)]
 pub struct InstanceStore {
@@ -223,7 +223,7 @@ impl InstanceStore {
             &image.info.system,
             settings,
             ssh_port.unwrap_or_else(|| self.next_ssh_port(&Ports::is_free)),
-            json::now(),
+            omaflake_sdk::time::now(),
         );
         config.identity = Some(OmaflakeId::random_words());
         self.create_disks(&config)?;
@@ -357,8 +357,8 @@ impl InstanceStore {
 mod tests {
     use super::*;
     use crate::image_store::ImageInfo;
-    use crate::models::GuestKind;
     use crate::models::tests::config;
+    use omaflake_sdk::models::GuestKind;
 
     #[test]
     fn other_architectures_do_not_run_here() {
@@ -378,7 +378,7 @@ mod tests {
             "",
             "r",
             None,
-            crate::json::now(),
+            omaflake_sdk::time::now(),
         );
         let image = Image { name: "x".into(), info, path: PathBuf::from("/x") };
         assert!(InstanceStore::check_runs_here(&image).is_err());
@@ -460,7 +460,7 @@ mod tests {
             "/x",
             "abc",
             None,
-            crate::json::now(),
+            omaflake_sdk::time::now(),
         );
         ImageStore::write_info(&info, &dir).unwrap();
         let json = ImageStore::info_file(&dir);
@@ -501,7 +501,7 @@ mod tests {
             "/x",
             "abc",
             Some("/nix/store/x".into()),
-            crate::json::now(),
+            omaflake_sdk::time::now(),
         );
         ImageStore::write_info(&info, &dir).unwrap();
         ImageStore::new(p.clone()).image(name).unwrap()
@@ -539,13 +539,13 @@ mod tests {
                 2,
                 4,
                 20,
-                crate::models::NetworkMode::Shared,
+                omaflake_sdk::models::NetworkMode::Shared,
                 false,
                 false,
                 None,
             ),
             2222,
-            crate::json::now(),
+            omaflake_sdk::time::now(),
         );
         c.disk_gb = 120;
         store.grow_disk(&c).unwrap();

@@ -8,9 +8,11 @@ use std::sync::{Arc, Mutex};
 use serde::Serialize;
 use serde_json::Value;
 
-use super::types::{Level, Message};
-use super::views::activity::{ActivityEntry, ActivityLog, Notification};
-use super::views::{PageRef, Text};
+use super::views::activity::ActivityLog;
+use omaflake_sdk::text::Text;
+use omaflake_sdk::types::{Level, Message};
+use omaflake_sdk::views::PageRef;
+use omaflake_sdk::views::activity::{ActivityEntry, Notification};
 
 /// Receives the server's notifications: (method, params). The stdio transport writes them as JSON-RPC
 /// notifications; a Rust UI linking the server in-process gets them directly.

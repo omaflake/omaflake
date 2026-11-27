@@ -6,9 +6,7 @@ use serde::de::DeserializeOwned;
 use serde_json::{Map, Value, json};
 
 // The answers' errors (plan B192: in omaflake-sdk)
-pub use omaflake_sdk::protocol::{
-    INVALID_PARAMS, INVALID_REQUEST, METHOD_NOT_FOUND, NOT_INITIALIZED, PARSE_ERROR, RpcError, SERVER_ERROR,
-};
+use omaflake_sdk::protocol::RpcError;
 
 impl From<crate::Error> for RpcError {
     /// `-32000` with the kind and – for a message with a key – `data.text`
@@ -23,7 +21,7 @@ impl From<crate::Error> for RpcError {
 
 impl From<RpcError> for crate::Error {
     fn from(e: RpcError) -> Self {
-        let text = e.text().unwrap_or_else(|| super::views::text::Text::verbatim(&e.message));
+        let text = e.text().unwrap_or_else(|| omaflake_sdk::text::Text::verbatim(&e.message));
         crate::Error::from_text(e.kind, text)
     }
 }
@@ -105,7 +103,8 @@ pub(crate) fn params_map(params: Value) -> Result<Map<String, Value>, RpcError> 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::error::codes;
+    use omaflake_sdk::codes;
+    use omaflake_sdk::protocol::{INVALID_PARAMS, INVALID_REQUEST, PARSE_ERROR};
 
     #[test]
     fn parses_requests_notifications_and_garbage() {

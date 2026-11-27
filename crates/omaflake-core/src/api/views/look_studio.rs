@@ -13,13 +13,14 @@
 use serde_json::{Map, Value, json};
 
 use super::Ctx;
-use super::common::*;
-use super::text::{Text, tf};
+use super::text::tf;
 use crate::looks::{Look, LookStore};
 use crate::my_recipes::MyRecipes;
+use omaflake_sdk::text::Text;
+use omaflake_sdk::views::common::*;
 
 // The page's model (plan B192: in omaflake-sdk); this file builds it
-pub use omaflake_sdk::views::look_studio::*;
+use omaflake_sdk::views::look_studio::*;
 
 pub const PAGE: &str = "lookStudio";
 

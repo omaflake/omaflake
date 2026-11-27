@@ -10,14 +10,14 @@ use std::fs;
 use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
 
-use crate::json::Date;
+use omaflake_sdk::time::Date;
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
 
 use crate::error::{IoContext, Result};
 use crate::file_format::{FileFormat, Step, write_atomic};
-use crate::models::GuestKind;
 use crate::platform::{is_writable, resolve_symlinks, standardize};
+use omaflake_sdk::models::GuestKind;
 
 /// Swift `Package.Kind`; serialized as its extension
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -182,7 +182,7 @@ static MANIFEST_STEPS: [Step; 1] = [manifest_v0_to_v1];
 pub struct Manifest {
     pub kind: PackageKind,
     pub name: String,
-    #[serde(with = "crate::json::iso8601")]
+    #[serde(with = "omaflake_sdk::time::iso8601")]
     pub exported: Date,
     /// omaflake's version that wrote it
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -215,7 +215,7 @@ impl Manifest {
         Manifest {
             kind,
             name: name.into(),
-            exported: crate::json::now(),
+            exported: omaflake_sdk::time::now(),
             omaflake: Some(crate::VERSION.to_string()),
             guest_kind,
             recipe,

@@ -18,8 +18,9 @@ use std::path::{Path, PathBuf};
 use std::time::Duration;
 
 use crate::cancellation::Cancellation;
-use crate::error::{Error, IoContext, Result, codes};
+use crate::error::{Error, IoContext, Result};
 use crate::shell::{RunOptions, Shell};
+use omaflake_sdk::codes;
 
 /// A macOS release as Apple offers it for this Mac (`omaf-runner latest`, VZMacOSRestoreImage.latestSupported).
 #[derive(Debug, Clone, PartialEq, Eq)]

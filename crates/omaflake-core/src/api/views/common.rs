@@ -4,11 +4,12 @@
 
 use serde_json::json;
 
-use super::text::{Text, tf};
-use crate::api::types::PrerequisiteDto;
+use super::text::tf;
+use omaflake_sdk::text::Text;
+use omaflake_sdk::types::PrerequisiteDto;
 
 // The page's model (plan B192: in omaflake-sdk); this file builds it
-pub use omaflake_sdk::views::common::*;
+use omaflake_sdk::views::common::*;
 
 /// The rows of a catalog tab shown at once (plan B148)
 pub const BROWSE_PAGE: usize = 10;
@@ -184,7 +185,7 @@ pub fn filtered_out(page: &str) -> Hint {
 
 /// The Doctor's blockers as a page's box, None when there are none – in the core, not in omaflake-sdk with
 /// `Blockers`: the hints are the Doctor's (plan B192)
-pub fn blockers_of(blockers: &[PrerequisiteDto], host: super::HostOs) -> Option<Blockers> {
+pub fn blockers_of(blockers: &[PrerequisiteDto], host: omaflake_sdk::views::HostOs) -> Option<Blockers> {
     (!blockers.is_empty()).then(|| Blockers {
         title: Text::new("Not possible yet – the Doctor reports:"),
         items: blockers

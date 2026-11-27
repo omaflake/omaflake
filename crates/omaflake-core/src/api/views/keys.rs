@@ -7,21 +7,23 @@
 
 use std::collections::{BTreeMap, VecDeque};
 
-use super::common::*;
-use super::text::{Text, tf};
-use super::{Ctx, HostOs};
-use crate::api::types::{RecipeDto, RecipePartsDto};
-use crate::composition::Binding;
-use crate::modules::ModuleMode;
+use super::Ctx;
+use super::text::tf;
+use omaflake_sdk::models::Binding;
+use omaflake_sdk::models::ModuleMode;
+use omaflake_sdk::text::Text;
+use omaflake_sdk::types::{RecipeDto, RecipePartsDto};
+use omaflake_sdk::views::HostOs;
+use omaflake_sdk::views::common::*;
 
 // The page's model (plan B192: in omaflake-sdk); this file builds it
-pub use omaflake_sdk::views::keys::*;
+use omaflake_sdk::views::keys::*;
 
 /// A draft's parts: the modules and key binding sets here (those still in the catalog have no keys yet)
 fn draft_parts(ctx: &Ctx, d: &Draft) -> Option<RecipePartsDto> {
     use crate::composition::{PartRef, RecipeSpec};
     let spec = RecipeSpec {
-        platform: crate::models::GuestKind::parse(&d.platform)?,
+        platform: omaflake_sdk::models::GuestKind::parse(&d.platform)?,
         modules: d.modules.iter().map(|r| PartRef::new(r)).collect(),
         look: None,
         keymaps: d.keymaps.iter().map(|k| PartRef::new(k)).collect(),

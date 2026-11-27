@@ -12,12 +12,13 @@ use std::path::{Path, PathBuf};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
-use crate::error::{IoContext, Result, codes};
+use crate::error::{IoContext, Result};
 use crate::file_format::FileFormat;
 use crate::parts::{CatalogPart, PartKind, PartStore};
 use crate::paths::{Paths, Settings};
 use crate::recipe_sources::{CatalogFile, RecipeCatalog, SourceClient};
 use crate::vm_err;
+use omaflake_sdk::codes;
 
 /// What a set gives an action (keymap/v2, plan B147): a key ("Ctrl+g"), several keys, or a table with `key` and/or
 /// `after` (the mode the program is in afterwards)
@@ -251,7 +252,8 @@ impl KeymapStore {
 mod tests {
     use super::*;
     use crate::paths::tests::temp_paths;
-    use crate::recipe_sources::{RecipeSource, RecipeSourceKind};
+    use crate::recipe_sources::RecipeSource;
+    use omaflake_sdk::models::RecipeSourceKind;
 
     #[test]
     fn a_local_set() {

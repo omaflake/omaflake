@@ -14,10 +14,8 @@ use crate::data_folder::DataFolder;
 use crate::error::{IoContext, Result};
 use crate::image_store::{ImageInfo, ImageStore};
 use crate::instance_store::InstanceStore;
-use crate::json;
-use crate::json::Date;
 use crate::mac_vm::MacVmBundle;
-use crate::models::{GuestKind, RecipeId};
+use crate::models::RecipeId;
 use crate::omaflake_id::OmaflakeId;
 use crate::packages::Package;
 use crate::paths::{InstancePaths, Settings};
@@ -27,6 +25,8 @@ use crate::recipe_sources::{RecipeLibrary, RecipeRef};
 use crate::shell::{RunOptions, Shell};
 use crate::spawn::live_pid;
 use crate::trash::Disposal;
+use omaflake_sdk::models::GuestKind;
+use omaflake_sdk::time::Date;
 
 /// Entry names of a folder (empty when it cannot be read), sorted – Swift's `contentsOfDirectory` order is unspecified
 fn entries(dir: &Path) -> Vec<String> {
@@ -78,8 +78,8 @@ impl ImageStore {
             let created: Date = fs::symlink_metadata(&entry)
                 .and_then(|m| m.created())
                 .ok()
-                .and_then(crate::json::from_system_time)
-                .unwrap_or_else(json::now);
+                .and_then(omaflake_sdk::time::from_system_time)
+                .unwrap_or_else(omaflake_sdk::time::now);
             let dest = fs::read_link(&entry).ok().map(|d| d.to_string_lossy().into_owned());
             if let Some(dest) = dest.filter(|d| d.starts_with("/nix/store/")) {
                 // NixOS: the symlink becomes a folder with result → store path (registered as a GC root again)
@@ -548,8 +548,16 @@ mod tests {
         let nix = p.images().join("omaflake.nixos.lab-abc-12345678");
         fs::create_dir_all(&nix).unwrap();
         std::os::unix::fs::symlink(&store, nix.join("result")).unwrap();
-        let info =
-            ImageInfo::new("omaflake.nixos.lab", None, GuestKind::Nixos, "aarch64-linux", "", "abc", None, json::now());
+        let info = ImageInfo::new(
+            "omaflake.nixos.lab",
+            None,
+            GuestKind::Nixos,
+            "aarch64-linux",
+            "",
+            "abc",
+            None,
+            omaflake_sdk::time::now(),
+        );
         ImageStore::write_info(&info, &nix).unwrap();
         fs::create_dir_all(p.current_images()).unwrap();
         std::os::unix::fs::symlink("../omaflake.nixos.lab-abc-12345678", p.current_images().join("omaflake.nixos.lab"))

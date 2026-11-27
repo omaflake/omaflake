@@ -10,15 +10,17 @@ use serde_json::json;
 
 use super::Ctx;
 use super::common::*;
-use super::text::{Arg, Text, tf};
+use super::text::tf;
 use super::vms::{kind_badge, unreadable};
-use crate::api::types::{CatalogRecipeDto, RecipeDto, RecipePartsDto, VersionDto};
-use crate::composition::Issue;
 use crate::models::RecipeId;
-use crate::recipe_sources::RecipeSourceKind;
+use omaflake_sdk::models::Issue;
+use omaflake_sdk::models::RecipeSourceKind;
+use omaflake_sdk::text::{Arg, Text};
+use omaflake_sdk::types::{CatalogRecipeDto, RecipeDto, RecipePartsDto, VersionDto};
+use omaflake_sdk::views::common::*;
 
 // The page's model (plan B192: in omaflake-sdk); this file builds it
-pub use omaflake_sdk::views::recipes::*;
+use omaflake_sdk::views::recipes::*;
 
 /// One row per line: its newest version names it; built ones first, each kind by name (`AppModel.recipeRows`)
 pub fn recipe_rows(recipes: &[RecipeDto]) -> Vec<&RecipeDto> {

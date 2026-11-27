@@ -3,9 +3,12 @@
 //! runs; its own NAT stays. `omaf network-switch` is that switch (hidden, started before a member starts).
 
 use omaflake_core::instance_store::InstanceStore;
-use omaflake_core::networks::switch::{Switch, SwitchStatus};
-use omaflake_core::networks::{Network, Networks, packets::mac_text};
+use omaflake_core::networks::Networks;
+use omaflake_core::networks::packets::mac_text;
+use omaflake_core::networks::switch::Switch;
 use omaflake_core::paths::Paths;
+use omaflake_sdk::networks::Network;
+use omaflake_sdk::networks::SwitchStatus;
 
 use crate::cli;
 use crate::util::{Env, Outcome, pad};

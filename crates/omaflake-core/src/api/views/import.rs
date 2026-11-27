@@ -6,12 +6,13 @@
 
 use serde_json::json;
 
-use super::common::*;
-use super::text::{Text, tf};
-use crate::api::types::Inspection;
+use super::text::tf;
+use omaflake_sdk::text::Text;
+use omaflake_sdk::types::Inspection;
+use omaflake_sdk::views::common::*;
 
 // The page's model (plan B192: in omaflake-sdk); this file builds it
-pub use omaflake_sdk::views::import::*;
+use omaflake_sdk::views::import::*;
 
 pub fn page(p: &ImportParams, inspection: Inspection) -> ImportPage {
     let name = p.path.trim_end_matches('/').rsplit('/').next().unwrap_or(&p.path).to_string();

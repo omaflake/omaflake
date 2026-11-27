@@ -18,17 +18,17 @@ use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Condvar, Mutex, MutexGuard};
 use std::time::{Duration, Instant};
 
-use crate::json::Date;
+use omaflake_sdk::time::Date;
 use serde_json::Value;
 
 use super::events::{Events, Topic};
-use super::types::{JobChanged, JobDto, JobKind, JobLines, JobLog, JobProgress, JobState};
 use crate::build_progress::BuildProgressTracker;
 use crate::cancellation::Cancellation;
-use crate::error::{Result, codes};
-use crate::json;
-use crate::models::GuestKind;
+use crate::error::Result;
 use crate::{Log, Progress};
+use omaflake_sdk::codes;
+use omaflake_sdk::models::GuestKind;
+use omaflake_sdk::types::{JobChanged, JobDto, JobKind, JobLines, JobLog, JobProgress, JobState};
 
 /// Lines a job keeps for `jobs.log` (older ones stay in its log file, if it has one)
 pub(crate) const MAX_LINES: usize = 5000;
@@ -161,7 +161,7 @@ impl Job {
             });
             d.dirty = true;
         }
-        d.last_output = Some(json::now());
+        d.last_output = Some(omaflake_sdk::time::now());
         if let Some(f) = d.file.as_mut() {
             let _ = f.write_all(format!("{line}\n").as_bytes());
         }
@@ -259,7 +259,7 @@ impl Job {
     fn set_state(&self, state: JobState) {
         let mut d = self.lock();
         if state == JobState::Checking || (state == JobState::Running && d.started.is_none()) {
-            d.started = Some(json::now());
+            d.started = Some(omaflake_sdk::time::now());
         }
         d.state = state;
         d.dirty = true;
@@ -272,7 +272,7 @@ impl Job {
             return false;
         }
         if d.started.is_none() {
-            d.started = Some(json::now());
+            d.started = Some(omaflake_sdk::time::now());
         }
         d.state = JobState::Running;
         d.dirty = true;
@@ -308,7 +308,7 @@ impl Job {
             let mut d = self.lock();
             d.file = None;
             d.state = state;
-            d.finished = Some(json::now());
+            d.finished = Some(omaflake_sdk::time::now());
             d.result = result;
             d.error = error;
             d.cancel_hook = None;
@@ -424,7 +424,12 @@ impl Jobs {
             let mut file = std::fs::OpenOptions::new().create(true).append(true).open(f).ok()?;
             let at_start = file.metadata().map(|m| m.len() == 0).unwrap_or(true);
             let gap = if at_start { "" } else { "\n" };
-            let _ = writeln!(file, "{gap}=== {} {}", json::iso8601::format(&json::now()), spec.title);
+            let _ = writeln!(
+                file,
+                "{gap}=== {} {}",
+                omaflake_sdk::time::iso8601::format(&omaflake_sdk::time::now()),
+                spec.title
+            );
             Some(file)
         });
         let job = Arc::new(Job {

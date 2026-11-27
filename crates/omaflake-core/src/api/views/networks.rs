@@ -8,15 +8,18 @@
 use serde_json::json;
 
 use super::Ctx;
-use super::HostOs;
-use super::common::*;
-use super::credentials::{ActionMenu, CredentialDetail, CredentialPage, CredentialRow, CredentialsPage, DetailItem};
-use super::text::{Arg, Text, tf};
-use crate::api::types::Vm;
-use crate::models::{GuestKind, NetworkMode, VmStatus};
+use super::text::tf;
+use omaflake_sdk::models::{GuestKind, NetworkMode, VmStatus};
+use omaflake_sdk::text::{Arg, Text};
+use omaflake_sdk::types::Vm;
+use omaflake_sdk::views::HostOs;
+use omaflake_sdk::views::common::*;
+use omaflake_sdk::views::credentials::{
+    ActionMenu, CredentialDetail, CredentialPage, CredentialRow, CredentialsPage, DetailItem,
+};
 
 // The page's model (plan B192: in omaflake-sdk); this file builds it
-pub use omaflake_sdk::views::networks::*;
+use omaflake_sdk::views::networks::*;
 
 fn running(vm: Option<&Vm>) -> bool {
     vm.is_some_and(|v| v.status == VmStatus::Running)
@@ -81,7 +84,7 @@ pub(crate) fn member_item(info: &NetworkInfo, vm: &str, host: u8, known: Option<
 }
 
 /// "Add VM": every VM not in the network yet, a choice adds it (`networks.join`)
-fn add_menu(ctx: &Ctx, n: &crate::networks::Network) -> ActionMenu {
+fn add_menu(ctx: &Ctx, n: &omaflake_sdk::networks::Network) -> ActionMenu {
     let actions: Vec<Action> = ctx
         .vms
         .iter()

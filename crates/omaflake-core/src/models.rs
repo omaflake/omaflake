@@ -4,7 +4,7 @@
 use crate::vm_err;
 use std::collections::{BTreeMap, HashMap, HashSet};
 
-use crate::json::Date;
+use omaflake_sdk::time::Date;
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
 
@@ -15,10 +15,10 @@ use crate::platform::Platform;
 use crate::recipe_sources::{RecipeRef, RecipeSource};
 
 /// NixOS or macOS (in omaflake-sdk since plan B192)
-pub use omaflake_sdk::models::GuestKind;
+use omaflake_sdk::models::GuestKind;
 
 // The API's kinds (plan B192: in omaflake-sdk)
-pub use omaflake_sdk::models::{DisplayMode, NetworkMode, StopResult, VmStatus};
+use omaflake_sdk::models::{DisplayMode, NetworkMode};
 
 /// OpenGL path for `-display cocoa,gl=…`: native macOS OpenGL (CGL, default) or ANGLE (OpenGL ES over Metal).
 /// With ANGLE, virgl offers the guest only GLSL 130 (GL 3.0) – kitty then fails to start (plan B22).
@@ -321,7 +321,7 @@ pub struct InstanceConfig {
     pub ephemeral: bool,
     #[serde(rename = "sshPort")]
     pub ssh_port: u16,
-    #[serde(with = "crate::json::iso8601")]
+    #[serde(with = "omaflake_sdk::time::iso8601")]
     pub created: Date,
     /// Login user inside the guest; missing in instances created before this field existed
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -457,7 +457,7 @@ impl InstanceConfig {
         self.volumes = Some(mounts);
     }
 
-    /// Swift's `init(name:recipe:image:imagePath:system:settings:sshPort:created:)`; pass `json::now()` for Swift's
+    /// Swift's `init(name:recipe:image:imagePath:system:settings:sshPort:created:)`; pass `omaflake_sdk::time::now()` for Swift's
     /// default `created: Date()`
     #[allow(clippy::too_many_arguments)]
     pub fn new(
@@ -806,7 +806,7 @@ impl RecipeId {
 #[cfg(test)]
 pub(crate) mod tests {
     use super::*;
-    use crate::json::parse_date;
+    use omaflake_sdk::time::parse_date;
 
     pub fn dev_defaults() -> RecipeDefaults {
         RecipeDefaults::new(GuestKind::Nixos, None, 8, 16, 100, NetworkMode::Shared, true, false, None)
@@ -880,7 +880,7 @@ pub(crate) mod tests {
         assert!(d.display == Some(DisplayMode::Gpu) && d.is_lab());
         assert_eq!(d.description_in(Some("de")), Some("NixOS (de)"));
         assert_eq!(d.description_in(Some("fr")), Some("NixOS"));
-        let c = InstanceConfig::new("a", "f", "i", "/i", "aarch64-linux", &d, 2222, crate::json::now());
+        let c = InstanceConfig::new("a", "f", "i", "/i", "aarch64-linux", &d, 2222, omaflake_sdk::time::now());
         assert_eq!(c.display, Some(DisplayMode::Gpu));
         // encoding keeps the fields (round trip)
         let again: RecipeDefaults = serde_json::from_slice(&serde_json::to_vec(&d).unwrap()).unwrap();
@@ -926,7 +926,7 @@ pub(crate) mod tests {
         assert_eq!(c.memory_gb, 16);
         assert_eq!(c.share_path.as_deref(), Some("/Volumes/data/share"));
         assert_eq!(c.volumes, Some(vec![VolumeMount::new("research", None)]));
-        assert_eq!(crate::json::iso8601::format(&c.created), "2026-10-21T10:00:00Z");
+        assert_eq!(omaflake_sdk::time::iso8601::format(&c.created), "2026-10-21T10:00:00Z");
         let written = InstanceConfig::FILE_FORMAT.encode(&c).unwrap();
         let expected = String::from_utf8_lossy(data)
             .trim_end()
@@ -1046,11 +1046,5 @@ pub(crate) mod tests {
         assert_eq!(RecipeId::distinction(a, &m(&[(a, "s1"), (b, "s2")]), &name), Some("S1".into()));
         assert_eq!(RecipeId::distinction(a, &m(&[(a, "s1"), (b, "s1")]), &name), None);
         // versions: words in sub-rows
-    }
-
-    #[test]
-    fn stop_result_texts() {
-        assert_eq!(StopResult::Powerdown.to_string(), "shut down cleanly");
-        assert_eq!(StopResult::ForcedOff.to_string(), "forced off (omaf-runner kill)");
     }
 }

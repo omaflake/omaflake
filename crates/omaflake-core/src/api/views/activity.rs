@@ -7,14 +7,15 @@ use std::collections::VecDeque;
 
 use serde_json::{Value, json};
 
-use super::common::*;
-use super::text::{Text, tf};
-use crate::api::protocol::RpcError;
-use crate::api::types::*;
+use super::text::tf;
 use crate::models::RecipeId;
+use omaflake_sdk::protocol::RpcError;
+use omaflake_sdk::text::Text;
+use omaflake_sdk::types::*;
+use omaflake_sdk::views::common::*;
 
 // The page's model (plan B192: in omaflake-sdk); this file builds it
-pub use omaflake_sdk::views::activity::*;
+use omaflake_sdk::views::activity::*;
 
 /// Entries kept (the app kept 30; a TUI's list may be longer)
 pub const MAX: usize = 100;
@@ -28,7 +29,13 @@ pub(crate) struct ActivityLog {
 impl ActivityLog {
     pub fn push(&mut self, level: Level, text: Text, notification: Option<Notification>) {
         self.next += 1;
-        self.entries.push_front(ActivityEntry { id: self.next, time: crate::json::now(), level, text, notification });
+        self.entries.push_front(ActivityEntry {
+            id: self.next,
+            time: omaflake_sdk::time::now(),
+            level,
+            text,
+            notification,
+        });
         self.entries.truncate(MAX);
     }
 
@@ -113,7 +120,7 @@ pub fn job_ended(job: &JobDto) -> Option<(Level, Text, Option<Notification>)> {
                     c.iter()
                         .filter(|x| x.get("status").and_then(Value::as_str) == Some("fail"))
                         .filter_map(|x| x.get("id").and_then(Value::as_str))
-                        .map(|id| crate::diagnostics::title(id).to_string())
+                        .map(|id| omaflake_sdk::diagnostics::title(id).to_string())
                         .collect()
                 })
                 .unwrap_or_default();
@@ -368,19 +375,19 @@ mod tests {
 
     #[test]
     fn calls_are_worded_as_the_app_did() {
-        use crate::api::views::text::Arg;
+        use omaflake_sdk::text::Arg;
         let p = json!({"name": "research"});
         assert_eq!(call_done("vms.remove", &p, &Ok(Value::Null)).unwrap().1.text, "research deleted");
         let created = json!({"name": "research", "kind": "nixos", "sshPort": 2201});
         assert_eq!(call_done("vms.create", &p, &Ok(created)).unwrap().1.text, "research created (SSH port 2201)");
-        let e = RpcError::server(Some(crate::error::codes::VM_RUNNING), "running – stop it first");
+        let e = RpcError::server(Some(omaflake_sdk::codes::VM_RUNNING), "running – stop it first");
         let (level, t) = call_done("vms.reset", &p, &Err(e.clone())).unwrap();
         assert_eq!(
             (level, t.text.as_str(), t.key.as_deref()),
             (Level::Error, "research: running – stop it first", Some("%@: %@"))
         );
         // A keyed error stays a text of its own, translated by the UI
-        let keyed: RpcError = crate::vm_err!(crate::error::codes::VM_STOPPED, "{} is not running", "research").into();
+        let keyed: RpcError = crate::vm_err!(omaflake_sdk::codes::VM_STOPPED, "{} is not running", "research").into();
         let t = call_done("vms.stop", &p, &Err(keyed)).unwrap().1;
         assert_eq!(t.args[1], Arg::from(Text::fmt("%@ is not running", vec![Arg::from("research")])));
         assert!(call_done("vms.list", &Value::Null, &Ok(json!({}))).is_none());

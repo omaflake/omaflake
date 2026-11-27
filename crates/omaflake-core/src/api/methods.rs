@@ -14,9 +14,8 @@ use serde_json::{Value, json};
 use super::events::Topic;
 use super::jobs::{JobCtx, JobSpec};
 use super::model::{self, catalog_dto, source_dto};
-use super::protocol::{RpcError, params, params_map};
+use super::protocol::{params, params_map};
 use super::server::{Answer, Reply, Server, lock};
-use super::types::*;
 use crate::backend::{Readiness, StartOptions};
 use crate::build_progress::BuildLog;
 use crate::builder_health::{BuilderHealth, Trust};
@@ -24,7 +23,7 @@ use crate::builder_maintenance::{AdminShell, BuilderMaintenance, NixVolume};
 use crate::cli_link::CliLink;
 use crate::credentials::{CredentialChange, Credentials};
 use crate::data_folder::DataFolder;
-use crate::error::{Error, codes};
+use crate::error::Error;
 use crate::guest_choices::GuestChoices;
 use crate::guest_settings::{BuildChoice, GuestSettings};
 use crate::image_store::ImageStore;
@@ -32,9 +31,7 @@ use crate::ipsw_downloader::MacOsRelease;
 use crate::linux_builder::LinuxBuilder;
 use crate::mac_base_installer::{BaseOutcome, BaseRequest, MacBaseInstaller};
 use crate::mac_image_builder::{BuildRequest, MacImageBuilder};
-use crate::models::{
-    DisplayMode, GlBackend, GuestKind, InstanceConfig, RecipeDefaults, RecipeId, StopResult, VmStatus,
-};
+use crate::models::{GlBackend, InstanceConfig, RecipeDefaults, RecipeId};
 use crate::omaflake_id::OmaflakeId;
 use crate::packages::{Package, PackageKind};
 use crate::paths::{Paths, Settings};
@@ -45,6 +42,10 @@ use crate::recipe_sources::{RecipeLibrary, RecipeSource, SourceClient, SourceTok
 use crate::transfer::{Conflict, Transfer};
 use crate::update_check::UpdateCheck;
 use crate::vz_backend::VzBackend;
+use omaflake_sdk::codes;
+use omaflake_sdk::models::{DisplayMode, GuestKind, StopResult, VmStatus};
+use omaflake_sdk::protocol::RpcError;
+use omaflake_sdk::types::*;
 
 fn err(e: Error) -> RpcError {
     e.into()
@@ -301,11 +302,11 @@ impl Server {
             "dataFolder.move" => self.data_folder_move(params(p)?),
             "updates.check" => Answer::of(self.updates_check()?),
             // Views (plan B121, api.md §10)
-            "views.get" => Answer::of(self.view(&params::<super::views::PageRef>(p)?)?),
+            "views.get" => Answer::of(self.view(&params::<omaflake_sdk::views::PageRef>(p)?)?),
             "views.subscribe" => {
                 #[derive(Deserialize)]
                 struct P {
-                    pages: Vec<super::views::PageRef>,
+                    pages: Vec<omaflake_sdk::views::PageRef>,
                 }
                 self.views_subscribe(params::<P>(p)?.pages)?;
                 Ok(Answer::Value(Value::Null))
@@ -968,7 +969,7 @@ impl Server {
                 let state = self.state().map_err(err)?;
                 let row = state.snap.row(&p.name).ok_or_else(|| {
                     RpcError::from(crate::vm_err!(
-                        crate::error::codes::NOT_FOUND,
+                        omaflake_sdk::codes::NOT_FOUND,
                         "Instance \"{}\" does not exist",
                         p.name
                     ))
@@ -1429,7 +1430,7 @@ impl Server {
         let recipes = self.recipes().map_err(err)?;
         let d = recipes.defaults.get(&p.recipe).ok_or_else(|| {
             RpcError::from(crate::vm_err!(
-                crate::error::codes::NOT_FOUND,
+                omaflake_sdk::codes::NOT_FOUND,
                 "Recipe \"{}\" is not in your recipes",
                 p.recipe
             ))
@@ -1444,8 +1445,8 @@ impl Server {
                 x.issues
                     .iter()
                     .filter_map(|i| match i {
-                        crate::composition::Issue::MissingModule { reference, .. }
-                        | crate::composition::Issue::MissingKeymap { reference, .. } => Some(reference.clone()),
+                        omaflake_sdk::models::Issue::MissingModule { reference, .. }
+                        | omaflake_sdk::models::Issue::MissingKeymap { reference, .. } => Some(reference.clone()),
                         _ => None,
                     })
                     .collect()
@@ -1659,7 +1660,7 @@ impl Server {
             _ => None,
         };
         if let Some(n) = &note {
-            self.events().message_text(Level::Warning, super::views::text::Text::verbatim(n));
+            self.events().message_text(Level::Warning, omaflake_sdk::text::Text::verbatim(n));
         }
         Answer::of(CredentialAnswer { credential: dto, note })
     }
@@ -1712,7 +1713,7 @@ impl Server {
         let sources = Settings::load(&self.paths()).recipe_sources();
         let remote: Vec<RecipeSource> = sources
             .into_iter()
-            .filter(|s| s.is_enabled() && s.kind != crate::recipe_sources::RecipeSourceKind::Folder)
+            .filter(|s| s.is_enabled() && s.kind != omaflake_sdk::models::RecipeSourceKind::Folder)
             .collect();
         let results: Vec<(String, crate::Result<crate::recipe_sources::RecipeCatalog>)> = std::thread::scope(|scope| {
             let handles: Vec<_> = remote
@@ -2306,7 +2307,7 @@ impl Server {
             Settings::load(&self.paths()).recipe_sources().into_iter().find(|s| s.id() == p.source).ok_or_else(
                 || {
                     RpcError::from(crate::vm_err!(
-                        crate::error::codes::NOT_FOUND,
+                        omaflake_sdk::codes::NOT_FOUND,
                         "Source \"{}\" is not one of yours",
                         p.source
                     ))
@@ -2388,7 +2389,7 @@ impl Server {
         let mut sources: Vec<RecipeSource> = Settings::load(&self.paths())
             .recipe_sources()
             .into_iter()
-            .filter(|s| s.is_enabled() && s.kind != crate::recipe_sources::RecipeSourceKind::Folder)
+            .filter(|s| s.is_enabled() && s.kind != omaflake_sdk::models::RecipeSourceKind::Folder)
             .collect();
         if !sources.iter().any(RecipeSource::is_official) {
             sources.push(RecipeSource::official());
@@ -2614,7 +2615,7 @@ impl Server {
                 PackageKindDto::Recipe => RecipeLibrary::new(paths.clone()).recipes_in(&path).map(|_| ()),
             }
         };
-        let reason = super::jobs::guarded(check).err().map(|e| super::views::Text::verbatim(e.message()));
+        let reason = super::jobs::guarded(check).err().map(|e| omaflake_sdk::text::Text::verbatim(e.message()));
         let conflict = if reason.is_none() && !p.external {
             let c =
                 super::jobs::guarded(|| Transfer::new(paths.clone(), "qemu-img", None).conflict(&path)).map_err(err)?;
@@ -3469,7 +3470,7 @@ impl Server {
             *u = super::views::UpdateRecord {
                 state: answer.as_ref().ok().map(|a| a.state),
                 release: answer.as_ref().ok().and_then(|a| a.release.clone()),
-                checked: Some(crate::json::now()),
+                checked: Some(omaflake_sdk::time::now()),
                 error: answer.as_ref().err().map(|e| e.message.clone()),
                 checking: false,
             };
@@ -3929,7 +3930,7 @@ struct SaveRecipeParams {
     #[serde(default)]
     keymaps: Vec<String>,
     #[serde(default)]
-    requirements: crate::composition::Requirements,
+    requirements: omaflake_sdk::models::Requirements,
     #[serde(default)]
     vm: BTreeMap<String, Value>,
     /// The recipe edited ("my.nixos.work"): renamed, its old folder goes

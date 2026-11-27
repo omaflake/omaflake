@@ -10,7 +10,6 @@ use std::collections::{BTreeMap, HashMap, HashSet};
 use std::path::{Path, PathBuf};
 use std::time::SystemTime;
 
-use super::types::*;
 use crate::Result;
 use crate::agent_protocol::AgentState;
 use crate::backend::Backends;
@@ -18,13 +17,16 @@ use crate::file_format::UnreadableFile;
 use crate::image_store::{Image, ImageStore};
 use crate::ipsw_downloader::MacOsRelease;
 use crate::mac_image_builder::MacImageBuilder;
-use crate::models::{DisplayMode, GuestKind, InstanceConfig, RecipeDefaults, RecipeId, VmStatus};
+use crate::models::{InstanceConfig, RecipeDefaults, RecipeId};
 use crate::omaflake_id::{Lengths, OmaflakeId};
 use crate::paths::{Paths, Settings};
-use crate::prerequisites::{Prerequisite, PrerequisiteItem, PrerequisiteStatus};
+use crate::prerequisites::Prerequisite;
 use crate::qemu_runtime::QemuRuntime;
 use crate::recipe_sources::{CatalogRecipe, Installed, RecipeCatalog, RecipeLibrary, RecipeSource, Version};
 use crate::vz_backend::VzBackend;
+use omaflake_sdk::models::{DisplayMode, GuestKind, VmStatus};
+use omaflake_sdk::models::{PrerequisiteItem, PrerequisiteStatus};
+use omaflake_sdk::types::*;
 
 // MARK: Recipes (AppModel.loadRecipes)
 
@@ -197,7 +199,7 @@ pub(crate) fn watched_folders(paths: &Paths) -> Vec<PathBuf> {
         folders.push(paths.root.join(kind));
     }
     for s in settings.recipe_sources() {
-        if s.is_enabled() && s.kind == crate::recipe_sources::RecipeSourceKind::Folder {
+        if s.is_enabled() && s.kind == omaflake_sdk::models::RecipeSourceKind::Folder {
             folders.push(PathBuf::from(&s.location));
         }
     }
@@ -379,7 +381,7 @@ pub(crate) struct Doctor {
     pub builder_system_is_omaflakes: bool,
     /// The `omaf` command's link (plan B122)
     pub cli: Option<CliLinkDto>,
-    pub checked: crate::json::Date,
+    pub checked: omaflake_sdk::time::Date,
 }
 
 impl Doctor {
@@ -427,13 +429,13 @@ pub(crate) fn doctor_issues<'a>(all: impl Iterator<Item = &'a Prerequisite>) -> 
 
 /// What a check is about, in English (OmaflakeApp.swift `RequirementText.title`); on a Linux host its own host line
 pub(crate) fn requirement_title(item: PrerequisiteItem) -> &'static str {
-    requirement_title_on(item, super::views::HostOs::this())
+    requirement_title_on(item, omaflake_sdk::views::HostOs::this())
 }
 
-pub(crate) fn requirement_title_on(item: PrerequisiteItem, host: super::views::HostOs) -> &'static str {
+pub(crate) fn requirement_title_on(item: PrerequisiteItem, host: omaflake_sdk::views::HostOs) -> &'static str {
     use PrerequisiteItem::*;
     match item {
-        Host if host == super::views::HostOs::Linux => "Linux with x86_64 or aarch64",
+        Host if host == omaflake_sdk::views::HostOs::Linux => "Linux with x86_64 or aarch64",
         Host => "Mac with Apple silicon, macOS 27",
         Kvm => "KVM (hardware virtualization)",
         Nix => "Nix",
@@ -520,7 +522,7 @@ pub(crate) fn check_doctor(paths: &Paths) -> Doctor {
         has_mac_base: MacImageBuilder::newest_base_in(paths).is_some(),
         builder_system_is_omaflakes: crate::builder_maintenance::BuilderMaintenance::new(paths.clone())
             .system_is_omaflakes(),
-        checked: crate::json::now(),
+        checked: omaflake_sdk::time::now(),
     }
 }
 
@@ -554,7 +556,7 @@ pub(crate) fn offered<'a>(
     let mut seen: HashSet<String> = recipes.defaults.keys().cloned().collect();
     let lines: HashSet<String> = recipes.origins.iter().map(|(id, s)| RecipeId::line_key(id, s)).collect();
     let mut out = Vec::new();
-    for s in sources.iter().filter(|s| s.is_enabled() && s.kind != crate::recipe_sources::RecipeSourceKind::Folder) {
+    for s in sources.iter().filter(|s| s.is_enabled() && s.kind != omaflake_sdk::models::RecipeSourceKind::Folder) {
         let Some(catalog) = catalogs.get(&s.id()) else { continue };
         for r in &catalog.recipes {
             if !developer_mode && r.lab.unwrap_or(false) {
@@ -898,10 +900,10 @@ pub(crate) fn version_dto(v: &Version, words: usize) -> VersionDto {
 mod tests {
     use super::*;
     use crate::image_store::ImageInfo;
-    use crate::json::parse_date;
-    use crate::models::NetworkMode;
     use crate::models::tests::{config, dev_defaults};
-    use crate::recipe_sources::RecipeSourceKind;
+    use omaflake_sdk::models::NetworkMode;
+    use omaflake_sdk::models::RecipeSourceKind;
+    use omaflake_sdk::time::parse_date;
 
     fn image(recipe: &str, source: Option<&str>, name: &str, created: &str, store: &str) -> Image {
         let info = ImageInfo::new(
@@ -1104,7 +1106,7 @@ mod tests {
             has_mac_base: false,
             builder_system_is_omaflakes: false,
             cli: None,
-            checked: crate::json::now(),
+            checked: omaflake_sdk::time::now(),
         };
         let report = doctor_report(&d);
         assert!(report.requirements_missing);
@@ -1174,7 +1176,7 @@ mod tests {
         recipes.origins.insert(installed_id.clone(), official.id());
         recipes.installed.insert(
             installed_id.clone(),
-            Installed { source: official.id(), version: "1".into(), installed: crate::json::now() },
+            Installed { source: official.id(), version: "1".into(), installed: omaflake_sdk::time::now() },
         );
         let offers = offered(&sources, &catalogs, &recipes, false, &hash);
         // dev: its line is here (an update instead); lab: hidden; minimal: once (the first source wins)

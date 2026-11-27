@@ -12,14 +12,17 @@ use std::path::{Path, PathBuf};
 
 use serde_json::Value;
 
-use crate::composition::{LocaleRules, PartRef, RecipeSpec, Requirements};
-use crate::error::{IoContext, Result, codes};
+use crate::composition::{PartRef, RecipeSpec};
+use crate::error::{IoContext, Result};
 use crate::file_format::write_atomic;
-use crate::models::GuestKind;
 use crate::paths::{Paths, Settings};
-use crate::recipe_sources::{RecipeRef, RecipeSource, RecipeSourceKind};
+use crate::recipe_sources::{RecipeRef, RecipeSource};
 use crate::trash::Disposal;
 use crate::vm_err;
+use omaflake_sdk::codes;
+use omaflake_sdk::models::GuestKind;
+use omaflake_sdk::models::RecipeSourceKind;
+use omaflake_sdk::models::{LocaleRules, Requirements};
 
 /// A recipe as the editor has it
 #[derive(Debug, Clone, PartialEq, Default)]

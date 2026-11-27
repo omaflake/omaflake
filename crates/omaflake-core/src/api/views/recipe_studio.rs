@@ -16,15 +16,17 @@ use std::collections::{BTreeMap, BTreeSet};
 use serde_json::{Value, json};
 
 use super::Ctx;
-use super::common::*;
-use super::text::{Text, tf};
-use crate::api::types::PartDto;
-use crate::composition::{Composition, Issue, PartRef, RecipeSpec, Requirements};
-use crate::models::GuestKind;
+use super::text::tf;
+use crate::composition::{Composition, PartRef, RecipeSpec};
 use crate::my_recipes::MyRecipes;
+use omaflake_sdk::models::GuestKind;
+use omaflake_sdk::models::{Issue, Requirements};
+use omaflake_sdk::text::Text;
+use omaflake_sdk::types::PartDto;
+use omaflake_sdk::views::common::*;
 
 // The page's model (plan B192: in omaflake-sdk); this file builds it
-pub use omaflake_sdk::views::recipe_studio::*;
+use omaflake_sdk::views::recipe_studio::*;
 
 pub const PAGE: &str = "recipeStudio";
 

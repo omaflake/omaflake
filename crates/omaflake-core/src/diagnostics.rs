@@ -15,11 +15,12 @@ use serde_json::{Value, json};
 
 use crate::agent_protocol::AgentState;
 use crate::cancellation::Cancellation;
-use crate::models::{GuestKind, InstanceConfig, NetworkMode};
+use crate::models::InstanceConfig;
 use crate::paths::Paths;
+use omaflake_sdk::models::{GuestKind, NetworkMode};
 
 // In omaflake-sdk (plan B192): part of the API's page models
-pub use omaflake_sdk::diagnostics::{CHECKS, CheckResult, CheckStatus, title};
+use omaflake_sdk::diagnostics::{CHECKS, CheckResult, CheckStatus, title};
 
 /// The details this module writes itself (English; the views show them translated – keys with German), as opposed to
 /// what a guest or a tool said (shown as it is)
@@ -378,7 +379,10 @@ impl<'a> Diagnosis<'a> {
         // Ready means it said hello
         let Some(hello) = state.hello.clone() else { return CheckResult::new(id, CheckStatus::Fail, NO_AGENT) };
         let os = hello.os_name.clone().or(hello.os.clone()).unwrap_or_default();
-        let age = state.status_at.or(state.hello_at).map(|t| crate::json::seconds_between(crate::json::now(), t));
+        let age = state
+            .status_at
+            .or(state.hello_at)
+            .map(|t| omaflake_sdk::time::seconds_between(omaflake_sdk::time::now(), t));
         (self.log)(&format!(
             "    agent {} · {os} · features {} · last report {} s ago",
             hello.agent,
@@ -689,7 +693,7 @@ pub fn bytes(n: u64) -> String {
 
 /// `<data>/logs/diagnostics-<vm>-<time>.log`, a new file per run
 pub fn log_file(paths: &Paths, vm: &str) -> PathBuf {
-    let stamp = crate::json::local_now("%Y%m%d-%H%M%S");
+    let stamp = omaflake_sdk::time::local_now("%Y%m%d-%H%M%S");
     let base = paths.logs().join(format!("diagnostics-{vm}-{stamp}.log"));
     if !base.exists() {
         return base;
@@ -826,7 +830,7 @@ mod tests {
         .unwrap();
         AgentState {
             hello: Some(hello),
-            hello_at: Some(crate::json::now()),
+            hello_at: Some(omaflake_sdk::time::now()),
             protocol_version: Some(1),
             status: Some(
                 serde_json::from_value(
@@ -834,7 +838,7 @@ mod tests {
                 )
                 .unwrap(),
             ),
-            status_at: Some(crate::json::now()),
+            status_at: Some(omaflake_sdk::time::now()),
             features: Some(features.iter().map(|s| s.to_string()).collect()),
             ..Default::default()
         }

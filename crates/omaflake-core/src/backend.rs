@@ -8,18 +8,18 @@
 use std::time::Duration;
 
 use crate::agent_protocol::AgentState;
-use crate::error::{Error, Result, codes};
+use crate::error::{Error, Result};
 use crate::image_store::Image;
 use crate::instance_store::InstanceStore;
-use crate::models::{
-    DisplayMode, GlBackend, GuestKind, InstanceConfig, NetworkMode, RecipeDefaults, StopResult, VmStatus,
-};
+use crate::models::{GlBackend, InstanceConfig, RecipeDefaults};
 use crate::paths::Paths;
 use crate::qemu_runtime::QemuRuntime;
 use crate::spawn::Pid;
 use crate::ssh_command::SshCommand;
 use crate::vm_err;
 use crate::vz_backend::VzBackend;
+use omaflake_sdk::codes;
+use omaflake_sdk::models::{DisplayMode, GuestKind, NetworkMode, StopResult, VmStatus};
 
 /// Options for `start`; `gl` only matters for QEMU windows with 3D.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -222,6 +222,6 @@ mod tests {
         let mut c = config("t1");
         c.system = "riscv64-linux".into();
         let e = b.start(&c, StartOptions::new(DisplayMode::None)).unwrap_err();
-        assert_eq!(e.code(), Some(crate::error::codes::UNSUPPORTED_SYSTEM));
+        assert_eq!(e.code(), Some(omaflake_sdk::codes::UNSUPPORTED_SYSTEM));
     }
 }

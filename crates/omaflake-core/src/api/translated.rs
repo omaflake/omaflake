@@ -48,7 +48,8 @@ fn manifest() -> PathBuf {
 
 /// The pages of `c` with the params the tests use
 fn pages(c: &crate::api::views::Ctx, from: &str, keys: &mut BTreeMap<String, String>) {
-    use crate::api::views::{PageRef, build};
+    use crate::api::views::build;
+    use omaflake_sdk::views::PageRef;
     let pages = [
         ("home", json!({})),
         ("vms", json!({})),
@@ -79,8 +80,8 @@ fn pages(c: &crate::api::views::Ctx, from: &str, keys: &mut BTreeMap<String, Str
 }
 
 /// A Doctor with every check in every state (and the details the hints look at)
-fn every_check(host: crate::api::views::HostOs) -> Vec<crate::api::types::PrerequisiteDto> {
-    use crate::prerequisites::{PrerequisiteItem as I, PrerequisiteStatus as S};
+fn every_check(host: omaflake_sdk::views::HostOs) -> Vec<omaflake_sdk::types::PrerequisiteDto> {
+    use omaflake_sdk::models::{PrerequisiteItem as I, PrerequisiteStatus as S};
     let items = [
         I::Host,
         I::Kvm,
@@ -124,7 +125,8 @@ fn every_check(host: crate::api::views::HostOs) -> Vec<crate::api::types::Prereq
 
 #[test]
 fn every_view_text_has_german() {
-    use crate::api::views::{HostOs, tests::ctx};
+    use crate::api::views::tests::ctx;
+    use omaflake_sdk::views::HostOs;
     let mut keys = BTreeMap::new();
     let dir = manifest().join("testdata/api/views");
     for entry in std::fs::read_dir(&dir).unwrap().flatten() {
@@ -165,14 +167,14 @@ fn every_view_text_has_german() {
         pages(&c, &format!("{from} empty"), &mut keys);
         // Unchained (plan B184): a base's copy, the image built from it and its VM – and the copy being made
         {
-            use crate::api::types::{JobKind, JobState};
+            use omaflake_sdk::types::{JobKind, JobState};
             let mut c = ctx();
             c.host = host;
             let mut copy = c.bases[0].clone();
             copy.name = "mac-unchained-25F71".into();
             copy.unchained = true;
             c.bases.push(copy);
-            for i in c.images.iter_mut().filter(|i| i.kind == crate::models::GuestKind::Macos) {
+            for i in c.images.iter_mut().filter(|i| i.kind == omaflake_sdk::models::GuestKind::Macos) {
                 i.unchained = true;
             }
             pages(&c, &format!("{from} unchained"), &mut keys);
@@ -183,8 +185,10 @@ fn every_view_text_has_german() {
         }
         // The diagnosis (plan B162): every check in every state with each of omaflake's own details, both guest kinds
         {
-            use crate::api::views::{PageRef, build};
-            use crate::diagnostics::{CHECKS, CheckResult, CheckStatus as S, OWN_DETAILS};
+            use crate::api::views::build;
+            use crate::diagnostics::OWN_DETAILS;
+            use omaflake_sdk::diagnostics::{CHECKS, CheckResult, CheckStatus as S};
+            use omaflake_sdk::views::PageRef;
             for status in [S::Pending, S::Running, S::Pass, S::Fail, S::Confirm, S::Skipped] {
                 for detail in OWN_DETAILS {
                     let mut c = crate::api::views::tests::diagnosis_ctx();
@@ -203,7 +207,7 @@ fn every_view_text_has_german() {
                 }
             }
             let mut c = crate::api::views::tests::diagnosis_ctx();
-            c.vms[0].status = crate::models::VmStatus::Stopped;
+            c.vms[0].status = omaflake_sdk::models::VmStatus::Stopped;
             let page = PageRef { page: "diagnostics".into(), params: json!({"name": "research"}) };
             collect(&build(&c, &page).unwrap(), "diagnostics stopped", &mut keys);
         }
@@ -296,7 +300,7 @@ fn every_error_text_has_german() {
 #[test]
 fn the_macro_and_the_reader_agree() {
     // What vm_err! makes is what error_keys reads
-    let e = crate::vm_err!(crate::error::codes::NOT_FOUND, "Image \"{}\" does not exist – {{x}} 5%", "a");
+    let e = crate::vm_err!(omaflake_sdk::codes::NOT_FOUND, "Image \"{}\" does not exist – {{x}} 5%", "a");
     let format = key::parse(&key::unquote(r#""Image \"{}\" does not exist – {{x}} 5%""#).unwrap()).unwrap();
     assert_eq!(e.key(), Some(format.key.as_str()));
 }

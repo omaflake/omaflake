@@ -26,17 +26,19 @@ use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
 use sha2::{Digest, Sha256};
 
-use crate::error::{Error, IoContext, Result, codes};
+use crate::error::{Error, IoContext, Result};
 use crate::file_format::{FileFormat, Step, UnreadableFile, write_atomic};
 use crate::image_store::ImageStore;
-use crate::json::Date;
-use crate::models::{GuestKind, RecipeDefaults, RecipeId};
+use crate::models::{RecipeDefaults, RecipeId};
 use crate::omaflake_id::OmaflakeId;
 use crate::packages::{Manifest, Package, PackageKind};
 use crate::paths::{Paths, Settings};
 use crate::platform::{Platform, abbreviate_tilde, expand_tilde, standardize};
 use crate::trash::Disposal;
 use crate::vm_err;
+use omaflake_sdk::codes;
+use omaflake_sdk::models::GuestKind;
+use omaflake_sdk::time::Date;
 
 /// Where recipes come from. Kept in config.json (`sources`); a token for a private repository lives in the Keychain (Linux: the keyring, else a 0600 file – `SourceTokens`).
 /// JSON keys: kind, location, branch, private, enabled (None fields left out).
@@ -326,7 +328,7 @@ fn is_blank(c: char) -> bool {
 pub use crate::source_tokens::SourceTokens;
 
 // The API's kinds (plan B192: in omaflake-sdk)
-pub use omaflake_sdk::models::RecipeSourceKind;
+use omaflake_sdk::models::RecipeSourceKind;
 
 // MARK: Catalog
 
@@ -377,12 +379,12 @@ pub struct CatalogRecipe {
     #[serde(default)]
     pub keymaps: Vec<crate::composition::PartRef>,
     #[serde(default)]
-    pub requirements: crate::composition::Requirements,
+    pub requirements: omaflake_sdk::models::Requirements,
     /// How a VM from it runs (display, network, share, ephemeral, devices)
     #[serde(default)]
     pub vm: BTreeMap<String, Value>,
     #[serde(default)]
-    pub locales: crate::composition::LocaleRules,
+    pub locales: omaflake_sdk::models::LocaleRules,
     pub version: String,
     pub files: Vec<CatalogFile>,
 }
@@ -689,7 +691,7 @@ pub struct Installed {
     pub source: String,
     pub version: String,
     /// With fractions of a second (versions of a line come in order, plan B111); older files without
-    #[serde(with = "crate::json::iso8601_fractional")]
+    #[serde(with = "omaflake_sdk::time::iso8601_fractional")]
     pub installed: Date,
 }
 
@@ -1006,7 +1008,7 @@ impl RecipeLibrary {
     /// line is the last that came, and two imports within one millisecond must not tie (seen on a fast Linux host)
     fn install_time(manifest: &BTreeMap<String, Installed>) -> Date {
         // Whole milliseconds: `.installed.json` keeps no more, so a later time within the same millisecond would tie
-        let now = crate::json::whole_millis(crate::json::Date::now());
+        let now = omaflake_sdk::time::whole_millis(omaflake_sdk::time::Date::now());
         match manifest.values().map(|i| i.installed).max() {
             Some(last) if last >= now => last + jiff::SignedDuration::from_millis(1),
             _ => now,
@@ -2012,7 +2014,7 @@ mod tests {
             "",
             "r",
             Some(store.into()),
-            crate::json::now(),
+            omaflake_sdk::time::now(),
         );
         ImageStore::write_info(&info, &img).unwrap();
         fs::write(img.join("disk.qcow2"), b"").unwrap();
@@ -2164,7 +2166,7 @@ mod tests {
             "/f",
             "r",
             Some("/nix/store/x".into()),
-            crate::json::now(),
+            omaflake_sdk::time::now(),
         );
         matches(&ImageInfo::FILE_FORMAT.encode(&info).unwrap());
         matches(&crate::source_tokens::sample_file());
@@ -2204,7 +2206,7 @@ mod tests {
         let installed = InstalledFile {
             recipes: BTreeMap::from([(
                 "x".to_string(),
-                Installed { source: "s".into(), version: "v".into(), installed: crate::json::Date::now() },
+                Installed { source: "s".into(), version: "v".into(), installed: omaflake_sdk::time::Date::now() },
             )]),
         };
         matches(&RecipeLibrary::FILE_FORMAT.encode(&installed).unwrap());

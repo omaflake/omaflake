@@ -6,7 +6,7 @@
 use std::net::Ipv4Addr;
 
 // In omaflake-sdk (plan B192): part of the API's page models
-pub use omaflake_sdk::networks::Mac;
+use omaflake_sdk::networks::Mac;
 
 pub const ETHERTYPE_IPV4: u16 = 0x0800;
 pub const ETHERTYPE_ARP: u16 = 0x0806;

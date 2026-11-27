@@ -15,13 +15,14 @@ use std::path::{Path, PathBuf};
 
 use serde::{Deserialize, Serialize};
 
-use crate::error::{IoContext, Result, codes};
+use crate::error::{IoContext, Result};
 use crate::file_format::{FileFormat, Step, write_atomic};
 use crate::instance_store::InstanceStore;
-use crate::json::Date;
 use crate::models::{InstanceConfig, VolumeMount};
 use crate::paths::Paths;
 use crate::vm_err;
+use omaflake_sdk::codes;
+use omaflake_sdk::time::Date;
 
 static VOLUMES_STEPS: [Step; 1] = [|_| Ok(())];
 
@@ -39,7 +40,7 @@ pub struct Volume {
     /// The folder the user chose; None: `share/<name>` in the data folder
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub path: Option<String>,
-    #[serde(with = "crate::json::iso8601")]
+    #[serde(with = "omaflake_sdk::time::iso8601")]
     pub created: Date,
 }
 
@@ -186,12 +187,12 @@ impl Volumes {
     }
 
     /// A VM's volumes for the API
-    pub fn dtos_of(&self, c: &InstanceConfig, instances: &[InstanceConfig]) -> Vec<crate::api::types::VmVolumeDto> {
+    pub fn dtos_of(&self, c: &InstanceConfig, instances: &[InstanceConfig]) -> Vec<omaflake_sdk::types::VmVolumeDto> {
         c.volume_mounts()
             .into_iter()
             .map(|m| {
                 let folder = self.folder(&m.volume, instances);
-                crate::api::types::VmVolumeDto {
+                omaflake_sdk::types::VmVolumeDto {
                     mount: Self::mount_name(&m, &folder),
                     named: m.mount.is_some(),
                     folder: folder.to_string_lossy().into_owned(),
@@ -202,15 +203,15 @@ impl Volumes {
     }
 
     /// Every volume for the API (`volumes.list`)
-    pub fn dtos(&self, instances: &[InstanceConfig]) -> Vec<crate::api::types::VolumeDto> {
+    pub fn dtos(&self, instances: &[InstanceConfig]) -> Vec<omaflake_sdk::types::VolumeDto> {
         self.list(instances)
             .into_iter()
-            .map(|v| crate::api::types::VolumeDto {
+            .map(|v| omaflake_sdk::types::VolumeDto {
                 vms: v
                     .vms
                     .iter()
                     .filter_map(|vm| instances.iter().find(|c| &c.name == vm))
-                    .map(|c| crate::api::types::VolumeVmDto {
+                    .map(|c| omaflake_sdk::types::VolumeVmDto {
                         vm: c.name.clone(),
                         mount: c
                             .volume_mounts()
@@ -242,7 +243,7 @@ impl Volumes {
         f.volumes.push(Volume {
             name: name.into(),
             path: path.map(|p| p.to_string_lossy().into_owned()),
-            created: crate::json::now(),
+            created: omaflake_sdk::time::now(),
         });
         self.write(&f)?;
         let folder = self.folder(name, instances);

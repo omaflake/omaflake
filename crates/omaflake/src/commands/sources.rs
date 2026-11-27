@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 //! Recipe sources (spec §11.3, plan B107) – port of the `Sources*` commands of Sources/omaf/Sources.swift.
 
-use omaflake_core::{RecipeLibrary, RecipeSource, RecipeSourceKind, SourceClient, SourceTokens};
+use omaflake_core::{RecipeLibrary, RecipeSource, SourceClient, SourceTokens};
+use omaflake_sdk::models::RecipeSourceKind;
 
 use crate::cli;
 use crate::util::{Env, Failure, Outcome, pad, read_line, usage};

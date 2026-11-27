@@ -3427,6 +3427,7 @@ dependencies = [
  "jiff",
  "libc",
  "omaflake-core",
+ "omaflake-sdk",
  "omaflake-tui",
  "serde_json",
  "tempfile",

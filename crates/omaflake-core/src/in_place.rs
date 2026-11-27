@@ -14,13 +14,15 @@
 //!
 //! The VM's image stays its disk's base; `InstanceConfig::system_image` names the image whose system runs now.
 
-use crate::error::{Result, codes};
+use crate::error::Result;
 use crate::image_store::{Image, ImageStore};
-use crate::models::{GuestKind, InstanceConfig};
+use crate::models::InstanceConfig;
 use crate::paths::Paths;
 use crate::platform::Platform;
 use crate::shell::{RunOptions, Shell, StreamOptions};
 use crate::vm_err;
+use omaflake_sdk::codes;
+use omaflake_sdk::models::GuestKind;
 
 pub struct InPlace {
     pub paths: Paths,

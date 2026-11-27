@@ -19,16 +19,18 @@ use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::{Duration, Instant};
 
-use super::packets::{self, BROADCAST, DhcpAnswer, Mac, mac_text};
-use super::{Network, Networks, parse_member_mac};
+use super::packets::{self, BROADCAST, DhcpAnswer, mac_text};
+use super::{Networks, parse_member_mac};
 use crate::error::{IoContext, Result};
 use crate::file_format::write_atomic;
-use crate::json::Date;
 use crate::paths::Paths;
 use crate::vm_err;
+use omaflake_sdk::networks::Mac;
+use omaflake_sdk::networks::Network;
+use omaflake_sdk::time::Date;
 
 // In omaflake-sdk (plan B192): part of the API's page models
-pub use omaflake_sdk::networks::{Flow, PortStatus, SwitchStatus};
+use omaflake_sdk::networks::{Flow, PortStatus, SwitchStatus};
 
 /// Largest frame accepted (QEMU's stream protocol allows more; jumbo frames are not configured anywhere)
 const MAX_FRAME: usize = 65_535;
@@ -159,7 +161,7 @@ impl Switch {
             ports: vec![],
             table: HashMap::new(),
             flows: BTreeMap::new(),
-            started: crate::json::now(),
+            started: omaflake_sdk::time::now(),
             idle: IDLE,
         })
     }
@@ -562,7 +564,7 @@ impl Switch {
             network: self.network.name.clone(),
             pid: std::process::id() as i32,
             started: self.started,
-            updated: crate::json::now(),
+            updated: omaflake_sdk::time::now(),
             ports,
             flows,
         }

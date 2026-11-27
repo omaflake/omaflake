@@ -6,13 +6,14 @@
 use serde_json::{Value, json};
 
 use super::Ctx;
-use super::common::*;
-use super::text::{Arg, Text, tf};
-use crate::api::types::{SettingsAnswer, SourceDto};
-use crate::recipe_sources::RecipeSourceKind;
+use super::text::tf;
+use omaflake_sdk::models::RecipeSourceKind;
+use omaflake_sdk::text::{Arg, Text};
+use omaflake_sdk::types::{SettingsAnswer, SourceDto};
+use omaflake_sdk::views::common::*;
 
 // The page's model (plan B192: in omaflake-sdk); this file builds it
-pub use omaflake_sdk::views::settings::*;
+use omaflake_sdk::views::settings::*;
 
 /// The input names a GitHub repository ("owner/repo", a github.com URL) – only those can be private
 pub fn looks_like_github(input: &str) -> bool {
@@ -195,8 +196,8 @@ pub(crate) fn page(ctx: &Ctx, answer: &SettingsAnswer) -> SettingsPage {
         )),
     };
 
-    let moving = ctx.active_job(crate::api::types::JobKind::DataMove).is_some();
-    let running = ctx.vms.iter().any(|v| v.status == crate::models::VmStatus::Running);
+    let moving = ctx.active_job(omaflake_sdk::types::JobKind::DataMove).is_some();
+    let running = ctx.vms.iter().any(|v| v.status == omaflake_sdk::models::VmStatus::Running);
     let stop_first = Some(Text::new("Stop all VMs before moving the data folder."));
     let move_text = Text::new(
         "Images, instances and bases are moved there (renamed, not copied). The settings stay in ~/.omaflake.",

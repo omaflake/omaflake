@@ -11,13 +11,14 @@
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use crate::error::{IoContext, Result, codes};
+use crate::error::{IoContext, Result};
 use crate::image_store::ImageStore;
 use crate::paths::{Paths, Settings};
 use crate::platform::home_dir;
 use crate::prerequisites::Prerequisites;
 use crate::shell::{RunOptions, Shell, StreamOptions};
 use crate::vm_err;
+use omaflake_sdk::codes;
 
 /// The two builders the image flake offers (`linuxBuilders.aarch64-darwin.<stage>`)
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -341,7 +342,7 @@ impl LinuxBuilder {
         let start = std::time::Instant::now();
         let mut said = 0;
         loop {
-            if pre.builder_running().status == crate::prerequisites::PrerequisiteStatus::Ok {
+            if pre.builder_running().status == omaflake_sdk::models::PrerequisiteStatus::Ok {
                 log("The Linux builder answers");
                 return Ok(());
             }

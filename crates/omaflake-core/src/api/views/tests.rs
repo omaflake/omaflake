@@ -6,19 +6,19 @@ use std::collections::BTreeMap;
 
 use serde_json::{Value, json};
 
-use super::activity::{ActivityEntry, Notification};
-use super::text::Text;
 use super::*;
 use crate::api::contract as fx;
-use crate::api::types::*;
-use crate::models::VmStatus;
+use omaflake_sdk::models::VmStatus;
+use omaflake_sdk::text::{Arg, Text};
+use omaflake_sdk::types::*;
+use omaflake_sdk::views::activity::{ActivityEntry, Notification};
 
 /// A context from the contract's fixtures: a running NixOS VM, a busy stopped macOS VM, two images, two recipes, the
 /// catalogs looked into, the Doctor's report, the jobs of `jobs.list`, an update check, two activity entries
 /// Rosé Pine Dawn installed (the default, an image built with it), omaflake's look in a local folder, Catppuccin offered
-pub(crate) fn looks_fixture() -> crate::api::types::LooksAnswer {
-    use crate::api::types::{LookDto, LooksAnswer, OfferedLookDto};
-    use crate::looks::Swatches;
+pub(crate) fn looks_fixture() -> omaflake_sdk::types::LooksAnswer {
+    use omaflake_sdk::models::Swatches;
+    use omaflake_sdk::types::{LookDto, LooksAnswer, OfferedLookDto};
     let swatches = |bg: &str, accent: &str| {
         Some(Swatches {
             background: bg.into(),
@@ -83,8 +83,8 @@ pub(crate) fn looks_fixture() -> crate::api::types::LooksAnswer {
 }
 
 /// A module here (used by the dev recipe), key bindings, and a module a catalog offers
-pub(crate) fn modules_fixture() -> crate::api::types::ModulesAnswer {
-    use crate::api::types::PartDto;
+pub(crate) fn modules_fixture() -> omaflake_sdk::types::ModulesAnswer {
+    use omaflake_sdk::types::PartDto;
     let part = |id: &str, kind: &str, title: &str| PartDto {
         id: id.into(),
         reference: crate::parts::PartKind::Module.reference(id),
@@ -108,7 +108,7 @@ pub(crate) fn modules_fixture() -> crate::api::types::ModulesAnswer {
         changed: false,
         recipes: vec![],
     };
-    crate::api::types::ModulesAnswer {
+    omaflake_sdk::types::ModulesAnswer {
         parts: vec![
             PartDto {
                 provides: vec!["desktop".into()],
@@ -165,7 +165,7 @@ pub(crate) fn ctx() -> Ctx {
         available: Some(fx::available()),
         fetching: false,
         sources: vec![fx::source_official(), fx::source_private()],
-        credentials: vec![crate::api::types::CredentialDto {
+        credentials: vec![omaflake_sdk::types::CredentialDto {
             id: "c-1".into(),
             name: "Work".into(),
             user: Some("alex".into()),
@@ -178,14 +178,14 @@ pub(crate) fn ctx() -> Ctx {
         modules: modules_fixture(),
         networks: vec![],
         volumes: vec![],
-        profiles: vec![crate::api::types::ProfileDto {
+        profiles: vec![omaflake_sdk::types::ProfileDto {
             id: "p-1".into(),
             name: "Small".into(),
             cpus: 2,
             memory_gb: 4,
             is_default: true,
         }],
-        locales: vec![crate::api::types::LocaleDto {
+        locales: vec![omaflake_sdk::types::LocaleDto {
             id: "l-1".into(),
             name: "German".into(),
             locale: "de_DE.UTF-8".into(),
@@ -195,7 +195,7 @@ pub(crate) fn ctx() -> Ctx {
             images: vec!["omaflake.nixos.dev@cedar-mango-lift".into()],
         }],
         bases: vec![
-            crate::api::types::BaseDto {
+            omaflake_sdk::types::BaseDto {
                 name: "mac-base-26A434".into(),
                 path: "/data/bases/mac-base-26A434".into(),
                 os_build: Some("26A434".into()),
@@ -211,7 +211,7 @@ pub(crate) fn ctx() -> Ctx {
                 in_use: false,
                 unchained: false,
             },
-            crate::api::types::BaseDto {
+            omaflake_sdk::types::BaseDto {
                 name: "mac-base-25F71".into(),
                 path: "/data/bases/mac-base-25F71".into(),
                 os_build: Some("25F71".into()),
@@ -273,11 +273,11 @@ pub(crate) fn ctx() -> Ctx {
 /// (macOS, running here) with SSH refused – `mac` picks which VM's page the tests look at
 /// The test context with two networks (plan B170): "dev" with both VMs and a running switch, "lab" empty and idle
 pub(crate) fn networks_ctx() -> Ctx {
-    use crate::networks::Network;
-    use crate::networks::switch::{Flow, PortStatus, SwitchStatus};
+    use omaflake_sdk::networks::Network;
+    use omaflake_sdk::networks::{Flow, PortStatus, SwitchStatus};
     use std::collections::BTreeMap;
     let mut c = ctx();
-    let created = crate::json::parse_date("2026-11-25T10:00:00Z").unwrap();
+    let created = omaflake_sdk::time::parse_date("2026-11-25T10:00:00Z").unwrap();
     let dev = Network {
         name: "dev".into(),
         number: 1,
@@ -304,8 +304,8 @@ pub(crate) fn networks_ctx() -> Ctx {
     };
     let lab = Network { name: "lab".into(), number: 2, created, members: BTreeMap::new() };
     c.networks = vec![
-        super::networks::NetworkInfo { network: dev, status: Some(status) },
-        super::networks::NetworkInfo { network: lab, status: None },
+        omaflake_sdk::views::networks::NetworkInfo { network: dev, status: Some(status) },
+        omaflake_sdk::views::networks::NetworkInfo { network: lab, status: None },
     ];
     c
 }
@@ -366,8 +366,8 @@ fn the_networks_tab() {
 }
 
 pub(crate) fn diagnosis_ctx() -> Ctx {
-    use crate::api::views::diagnostics::DiagnosisRecord;
-    use crate::diagnostics::{CheckResult as R, CheckStatus as S};
+    use omaflake_sdk::diagnostics::{CheckResult as R, CheckStatus as S};
+    use omaflake_sdk::views::diagnostics::DiagnosisRecord;
     let mut c = ctx();
     let mut job = c.jobs[0].clone();
     job.id = "j9".into();
@@ -383,7 +383,7 @@ pub(crate) fn diagnosis_ctx() -> Ctx {
     let mut r =
         DiagnosisRecord::new(Some("4242@1".into()), "/data/logs/diagnostics-research-20261122-101500.log".into());
     r.job = "j9".into();
-    r.finished = Some(crate::json::parse_date("2026-11-22T10:15:30Z").unwrap());
+    r.finished = Some(omaflake_sdk::time::parse_date("2026-11-22T10:15:30Z").unwrap());
     for x in [
         R::new("agent", S::Pass, "0.4.0 · NixOS 26.05 · round trip 3 ms"),
         R::new("ssh", S::Pass, "omaflake's key is accepted"),
@@ -418,7 +418,7 @@ fn diagnosis_page_rows_and_actions() {
     let p = get(&c, "diagnostics", json!({"name": "research"}));
     assert_eq!(p["state"], "finished");
     let ids: Vec<&str> = p["checks"].as_array().unwrap().iter().map(|x| x["id"].as_str().unwrap()).collect();
-    assert_eq!(ids, crate::diagnostics::CHECKS);
+    assert_eq!(ids, omaflake_sdk::diagnostics::CHECKS);
     let sound = &p["checks"][5];
     assert_eq!(sound["status"], "confirm");
     assert_eq!(super::tests::ids(&sound["actions"]), ["heard", "notHeard"]);
@@ -609,7 +609,7 @@ fn vms_filter_and_start_rules() {
     c.vms.clear();
     assert_eq!(get(&c, "vms", json!({}))["empty"]["text"]["key"], "No VMs yet – create one from an image.");
     let e = build(&c, &PageRef { page: "vm".into(), params: json!({"name": "nope"}) }).unwrap_err();
-    assert_eq!(e.kind, Some(crate::error::codes::NOT_FOUND));
+    assert_eq!(e.kind, Some(omaflake_sdk::codes::NOT_FOUND));
 }
 
 #[test]
@@ -890,7 +890,7 @@ fn new_vm_defaults_and_validation() {
     assert_eq!(camera["kind"], "toggle");
     assert!(camera["help"]["text"].as_str().unwrap().contains("OBS Virtual Camera"));
     let e = build(&c, &PageRef { page: "newVm".into(), params: json!({"image": "nope"}) }).unwrap_err();
-    assert_eq!(e.kind, Some(crate::error::codes::NOT_FOUND));
+    assert_eq!(e.kind, Some(omaflake_sdk::codes::NOT_FOUND));
 }
 
 // MARK: Build
@@ -1003,7 +1003,7 @@ fn build_page_follows_the_job() {
 fn keys_page_by_module_and_mode() {
     let mut c = ctx();
     c.language = Some("de".into());
-    c.host = super::HostOs::Macos;
+    c.host = omaflake_sdk::views::HostOs::Macos;
     let page = get(&c, "keys", json!({"recipe": "omaflake.nixos.dev@velvet-tiger-orbit"}));
     assert_eq!(page["title"]["key"], "Keys of %@");
     let modules: Vec<&str> =
@@ -1052,7 +1052,8 @@ fn keys_page_by_module_and_mode() {
 /// change a key and the mode after one; what overlaps is said; only differences are saved
 #[test]
 fn keymap_studio_changes_keys_and_modes() {
-    use crate::recipe_sources::{RecipeSource, RecipeSourceKind};
+    use crate::recipe_sources::RecipeSource;
+    use omaflake_sdk::models::RecipeSourceKind;
     let (_t, paths) = crate::paths::tests::temp_paths();
     let src = tempfile::tempdir().unwrap();
     let module = src.path().join("modules/alice/nixos/mux");
@@ -1106,7 +1107,7 @@ own = true
     let mut c = ctx();
     c.paths = paths;
     c.language = Some("de".into());
-    c.host = super::HostOs::Macos;
+    c.host = omaflake_sdk::views::HostOs::Macos;
     // A copy of alice/base: its key, the module's otherwise; the set covers the modules the base names (plan B148)
     let page = get(&c, "keymapStudio", json!({"id": "alice.keymap.base", "values": {"name": "mine"}}));
     assert_eq!(page["title"]["key"], "Copy Key Bindings");
@@ -1249,7 +1250,8 @@ fn doctor_items_hints_and_actions() {
 /// Nix installed, its volume not at /nix (a restart without /etc/fstab): Mount …, never Install …
 #[test]
 fn doctor_offers_to_mount_the_nix_store() {
-    use crate::prerequisites::{PrerequisiteItem as I, PrerequisiteStatus as S, Prerequisites};
+    use crate::prerequisites::Prerequisites;
+    use omaflake_sdk::models::{PrerequisiteItem as I, PrerequisiteStatus as S};
     let mut c = ctx();
     let mut nix = fx::prerequisite(I::Nix, S::Missing);
     nix.detail = format!("{} (mounted at /Volumes/Nix Store)", Prerequisites::NIX_NOT_MOUNTED);
@@ -1271,7 +1273,8 @@ fn doctor_offers_to_mount_the_nix_store() {
 /// Apple offers a newer macOS than the IPSW here; a download that failed at once says why at the row (plan B146)
 #[test]
 fn doctor_newer_ipsw_and_a_failed_download() {
-    use crate::prerequisites::{PrerequisiteItem as I, PrerequisiteStatus as S, Prerequisites};
+    use crate::prerequisites::Prerequisites;
+    use omaflake_sdk::models::{PrerequisiteItem as I, PrerequisiteStatus as S};
     let mut c = ctx();
     let mut ipsw = fx::prerequisite(I::Ipsw, S::Limited);
     ipsw.hint = Prerequisites::IPSW_NEWER.into();
@@ -1292,7 +1295,7 @@ fn doctor_newer_ipsw_and_a_failed_download() {
 
 #[test]
 fn doctor_linux_builder_tasks() {
-    use crate::prerequisites::{PrerequisiteItem as I, PrerequisiteStatus as S};
+    use omaflake_sdk::models::{PrerequisiteItem as I, PrerequisiteStatus as S};
     let mut c = ctx();
     let builder = fx::prerequisite(I::LinuxBuilder, S::Ok);
     c.doctor.as_mut().unwrap().prerequisites.push(builder);
@@ -1316,7 +1319,8 @@ fn doctor_linux_builder_tasks() {
 /// from a terminal (no administrator dialog)
 #[test]
 fn doctor_on_a_linux_host() {
-    use crate::prerequisites::{PrerequisiteItem as I, PrerequisiteStatus as S, Prerequisites};
+    use crate::prerequisites::Prerequisites;
+    use omaflake_sdk::models::{PrerequisiteItem as I, PrerequisiteStatus as S};
     let mut c = ctx();
     c.host = HostOs::Linux;
     let dto = |p: &crate::prerequisites::Prerequisite| {
@@ -1356,7 +1360,7 @@ fn doctor_on_a_linux_host() {
 
 #[test]
 fn doctor_omaf_command() {
-    use crate::prerequisites::PrerequisiteStatus as S;
+    use omaflake_sdk::models::PrerequisiteStatus as S;
     let cli_item = |c: &Ctx| {
         let page = get(c, "doctor", json!({}));
         page["sections"][0]["items"].as_array().unwrap().iter().find(|i| i["item"] == "cli").unwrap().clone()
@@ -1669,8 +1673,8 @@ fn catalog_tabs_search_chips_and_pages() {
 fn doctor_cleans_up_the_nix_store() {
     let mut c = ctx();
     let mut space = crate::api::contract::prerequisite(
-        crate::prerequisites::PrerequisiteItem::NixSpace,
-        crate::prerequisites::PrerequisiteStatus::Ok,
+        omaflake_sdk::models::PrerequisiteItem::NixSpace,
+        omaflake_sdk::models::PrerequisiteStatus::Ok,
     );
     (space.free_bytes, space.needed_bytes) = (Some(441_000_000_000), Some(30_000_000_000));
     c.doctor.as_mut().unwrap().nixos_preflight.push(space);
@@ -1691,7 +1695,8 @@ fn doctor_cleans_up_the_nix_store() {
 /// A builder that refuses the Mac's builds (plan B175): Repair … with a question, red; a running one offers a test build
 #[test]
 fn doctor_repairs_a_builder_that_refuses_the_builds() {
-    use crate::prerequisites::{PrerequisiteItem as I, PrerequisiteStatus as S, Prerequisites};
+    use crate::prerequisites::Prerequisites;
+    use omaflake_sdk::models::{PrerequisiteItem as I, PrerequisiteStatus as S};
     let find = |page: &Value| {
         page["sections"]
             .as_array()
@@ -1702,7 +1707,7 @@ fn doctor_repairs_a_builder_that_refuses_the_builds() {
             .unwrap()
     };
     let mut c = ctx();
-    c.host = super::HostOs::Macos;
+    c.host = omaflake_sdk::views::HostOs::Macos;
     let mut running = crate::api::contract::prerequisite(I::BuilderRunning, S::Missing);
     running.detail = Prerequisites::BUILDER_REFUSES.into();
     c.doctor.as_mut().unwrap().nixos_preflight = vec![running];
@@ -1713,7 +1718,7 @@ fn doctor_repairs_a_builder_that_refuses_the_builds() {
     assert!(!ids(&item["actions"]).contains(&"check".to_string()));
 
     let mut c = ctx();
-    c.host = super::HostOs::Macos;
+    c.host = omaflake_sdk::views::HostOs::Macos;
     c.doctor.as_mut().unwrap().nixos_preflight = vec![crate::api::contract::prerequisite(I::BuilderRunning, S::Ok)];
     let item = find(&get(&c, "doctor", json!({})));
     assert_eq!(action(&item["actions"], "check")["method"], "builder.check");
@@ -1780,7 +1785,8 @@ fn help_switch_on_the_home_page() {
     assert_eq!((help["on"].as_bool(), &help["params"]), (Some(true), &json!({"help": false})));
     let keys = get(&c, "keys", json!({"vm": "research"}));
     assert_eq!(keys["notes"][0]["help"], true, "explains: drawn only with help on");
-    let warning = super::common::Hint::new("warning", Text::new("x"), super::common::Tone::Warning);
+    let warning =
+        omaflake_sdk::views::common::Hint::new("warning", Text::new("x"), omaflake_sdk::views::common::Tone::Warning);
     assert!(serde_json::to_value(warning).unwrap().get("help").is_none(), "a warning is never help");
 }
 
@@ -1827,7 +1833,11 @@ fn import_step_asks_about_what_is_here() {
         }),
         network_volume: false,
     };
-    let p = import::ImportParams { path: "/x/research.omaflake-vm".into(), expect: None, external: false };
+    let p = omaflake_sdk::views::import::ImportParams {
+        path: "/x/research.omaflake-vm".into(),
+        expect: None,
+        external: false,
+    };
     let page = serde_json::to_value(import::page(&p, vm.clone())).unwrap();
     assert_eq!(page["action"]["confirm"]["input"], json!({"param": "name", "default": "research-2"}));
     assert_eq!(page["action"]["confirm"]["title"]["text"], "“research” is here already");
@@ -1839,7 +1849,7 @@ fn import_step_asks_about_what_is_here() {
     assert_eq!(page["action"]["params"], json!({"path": "/x/research.omaflake-vm", "replace": true}));
     let plain = serde_json::to_value(import::page(&p, Inspection { conflict: None, ..vm.clone() })).unwrap();
     assert!(plain["action"].get("confirm").is_none());
-    let ext = import::ImportParams { external: true, ..p };
+    let ext = omaflake_sdk::views::import::ImportParams { external: true, ..p };
     let page =
         serde_json::to_value(import::page(&ext, Inspection { network_volume: true, conflict: None, ..vm.clone() }))
             .unwrap();
@@ -1949,8 +1959,8 @@ fn recipes_say_what_they_show() {
 fn guides_and_logs_say_where_they_are() {
     let mut c = ctx();
     let builder = fx::prerequisite(
-        crate::prerequisites::PrerequisiteItem::LinuxBuilder,
-        crate::prerequisites::PrerequisiteStatus::Ok,
+        omaflake_sdk::models::PrerequisiteItem::LinuxBuilder,
+        omaflake_sdk::models::PrerequisiteStatus::Ok,
     );
     c.doctor.as_mut().unwrap().prerequisites.push(builder);
     let dir = tempfile::tempdir().unwrap();
@@ -2029,7 +2039,8 @@ fn inspection_reasons_are_texts() {
     };
     let v = serde_json::to_value(&bad).unwrap();
     assert_eq!(v["reason"], json!({"text": "Not an image package (.omaflake-image)"}));
-    let p = import::ImportParams { path: "/x/a.omaflake-image".into(), expect: None, external: false };
+    let p =
+        omaflake_sdk::views::import::ImportParams { path: "/x/a.omaflake-image".into(), expect: None, external: false };
     let page = serde_json::to_value(import::page(&p, bad)).unwrap();
     assert_eq!(page["reason"]["args"][1], json!({"text": "Not an image package (.omaflake-image)"}));
     assert_eq!(page["title"]["key"], "Import");
@@ -2043,20 +2054,28 @@ fn every_page_reads_back_as_its_type() {
         let t: T = serde_json::from_value(v.clone()).unwrap();
         assert_eq!(&serde_json::to_value(t).unwrap(), v);
     }
-    back::<home::HomePage>(&get(&c, "home", json!({})));
-    back::<vms::VmsPage>(&get(&c, "vms", json!({})));
-    back::<images::ImagesPage>(&get(&c, "images", json!({})));
-    back::<recipes::RecipesPage>(&get(&c, "recipes", json!({})));
-    back::<new_vm::NewVmPage>(&get(&c, "newVm", json!({"image": "omaflake.nixos.dev@cedar-mango-lift"})));
-    back::<build::BuildPage>(&get(&c, "build", json!({"recipe": "omaflake.nixos.dev@velvet-tiger-orbit"})));
-    back::<doctor::DoctorPage>(&get(&c, "doctor", json!({})));
-    back::<doctor::MacBasePage>(&get(&c, "macBase", json!({})));
-    back::<settings::SettingsPage>(&get(&c, "settings", json!({})));
-    back::<activity::ActivityPage>(&get(&c, "activity", json!({})));
-    back::<vms::VmPage>(&get(&c, "vm", json!({"name": "research"})));
-    back::<images::ImagePage>(&get(&c, "image", json!({"name": "omaflake.macos.dev@stone-lamp"})));
+    back::<omaflake_sdk::views::home::HomePage>(&get(&c, "home", json!({})));
+    back::<omaflake_sdk::views::vms::VmsPage>(&get(&c, "vms", json!({})));
+    back::<omaflake_sdk::views::images::ImagesPage>(&get(&c, "images", json!({})));
+    back::<omaflake_sdk::views::recipes::RecipesPage>(&get(&c, "recipes", json!({})));
+    back::<omaflake_sdk::views::new_vm::NewVmPage>(&get(
+        &c,
+        "newVm",
+        json!({"image": "omaflake.nixos.dev@cedar-mango-lift"}),
+    ));
+    back::<omaflake_sdk::views::build::BuildPage>(&get(
+        &c,
+        "build",
+        json!({"recipe": "omaflake.nixos.dev@velvet-tiger-orbit"}),
+    ));
+    back::<omaflake_sdk::views::doctor::DoctorPage>(&get(&c, "doctor", json!({})));
+    back::<omaflake_sdk::views::doctor::MacBasePage>(&get(&c, "macBase", json!({})));
+    back::<omaflake_sdk::views::settings::SettingsPage>(&get(&c, "settings", json!({})));
+    back::<omaflake_sdk::views::activity::ActivityPage>(&get(&c, "activity", json!({})));
+    back::<omaflake_sdk::views::vms::VmPage>(&get(&c, "vm", json!({"name": "research"})));
+    back::<omaflake_sdk::views::images::ImagePage>(&get(&c, "image", json!({"name": "omaflake.macos.dev@stone-lamp"})));
     let e = build(&c, &PageRef { page: "nope".into(), params: json!({}) }).unwrap_err();
-    assert_eq!(e.code, crate::api::protocol::INVALID_PARAMS);
+    assert_eq!(e.code, omaflake_sdk::protocol::INVALID_PARAMS);
 }
 
 // MARK: Through the server
@@ -2079,9 +2098,9 @@ mod server {
         let home = server.call("views.get", json!({"page": "home", "params": {}})).unwrap();
         assert_eq!(home["firstTab"], "recipes");
         let e = server.call("views.get", json!({"page": "nope"})).unwrap_err();
-        assert_eq!(e.code, crate::api::protocol::INVALID_PARAMS);
+        assert_eq!(e.code, omaflake_sdk::protocol::INVALID_PARAMS);
         let e = server.call("views.get", json!({"page": "vm", "params": {"name": "x"}})).unwrap_err();
-        assert_eq!(e.kind, Some(crate::error::codes::NOT_FOUND));
+        assert_eq!(e.kind, Some(omaflake_sdk::codes::NOT_FOUND));
 
         // Once the catalogs were looked into, the pages use them (this deadlocked: the catalogs' lock taken twice)
         lock(&server.inner.catalogs).fetched = true;
@@ -2515,7 +2534,7 @@ fn unreadable_parts_are_updates() {
 #[test]
 fn welcome_asks_what_to_set_up() {
     let mut c = ctx();
-    c.host = super::HostOs::Macos;
+    c.host = omaflake_sdk::views::HostOs::Macos;
     c.credentials.clear();
     c.host_user = "alex".into();
     let page = get(&c, "welcome", json!({"values": {"guests": "both"}}));
@@ -2534,7 +2553,7 @@ fn welcome_asks_what_to_set_up() {
     assert_eq!(action(&bad["actions"], "setUp")["enabled"], false);
     // With a credential: no questions about who you are; on Linux nothing to choose but NixOS
     let mut linux = ctx();
-    linux.host = super::HostOs::Linux;
+    linux.host = omaflake_sdk::views::HostOs::Linux;
     let page = get(&linux, "welcome", json!({}));
     assert_eq!(ids(&page["fields"]), ["recommended", "lab"]);
     assert_eq!(action(&page["actions"], "setUp")["params"]["guests"], "nixos");
@@ -2547,9 +2566,10 @@ fn welcome_asks_what_to_set_up() {
 /// A builder disk made before its settings (plan B182): a warning, not a blocker, and New Disk … with a question
 #[test]
 fn doctor_offers_a_new_builder_disk() {
-    use crate::prerequisites::{PrerequisiteItem as I, PrerequisiteStatus as S, Prerequisites};
+    use crate::prerequisites::Prerequisites;
+    use omaflake_sdk::models::{PrerequisiteItem as I, PrerequisiteStatus as S};
     let mut c = ctx();
-    c.host = super::HostOs::Macos;
+    c.host = omaflake_sdk::views::HostOs::Macos;
     let mut running = crate::api::contract::prerequisite(I::BuilderRunning, S::Limited);
     running.detail = Prerequisites::BUILDER_SMALL_DISK.into();
     c.doctor.as_mut().unwrap().nixos_preflight = vec![running];
@@ -2570,7 +2590,7 @@ fn doctor_offers_a_new_builder_disk() {
 
 #[test]
 fn volumes_tab_and_forms() {
-    use crate::api::types::{VmVolumeDto, VolumeDto, VolumeVmDto};
+    use omaflake_sdk::types::{VmVolumeDto, VolumeDto, VolumeVmDto};
     let mut c = ctx();
     let vm = c.vms[0].name.clone();
     c.vms[0].volumes = vec![VmVolumeDto {

@@ -7,7 +7,8 @@ use omaflake_core::Settings;
 use omaflake_core::keymaps::KeymapStore;
 use omaflake_core::modules::ModuleStore;
 use omaflake_core::parts::PartKind;
-use omaflake_core::recipe_sources::{RecipeCatalog, RecipeSource, RecipeSourceKind, SourceClient};
+use omaflake_core::recipe_sources::{RecipeCatalog, RecipeSource, SourceClient};
+use omaflake_sdk::models::RecipeSourceKind;
 
 use crate::util::{Env, Outcome, pad, usage};
 

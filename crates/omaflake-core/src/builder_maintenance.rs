@@ -8,14 +8,14 @@
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use crate::error::{Error, IoContext, Result, codes};
+use crate::error::{Error, IoContext, Result};
 use crate::image_store::ImageStore;
-use crate::json;
 use crate::paths::{Paths, Settings};
 use crate::platform::is_executable_file;
 use crate::prerequisites::Prerequisites;
 use crate::shell::{Shell, StreamOptions};
 use crate::vm_err;
+use omaflake_sdk::codes;
 
 #[derive(Debug, Clone)]
 pub struct BuilderMaintenance {
@@ -184,7 +184,7 @@ impl BuilderMaintenance {
             // Swift `createFile` ignored a failure; so does this
             let _ = fs::File::create(&log);
         }
-        let header = format!("=== {} {command}", json::iso8601::format(&json::now()));
+        let header = format!("=== {} {command}", omaflake_sdk::time::iso8601::format(&omaflake_sdk::time::now()));
         let log = shell_quote(&log.to_string_lossy());
         // pipefail: the command's failure, not tee's success, is the script's result
         Ok(format!(

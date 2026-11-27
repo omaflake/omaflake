@@ -11,17 +11,18 @@ use serde::Deserialize;
 use serde_json::{Value, json};
 
 use super::jobs::{JobCtx, JobSpec};
-use super::protocol::RpcError;
 use super::server::{Answer, Reply, Server, lock};
-use super::types::JobKind;
-use super::views::PageRef;
-use super::views::diagnostics::DiagnosisRecord;
 use crate::backend::Backends;
-use crate::diagnostics::{self, CheckResult, CheckStatus, Diagnosis, LiveProbe};
-use crate::error::codes;
-use crate::models::VmStatus;
+use crate::diagnostics::{self, Diagnosis, LiveProbe};
 use crate::paths::Paths;
 use crate::vm_err;
+use omaflake_sdk::codes;
+use omaflake_sdk::diagnostics::{CheckResult, CheckStatus};
+use omaflake_sdk::models::VmStatus;
+use omaflake_sdk::protocol::RpcError;
+use omaflake_sdk::types::JobKind;
+use omaflake_sdk::views::PageRef;
+use omaflake_sdk::views::diagnostics::DiagnosisRecord;
 
 #[derive(Deserialize)]
 pub(crate) struct ConfirmParams {
@@ -70,7 +71,7 @@ impl Server {
                     let mut records = lock(&s.inner.diagnostics);
                     let rec = records.get_mut(&vm);
                     rec.map(|r| {
-                        r.finished = Some(crate::json::now());
+                        r.finished = Some(omaflake_sdk::time::now());
                         r.file.clone()
                     })
                     .unwrap_or_default()

@@ -18,12 +18,13 @@
 use std::fs;
 use std::path::PathBuf;
 
-use crate::error::{IoContext, Result, codes};
+use crate::error::{IoContext, Result};
 use crate::linux_builder::LinuxBuilder;
 use crate::paths::{Paths, Settings};
 use crate::prerequisites::Prerequisites;
 use crate::shell::{RunOptions, Shell};
 use crate::vm_err;
+use omaflake_sdk::codes;
 
 /// What `probe` found
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -101,7 +102,7 @@ impl BuilderHealth {
         let file = self.checked_file();
         if let Some(dir) = file.parent()
             && fs::create_dir_all(dir).is_ok()
-            && fs::write(&file, crate::json::iso8601::format(&crate::json::now())).is_ok()
+            && fs::write(&file, omaflake_sdk::time::iso8601::format(&omaflake_sdk::time::now())).is_ok()
         {
             let me = self.clone();
             std::thread::spawn(move || {
@@ -159,7 +160,7 @@ impl BuilderHealth {
         if let Some(dir) = marker.parent() {
             fs::create_dir_all(dir).with_path(dir)?;
         }
-        let now = crate::json::iso8601::format(&crate::json::now());
+        let now = omaflake_sdk::time::iso8601::format(&omaflake_sdk::time::now());
         fs::write(&marker, format!("{now}\n")).with_path(&marker)
     }
 

@@ -9,10 +9,11 @@
 
 use serde::{Deserialize, Serialize};
 
-use crate::error::{Result, codes};
+use crate::error::Result;
 use crate::paths::{Paths, Settings};
 use crate::source_tokens::{TokenPlace, Tokens};
 use crate::vm_err;
+use omaflake_sdk::codes;
 
 /// One credential in config.json. None fields are this computer's values (user name, full name) or none (e-mail).
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]

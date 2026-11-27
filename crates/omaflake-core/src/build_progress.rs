@@ -3,7 +3,7 @@
 
 use std::sync::Mutex;
 
-use crate::models::GuestKind;
+use omaflake_sdk::models::GuestKind;
 
 /// Progress of an image build, read from its log lines: the step ("2 of 4") and, while Nix builds or downloads,
 /// how many of the announced packages are done. Both build paths log through here (CLI and app).

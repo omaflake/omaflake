@@ -13,8 +13,9 @@ use serde::{Deserialize, Serialize};
 
 use std::time::Duration;
 
-use crate::error::{Result, codes};
+use crate::error::Result;
 use crate::vm_err;
+use omaflake_sdk::codes;
 
 /// The feed (Swift `UpdateFeed`)
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
