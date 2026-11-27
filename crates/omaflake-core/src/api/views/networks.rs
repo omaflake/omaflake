@@ -11,7 +11,7 @@ use serde_json::json;
 use super::Ctx;
 use super::HostOs;
 use super::common::*;
-use super::credentials::{CredentialDetail, CredentialPage, CredentialRow, CredentialsPage};
+use super::credentials::{ActionMenu, CredentialDetail, CredentialPage, CredentialRow, CredentialsPage, DetailItem};
 use super::text::{Arg, Text, tf};
 use crate::api::types::Vm;
 use crate::models::{GuestKind, NetworkMode, VmStatus};
@@ -102,42 +102,89 @@ fn bytes(n: u64) -> Arg {
     Arg::bytes(n as i64)
 }
 
-/// A member's line in its network's detail: "docker  10.231.1.10 · connected – 12.0 KB in, 3.0 KB out"
-fn member_line(info: &NetworkInfo, vm: &str, host: u8, known: Option<&Vm>) -> InfoLine {
-    let address = info.network.address(host).to_string();
-    let port = info.status.as_ref().and_then(|s| s.ports.iter().find(|p| p.vm.as_deref() == Some(vm)));
-    let state = match (port, known) {
-        (Some(p), _) => tf!("%@ · connected – %@ in, %@ out", &address, bytes(p.rx_bytes), bytes(p.tx_bytes)),
-        (None, None) => tf!("%@ · no such VM any more", &address),
-        (None, Some(v)) if v.status == VmStatus::Running => {
-            tf!("%@ · not connected – started before it joined: restart it", &address)
-        }
-        (None, Some(_)) => tf!("%@ · not running", &address),
-    };
-    let mut line = InfoLine::new("", state);
-    line.label = Text::verbatim(vm); // a VM's name, not a text to translate
-    if port.is_some() { line.tone(Tone::Success) } else { line }
+/// Whether a change of a VM's networks counts at once: a running NixOS VM (plan B179); else from its next start
+fn at_once(v: Option<&Vm>) -> bool {
+    v.is_some_and(|v| v.status == VmStatus::Running && v.kind == GuestKind::Nixos)
 }
 
-/// A VM as a switch of a network: on while it is a member; a click adds it (`networks.join`) or takes it out
-/// (`networks.leave`). A running NixOS VM joins and leaves at once (plan B179), a macOS VM at its next start
-pub(crate) fn member_switch(network: &str, v: &Vm, member: bool) -> Action {
-    let now = v.status == VmStatus::Running && v.kind == GuestKind::Nixos;
-    let help = match (member, now) {
-        (true, true) => tf!("In %@ – a click takes it out now", network),
-        (true, false) => tf!("In %@ – a click takes it out (from its next start)", network),
-        (false, true) => tf!("Not in %@ – a click adds it now", network),
-        (false, false) => tf!("Not in %@ – a click adds it (from its next start)", network),
+/// A member of a network as a line of its detail (plan B185): lamp (green: its card is connected to the running
+/// switch, orange: it runs without – it must start again, grey: it is off), its kind, name, address and state, and
+/// "Take Out"
+pub(crate) fn member_item(info: &NetworkInfo, vm: &str, host: u8, known: Option<&Vm>) -> DetailItem {
+    let n = &info.network;
+    let address = n.address(host).to_string();
+    let port = info.status.as_ref().and_then(|s| s.ports.iter().find(|p| p.vm.as_deref() == Some(vm)));
+    let (lamp, subtitle) = match (port, known) {
+        (Some(p), _) => (
+            Lamp::new(LampState::On, "Connected to the network"),
+            tf!("%@ · connected – %@ in, %@ out", &address, bytes(p.rx_bytes), bytes(p.tx_bytes)),
+        ),
+        (None, None) => {
+            (Lamp::new(LampState::Attention, "No such VM any more"), tf!("%@ · no such VM any more", &address))
+        }
+        (None, Some(v)) if v.status == VmStatus::Running => (
+            Lamp::new(LampState::Attention, "Running, but not in the network yet"),
+            tf!("%@ · not connected – started before it joined: restart it", &address),
+        ),
+        (None, Some(_)) => (Lamp::new(LampState::Off, "Not running"), tf!("%@ · not running", &address)),
     };
-    Action::call(
-        &format!("member-{}", v.name),
-        Text::verbatim(v.name.clone()),
-        Some(if v.kind == GuestKind::Macos { "macos" } else { "nixos" }),
-        if member { "networks.leave" } else { "networks.join" },
-        json!({"network": network, "vm": v.name}),
+    let take_out = Action::call(
+        &format!("leave-{vm}"),
+        Text::new("Take Out"),
+        Some("minus"),
+        "networks.leave",
+        json!({"network": n.name, "vm": vm}),
     )
-    .switch(member)
-    .help(help)
+    .help(if at_once(known) {
+        tf!("Take %@ out of %@ – at once", vm, n.name.as_str())
+    } else {
+        tf!("Take %@ out of %@ – from its next start", vm, n.name.as_str())
+    });
+    DetailItem {
+        id: vm.to_string(),
+        name: vm.to_string(),
+        icon: match known.map(|v| v.kind) {
+            Some(GuestKind::Macos) => "macos",
+            Some(GuestKind::Nixos) => "nixos",
+            None => "vm",
+        }
+        .into(),
+        lamp,
+        subtitle,
+        badges: vec![],
+        actions: vec![take_out],
+    }
+}
+
+/// "Add VM": every VM not in the network yet, a choice adds it (`networks.join`)
+fn add_menu(ctx: &Ctx, n: &crate::networks::Network) -> ActionMenu {
+    let actions: Vec<Action> = ctx
+        .vms
+        .iter()
+        .filter(|v| !n.members.contains_key(&v.name))
+        .map(|v| {
+            Action::call(
+                &format!("join-{}", v.name),
+                Text::verbatim(v.name.clone()),
+                Some(if v.kind == GuestKind::Macos { "macos" } else { "nixos" }),
+                "networks.join",
+                json!({"network": n.name, "vm": v.name}),
+            )
+            .help(if at_once(Some(v)) {
+                tf!("Add %@ to %@ – at once", v.name.as_str(), n.name.as_str())
+            } else {
+                tf!("Add %@ to %@ – from its next start", v.name.as_str(), n.name.as_str())
+            })
+        })
+        .collect();
+    ActionMenu {
+        label: Text::new("Add VM"),
+        icon: Some("add".into()),
+        empty: actions
+            .is_empty()
+            .then(|| Text::new(if ctx.vms.is_empty() { "There is no VM yet" } else { "Every VM is in this network" })),
+        actions,
+    }
 }
 
 fn row(ctx: &Ctx, info: &NetworkInfo) -> CredentialRow {
@@ -160,9 +207,12 @@ fn row(ctx: &Ctx, info: &NetworkInfo) -> CredentialRow {
             if info.status.is_some() { Tone::Success } else { Tone::Normal },
         ),
     ];
-    for (vm, host) in &n.members {
-        info_lines.push(member_line(info, vm, *host, ctx.vms.iter().find(|v| &v.name == vm)));
-    }
+    // Its VMs: lines of their own (plan B185)
+    let items: Vec<DetailItem> = n
+        .members
+        .iter()
+        .map(|(vm, host)| member_item(info, vm, *host, ctx.vms.iter().find(|v| &v.name == vm)))
+        .collect();
     let docker: Vec<&String> = n
         .members
         .keys()
@@ -175,26 +225,7 @@ fn row(ctx: &Ctx, info: &NetworkInfo) -> CredentialRow {
                 .note(tf!("in the network's other VMs, for the Docker engine of %@", vm.as_str()), Tone::Normal),
         );
     }
-    // One switch per VM (the maintainer, 2026-11-27: a form with one drop-down to add and a row of buttons to take
-    // out were hard to read): on = in the network, a click adds or takes out. Members first, then the others
-    let mut vms: Vec<&Vm> = ctx.vms.iter().collect();
-    vms.sort_by_key(|v| !n.members.contains_key(&v.name));
-    let mut actions: Vec<Action> =
-        vms.iter().map(|v| member_switch(&n.name, v, n.members.contains_key(&v.name))).collect();
-    // A member that is no VM any more can only go
-    for vm in n.members.keys().filter(|m| !ctx.vms.iter().any(|v| &&v.name == m)) {
-        actions.push(
-            Action::call(
-                &format!("member-{vm}"),
-                Text::verbatim(vm.clone()),
-                Some("network-none"),
-                "networks.leave",
-                json!({"network": n.name, "vm": vm}),
-            )
-            .switch(true)
-            .help(Text::new("No such VM any more – a click takes it out")),
-        );
-    }
+    let mut actions = vec![];
     actions.push(
         Action::call("remove", Text::new("Remove …"), Some("trash"), "networks.remove", id).destructive().confirm(
             Confirm::new(
@@ -216,7 +247,7 @@ fn row(ctx: &Ctx, info: &NetworkInfo) -> CredentialRow {
         badges: vec![],
         used_by: n.members.keys().cloned().collect(),
         actions: vec![],
-        detail: CredentialDetail { info: info_lines, actions },
+        detail: CredentialDetail { info: info_lines, items, add: Some(add_menu(ctx, n)), actions },
     }
 }
 
@@ -286,7 +317,7 @@ pub(crate) fn page(ctx: &Ctx) -> NetworksPage {
         list: CredentialsPage {
             title: Text::new("Networks"),
             intro: Text::new(
-                "Networks between VMs: each VM in a network gets a second network card there and reaches the network's other VMs – NixOS and macOS alike, e.g. a Docker VM for several macOS VMs. Its own network (SSH, the internet) stays as it is. Add a VM by drawing a line from it to a network in the picture, or with its switch under the network; × on a line takes it out. A running NixOS VM changes at once, a macOS VM at its next start.",
+                "Networks between VMs: each VM in a network gets a second network card there and reaches the network's other VMs – NixOS and macOS alike, e.g. a Docker VM for several macOS VMs. Its own network (SSH, the internet) stays as it is. Add a VM by drawing a line from it to a network in the picture, or with “Add VM” under the network; × on a line or “Take Out” on its line takes it out. A running NixOS VM changes at once, a macOS VM at its next start.",
             ),
             rows: ctx.networks.iter().map(|n| row(ctx, n)).collect(),
             add: Action::show("add", Text::new("New Network …"), Some("add"), "network", json!({})).primary(),

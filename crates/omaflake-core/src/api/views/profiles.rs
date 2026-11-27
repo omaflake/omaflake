@@ -49,6 +49,8 @@ fn row(p: &ProfileDto) -> CredentialRow {
                 InfoLine::new("RAM", tf!("%lld GB", p.memory_gb)),
             ],
             actions: vec![edit, default, remove],
+            items: vec![],
+            add: None,
         },
     }
 }

@@ -10,7 +10,7 @@ use iced::{Alignment, Color, Length};
 use omaflake_core::api::views::activity::ActivityPage;
 use omaflake_core::api::views::build::{BuildPage, LogRef, Outcome};
 use omaflake_core::api::views::common::{Action, Blockers, Field, FieldKind, Filter, FilterKind, Hint, ListHead, Tone};
-use omaflake_core::api::views::credentials::{CredentialPage, CredentialRow, CredentialsPage};
+use omaflake_core::api::views::credentials::{ActionMenu, CredentialPage, CredentialRow, CredentialsPage, DetailItem};
 use omaflake_core::api::views::diagnostics::{DiagnosisState, DiagnosticsCheck, DiagnosticsPage};
 use omaflake_core::api::views::doctor::{DoctorItem, DoctorPage, Download, MacBasePage};
 use omaflake_core::api::views::images::{BuildJobRow, ImageRowView, ImagesPage};
@@ -604,6 +604,71 @@ fn look_row<'a>(app: &'a App, r: &'a omaflake_core::api::views::looks::LookRow) 
     })
 }
 
+/// What belongs to a row, a line each – lamp, symbol, name, what is known, its actions – and below them a list to add
+/// one (a network's VMs and "Add VM", plan B185; as the macOS app's `DetailItems`)
+fn detail_items<'a>(app: &'a App, items: &'a [DetailItem], add: Option<&'a ActionMenu>) -> El<'a> {
+    let mut c = Column::new().spacing(spacing::S);
+    for (i, item) in items.iter().enumerate() {
+        if i > 0 {
+            c = c.push(divider());
+        }
+        c = c.push(
+            row![
+                lamp(&item.lamp, app.pulse),
+                icon(&item.icon, text_size::CALLOUT, style::SECONDARY),
+                container(name_line(
+                    item.name.clone(),
+                    item.badges.iter().map(badge).collect(),
+                    Some(s(&item.subtitle)),
+                    vec![]
+                ))
+                .width(Length::Fill),
+                row_actions(app, &item.actions),
+            ]
+            .spacing(spacing::L)
+            .align_y(Alignment::Center),
+        );
+    }
+    if let Some(menu) = add {
+        if !items.is_empty() {
+            c = c.push(divider());
+        }
+        // A pick list that does the chosen entry's action at once
+        let entries: Vec<MenuEntry> =
+            menu.actions.iter().map(|a| MenuEntry { label: s(&a.label), action: a.clone() }).collect();
+        let empty = entries.is_empty();
+        let mut list = pick_list(entries, None::<MenuEntry>, |e: MenuEntry| Message::Run(Box::new(e.action), None))
+            .placeholder(format!("+ {}", s(&menu.label)))
+            .text_size(text_size::CALLOUT)
+            .padding([spacing::S, spacing::L])
+            .style(style::picker);
+        if empty {
+            list = list.placeholder(menu.empty.as_ref().map(s).unwrap_or_default());
+        }
+        c = c.push(list);
+    }
+    container(c).padding(spacing::L).width(Length::Fill).style(style::card).into()
+}
+
+/// An entry of an `ActionMenu` in a pick list: its label, and the action a choice does
+#[derive(Debug, Clone)]
+struct MenuEntry {
+    label: String,
+    action: Action,
+}
+
+impl PartialEq for MenuEntry {
+    fn eq(&self, other: &Self) -> bool {
+        self.action.id == other.action.id
+    }
+}
+
+impl fmt::Display for MenuEntry {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(&self.label)
+    }
+}
+
 pub fn recipe_row<'a>(app: &'a App, r: &'a RecipeRowView) -> El<'a> {
     let key = format!("recipe:{}", r.line);
     let badges: Vec<El<'a>> = r.badges.iter().map(badge).collect();
@@ -920,6 +985,9 @@ fn credential_row<'a>(app: &'a App, r: &'a CredentialRow) -> El<'a> {
     .align_y(Alignment::Center);
     expandable(key.clone(), app.expanded.contains(&key), header.into(), || {
         let mut c = column![Column::with_children(r.detail.info.iter().map(info_line)).spacing(spacing::S)];
+        if !r.detail.items.is_empty() || r.detail.add.is_some() {
+            c = c.push(detail_items(app, &r.detail.items, r.detail.add.as_ref()));
+        }
         c = c.push(wrap(r.detail.actions.iter().map(|a| action_button(a, None, app.pulse)).collect()));
         detail_box(c)
     })

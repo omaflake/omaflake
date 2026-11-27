@@ -977,13 +977,17 @@ default (`profiles.setDefault`), remove (destructive, confirm)]}}`; `add` ("New 
 (a new one 4 CPU, 8 GB), `actions: [cancel, save (`profiles.update`) | create (`profiles.add`)]`.
 
 **networks** (plan B170, a tab of the Run group) – the shape of **credentials**: rows `{id, name, lamp (on: its switch
-runs), subtitle ("10.231.1.0/24 · 2 VMs"), usedBy (the members), detail: {info (subnet, switch, one line per member:
-address, connected with its traffic or why not; for a Docker VM the `DOCKER_HOST` line), actions: [join (`ui.show
-networkMember {network}`), leave-<vm> (`networks.leave`), remove (destructive, confirm)]}}`; `add` ("New Network …")
-opens `network`. Besides: `graph: {host (Text), networks: [{id, label, subnet, running}], vms: [{id, label, kind
+runs), subtitle ("10.231.1.0/24 · 2 VMs"), usedBy (the members), detail: {info (subnet, switch; for a Docker VM the
+`DOCKER_HOST` line), items (plan B185: one per member `{id, name, icon (nixos, macos; vm when the VM is gone), lamp
+(on: connected to the running switch, attention: running without it, off), subtitle (address and state, traffic),
+badges, actions: [leave-<vm> "Take Out" (`networks.leave`)]}`), add (`{label "Add VM", icon, actions: [join-<vm>
+(`networks.join`) per VM not in it], empty? (why there is none)}` – a button with a list, a choice runs at once),
+actions: [remove (destructive, confirm)]}}`; `add` ("New Network …") opens `network`. `items` and `add` are
+general parts of a credentials-shaped row's detail, left out when empty; the page `networkMember` stays for the API. Besides: `graph: {host (Text), networks: [{id, label, subnet, running}], vms: [{id, label, kind
 (nixos, macos; unknown for a member whose VM is gone), running}], links: [{vm, to (a network's id, or "host"), kind
 (network | nat), label (the address; for nat "NAT · internet" / "NAT · no internet"), active, bytes?}], flows:
-[{network, from, to, bytes}]}` – UIs draw it as a picture (app), cards (Linux app) or a tree (`omaf ui`).
+[{network, from, to, bytes}]}` – UIs draw it as a picture (both apps: a line drawn from a VM to a network joins it, ×
+on a connection takes the VM out) or a tree (`omaf ui`).
 
 **network** (params `values`) – the shape of **credential**: `fields: [name]` (its error: empty, not a name, taken),
 `actions: [cancel, create (`networks.create`)]`. **networkMember** (params `network`, `values`): `fields: [vm]` (the VMs

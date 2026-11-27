@@ -508,7 +508,21 @@ public struct BuildJobRow: Decodable, Sendable, Equatable, Identifiable {
 public struct ImageRow: Decodable, Sendable, Equatable, Identifiable {
     public struct Detail: Decodable, Sendable, Equatable {
         public var info: [InfoLine]
+        /// What belongs to it, a line each (a network's VMs, plan B185)
+        public var items: [DetailItem]
+        /// A button with a list to choose from (a network's "Add VM")
+        public var add: ActionMenu?
         public var actions: [ViewAction]
+
+        enum CodingKeys: String, CodingKey { case info, items, add, actions }
+
+        public init(from decoder: Decoder) throws {
+            let c = try decoder.container(keyedBy: CodingKeys.self)
+            info = try c.decode([InfoLine].self, forKey: .info)
+            items = try c.decodeIfPresent([DetailItem].self, forKey: .items) ?? []
+            add = try c.decodeIfPresent(ActionMenu.self, forKey: .add)
+            actions = try c.decode([ViewAction].self, forKey: .actions)
+        }
     }
 
     public var id: String { name }
@@ -521,6 +535,38 @@ public struct ImageRow: Decodable, Sendable, Equatable, Identifiable {
     public var actions: [ViewAction]
     public var detail: Detail
     public var image: VmImage
+}
+
+/// One thing that belongs to a row, as a line in its detail (plan B185)
+public struct DetailItem: Decodable, Sendable, Equatable, Identifiable {
+    public var id: String
+    public var name: String
+    public var icon: String
+    public var lamp: Lamp
+    public var subtitle: ViewText
+    public var badges: [Badge]
+    public var actions: [ViewAction]
+
+    enum CodingKeys: String, CodingKey { case id, name, icon, lamp, subtitle, badges, actions }
+
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = try c.decode(String.self, forKey: .id)
+        name = try c.decode(String.self, forKey: .name)
+        icon = try c.decode(String.self, forKey: .icon)
+        lamp = try c.decode(Lamp.self, forKey: .lamp)
+        subtitle = try c.decode(ViewText.self, forKey: .subtitle)
+        badges = try c.decodeIfPresent([Badge].self, forKey: .badges) ?? []
+        actions = try c.decode([ViewAction].self, forKey: .actions)
+    }
+}
+
+/// A button that opens a list; a choice does its action. Empty: `empty` says why (plan B185)
+public struct ActionMenu: Decodable, Sendable, Equatable {
+    public var label: ViewText
+    public var icon: String?
+    public var actions: [ViewAction]
+    public var empty: ViewText?
 }
 
 public struct ImagePage: Decodable, Sendable, Equatable {

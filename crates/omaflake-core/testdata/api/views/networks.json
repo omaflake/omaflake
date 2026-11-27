@@ -102,8 +102,8 @@
     ]
   },
   "intro": {
-    "key": "Networks between VMs: each VM in a network gets a second network card there and reaches the network's other VMs – NixOS and macOS alike, e.g. a Docker VM for several macOS VMs. Its own network (SSH, the internet) stays as it is. Add a VM by drawing a line from it to a network in the picture, or with its switch under the network; × on a line takes it out. A running NixOS VM changes at once, a macOS VM at its next start.",
-    "text": "Networks between VMs: each VM in a network gets a second network card there and reaches the network's other VMs – NixOS and macOS alike, e.g. a Docker VM for several macOS VMs. Its own network (SSH, the internet) stays as it is. Add a VM by drawing a line from it to a network in the picture, or with its switch under the network; × on a line takes it out. A running NixOS VM changes at once, a macOS VM at its next start."
+    "key": "Networks between VMs: each VM in a network gets a second network card there and reaches the network's other VMs – NixOS and macOS alike, e.g. a Docker VM for several macOS VMs. Its own network (SSH, the internet) stays as it is. Add a VM by drawing a line from it to a network in the picture, or with “Add VM” under the network; × on a line or “Take Out” on its line takes it out. A running NixOS VM changes at once, a macOS VM at its next start.",
+    "text": "Networks between VMs: each VM in a network gets a second network card there and reaches the network's other VMs – NixOS and macOS alike, e.g. a Docker VM for several macOS VMs. Its own network (SSH, the internet) stays as it is. Add a VM by drawing a line from it to a network in the picture, or with “Add VM” under the network; × on a line or “Take Out” on its line takes it out. A running NixOS VM changes at once, a macOS VM at its next start."
   },
   "rows": [
     {
@@ -111,48 +111,6 @@
       "badges": [],
       "detail": {
         "actions": [
-          {
-            "enabled": true,
-            "help": {
-              "args": [
-                "dev"
-              ],
-              "key": "In %@ – a click takes it out now",
-              "text": "In dev – a click takes it out now"
-            },
-            "icon": "nixos",
-            "id": "member-research",
-            "label": {
-              "text": "research"
-            },
-            "method": "networks.leave",
-            "on": true,
-            "params": {
-              "network": "dev",
-              "vm": "research"
-            }
-          },
-          {
-            "enabled": true,
-            "help": {
-              "args": [
-                "dev"
-              ],
-              "key": "In %@ – a click takes it out (from its next start)",
-              "text": "In dev – a click takes it out (from its next start)"
-            },
-            "icon": "macos",
-            "id": "member-work",
-            "label": {
-              "text": "work"
-            },
-            "method": "networks.leave",
-            "on": true,
-            "params": {
-              "network": "dev",
-              "vm": "work"
-            }
-          },
           {
             "confirm": {
               "button": {
@@ -186,6 +144,18 @@
             }
           }
         ],
+        "add": {
+          "actions": [],
+          "empty": {
+            "key": "Every VM is in this network",
+            "text": "Every VM is in this network"
+          },
+          "icon": "add",
+          "label": {
+            "key": "Add VM",
+            "text": "Add VM"
+          }
+        },
         "info": [
           {
             "label": {
@@ -209,13 +179,45 @@
             "value": {
               "text": "10.231.1.1"
             }
-          },
+          }
+        ],
+        "items": [
           {
-            "label": {
-              "text": "research"
+            "actions": [
+              {
+                "enabled": true,
+                "help": {
+                  "args": [
+                    "research",
+                    "dev"
+                  ],
+                  "key": "Take %@ out of %@ – at once",
+                  "text": "Take research out of dev – at once"
+                },
+                "icon": "minus",
+                "id": "leave-research",
+                "label": {
+                  "key": "Take Out",
+                  "text": "Take Out"
+                },
+                "method": "networks.leave",
+                "params": {
+                  "network": "dev",
+                  "vm": "research"
+                }
+              }
+            ],
+            "icon": "nixos",
+            "id": "research",
+            "lamp": {
+              "help": {
+                "key": "Connected to the network",
+                "text": "Connected to the network"
+              },
+              "state": "on"
             },
-            "tone": "success",
-            "value": {
+            "name": "research",
+            "subtitle": {
               "args": [
                 "10.231.1.10",
                 {
@@ -230,10 +232,41 @@
             }
           },
           {
-            "label": {
-              "text": "work"
+            "actions": [
+              {
+                "enabled": true,
+                "help": {
+                  "args": [
+                    "work",
+                    "dev"
+                  ],
+                  "key": "Take %@ out of %@ – from its next start",
+                  "text": "Take work out of dev – from its next start"
+                },
+                "icon": "minus",
+                "id": "leave-work",
+                "label": {
+                  "key": "Take Out",
+                  "text": "Take Out"
+                },
+                "method": "networks.leave",
+                "params": {
+                  "network": "dev",
+                  "vm": "work"
+                }
+              }
+            ],
+            "icon": "macos",
+            "id": "work",
+            "lamp": {
+              "help": {
+                "key": "Not running",
+                "text": "Not running"
+              },
+              "state": "off"
             },
-            "value": {
+            "name": "work",
+            "subtitle": {
               "args": [
                 "10.231.1.11"
               ],
@@ -271,48 +304,6 @@
       "detail": {
         "actions": [
           {
-            "enabled": true,
-            "help": {
-              "args": [
-                "lab"
-              ],
-              "key": "Not in %@ – a click adds it now",
-              "text": "Not in lab – a click adds it now"
-            },
-            "icon": "nixos",
-            "id": "member-research",
-            "label": {
-              "text": "research"
-            },
-            "method": "networks.join",
-            "on": false,
-            "params": {
-              "network": "lab",
-              "vm": "research"
-            }
-          },
-          {
-            "enabled": true,
-            "help": {
-              "args": [
-                "lab"
-              ],
-              "key": "Not in %@ – a click adds it (from its next start)",
-              "text": "Not in lab – a click adds it (from its next start)"
-            },
-            "icon": "macos",
-            "id": "member-work",
-            "label": {
-              "text": "work"
-            },
-            "method": "networks.join",
-            "on": false,
-            "params": {
-              "network": "lab",
-              "vm": "work"
-            }
-          },
-          {
             "confirm": {
               "button": {
                 "key": "Remove",
@@ -345,6 +336,57 @@
             }
           }
         ],
+        "add": {
+          "actions": [
+            {
+              "enabled": true,
+              "help": {
+                "args": [
+                  "research",
+                  "lab"
+                ],
+                "key": "Add %@ to %@ – at once",
+                "text": "Add research to lab – at once"
+              },
+              "icon": "nixos",
+              "id": "join-research",
+              "label": {
+                "text": "research"
+              },
+              "method": "networks.join",
+              "params": {
+                "network": "lab",
+                "vm": "research"
+              }
+            },
+            {
+              "enabled": true,
+              "help": {
+                "args": [
+                  "work",
+                  "lab"
+                ],
+                "key": "Add %@ to %@ – from its next start",
+                "text": "Add work to lab – from its next start"
+              },
+              "icon": "macos",
+              "id": "join-work",
+              "label": {
+                "text": "work"
+              },
+              "method": "networks.join",
+              "params": {
+                "network": "lab",
+                "vm": "work"
+              }
+            }
+          ],
+          "icon": "add",
+          "label": {
+            "key": "Add VM",
+            "text": "Add VM"
+          }
+        },
         "info": [
           {
             "label": {

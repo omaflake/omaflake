@@ -50,7 +50,47 @@ pub struct CredentialRow {
 #[serde(rename_all = "camelCase")]
 pub struct CredentialDetail {
     pub info: Vec<InfoLine>,
+    /// What belongs to it, one line each with its own actions (a network's VMs, plan B185); before `add`
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub items: Vec<DetailItem>,
+    /// A button that opens a list to choose one from, and does that one's action (a network's "Add VM", plan B185)
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub add: Option<ActionMenu>,
     pub actions: Vec<Action>,
+}
+
+impl CredentialDetail {
+    pub fn new(info: Vec<InfoLine>, actions: Vec<Action>) -> CredentialDetail {
+        CredentialDetail { info, items: vec![], add: None, actions }
+    }
+}
+
+/// One thing that belongs to a row, as a line in its detail: lamp, symbol, name, what is known, its actions
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DetailItem {
+    pub id: String,
+    pub name: String,
+    pub icon: String,
+    pub lamp: Lamp,
+    /// "10.231.1.10 · connected – 12 KB in, 3 KB out"
+    pub subtitle: Text,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub badges: Vec<Badge>,
+    /// Drawn as symbol buttons at the line's end
+    pub actions: Vec<Action>,
+}
+
+/// A button with a list: a click opens the list, a choice does its action. Empty: `empty` says why there is nothing
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ActionMenu {
+    pub label: Text,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub icon: Option<String>,
+    pub actions: Vec<Action>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub empty: Option<Text>,
 }
 
 /// The form of one credential (`credential`): new (no `id`) or to edit
@@ -321,7 +361,7 @@ fn row(ctx: &Ctx, c: &CredentialDto) -> CredentialRow {
         badges,
         used_by,
         actions: vec![copy],
-        detail: CredentialDetail { info, actions: vec![edit, set_password, default, remove] },
+        detail: CredentialDetail::new(info, vec![edit, set_password, default, remove]),
     }
 }
 

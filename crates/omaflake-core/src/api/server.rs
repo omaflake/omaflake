@@ -209,6 +209,8 @@ impl Drop for BusyGuard<'_> {
 impl Server {
     /// A server on `paths` (`Paths::standard()` for the user's data folder); notifications go to `notify`
     pub fn new(paths: Paths, notify: Arc<Notify>) -> Server {
+        // Which binary this is, taken now – before an update can replace it on disk
+        let _ = crate::api::types::CoreIdentity::at_start();
         Self::bare(paths, notify).with_view_hook()
     }
 

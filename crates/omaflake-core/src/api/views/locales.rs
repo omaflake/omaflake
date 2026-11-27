@@ -78,6 +78,8 @@ fn row(l: &LocaleDto) -> CredentialRow {
                 .full(&used_by),
             ],
             actions: vec![edit, default, remove],
+            items: vec![],
+            add: None,
         },
     }
 }

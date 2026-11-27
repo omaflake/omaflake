@@ -52,6 +52,9 @@ tried on a Mac; the notes say where. Rebuild your macOS images to get the new ag
 
 ### Fixed
 
+- **An app replaced by a build of the same version kept the old core service** – it took the service's word for being
+  the new one (the service read its identity from the file on disk, which was the new one by then); the new build's
+  changes did not show until a restart. The service now takes its identity when it starts.
 - **Camera in macOS VMs: one picture a second, and late.** OBS draws with OpenGL unless told otherwise, and a macOS
   VM has no OpenGL on its graphics device: of 3962 pictures of the virtual camera OBS drew 142. The agent now
   chooses OBS's Metal renderer (OBS 32 and later; in OBS's settings while OBS is not running – quit OBS once), and
@@ -63,10 +66,11 @@ tried on a Mac; the notes say where. Rebuild your macOS images to get the new ag
 ### Changed
 
 - **Networks are edited where you see them.** In the picture of the Networks tab you draw a line from a VM's dot to a
-  network to add it, and × on a line takes it out (the line turns red while the pointer is on its ×). Under each
-  network, every VM is a switch – on while it is in the network, a click adds or takes it out; the form with one
-  drop-down and the row of "Take … Out" buttons are gone. A running NixOS VM changes at once, a macOS VM at its next
-  start (the switch's help says which). The same in the macOS app and the Linux app, which now draws the picture too.
+  network to add it, and × on a line takes it out (the line turns red while the pointer is on its ×). An opened
+  network lists its VMs a line each – state, address, traffic and "Take Out" – and "Add VM" opens the list of the
+  others right there; the page with one drop-down and the row of "Take … Out" buttons are gone. A running NixOS VM
+  changes at once, a macOS VM at its next start (the help of each entry says which). The same in the macOS app and
+  the Linux app, which now draws the picture too.
 - **German: "entfesselt"** for unchained images, bases and VMs.
 - **The agent's log in macOS VMs** is `~/Library/Logs/omaflake/agent.log` instead of `/tmp/omaflake-agent.log`,
   with the time on every line; the logs of the four starts before stay beside it (`agent.1.log` …), so what

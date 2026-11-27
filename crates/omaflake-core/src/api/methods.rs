@@ -501,7 +501,7 @@ impl Server {
             host: host(),
             data_folder: paths.root.to_string_lossy().into_owned(),
             config_file: paths.config_file.to_string_lossy().into_owned(),
-            core: CoreIdentity::current(),
+            core: CoreIdentity::at_start(),
         })
     }
 

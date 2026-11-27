@@ -76,9 +76,18 @@ impl CoreIdentity {
         })
     }
 
-    /// This process's executable
+    /// This process's executable – as it is on disk now
     pub fn current() -> Option<CoreIdentity> {
         CoreIdentity::of(&std::env::current_exe().ok()?)
+    }
+
+    /// This process's executable as it was when the process started (its first call; `Server::new` makes it). A
+    /// service must answer this: asked later, after its app was replaced in place, `current` reads the new file and
+    /// an old service passes for the new one – the app then keeps it (2026-11-27: a new 0.8.1 build talked to the
+    /// service of the 0.8.1 build before and showed its colours)
+    pub fn at_start() -> Option<CoreIdentity> {
+        static AT_START: std::sync::OnceLock<Option<CoreIdentity>> = std::sync::OnceLock::new();
+        AT_START.get_or_init(CoreIdentity::current).clone()
     }
 }
 

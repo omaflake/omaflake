@@ -273,6 +273,9 @@ struct CredentialsView: View {
                     } detail: {
                         DetailBox {
                             InfoLines(lines: r.detail.info, model: model)
+                            if !r.detail.items.isEmpty || r.detail.add != nil {
+                                DetailItems(items: r.detail.items, add: r.detail.add, model: model)
+                            }
                             DetailActions(actions: r.detail.actions, model: model)
                         }
                     }
@@ -918,3 +921,68 @@ struct SourcesView: View {
         }
     }
 }
+
+// MARK: - Lines in a detail
+
+/// What belongs to a row, a line each – lamp, symbol, name, what is known, its actions at the end – and below them a
+/// button with a list to add one (a network's VMs and "Add VM", plan B185)
+struct DetailItems: View {
+    let items: [DetailItem]
+    let add: ActionMenu?
+    let model: AppModel
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            ForEach(items) { item in
+                HStack(spacing: BrandTokens.Spacing.l) {
+                    StatusLamp(state: .init(item.lamp.state)).help(Text(verbatim: model.t(item.lamp.help)))
+                    Image(systemName: Icons.symbol(item.icon)?.main ?? "circle").frame(width: 16).foregroundStyle(.secondary)
+                    VStack(alignment: .leading, spacing: 0) {
+                        HStack(spacing: BrandTokens.Spacing.m) {
+                            Text(verbatim: item.name).font(.callout.weight(.medium)).lineLimit(1)
+                            ForEach(item.badges) { BadgeView(badge: $0, model: model) }
+                        }
+                        Text(verbatim: model.t(item.subtitle)).font(.caption).foregroundStyle(.secondary).lineLimit(1)
+                    }
+                    Spacer(minLength: 4)
+                    ForEach(item.actions) { ActionIcon(action: $0, model: model) }
+                }
+                .padding(.vertical, BrandTokens.Spacing.s)
+                if item.id != items.last?.id { Divider() }
+            }
+            if let add {
+                if !items.isEmpty { Divider() }
+                AddMenu(menu: add, model: model).padding(.top, BrandTokens.Spacing.s)
+            }
+        }
+        .padding(.horizontal, BrandTokens.Spacing.l)
+        .padding(.vertical, BrandTokens.Spacing.s)
+        .background(RoundedRectangle(cornerRadius: 8).fill(BrandTokens.Colors.inset))
+        .overlay(RoundedRectangle(cornerRadius: 8).stroke(BrandTokens.Colors.cardBorder))
+    }
+}
+
+/// "+ Add VM" with its list: a choice runs its action at once; nothing to choose: the button is off with the reason
+struct AddMenu: View {
+    let menu: ActionMenu
+    let model: AppModel
+
+    var body: some View {
+        Menu {
+            ForEach(menu.actions) { a in
+                Button { model.run(a) } label: {
+                    Label(model.t(a.label), systemImage: Icons.symbol(a.icon)?.main ?? "circle")
+                }
+                .help(Text(verbatim: model.t(a.help)))
+            }
+        } label: {
+            Label(model.t(menu.label), systemImage: Icons.symbol(menu.icon)?.main ?? "plus.circle")
+                .font(.callout)
+        }
+        .menuStyle(.borderlessButton)
+        .fixedSize()
+        .disabled(menu.actions.isEmpty)
+        .help(Text(verbatim: model.t(menu.empty)))
+    }
+}
+

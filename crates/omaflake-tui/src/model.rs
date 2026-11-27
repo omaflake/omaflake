@@ -383,6 +383,26 @@ fn list_row(ctx: &Ctx, prefix: &str, row: &Value, out: &mut Vec<Item>) {
             for (i, n) in arr(d, "notes").iter().enumerate() {
                 sub_items.push(hint(ctx, format!("{key}/note{i}"), n));
             }
+            // What belongs to it, a line each with its own actions, and the list to add one (plan B185)
+            for it in arr(d, "items") {
+                let ikey = format!("{key}/item:{}", s(it, "id"));
+                let mut spans = vec![Span::raw("    "), lamp(ctx, &it["lamp"]), Span::raw(" ")];
+                spans.extend(icon(ctx, s(it, "icon"), ctx.theme.secondary()));
+                spans.push(Span::styled(s(it, "name").to_string(), ctx.theme.text()));
+                let sub = secondary_line(ctx, t(&it["subtitle"]), 8);
+                sub_items.push(Item::row(ikey, vec![Line::from(spans), sub], arr(it, "actions").to_vec()));
+            }
+            if let Some(menu) = d.get("add").filter(|m| m.is_object()) {
+                let mkey = format!("{key}/add");
+                let options = arr(menu, "actions").to_vec();
+                let text = if options.is_empty() {
+                    menu.get("empty").map(t).unwrap_or_default()
+                } else {
+                    format!("+ {}", t(&menu["label"]))
+                };
+                let line = Line::from(vec![Span::raw("    "), Span::styled(text, ctx.theme.secondary())]);
+                sub_items.push(Item::row(mkey, vec![line], options));
+            }
             for v in arr(d, "versions") {
                 let vkey = format!("{key}/{}", s(v, "id"));
                 let vline = Line::from(vec![
