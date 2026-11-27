@@ -102,11 +102,11 @@
         "items": [
           {
             "id": "omaflake.nixos.minimal",
-            "source": "github:omaflake/recipes@main"
+            "source": "github:omaflake/catalog@main"
           },
           {
             "id": "lab.nixos.try",
-            "source": "github:omaflake/recipes@main"
+            "source": "github:omaflake/catalog@main"
           }
         ]
       }
@@ -255,15 +255,15 @@
           "id": "install",
           "label": {
             "args": [
-              "omaflake/recipes"
+              "omaflake/catalog"
             ],
             "key": "Install from %@",
-            "text": "Install from omaflake/recipes"
+            "text": "Install from omaflake/catalog"
           },
           "method": "recipes.install",
           "params": {
             "id": "omaflake.nixos.minimal",
-            "source": "github:omaflake/recipes@main"
+            "source": "github:omaflake/catalog@main"
           },
           "primary": true
         }
@@ -300,7 +300,7 @@
             "value": {
               "args": [
                 {
-                  "text": "omaflake/recipes"
+                  "text": "omaflake/catalog"
                 },
                 {
                   "key": "official",
@@ -308,7 +308,7 @@
                 }
               ],
               "key": "%@ · %@",
-              "text": "omaflake/recipes · official"
+              "text": "omaflake/catalog · official"
             }
           },
           {
@@ -398,7 +398,7 @@
         ],
         "name": "minimal",
         "runsHere": true,
-        "source": "github:omaflake/recipes@main",
+        "source": "github:omaflake/catalog@main",
         "systems": [
           "aarch64-linux"
         ],
@@ -419,15 +419,15 @@
           "id": "install",
           "label": {
             "args": [
-              "omaflake/recipes"
+              "omaflake/catalog"
             ],
             "key": "Install from %@",
-            "text": "Install from omaflake/recipes"
+            "text": "Install from omaflake/catalog"
           },
           "method": "recipes.install",
           "params": {
             "id": "lab.nixos.try",
-            "source": "github:omaflake/recipes@main"
+            "source": "github:omaflake/catalog@main"
           },
           "primary": true
         }
@@ -462,7 +462,7 @@
               "text": "Source"
             },
             "value": {
-              "text": "omaflake/recipes"
+              "text": "omaflake/catalog"
             }
           },
           {
@@ -531,7 +531,7 @@
         "modules": [],
         "name": "try",
         "runsHere": true,
-        "source": "github:omaflake/recipes@main",
+        "source": "github:omaflake/catalog@main",
         "systems": [
           "aarch64-linux"
         ],

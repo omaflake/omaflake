@@ -78,8 +78,8 @@
       "primary": true
     },
     "footer": {
-      "key": "omaflake ships no recipes; it reads them from these sources. Recipes from other sources than omaflake/recipes are not reviewed by the omaflake team – their Nix code runs on this Mac when you build them.",
-      "text": "omaflake ships no recipes; it reads them from these sources. Recipes from other sources than omaflake/recipes are not reviewed by the omaflake team – their Nix code runs on this Mac when you build them."
+      "key": "omaflake ships no recipes; it reads them from these sources. Recipes from other sources than omaflake/catalog are not reviewed by the omaflake team – their Nix code runs on this Mac when you build them.",
+      "text": "omaflake ships no recipes; it reads them from these sources. Recipes from other sources than omaflake/catalog are not reviewed by the omaflake team – their Nix code runs on this Mac when you build them."
     },
     "rows": [
       {
@@ -98,7 +98,7 @@
             },
             "method": "sources.move",
             "params": {
-              "id": "github:omaflake/recipes@main",
+              "id": "github:omaflake/catalog@main",
               "up": true
             }
           },
@@ -113,7 +113,7 @@
             "on": true,
             "params": {
               "enabled": false,
-              "id": "github:omaflake/recipes@main"
+              "id": "github:omaflake/catalog@main"
             }
           },
           {
@@ -129,10 +129,10 @@
               },
               "title": {
                 "args": [
-                  "omaflake/recipes"
+                  "omaflake/catalog"
                 ],
                 "key": "Remove the source “%@”?",
-                "text": "Remove the source “omaflake/recipes”?"
+                "text": "Remove the source “omaflake/catalog”?"
               }
             },
             "destructive": true,
@@ -145,7 +145,7 @@
             },
             "method": "sources.remove",
             "params": {
-              "id": "github:omaflake/recipes@main"
+              "id": "github:omaflake/catalog@main"
             }
           }
         ],
@@ -161,16 +161,16 @@
           }
         ],
         "icon": "github",
-        "id": "github:omaflake/recipes@main",
-        "name": "omaflake/recipes",
+        "id": "github:omaflake/catalog@main",
+        "name": "omaflake/catalog",
         "source": {
           "branch": "main",
-          "displayName": "omaflake/recipes",
+          "displayName": "omaflake/catalog",
           "enabled": true,
           "hasToken": false,
-          "id": "github:omaflake/recipes@main",
+          "id": "github:omaflake/catalog@main",
           "kind": "github",
-          "location": "omaflake/recipes",
+          "location": "omaflake/catalog",
           "official": true,
           "private": false
         },

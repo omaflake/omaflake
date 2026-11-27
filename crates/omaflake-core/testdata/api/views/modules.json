@@ -37,11 +37,11 @@
         "items": [
           {
             "id": "omaflake.nixos.wezterm",
-            "source": "github:omaflake/recipes@main"
+            "source": "github:omaflake/catalog@main"
           },
           {
             "id": "omaflake.macos.vscode",
-            "source": "github:omaflake/recipes@main"
+            "source": "github:omaflake/catalog@main"
           }
         ]
       }
@@ -66,7 +66,7 @@
         "items": [
           {
             "id": "omaflake.nixos.hyprland",
-            "source": "github:omaflake/recipes@main"
+            "source": "github:omaflake/catalog@main"
           }
         ]
       }
@@ -203,7 +203,7 @@
           "method": "modules.install",
           "params": {
             "id": "omaflake.nixos.wezterm",
-            "source": "github:omaflake/recipes@main"
+            "source": "github:omaflake/catalog@main"
           },
           "primary": true
         }
@@ -232,7 +232,7 @@
             "method": "modules.install",
             "params": {
               "id": "omaflake.nixos.wezterm",
-              "source": "github:omaflake/recipes@main"
+              "source": "github:omaflake/catalog@main"
             },
             "primary": true
           }
@@ -262,7 +262,7 @@
               "text": "Source"
             },
             "value": {
-              "text": "omaflake/recipes"
+              "text": "omaflake/catalog"
             }
           }
         ]
@@ -289,11 +289,11 @@
             "text": "NixOS module"
           },
           {
-            "text": "omaflake/recipes"
+            "text": "omaflake/catalog"
           }
         ],
         "key": "%@ · %@ · %@ · %@",
-        "text": "omaflake/wezterm · 1.0.0 · NixOS module · omaflake/recipes"
+        "text": "omaflake/wezterm · 1.0.0 · NixOS module · omaflake/catalog"
       }
     },
     {
@@ -309,7 +309,7 @@
           "method": "modules.install",
           "params": {
             "id": "omaflake.macos.vscode",
-            "source": "github:omaflake/recipes@main"
+            "source": "github:omaflake/catalog@main"
           },
           "primary": true
         }
@@ -351,7 +351,7 @@
             "method": "modules.install",
             "params": {
               "id": "omaflake.macos.vscode",
-              "source": "github:omaflake/recipes@main"
+              "source": "github:omaflake/catalog@main"
             },
             "primary": true
           }
@@ -372,7 +372,7 @@
               "text": "Source"
             },
             "value": {
-              "text": "omaflake/recipes"
+              "text": "omaflake/catalog"
             }
           }
         ]
@@ -399,11 +399,11 @@
             "text": "macOS module"
           },
           {
-            "text": "omaflake/recipes"
+            "text": "omaflake/catalog"
           }
         ],
         "key": "%@ · %@ · %@ · %@",
-        "text": "omaflake/vscode · 1.0.0 · macOS module · omaflake/recipes"
+        "text": "omaflake/vscode · 1.0.0 · macOS module · omaflake/catalog"
       }
     }
   ],
@@ -446,7 +446,7 @@
           "method": "modules.install",
           "params": {
             "id": "omaflake.nixos.hyprland",
-            "source": "github:omaflake/recipes@main"
+            "source": "github:omaflake/catalog@main"
           }
         }
       ],
@@ -508,7 +508,7 @@
             "method": "modules.install",
             "params": {
               "id": "omaflake.nixos.hyprland",
-              "source": "github:omaflake/recipes@main"
+              "source": "github:omaflake/catalog@main"
             }
           },
           {
@@ -601,7 +601,7 @@
               "text": "Source"
             },
             "value": {
-              "text": "omaflake/recipes"
+              "text": "omaflake/catalog"
             }
           },
           {

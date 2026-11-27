@@ -27,7 +27,7 @@
       ],
       "name": "minimal",
       "runsHere": true,
-      "source": "github:omaflake/recipes@main",
+      "source": "github:omaflake/catalog@main",
       "systems": [
         "aarch64-linux"
       ],
@@ -53,7 +53,7 @@
       "modules": [],
       "name": "try",
       "runsHere": true,
-      "source": "github:omaflake/recipes@main",
+      "source": "github:omaflake/catalog@main",
       "systems": [
         "aarch64-linux"
       ],
@@ -88,7 +88,7 @@
       ],
       "name": "minimal",
       "runsHere": true,
-      "source": "github:omaflake/recipes@main",
+      "source": "github:omaflake/catalog@main",
       "systems": [
         "aarch64-linux"
       ],
@@ -125,7 +125,7 @@
         ],
         "name": "dev",
         "runsHere": true,
-        "source": "github:omaflake/recipes@main",
+        "source": "github:omaflake/catalog@main",
         "systems": [
           "aarch64-linux"
         ],

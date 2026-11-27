@@ -231,7 +231,7 @@ fn draws_every_page() {
             vec!["‹ Esc  Build Images", "Newer recipe versions in your sources", "omaflake/nixos/dev"],
         ),
         ("recipeCatalog", "recipeCatalog", vec!["‹ Esc  Recipes in your sources", "minimal", "example.org: HTTP 404"]),
-        ("sources", "sources", vec!["Recipe Sources", "omaflake/recipes", "Check and Add"]),
+        ("sources", "sources", vec!["Recipe Sources", "omaflake/catalog", "Check and Add"]),
         ("keymaps", "keymaps", vec!["Key Bindings", "omaflake"]),
         (
             "recipeCatalog",

@@ -109,7 +109,7 @@ pub struct OfferedRow {
 pub struct OfferedDetail {
     pub description: String,
     pub info: Vec<InfoLine>,
-    /// "Not reviewed by the omaflake team …" for recipes not from omaflake/recipes
+    /// "Not reviewed by the omaflake team …" for recipes not from omaflake/catalog
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub warning: Option<Text>,
 }

@@ -180,8 +180,8 @@ mod tests {
             format!("1  folder {}off, 2 recipes, used as they are", pad("~/recipes", 40))
         );
         assert_eq!(
-            source_line(2, RecipeSourceKind::Github, "omaflake/recipes", &["official".into(), "3 installed".into()]),
-            format!("2  github {}official, 3 installed", pad("omaflake/recipes", 40))
+            source_line(2, RecipeSourceKind::Github, "omaflake/catalog", &["official".into(), "3 installed".into()]),
+            format!("2  github {}official, 3 installed", pad("omaflake/catalog", 40))
         );
     }
 }

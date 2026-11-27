@@ -505,7 +505,7 @@ omaflake ships **no recipes**. It reads them from recipe sources:
   recipe's folder), the catalog version of a downloaded one.
 - **Presets and the first start:** omaflake's recipes live in [omaflake/catalog](https://github.com/omaflake/catalog)
   (also `lab`). With nothing installed, the Recipes tab offers "Install suggested": the official ones (no lab recipes).
-  **Official** means by `omaflake` *and* from omaflake/catalog on GitHub (omaflake/recipes, archived, until 1.0) – a fork's copy or an author name alone is not;
+  **Official** means by `omaflake` *and* from omaflake/catalog on GitHub (the former omaflake/recipes is retired; settings naming it are migrated) – a fork's copy or an author name alone is not;
   recipes from other sources carry a note that the omaflake team has not reviewed them.
 - **Marketplace:** omaflake/catalog is the curated catalog: other developers submit recipes, modules, key bindings and looks by pull request; the core
   team reviews them for security, fitness and added value (REVIEW.md there), CI checks the format (`tools/catalog.py

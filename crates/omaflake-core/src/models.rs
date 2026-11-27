@@ -102,7 +102,7 @@ pub struct RecipeDefaults {
     pub display: Option<DisplayMode>,
     /// Words to find the recipe by (e.g. "latex", "neovim"); lowercase, shown in the app's recipe row (plan B97)
     pub tags: Vec<String>,
-    /// SPDX identifier and where to read more (omaflake/recipes, CONTRIBUTING.md) – shown in the recipe's details
+    /// SPDX identifier and where to read more (omaflake/catalog, CONTRIBUTING.md) – shown in the recipe's details
     pub license: Option<String>,
     pub homepage: Option<String>,
 }

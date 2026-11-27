@@ -37,7 +37,7 @@
         "items": [
           {
             "id": "omaflake.keymap.default",
-            "source": "github:omaflake/recipes@main"
+            "source": "github:omaflake/catalog@main"
           }
         ]
       }
@@ -152,7 +152,7 @@
           "method": "modules.install",
           "params": {
             "id": "omaflake.keymap.default",
-            "source": "github:omaflake/recipes@main"
+            "source": "github:omaflake/catalog@main"
           }
         }
       ],
@@ -213,7 +213,7 @@
             "method": "modules.install",
             "params": {
               "id": "omaflake.keymap.default",
-              "source": "github:omaflake/recipes@main"
+              "source": "github:omaflake/catalog@main"
             }
           },
           {
@@ -288,7 +288,7 @@
               "text": "Source"
             },
             "value": {
-              "text": "omaflake/recipes"
+              "text": "omaflake/catalog"
             }
           },
           {

@@ -21,7 +21,7 @@ any work and keep them up to date.
   home paths, SSH keys, hostnames. Personal settings belong in `nix/local/`.
 - **Repositories:** app work happens only in this checkout (`omaflake/omaflake`). Recipes, modules, key bindings and
   looks live in `omaflake/catalog` (checked out next to this one as `../catalog`; its own CLAUDE.md) – this
-  repository holds none (plan B107, B140, B142; `omaflake/recipes` is archived since 2026-11-27). The website is a separate repo,
+  repository holds none (plan B107, B140, B142; the former `omaflake/recipes` was deleted on 2026-11-27). The website is a separate repo,
   `omaflake/website` (static GitHub Pages site), as `../website`.
 - **Developing with the catalog:** the data folder's config.json has the local checkout `../catalog` as its source
   (`omaf sources add <path> --first`), not the remote omaflake/catalog – a recipe or module changed there is built as

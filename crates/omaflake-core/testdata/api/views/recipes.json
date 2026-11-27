@@ -277,7 +277,7 @@
             "method": "recipes.install",
             "params": {
               "id": "omaflake.nixos.dev",
-              "source": "github:omaflake/recipes@main"
+              "source": "github:omaflake/catalog@main"
             }
           },
           {
@@ -325,7 +325,7 @@
             },
             "method": "recipes.removeLine",
             "params": {
-              "line": "omaflake.nixos.dev@github:omaflake/recipes@main"
+              "line": "omaflake.nixos.dev@github:omaflake/catalog@main"
             }
           }
         ],
@@ -403,13 +403,13 @@
             }
           },
           {
-            "full": "omaflake/recipes",
+            "full": "omaflake/catalog",
             "label": {
               "key": "Source",
               "text": "Source"
             },
             "value": {
-              "text": "omaflake/recipes"
+              "text": "omaflake/catalog"
             }
           },
           {
@@ -613,7 +613,7 @@
               "label": "recipe:omaflake/nixos/dev:velvet",
               "live": false,
               "newest": true,
-              "source": "github:omaflake/recipes@main"
+              "source": "github:omaflake/catalog@main"
             },
             "words": "velvet"
           },
@@ -701,7 +701,7 @@
               "label": "recipe:omaflake/nixos/dev:amber",
               "live": false,
               "newest": false,
-              "source": "github:omaflake/recipes@main"
+              "source": "github:omaflake/catalog@main"
             },
             "words": "amber"
           }
@@ -724,7 +724,7 @@
         },
         "state": "working"
       },
-      "line": "omaflake.nixos.dev@github:omaflake/recipes@main",
+      "line": "omaflake.nixos.dev@github:omaflake/catalog@main",
       "name": "dev",
       "recipe": {
         "audio": true,
@@ -745,14 +745,14 @@
         "image": "omaflake.nixos.dev@cedar-mango-lift",
         "installed": {
           "installed": "2026-10-20T08:00:00Z",
-          "source": "github:omaflake/recipes@main",
+          "source": "github:omaflake/catalog@main",
           "version": "3"
         },
         "kind": "nixos",
         "lab": false,
         "label": "recipe:omaflake/nixos/dev:velvet",
         "license": "MIT",
-        "line": "omaflake.nixos.dev@github:omaflake/recipes@main",
+        "line": "omaflake.nixos.dev@github:omaflake/catalog@main",
         "memoryGB": 8,
         "microphone": false,
         "midi": true,
@@ -929,7 +929,7 @@
         "qualified": "omaflake/nixos/dev",
         "runsHere": true,
         "share": true,
-        "source": "github:omaflake/recipes@main",
+        "source": "github:omaflake/catalog@main",
         "systems": [
           "aarch64-linux"
         ],
@@ -948,7 +948,7 @@
             "label": "recipe:omaflake/nixos/dev:velvet",
             "live": false,
             "newest": true,
-            "source": "github:omaflake/recipes@main"
+            "source": "github:omaflake/catalog@main"
           },
           {
             "added": "2026-10-20T08:00:00Z",
@@ -957,7 +957,7 @@
             "label": "recipe:omaflake/nixos/dev:amber",
             "live": false,
             "newest": false,
-            "source": "github:omaflake/recipes@main"
+            "source": "github:omaflake/catalog@main"
           }
         ]
       },
@@ -1214,7 +1214,7 @@
           "method": "recipes.install",
           "params": {
             "id": "omaflake.nixos.dev",
-            "source": "github:omaflake/recipes@main"
+            "source": "github:omaflake/catalog@main"
           },
           "primary": true
         },
@@ -1229,7 +1229,7 @@
           "tone": "normal"
         },
         "name": "omaflake/nixos/dev",
-        "source": "omaflake/recipes"
+        "source": "omaflake/catalog"
       }
     ],
     "title": {

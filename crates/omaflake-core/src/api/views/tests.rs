@@ -99,8 +99,8 @@ pub(crate) fn modules_fixture() -> omaflake_sdk::types::ModulesAnswer {
         enhances: vec![],
         keys: BTreeMap::new(),
         unfree: false,
-        source: "github:omaflake/recipes@main".into(),
-        source_name: "omaflake/recipes".into(),
+        source: "github:omaflake/catalog@main".into(),
+        source_name: "omaflake/catalog".into(),
         official: true,
         installed: true,
         update: false,
@@ -742,7 +742,7 @@ fn recipe_rows_by_line_with_offers_and_updates() {
     let page = catalog;
     let offered: Vec<&str> = page["offered"].as_array().unwrap().iter().map(|o| o["id"].as_str().unwrap()).collect();
     assert_eq!(offered, ["omaflake.nixos.minimal", "lab.nixos.try"]);
-    assert_eq!(page["offered"][0]["actions"][0]["label"]["text"], "Install from omaflake/recipes");
+    assert_eq!(page["offered"][0]["actions"][0]["label"]["text"], "Install from omaflake/catalog");
     assert!(page["offered"][0]["detail"].get("warning").is_none());
     assert_eq!(
         page["offered"][1]["detail"]["warning"]["key"],

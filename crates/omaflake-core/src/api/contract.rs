@@ -97,7 +97,7 @@ fn goldens() -> Vec<(&'static str, Value)> {
             "sources.check",
             v(SourceChecks {
                 results: BTreeMap::from([
-                    ("github:omaflake/recipes@main".into(), SourceCheck { ok: true, note: "12 recipes".into() }),
+                    ("github:omaflake/catalog@main".into(), SourceCheck { ok: true, note: "12 recipes".into() }),
                     ("url:https://example.org/catalog.json".into(), SourceCheck { ok: false, note: "HTTP 404".into() }),
                 ]),
             }),
@@ -320,13 +320,13 @@ pub(crate) fn image(size: bool) -> ImageDto {
     ImageDto {
         name: "omaflake.nixos.dev@cedar-mango-lift".into(),
         recipe: "omaflake.nixos.dev@velvet-tiger-orbit".into(),
-        source: Some("github:omaflake/recipes@main".into()),
+        source: Some("github:omaflake/catalog@main".into()),
         kind: GuestKind::Nixos,
         system: "aarch64-linux".into(),
         revision: "abc123-dirty".into(),
         store_path: Some("/nix/store/abc-nixos-disk-image".into()),
         created: date("2026-10-21T10:00:00Z"),
-        line: "omaflake.nixos.dev@github:omaflake/recipes@main".into(),
+        line: "omaflake.nixos.dev@github:omaflake/catalog@main".into(),
         path: "/data/images/omaflake.nixos.dev@cedar-mango-lift".into(),
         size_bytes: size.then_some(12_345_678_901),
         label: "image:omaflake/nixos/dev:cedar".into(),
@@ -375,7 +375,7 @@ pub(crate) fn image_old() -> ImageDto {
 pub(crate) fn version(id: &str, newest: bool, live: bool, images: &[&str]) -> VersionDto {
     VersionDto {
         id: id.into(),
-        source: "github:omaflake/recipes@main".into(),
+        source: "github:omaflake/catalog@main".into(),
         added: (!live).then(|| date("2026-10-20T08:00:00Z")),
         newest,
         live,
@@ -418,12 +418,12 @@ pub(crate) fn recipe_list() -> RecipeList {
         tags: vec!["dev".into(), "gui".into()],
         license: Some("MIT".into()),
         homepage: Some("https://omaflake.dev".into()),
-        source: Some("github:omaflake/recipes@main".into()),
-        line: "omaflake.nixos.dev@github:omaflake/recipes@main".into(),
+        source: Some("github:omaflake/catalog@main".into()),
+        line: "omaflake.nixos.dev@github:omaflake/catalog@main".into(),
         distinction: Some("velvet".into()),
         folder: Some("/data/recipes/omaflake.nixos.dev@velvet-tiger-orbit".into()),
         installed: Some(InstalledDto {
-            source: "github:omaflake/recipes@main".into(),
+            source: "github:omaflake/catalog@main".into(),
             version: "3".into(),
             installed: date("2026-10-20T08:00:00Z"),
         }),
@@ -474,7 +474,7 @@ pub(crate) fn recipe_list() -> RecipeList {
     };
     RecipeList {
         recipes: vec![lab, full],
-        lines: BTreeMap::from([("omaflake.nixos.dev@github:omaflake/recipes@main".to_string(), versions)]),
+        lines: BTreeMap::from([("omaflake.nixos.dev@github:omaflake/catalog@main".to_string(), versions)]),
         id_lengths: IdLengths { recipe: 1, image: 1, vm: 1 },
         qemu_gl: true,
         unreadable: vec![Unreadable { name: "acme.nixos.x".into(), reason: "recipe.toml: unknown key".into() }],
@@ -608,7 +608,7 @@ pub(crate) fn catalog(id: &str, lab: bool) -> CatalogRecipeDto {
         homepage: None,
         version: "2".into(),
         files: vec![CatalogFileDto { path: "recipe.toml".into(), size: 412, sha256: "9f86d081884c7d65".into() }],
-        source: "github:omaflake/recipes@main".into(),
+        source: "github:omaflake/catalog@main".into(),
         runs_here: true,
     }
 }
@@ -627,11 +627,11 @@ pub(crate) fn available() -> Available {
 
 pub(crate) fn source_official() -> SourceDto {
     SourceDto {
-        id: "github:omaflake/recipes@main".into(),
+        id: "github:omaflake/catalog@main".into(),
         kind: RecipeSourceKind::Github,
-        location: "omaflake/recipes".into(),
+        location: "omaflake/catalog".into(),
         branch: Some("main".into()),
-        display_name: "omaflake/recipes".into(),
+        display_name: "omaflake/catalog".into(),
         enabled: true,
         private: false,
         official: true,

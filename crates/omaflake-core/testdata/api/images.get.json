@@ -8,7 +8,7 @@
   ],
   "kind": "nixos",
   "label": "image:omaflake/nixos/dev:cedar",
-  "line": "omaflake.nixos.dev@github:omaflake/recipes@main",
+  "line": "omaflake.nixos.dev@github:omaflake/catalog@main",
   "locale": "l-1",
   "localeName": "German",
   "look": "omaflake",
@@ -19,7 +19,7 @@
   "recipe": "omaflake.nixos.dev@velvet-tiger-orbit",
   "revision": "abc123-dirty",
   "sizeBytes": 12345678901,
-  "source": "github:omaflake/recipes@main",
+  "source": "github:omaflake/catalog@main",
   "storePath": "/nix/store/abc-nixos-disk-image",
   "system": "aarch64-linux"
 }

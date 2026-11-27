@@ -145,8 +145,8 @@ pub(crate) fn sources_page(ctx: &Ctx, p: &SettingsParams) -> SourcesPage {
             add: SettingsSection { title: Text::new("Recipe Sources"), fields: add_fields, footer: None },
             add_action: add,
             footer: Text::new(ctx.on_host(
-                "omaflake ships no recipes; it reads them from these sources. Recipes from other sources than omaflake/recipes are not reviewed by the omaflake team – their Nix code runs on this Mac when you build them.",
-                "omaflake ships no recipes; it reads them from these sources. Recipes from other sources than omaflake/recipes are not reviewed by the omaflake team – their Nix code runs on this computer when you build them.",
+                "omaflake ships no recipes; it reads them from these sources. Recipes from other sources than omaflake/catalog are not reviewed by the omaflake team – their Nix code runs on this Mac when you build them.",
+                "omaflake ships no recipes; it reads them from these sources. Recipes from other sources than omaflake/catalog are not reviewed by the omaflake team – their Nix code runs on this computer when you build them.",
             )),
         },
     }

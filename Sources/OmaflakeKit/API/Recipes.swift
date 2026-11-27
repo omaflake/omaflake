@@ -220,7 +220,7 @@ public struct Source: Decodable, Sendable, Equatable, Identifiable {
     public var displayName: String
     public var enabled: Bool
     public var `private`: Bool
-    /// omaflake/recipes
+    /// omaflake/catalog
     public var official: Bool
     /// A private repository's token is in the Keychain
     public var hasToken: Bool

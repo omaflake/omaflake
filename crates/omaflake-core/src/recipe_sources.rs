@@ -103,11 +103,10 @@ impl RecipeSource {
         self.kind == RecipeSourceKind::Github && self.is_private.unwrap_or(false)
     }
 
-    /// omaflake/catalog on GitHub (omaflake/recipes, archived, until 1.0) – its entries by `omaflake` are marked as
-    /// official (an author name alone is not enough)
+    /// omaflake/catalog on GitHub – its entries by `omaflake` are marked as official (an author name alone is not
+    /// enough). The former omaflake/recipes is retired (plan B140); settings naming it are migrated to the catalog.
     pub fn is_official(&self) -> bool {
-        self.kind == RecipeSourceKind::Github
-            && matches!(self.location.to_lowercase().as_str(), "omaflake/catalog" | "omaflake/recipes")
+        self.kind == RecipeSourceKind::Github && self.location.eq_ignore_ascii_case("omaflake/catalog")
     }
 
     /// Short name for lists: "owner/repo (branch)", "<host><folder of catalog.json>", "~/…"
@@ -1641,8 +1640,8 @@ mod tests {
         assert_eq!(s.id(), "github:omaflake/catalog@main");
         assert_eq!(s.tag().len(), 8);
         assert_eq!(s.tag(), RecipeSource::tag_for_key("github:omaflake/catalog@main"));
-        // The archived omaflake/recipes stays official until 1.0 (plan B140)
-        assert!(RecipeSource::new(RecipeSourceKind::Github, "omaflake/recipes", None, None, None).is_official());
+        // The retired omaflake/recipes is not official any more (plan B140)
+        assert!(!RecipeSource::new(RecipeSourceKind::Github, "omaflake/recipes", None, None, None).is_official());
         assert!(s.is_official() && s.is_enabled() && !s.is_private_repository());
         let json =
             serde_json::to_string(&RecipeSource::new(RecipeSourceKind::Github, "a/b", None, Some(true), None)).unwrap();
@@ -1651,8 +1650,8 @@ mod tests {
 
     #[test]
     fn parses_what_users_type() {
-        let a = RecipeSource::parse("https://github.com/omaflake/recipes", false).unwrap();
-        assert!(a.kind == RecipeSourceKind::Github && a.location == "omaflake/recipes" && a.branch.is_none());
+        let a = RecipeSource::parse("https://github.com/omaflake/catalog", false).unwrap();
+        assert!(a.kind == RecipeSourceKind::Github && a.location == "omaflake/catalog" && a.branch.is_none());
         assert!(a.is_official() && a.is_private.is_none());
         let b = RecipeSource::parse("github.com/Some-One/my.recipes/tree/dev", true).unwrap();
         assert!(b.kind == RecipeSourceKind::Github && b.location == "Some-One/my.recipes");

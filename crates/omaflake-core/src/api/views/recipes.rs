@@ -571,7 +571,7 @@ fn version_row(v: &VersionDto, words: usize) -> VersionRow {
 fn offered_row(ctx: &Ctx, r: &CatalogRecipeDto) -> OfferedRow {
     let source = ctx.sources.iter().find(|s| s.id == r.source);
     let source_name = ctx.source_name(&r.source);
-    // Official: by omaflake *and* from omaflake/recipes – an author name alone is not enough
+    // Official: by omaflake *and* from omaflake/catalog – an author name alone is not enough
     let official = source.is_some_and(|s| s.official) && r.author == "omaflake";
     let installing = ctx.installing(&r.id);
     let mut badges = Vec::new();

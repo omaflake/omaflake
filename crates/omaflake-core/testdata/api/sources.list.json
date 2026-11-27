@@ -1,12 +1,12 @@
 [
   {
     "branch": "main",
-    "displayName": "omaflake/recipes",
+    "displayName": "omaflake/catalog",
     "enabled": true,
     "hasToken": false,
-    "id": "github:omaflake/recipes@main",
+    "id": "github:omaflake/catalog@main",
     "kind": "github",
-    "location": "omaflake/recipes",
+    "location": "omaflake/catalog",
     "official": true,
     "private": false
   },

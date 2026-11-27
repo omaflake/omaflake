@@ -437,7 +437,7 @@
 "Nothing matches the filter." = "Nichts passt zum Filter.";
 "Show in Finder" = "Im Finder zeigen";
 "Recipe Sources" = "Rezept-Quellen";
-"omaflake ships no recipes; it reads them from these sources. Recipes from other sources than omaflake/recipes are not reviewed by the omaflake team – their Nix code runs on this Mac when you build them." = "omaflake bringt keine Rezepte mit, sondern liest sie aus diesen Quellen. Rezepte aus anderen Quellen als omaflake/recipes prüft das omaflake-Team nicht – ihr Nix-Code läuft auf diesem Mac, wenn du sie baust.";
+"omaflake ships no recipes; it reads them from these sources. Recipes from other sources than omaflake/catalog are not reviewed by the omaflake team – their Nix code runs on this Mac when you build them." = "omaflake bringt keine Rezepte mit, sondern liest sie aus diesen Quellen. Rezepte aus anderen Quellen als omaflake/catalog prüft das omaflake-Team nicht – ihr Nix-Code läuft auf diesem Mac, wenn du sie baust.";
 "GitHub repository, HTTPS URL or folder" = "GitHub-Repository, HTTPS-URL oder Ordner";
 "Folder …" = "Ordner …";
 "Private repository" = "Privates Repository";
@@ -633,7 +633,7 @@
 "Not for this computer – built for %@" = "Nicht für diesen Computer – gebaut für %@";
 "Not for this computer – it is built for %@" = "Nicht für diesen Computer – gebaut für %@";
 "Not reviewed by the omaflake team – its Nix code runs on this computer when you build it." = "Nicht vom omaflake-Team geprüft – sein Nix-Code läuft auf diesem Computer, wenn du es baust.";
-"omaflake ships no recipes; it reads them from these sources. Recipes from other sources than omaflake/recipes are not reviewed by the omaflake team – their Nix code runs on this computer when you build them." = "omaflake bringt keine Rezepte mit, sondern liest sie aus diesen Quellen. Rezepte aus anderen Quellen als omaflake/recipes prüft das omaflake-Team nicht – ihr Nix-Code läuft auf diesem Computer, wenn du sie baust.";
+"omaflake ships no recipes; it reads them from these sources. Recipes from other sources than omaflake/catalog are not reviewed by the omaflake team – their Nix code runs on this computer when you build them." = "omaflake bringt keine Rezepte mit, sondern liest sie aus diesen Quellen. Rezepte aus anderen Quellen als omaflake/catalog prüft das omaflake-Team nicht – ihr Nix-Code läuft auf diesem Computer, wenn du sie baust.";
 "Only while omaflake is not in front: VM ready, image built or failed, VM ended." = "Nur wenn omaflake nicht vorne ist: VM startklar, Vorlage fertig oder fehlgeschlagen, VM beendet.";
 "By default omaflake keeps everything in ~/.omaflake." = "Standardmäßig liegt alles in ~/.omaflake.";
 "Private – token stored (keyring or tokens.json)" = "Privat – Token abgelegt (Schlüsselbund oder tokens.json)";

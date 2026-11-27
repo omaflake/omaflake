@@ -614,7 +614,7 @@ pub(crate) fn recipe_updates<'a>(
     out
 }
 
-/// The official recipes (by omaflake from omaflake/recipes, no lab ones) – suggested at the first start
+/// The official recipes (by omaflake from omaflake/catalog, no lab ones) – suggested at the first start
 pub(crate) fn suggested<'a>(offered: &[Offer<'a>], runs_here: &dyn Fn(&CatalogRecipe) -> bool) -> Vec<Offer<'a>> {
     offered
         .iter()

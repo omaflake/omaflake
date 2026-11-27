@@ -238,7 +238,7 @@
               "text": "Source"
             },
             "value": {
-              "text": "omaflake/recipes"
+              "text": "omaflake/catalog"
             }
           }
         ],
@@ -353,7 +353,7 @@
               "text": "Source"
             },
             "value": {
-              "text": "omaflake/recipes"
+              "text": "omaflake/catalog"
             }
           }
         ],
@@ -669,7 +669,7 @@
               "text": "Source"
             },
             "value": {
-              "text": "omaflake/recipes"
+              "text": "omaflake/catalog"
             }
           }
         ],
@@ -784,7 +784,7 @@
               "text": "Source"
             },
             "value": {
-              "text": "omaflake/recipes"
+              "text": "omaflake/catalog"
             }
           }
         ],

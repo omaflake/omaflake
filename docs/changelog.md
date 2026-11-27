@@ -13,6 +13,12 @@ are collected under *Unreleased*. Releases: [GitHub](https://github.com/omaflake
 
 ## [Unreleased]
 
+### Changed
+
+- **omaflake/recipes is gone** – the old recipe repository (deleted, replaced by
+  [omaflake/catalog](https://github.com/omaflake/catalog) since 0.6.0) no longer counts as an official source; settings
+  that still name it keep being moved to the catalog.
+
 ### Fixed
 
 - **The diagnosis checks volumes where they are** – the guest agent looked for them under `/Volumes/My Shared Files`

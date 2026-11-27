@@ -1936,7 +1936,7 @@ maintainer's decisions after discussing a themes repository:
 - **Steps:** (1) the maintainer creates the empty repository `omaflake/catalog` (the agent token cannot create
   repositories), (2) the recipes move over with their history, `tools/catalog.py` learns kinds, (3) `look.toml` v1 and
   the four looks as data, the image flake reads them, (4) catalog v3 and the "Looks" tab in core, CLI and the three UIs,
-  (5) settings migration to the new official source, docs and website, (6) the maintainer archives `omaflake/recipes`. Done 2026-11-27: `omaflake/recipes` is archived.
+  (5) settings migration to the new official source, docs and website, (6) the maintainer archives `omaflake/recipes`. Done 2026-11-27: `omaflake/recipes` archived and then deleted, before 1.0 (nothing used it: omaflake migrates settings naming it since 0.6.0; it is no longer an official source).
 
 **B141 (2026-10-25, decided; built in B142): recipes as building blocks – a recipe is data: base + modules + look + key
 bindings.** The maintainer's decisions (the German draft with every current recipe mapped: the private workspace's
