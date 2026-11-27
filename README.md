@@ -60,7 +60,7 @@ key – details and install in [docs/linux.md](docs/linux.md). On a Mac:
 ## Build
 
 ```sh
-cargo build --release -p omaf     # omaf CLI (Rust)
+cargo build --release -p omaflake # omaf CLI (Rust)
 swift test                        # unit tests
 scripts/sign-runner.sh release    # omaf-runner, signed with com.apple.security.virtualization
 scripts/bundle-app.sh             # build/omaflake.app (menu bar app; SIGN_IDENTITY=… for a Developer ID build)

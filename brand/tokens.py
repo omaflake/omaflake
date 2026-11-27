@@ -3,7 +3,7 @@
 """Generates omaflake's design tokens from brand/tokens.toml (plan B119), and the icons the Swift targets embed:
 
     Sources/OmaflakeApp/BrandTokens.swift   SwiftUI (Color, CGFloat, Font)
-    crates/omaflake-brand/src/tokens.rs     Rust, no dependencies (colours as [u8; 4] and [f32; 4], lengths as f32)
+    crates/omaflake-core/src/brand/tokens.rs  Rust, no dependencies (colours as [u8; 4] and [f32; 4], lengths as f32)
     brand/omaflake-look.toml                the guests' omaflake look ([look]) as look data (schema look/v1) – copied
                                             into omaflake/catalog as looks/omaflake/omaflake/look.toml
     Sources/OmaflakeKit/Brand/BrandAssets.swift  the app icon and the menu bar image (brand/png/, copies from
@@ -19,7 +19,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
 SOURCE = os.path.join(HERE, "tokens.toml")
 SWIFT = os.path.join(ROOT, "Sources", "OmaflakeApp", "BrandTokens.swift")
-RUST = os.path.join(ROOT, "crates", "omaflake-brand", "src", "tokens.rs")
+RUST = os.path.join(ROOT, "crates", "omaflake-core", "src", "brand", "tokens.rs")
 NIX = os.path.join(HERE, "omaflake-look.toml")
 ASSETS = os.path.join(ROOT, "Sources", "OmaflakeKit", "Brand", "BrandAssets.swift")
 
@@ -139,7 +139,7 @@ def swift(t):
 
 def rust(t):
     out = ["// " + HEADER.format(c="//"), "\n",
-           "use crate::Token;\n\n"]
+           "use crate::brand::Token;\n\n"]
     entries = []
 
     def color_const(rgba):
@@ -150,9 +150,9 @@ def rust(t):
     def module(name, doc, lines):
         out.append(f"/// {doc}\npub mod {name} {{\n")
         if any("Color" in line for line in lines):
-            out.append("    use crate::Color;\n")
+            out.append("    use crate::brand::Color;\n")
         if any("FontStyle" in line for line in lines):
-            out.append("    use crate::{FontStyle, Weight};\n")
+            out.append("    use crate::brand::{FontStyle, Weight};\n")
         out.extend(f"    {line}\n" for line in lines)
         out.append("}\n\n")
 

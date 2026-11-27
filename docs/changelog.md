@@ -13,27 +13,14 @@ are collected under *Unreleased*. Releases: [GitHub](https://github.com/omaflake
 
 ## [Unreleased]
 
-### Fixed
-
-- macOS VMs see their volumes again, each at `/Volumes/<name>`: the guest's launch daemon ran before the Nix store was
-  mounted and mounted nothing; it now waits for it and for the devices, and mounts them as the guest user. The same
-  fault kept a larger disk from being taken (B164). Rebuild your macOS images and upgrade their VMs.
-- No "sh can run in the background" notice in macOS VMs any more: the launchd jobs of the image start through
-  omaflake's own start script and are listed as "omaflake".
-- Unchained macOS VMs show each volume under Locations in the Finder, like an external disk: omaflake Tools brings
-  an FSKit file system of omaflake's (signed ad hoc, it needs the boot argument the image sets; with a Developer ID
-  later in every VM).
-- A macOS VM's volumes are favorites in the Finder's sidebar (macOS lists only "My Shared Files" under Locations).
-- Upgrading a macOS VM in place works: the guest's Nix refused the new system, since nix-darwin had dropped the guest
-  user from its trusted users. Images now keep it, and VMs from before are let in during the upgrade.
-
 ## [0.8.1] – 2026-11-27
 
 The camera in macOS VMs: smooth with OBS, and without OBS in an "unchained" VM; omaflake Tools, omaflake's own app
 inside a macOS VM, with its camera. An unchained copy of an image or a base is made by one click – omaflake goes
 through macOS Recovery by itself and asks you only to approve the camera once. And volumes: a VM can have several
-shared folders, and VMs can share them. Much of it is new and only partly
-tried on a Mac; the notes say where. Rebuild your macOS images to get the new agent.
+shared folders, and VMs can share them – in an unchained macOS VM each under Locations in the Finder, like an external
+disk. Much of it is new and only partly tried on a Mac; the notes say where. Rebuild your macOS images to get the new
+agent and the volumes, and upgrade their VMs.
 
 ### Added
 
@@ -43,7 +30,11 @@ tried on a Mac; the notes say where. Rebuild your macOS images to get the new ag
   asks for a new volume, one there is, or none. A VM sees each volume at `/Volumes/<name>` – the same path in macOS
   and NixOS VMs –, by default the folder's name, or one you give it for that VM ("Rename …"). On the command line:
   `omaf volumes` (`create`, `rm`, `attach`, `detach`, `rename`) and `omaf new … --volume <volume>[=<name>]`. Removing a
-  volume never deletes its folder. **Diagnose** checks every volume both ways. Changes count from a VM's next start. In the app every macOS image has "Make Unchained Copy …": a second image,
+  volume never deletes its folder. **Diagnose** checks every volume both ways. Changes count from a VM's next start.
+  In the Finder of a macOS VM: in an unchained VM each volume is under Locations like an external disk (omaflake Tools
+  brings an FSKit file system of omaflake's; signed ad hoc it needs a boot argument the unchained image sets – with a
+  Developer ID later in every VM); in other VMs each volume is a favorite in the sidebar (macOS lists only its own
+  "My Shared Files" under Locations). In the app every macOS image has "Make Unchained Copy …": a second image,
   the same but with System Integrity Protection off and omaflake's camera (`omaf images unchain <image>`). For
   many images: Images → macOS Bases → a base's "Make Unchained Copy …" once, then "Build
   Image" with the switch "Unchained"; unchained bases, images and VMs carry an orange badge. On the command line
@@ -73,6 +64,14 @@ tried on a Mac; the notes say where. Rebuild your macOS images to get the new ag
 
 ### Fixed
 
+- **Upgrade in place did not work for macOS VMs** – the VM's Nix refused the new system: nix-darwin had dropped the
+  guest user from its trusted users. Images now keep it, and VMs from before are let in during the upgrade, which
+  also waits for the VM's Nix right after a start. `omaf upgrade --keep` printed nothing and exited 0 when the
+  upgrade failed; it now says why and where the log is.
+- **A larger disk was never taken by a macOS VM** (0.8.0): the guest's launch daemon ran before the Nix store was
+  mounted. Images built with this version wait for it.
+- **"sh can run in the background"** at the start of macOS VMs: the image's launchd jobs now start through omaflake's
+  own start script and are listed as "omaflake" – no such notice any more.
 - **An app replaced by a build of the same version kept the old core service** – it took the service's word for being
   the new one (the service read its identity from the file on disk, which was the new one by then); the new build's
   changes did not show until a restart. The service now takes its identity when it starts.
@@ -86,6 +85,10 @@ tried on a Mac; the notes say where. Rebuild your macOS images to get the new ag
 
 ### Changed
 
+- **omaflake's crates are on crates.io**: `cargo install omaflake` gives the command line `omaf` (on Linux
+  `cargo install omaflake-gui` the app), and `omaflake-sdk` lets a program of yours talk to omaflake's service.
+  The Rust package of the command line is called `omaflake` now (`cargo build -p omaflake`); the program is `omaf`
+  as before.
 - **The share folder is a volume now** – no longer at `/Volumes/My Shared Files` (macOS VMs) or `/mnt/share` (NixOS
   VMs), but at `/Volumes/<name>`, by default the name of its folder: a VM from before keeps its folder as a volume
   named after the VM. **Rebuild your images**: an image built before 0.8.1 does not mount volumes. instance.json has a

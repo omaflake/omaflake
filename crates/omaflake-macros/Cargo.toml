@@ -1,13 +1,17 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 [package]
 name = "omaflake-macros"
-description = "omaflake's procedural macros: the keyed error macro behind omaflake-core's vm_err! (plan B125)"
+description = "omaflake's procedural macros: the keyed error macro behind omaflake-core's vm_err!"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
 publish.workspace = true
 repository.workspace = true
+homepage.workspace = true
+readme = "README.md"
+keywords = ["omaflake", "proc-macro", "errors"]
+categories = ["development-tools::procedural-macro-helpers"]
 
 [lib]
 proc-macro = true

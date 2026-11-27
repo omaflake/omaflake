@@ -996,7 +996,24 @@ device per volume for QEMU (slots `0x7`, `0xe`–`0x14`), one virtio-fs device p
 `/Volumes/<name>` – the same path in macOS and NixOS guests, so paths agree across VMs (a Docker VM's bind mounts):
 NixOS through `omaflake-volumes.service` (vm-guest.nix: the tags in `/sys/bus/virtio/drivers/9pnet_virtio`), macOS
 through the launch daemon `omaflake-volumes` (darwin-guest.nix: `AppleVirtIOFSTag` from the I/O Registry,
-`mount_virtiofs`). Changes take effect at the VM's next start.
+`mount_virtiofs` by root with the guest user as the files' owner; it waits for the Nix store and the devices, plan
+B189). Changes take effect at the VM's next start. Images from before 0.8.1 mount nothing: rebuild them and upgrade
+their VMs (in place from 0.8.0 on, B178).
+
+**In the macOS Finder.** The Finder lists under Locations only what DiskArbitration mounts – of virtio-fs only the
+device with macOS's automount tag ("My Shared Files", which omaflake does not use); a volume mounted with
+`mount_virtiofs` is neither local nor a server's and shows nowhere (plan B189). So:
+- **Unchained images (plan B190):** omaflake Tools carries an FSKit module of omaflake's (`omaflakefs`, a passthrough
+  of a folder). The daemon mounts the virtio-fs device hidden at `/private/var/omaflake/volumes/<name>`, and the
+  user's session mounts the module's volume over it at `/Volumes/<name>` – local, under Locations like an external
+  disk. The module's entitlement is restricted: signed ad hoc it starts only with the boot argument
+  `amfi_get_out_of_my_way=1`, which an unchained image build (and an upgrade in place to one) sets; with a Developer ID
+  (M12) every VM can have it.
+- **Other images:** each volume is a favorite in the Finder's sidebar (taken out again when the volume is gone; the
+  user's own favorites stay).
+Both run in the user's session, started by omaflake over SSH with the other guest helpers
+(`omaflake-volumes-session`): a launch agent may not add favorites under /Volumes and would bring a background item
+notice at every start (plan BM25).
 
 Migration: a VM from before (instance.json v1) with `share` on has one volume named after itself, its folder
 `share/<name>` or its `sharePath`. Removing a volume takes it out of its VMs and forgets it – its folder always stays;

@@ -16,7 +16,7 @@ Runs headless or 2D with Homebrew QEMU; with the own build (`qemu/`, `omaf confi
 
 ```sh
 cargo test                       # unit tests (core and CLI: argument parsing, output formatting, exit codes)
-cargo build -p omaf --release    # → target/release/omaf
+cargo build -p omaflake --release # → target/release/omaf
 ```
 
 The Swift CLI (`swift build -c release` → `.build/release/omaf`) stays until the port is complete.

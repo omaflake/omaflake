@@ -36,7 +36,7 @@ rustPlatform.buildRustPackage {
   };
   cargoLock.lockFile = ../Cargo.lock;
 
-  cargoBuildFlags = [ "-p" "omaflake-gui" "-p" "omaf" ];
+  cargoBuildFlags = [ "-p" "omaflake-gui" "-p" "omaflake" ];
   # The tests run with `cargo test` in development (some need a data folder, Nix or QEMU)
   doCheck = false;
 

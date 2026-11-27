@@ -137,7 +137,7 @@ The steps, on any x86_64 PC with KVM:
 # 1. omaflake from this branch, QEMU, a key
 nix profile install nixpkgs#qemu          # or: environment.systemPackages = [ pkgs.qemu ];
 git clone https://github.com/omaflake/omaflake && cd omaflake && git checkout <branch>
-cargo build --release -p omaf             # in: nix shell nixpkgs#cargo nixpkgs#rustc nixpkgs#gcc
+cargo build --release -p omaflake         # in: nix shell nixpkgs#cargo nixpkgs#rustc nixpkgs#gcc
 export PATH=$PWD/target/release:$PATH
 ssh-keygen -t ed25519                     # if there is none
 # 2. a clean data folder, the image flake and the recipes

@@ -113,10 +113,8 @@ mod linux {
     use super::{Command, Entry, TrayModel};
 
     /// The brand's app icon (rounded, works on light and dark panels)
-    const ICONS: [&[u8]; 2] = [
-        include_bytes!("../../../brand/png/icon/omaflake-icon-32.png"),
-        include_bytes!("../../../brand/png/icon/omaflake-icon-64.png"),
-    ];
+    const ICONS: [&[u8]; 2] =
+        [include_bytes!("../assets/omaflake-icon-32.png"), include_bytes!("../assets/omaflake-icon-64.png")];
 
     struct Tray {
         model: TrayModel,

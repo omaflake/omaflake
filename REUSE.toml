@@ -11,7 +11,7 @@ SPDX-License-Identifier = "AGPL-3.0-or-later"
 
 # Copies of the artwork from omaflake/brand – kept as they are, under its licence (brand/README.md).
 [[annotations]]
-path = ["brand/macos/**", "brand/png/**", "brand/svg/**", "docs/assets/**", "nix/modules/plymouth/*.png",
+path = ["brand/macos/**", "brand/png/**", "brand/svg/**", "docs/assets/**", "crates/omaflake-core/assets/**", "crates/omaflake-gui/assets/**", "nix/modules/plymouth/*.png",
   "nix/modules/plymouth/layout.script"]
 precedence = "override"
 SPDX-FileCopyrightText = "falkOSS – Falcon Lake Open Source Software gUG (haftungsbeschränkt) i. G."

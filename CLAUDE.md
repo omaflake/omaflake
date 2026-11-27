@@ -80,12 +80,16 @@ versions at least 14 days old, `cargo deny`). It deviates where it has a reason:
 ## Layout
 
 ```
-Cargo.toml, crates/        Rust core: omaflake-core (all logic), omaf (CLI and `omaf serve`, the JSON-RPC API: docs/api.md)
-                           omaflake-brand (design tokens, generated from brand/tokens.toml)
+Cargo.toml, crates/        Rust, every crate on crates.io with omaflake's version (plan B192): omaflake (the program
+                           `omaf`: CLI and `omaf serve`, the JSON-RPC API: docs/api.md), omaflake-core (all logic; the
+                           design tokens in its module `brand`, generated from brand/tokens.toml), omaflake-sdk (client,
+                           protocol and the API's session/job/event types – for every interface and others' tools)
                            omaflake-tui (`omaf ui`: ratatui client of the page models, docs/api.md §10)
                            omaflake-gui (the Linux app, iced); omaflake-i18n (translations of omaf ui and the Linux app,
                            generated from App/Resources/de.lproj by scripts/translations.py); omaflake-macros
-                           (vm_err!: an error's format string is its translation key, plan B125)
+                           (vm_err!: an error's format string is its translation key, plan B125; a crate of its own –
+                           proc-macro). Releasing: a tag v<version> on main runs CI's `crates` job (Trusted Publishing)
+nix/agent/                 the guest agent (its own workspace; on crates.io as omaflake-agent)
 Package.swift              OmaflakeKit (library), omaf-runner, OmaflakeApp, omaflake-camera, omaflake-tools
 Sources/OmaflakeKit/       Core/ + API/: client of `omaf serve` and the API's types; Runner/: agent protocol, macOS VM
                            bundle, sockets (for omaf-runner); Brand/: icons

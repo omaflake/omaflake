@@ -3420,7 +3420,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "omaf"
+name = "omaflake"
 version = "0.8.1"
 dependencies = [
  "clap",
@@ -3430,13 +3430,6 @@ dependencies = [
  "omaflake-tui",
  "serde_json",
  "tempfile",
-]
-
-[[package]]
-name = "omaflake-brand"
-version = "0.8.1"
-dependencies = [
- "toml",
 ]
 
 [[package]]
@@ -3451,6 +3444,7 @@ dependencies = [
  "objc2-local-authentication",
  "omaflake-i18n",
  "omaflake-macros",
+ "omaflake-sdk",
  "secret-service",
  "security-framework",
  "serde",
@@ -3473,7 +3467,6 @@ dependencies = [
  "libc",
  "lucide-icons",
  "notify-rust",
- "omaflake-brand",
  "omaflake-core",
  "omaflake-i18n",
  "rfd",
@@ -3492,13 +3485,21 @@ name = "omaflake-macros"
 version = "0.8.1"
 
 [[package]]
+name = "omaflake-sdk"
+version = "0.8.1"
+dependencies = [
+ "jiff",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "omaflake-tui"
 version = "0.8.1"
 dependencies = [
  "crossterm",
  "jiff",
  "libc",
- "omaflake-brand",
  "omaflake-core",
  "omaflake-i18n",
  "ratatui",

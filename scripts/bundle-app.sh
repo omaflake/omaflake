@@ -20,7 +20,7 @@ swift_paths=()
 [[ -n ${SWIFT_SCRATCH_PATH:-} ]] && swift_paths=(--scratch-path "$SWIFT_SCRATCH_PATH")
 swift build ${swift_paths[@]+"${swift_paths[@]}"} -c release --product OmaflakeApp
 swift build ${swift_paths[@]+"${swift_paths[@]}"} -c release --product omaf-runner
-cargo build --release --locked -p omaf
+cargo build --release --locked -p omaflake
 bindir=$(swift build ${swift_paths[@]+"${swift_paths[@]}"} -c release --show-bin-path)
 cargo_target=${CARGO_TARGET_DIR:-$root/target}
 bin=$bindir/OmaflakeApp

@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! The brand's design tokens (`omaflake-brand`, plan B119) as terminal colours: truecolor where the terminal says it
+//! The brand's design tokens (`omaflake_core::brand`, plan B119) as terminal colours: truecolor where the terminal says it
 //! has it (`COLORTERM=truecolor|24bit`), else the nearest of the 256 xterm colours; none at all with `NO_COLOR`
 //! (no-color.org) – then only bold, dim and reverse tell things apart. Colours with alpha are blended over the window
 //! colour, as the app draws them over its background.
 
-use omaflake_brand::{Color as BrandColor, color, opacity, palette};
+use omaflake_core::brand::{Color as BrandColor, color, opacity, palette};
 use ratatui::style::{Color, Modifier, Style};
 
 /// How many colours the terminal shows

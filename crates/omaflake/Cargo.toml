@@ -1,21 +1,26 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 [package]
-name = "omaf"
-description = "omaflake's command line and JSON-RPC server (omaf serve)"
+name = "omaflake"
+description = "omaflake – clean, disposable NixOS and macOS VMs from Nix recipes: the command line omaf and its service"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
 publish.workspace = true
 repository.workspace = true
+homepage.workspace = true
+readme = "README.md"
+keywords = ["virtual-machine", "nix", "nixos", "macos", "qemu"]
+categories = ["command-line-utilities", "virtualization"]
 
+# The package carries the project's name (plan B192, as aktujo and kernoid do), the program stays `omaf`
 [[bin]]
 name = "omaf"
 path = "src/main.rs"
 
 [dependencies]
 omaflake-core.workspace = true
-omaflake-tui = { path = "../omaflake-tui" }
+omaflake-tui.workspace = true
 jiff.workspace = true
 libc.workspace = true
 serde_json.workspace = true

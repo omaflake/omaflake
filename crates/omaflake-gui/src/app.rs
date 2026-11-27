@@ -361,7 +361,7 @@ fn window_settings() -> window::Settings {
         size: Size::new(780.0, 760.0),
         min_size: Some(WINDOW_SIZE),
         exit_on_close_request: false,
-        icon: window::icon::from_file_data(include_bytes!("../../../brand/png/icon/omaflake-icon-128.png"), None).ok(),
+        icon: window::icon::from_file_data(include_bytes!("../assets/omaflake-icon-128.png"), None).ok(),
         #[cfg(target_os = "linux")]
         platform_specific: window::settings::PlatformSpecific {
             application_id: "omaflake".into(),

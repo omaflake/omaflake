@@ -17,7 +17,8 @@
 //! `contract` (golden JSON files shared with the Swift tests), `views` (the presentation model: what each page of a UI
 //! shows, `views.get`/`views.subscribe`, plan B121).
 
-pub mod client;
+// The client of the service's socket (plan B192: in omaflake-sdk)
+pub use omaflake_sdk::client;
 #[cfg(test)]
 mod contract;
 mod diagnostics;

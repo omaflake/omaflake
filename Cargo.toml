@@ -4,7 +4,7 @@
 
 [workspace]
 resolver = "3"
-members = ["crates/omaflake-core", "crates/omaf", "crates/omaflake-brand", "crates/omaflake-tui", "crates/omaflake-gui",
+members = ["crates/omaflake-core", "crates/omaflake-sdk", "crates/omaflake", "crates/omaflake-tui", "crates/omaflake-gui",
     "crates/omaflake-i18n", "crates/omaflake-macros"]
 exclude = ["nix/agent"]
 
@@ -22,15 +22,20 @@ edition = "2024"
 # The oldest Rust that builds omaflake: nixpkgs' rustc (linux/package.nix); development and CI use rust-toolchain.toml
 rust-version = "1.98"
 license = "AGPL-3.0-or-later"
-publish = false
+# Every crate is on crates.io, in step with omaflake's version (plan B192); the guest agent (nix/agent) too
+publish = true
 repository = "https://github.com/omaflake/omaflake"
+homepage = "https://omaflake.dev"
 
 # Exact versions, each the newest that is at least 14 days old (scripts/check-age.py); a fix for a security advisory may
 # be younger.
 [workspace.dependencies]
-omaflake-core = { path = "crates/omaflake-core" }
-omaflake-i18n = { path = "crates/omaflake-i18n" }
-omaflake-macros = { path = "crates/omaflake-macros" }
+# omaflake's own crates: the path here, the version on crates.io – raise it with workspace.package's version
+omaflake-core = { path = "crates/omaflake-core", version = "0.8.1" }
+omaflake-sdk = { path = "crates/omaflake-sdk", version = "0.8.1" }
+omaflake-tui = { path = "crates/omaflake-tui", version = "0.8.1" }
+omaflake-i18n = { path = "crates/omaflake-i18n", version = "0.8.1" }
+omaflake-macros = { path = "crates/omaflake-macros", version = "0.8.1" }
 serde = { version = "=1.0.229", features = ["derive"] }
 serde_json = "=1.0.154"
 toml = "=1.2.1"
@@ -44,7 +49,7 @@ tempfile = "=3.27.0"
 
 # omaflake talks to the system through libc (sockets, terminals, signals, video devices) and needs `unsafe` there:
 # unsafe_code is not forbidden in the workspace, every block carries a SAFETY comment; the crates without system calls
-# forbid it in their lib.rs (omaflake-brand, omaflake-i18n, omaflake-macros, omaflake-tui).
+# forbid it in their lib.rs (omaflake-i18n, omaflake-macros, omaflake-tui).
 [workspace.lints.rust]
 unsafe_op_in_unsafe_fn = "deny"
 

@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 //! A blocking client of the core service's socket (docs/api.md §1, plan B120) – what `omaf build`, `omaf call
-//! --socket` and `omaf service` use, and the tests. One reader thread matches responses to requests by id and passes
+//! --socket`, `omaf service`, `omaf ui` and the Linux app use, and anyone's tool. One reader thread matches responses to requests by id and passes
 //! notifications on as events.
 
 use std::collections::HashMap;
@@ -14,10 +14,10 @@ use std::time::Duration;
 
 use serde_json::{Map, Value, json};
 
-use super::protocol::{RpcError, SERVER_ERROR};
-use super::server::lock;
-use super::types::{InitializeResult, JobDto};
-use crate::error::codes;
+use crate::codes;
+use crate::protocol::{RpcError, SERVER_ERROR};
+use crate::text::{Arg, Text};
+use crate::types::{InitializeResult, JobDto};
 
 /// How long a request waits for its answer (a job's method answers at once; nothing in the API takes longer)
 const ANSWER: Duration = Duration::from_secs(600);
@@ -36,10 +36,17 @@ pub struct Client {
 
 impl Client {
     /// Connects to the socket at `path` (no session yet: `initialize` is the first call)
-    pub fn connect(path: &Path) -> crate::Result<Client> {
-        let stream = crate::sockets::connect_unix(path, Duration::ZERO)?;
-        let reader = stream.try_clone()?;
-        let writer = stream.try_clone()?;
+    pub fn connect(path: &Path) -> Result<Client, RpcError> {
+        let failed = |e: std::io::Error| {
+            error(
+                None,
+                "Connection to %@ failed: %@",
+                vec![Arg::from(path.display().to_string()), Arg::from(e.to_string())],
+            )
+        };
+        let stream = UnixStream::connect(path).map_err(failed)?;
+        let reader = stream.try_clone().map_err(failed)?;
+        let writer = stream.try_clone().map_err(failed)?;
         let pending: Pending = Arc::default();
         let open = Arc::new(AtomicBool::new(true));
         let (tx, rx) = mpsc::channel();
@@ -77,7 +84,7 @@ impl Client {
     pub fn initialize(&self, client: &str) -> Result<InitializeResult, RpcError> {
         let v = self.call(
             "initialize",
-            json!({"client": client, "clientVersion": crate::VERSION, "apiVersion": super::types::API_VERSION}),
+            json!({"client": client, "clientVersion": crate::VERSION, "apiVersion": crate::types::API_VERSION}),
         )?;
         serde_json::from_value(v).map_err(|e| RpcError::internal(format!("initialize: {e}")))
     }
@@ -103,7 +110,7 @@ impl Client {
             return Err(gone());
         }
         let answer = rx.recv_timeout(ANSWER).map_err(|e| match e {
-            RecvTimeoutError::Timeout => RpcError::from(crate::vm_err!("The service did not answer {method} in time")),
+            RecvTimeoutError::Timeout => error(None, "The service did not answer %@ in time", vec![Arg::from(method)]),
             RecvTimeoutError::Disconnected => gone(),
         })?;
         if let Some(error) = answer.get("error") {
@@ -154,10 +161,11 @@ impl Client {
                     let _ = self.next_event(Duration::from_millis(500));
                 }
                 None => {
-                    return Err(RpcError::from(crate::vm_err!(
-                        codes::NOT_FOUND,
-                        "Job {id} left the list (dismissed elsewhere) – its log file has its end"
-                    )));
+                    return Err(error(
+                        Some(codes::NOT_FOUND),
+                        "Job %@ left the list (dismissed elsewhere) – its log file has its end",
+                        vec![Arg::from(id)],
+                    ));
                 }
             }
             if !self.is_open() {
@@ -175,7 +183,18 @@ impl Drop for Client {
 }
 
 fn gone() -> RpcError {
-    RpcError::from(crate::vm_err!("The connection to the service closed"))
+    error(None, "The connection to the service closed", Vec::new())
+}
+
+/// A `-32000` error with its text (`data.text`, docs/api.md §3) – a UI translates it by its key, as the core's errors
+fn error(kind: Option<&'static str>, key: &str, args: Vec<Arg>) -> RpcError {
+    let text = Text::fmt(key, args);
+    RpcError::server(kind, text.text.clone()).with_data("text", serde_json::to_value(&text).unwrap_or_default())
+}
+
+/// The lock, also after a thread panicked while holding it
+fn lock<T>(m: &Mutex<T>) -> std::sync::MutexGuard<'_, T> {
+    m.lock().unwrap_or_else(|e| e.into_inner())
 }
 
 /// An `error` object back into an `RpcError` (its kind, if this omaflake knows it, and the other data)

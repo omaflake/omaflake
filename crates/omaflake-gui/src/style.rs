@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 //! omaflake's look in iced: every colour, spacing, radius and text size comes from the design tokens
-//! (`omaflake-brand`, generated from brand/tokens.toml) – the same values as the macOS app's `BrandStyle`.
+//! (`omaflake_core::brand`, generated from brand/tokens.toml) – the same values as the macOS app's `BrandStyle`.
 
 use iced::font::Weight as IcedWeight;
 use iced::widget::{button, container, pick_list, progress_bar, scrollable, text_input, toggler};
 use iced::{Background, Border, Color, Font, Shadow, Theme, Vector, border};
-use omaflake_brand as brand;
 use omaflake_core::api::views::common::{LampState, Tone};
+use omaflake_core::brand;
 
 /// A token colour as iced's colour
 pub const fn rgba(c: brand::Color) -> Color {
@@ -41,7 +41,7 @@ pub use brand::{icon as icon_size, radius, size, spacing};
 
 /// Text sizes (macOS' system text styles, `[text]` in tokens.toml)
 pub mod text_size {
-    use omaflake_brand::text;
+    use omaflake_core::brand::text;
     pub const HEADLINE: f32 = text::HEADLINE.size;
     pub const BODY: f32 = text::BODY.size;
     pub const CALLOUT: f32 = text::CALLOUT.size;

@@ -1,15 +1,20 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 [package]
 name = "omaflake-core"
-description = "omaflake's core: paths, stores, recipes, QEMU and macOS VM control (port of Sources/OmaflakeCore)"
+description = "omaflake's core: VM control (QEMU, Virtualization.framework), images, recipes and the service – internal to omaflake"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
 publish.workspace = true
 repository.workspace = true
+homepage.workspace = true
+readme = "README.md"
+keywords = ["omaflake", "virtual-machine", "nix", "qemu", "macos"]
+categories = ["virtualization"]
 
 [dependencies]
+omaflake-sdk.workspace = true
 # vm_err!'s keyed errors (plan B125)
 omaflake-macros.workspace = true
 serde.workspace = true

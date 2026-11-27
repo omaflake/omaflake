@@ -485,12 +485,28 @@ pub fn reset(name: &str) -> Outcome {
 
 pub fn upgrade(name: &str, keep: bool) -> Outcome {
     // In place (plan B178): through the API – a job that builds and copies the system, the VM running
+    // The answer is the ended job: its result's message, or its error – read wrong, a failed upgrade printed nothing and
+    // exited 0 (plan B189)
     if keep {
+        use omaflake_core::api::types::{JobDto, JobState};
+        use omaflake_core::error::codes;
         let done = omaflake_core::api::call_once("vms.upgrade", serde_json::json!({"name": name, "keep": true}))?;
-        if let Some(m) = done.get("message").and_then(serde_json::Value::as_str) {
-            println!("{m}.");
-        }
-        return Ok(());
+        let job: JobDto =
+            serde_json::from_value(done).map_err(|e| Error::new(format!("The service's upgrade job: {e}")))?;
+        return match job.state {
+            JobState::Finished => {
+                if let Some(m) = job.result.as_ref().and_then(|r| r.get("message")).and_then(|m| m.as_str()) {
+                    println!("{m}.");
+                }
+                Ok(())
+            }
+            JobState::Cancelled => Err(Error::with_code(codes::CANCELLED, "Upgrade cancelled").into()),
+            _ => {
+                let why = job.error.unwrap_or_else(|| "The upgrade failed".into());
+                let log = job.log_file.map(|f| format!(" (log: {f})")).unwrap_or_default();
+                Err(Error::new(format!("{why}{log}")).into())
+            }
+        };
     }
     while_stopped(
         name,

@@ -26,9 +26,9 @@ pub const SIDEBAR_WIDTH: f32 = 180.0;
 pub fn glow_image(size: Size) -> image::Handle {
     let (w, h) = (size.width.max(1.0).round() as u32, size.height.max(1.0).round() as u32);
     let base = style::WINDOW;
-    let red = omaflake_brand::color::GLOW_RED.rgba;
-    let cyan = omaflake_brand::color::GLOW_CYAN.rgba;
-    let (rr, cr) = (omaflake_brand::glow::RED_RADIUS, omaflake_brand::glow::CYAN_RADIUS);
+    let red = omaflake_core::brand::color::GLOW_RED.rgba;
+    let cyan = omaflake_core::brand::color::GLOW_CYAN.rgba;
+    let (rr, cr) = (omaflake_core::brand::glow::RED_RADIUS, omaflake_core::brand::glow::CYAN_RADIUS);
     let mut px = Vec::with_capacity((w * h * 4) as usize);
     for y in 0..h {
         for x in 0..w {
@@ -136,11 +136,10 @@ impl App {
 
     /// The brand glyph, the wordmark, then the header's actions (Doctor with its issues, Settings, data folder, Quit)
     fn header(&self) -> El<'_> {
-        let glyph = image(image::Handle::from_bytes(
-            &include_bytes!("../../../brand/png/glyph-small/omaflake-glyph-small-white-48.png")[..],
-        ))
-        .width(18)
-        .height(18);
+        let glyph =
+            image(image::Handle::from_bytes(&include_bytes!("../assets/omaflake-glyph-small-white-48.png")[..]))
+                .width(18)
+                .height(18);
         let mut r = row![glyph, wordmark(), space::horizontal()].spacing(spacing::L).align_y(Alignment::Center);
         if let Some(h) = self.home_model() {
             r = r.push(self.help_switch(&h.help));
@@ -369,8 +368,8 @@ fn buttons<'a>(answer: String, color: Color) -> El<'a> {
 
 fn dot<'a>(c: Color) -> El<'a> {
     container(space())
-        .width(omaflake_brand::size::DOT)
-        .height(omaflake_brand::size::DOT)
+        .width(omaflake_core::brand::size::DOT)
+        .height(omaflake_core::brand::size::DOT)
         .style(move |_| container::Style {
             background: Some(c.into()),
             border: iced::border::rounded(100.0),
@@ -381,8 +380,8 @@ fn dot<'a>(c: Color) -> El<'a> {
 
 /// "omaflake" in the monospaced wordmark font with the hero's red/cyan offset (`Wordmark`)
 pub fn wordmark<'a>() -> El<'a> {
-    let f = style::font(omaflake_brand::font::WORDMARK);
-    let size = omaflake_brand::font::WORDMARK.size;
+    let f = style::font(omaflake_core::brand::font::WORDMARK);
+    let size = omaflake_core::brand::font::WORDMARK.size;
     let t = |c: Color| text("omaflake").font(f).size(size).color(c);
     stack![
         container(t(style::RED)).padding(Padding { left: 0.0, ..Padding::ZERO }),

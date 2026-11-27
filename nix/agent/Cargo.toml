@@ -3,9 +3,14 @@
 name = "omaflake-agent"
 version = "0.8.1"
 edition = "2024"
-description = "omaflake guest agent: talks to omaflake on the Mac over the virtio port org.omaflake.agent"
+description = "omaflake's guest agent: runs in omaflake's VMs and talks to omaflake on the host over the virtio port org.omaflake.agent"
 license = "AGPL-3.0-or-later"
-publish = false
+# On crates.io like omaflake's other crates (plan B192): the code in every image, readable per version
+repository = "https://github.com/omaflake/omaflake"
+homepage = "https://omaflake.dev"
+readme = "README.md"
+keywords = ["omaflake", "guest-agent", "virtio", "virtual-machine"]
+categories = ["virtualization"]
 
 [dependencies]
 libc = "=0.2.191"

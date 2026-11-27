@@ -527,12 +527,13 @@ pub(crate) fn prepare_efivars(efivars: &Path, template: &Path) -> Result<()> {
 }
 
 /// Last lines of a text file ("" when it cannot be read).
-/// The app icon QEMU's window shows in the Dock (brand/png/icon/omaflake-icon-512.png, a copy from omaflake/brand)
-pub(crate) const DOCK_ICON: &[u8] = include_bytes!("../../../brand/png/icon/omaflake-icon-512.png");
+/// The app icon QEMU's window shows in the Dock (a copy from omaflake/brand's `copy.py` in the crate's `assets/`, so
+/// the crate's package carries it – plan B192)
+pub(crate) const DOCK_ICON: &[u8] = include_bytes!("../assets/omaflake-icon-512.png");
 
 /// What QEMU's 3D window shows until the guest draws: the first frame of the guests' boot splash
-/// (brand/png/loading/omaflake-loading.png, a copy from omaflake/brand; patch qemu-cocoa-loading-image)
-pub(crate) const LOADING_IMAGE: &[u8] = include_bytes!("../../../brand/png/loading/omaflake-loading.png");
+/// (a copy from omaflake/brand in the crate's `assets/`, as above; patch qemu-cocoa-loading-image)
+pub(crate) const LOADING_IMAGE: &[u8] = include_bytes!("../assets/omaflake-loading.png");
 
 /// Writes `data` (an embedded image) to `file` unless it is there already with these bytes; false when it cannot be
 /// written
