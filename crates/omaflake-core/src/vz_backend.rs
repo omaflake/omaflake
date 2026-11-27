@@ -526,7 +526,7 @@ impl VmBackend for VzBackend {
         let deadline = Instant::now() + timeout;
         while Instant::now() < deadline {
             if let Some(host) = self.address(c)
-                && Ports::ssh_banner(&host, 22, sockets::DEFAULT_TIMEOUT).is_some()
+                && Ports::ssh_banner_any(&host, 22, sockets::DEFAULT_TIMEOUT).is_some()
             {
                 self.apply_host_name(c, &host);
                 // Always: the agent carries the diagnosis (plan B162); a start that failed here is retried and logged

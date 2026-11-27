@@ -601,7 +601,7 @@ impl MacBaseInstaller {
                     return Err(vm_err!("omaf-runner exited:\n{}", tail(&log_file, 3)));
                 }
                 if let Some(a) = DhcpLeases::ip(&mac)
-                    && Ports::ssh_banner(&a, 22, sockets::DEFAULT_TIMEOUT).is_some()
+                    && Ports::ssh_banner_any(&a, 22, sockets::DEFAULT_TIMEOUT).is_some()
                 {
                     return Ok(Some(a));
                 }

@@ -512,9 +512,18 @@ impl MacImageBuilder {
                     )
                 });
             }
-            match ip {
-                Some(a) if Ports::ssh_banner(&a, 22, sockets::DEFAULT_TIMEOUT).is_some() => break a,
-                _ => std::thread::sleep(Duration::from_secs(5)),
+            match ip.as_deref().and_then(|a| Ports::ssh_banner_any(a, 22, sockets::DEFAULT_TIMEOUT)) {
+                Some((_, via)) => {
+                    if via == sockets::Via::Helper {
+                        // Plan B197: this process does not reach the VM network, a fresh one does – the build goes on
+                        // (its SSH and nix copy are processes of their own)
+                        log(
+                            "SSH answers a helper process but not this one – going on; restart the core service if it stays so",
+                        );
+                    }
+                    break ip.unwrap_or_default();
+                }
+                None => std::thread::sleep(Duration::from_secs(5)),
             }
         };
         vm.ip = Some(ip.clone());

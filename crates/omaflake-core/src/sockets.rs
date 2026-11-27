@@ -70,10 +70,50 @@ impl Ports {
         line.starts_with("SSH-").then(|| line.trim().to_string())
     }
 
+    /// `ssh_banner`, and when this process gets no greeting, the same asked by a fresh helper process (macOS:
+    /// `/usr/bin/nc`). Plan B197: a core service that had run for hours no longer reached its build VM on the Mac's
+    /// VM network – port 22 "closed" for ten minutes while a shell's connection got the greeting, and a restarted
+    /// service built at once. Each of the waits for a macOS guest's SSH asks through this. `Via::Helper` says that
+    /// only the helper got through (worth a line in the log); None: neither did.
+    pub fn ssh_banner_any(host: &str, port: u16, timeout: Duration) -> Option<(String, Via)> {
+        if let Some(line) = Self::ssh_banner(host, port, timeout) {
+            return Some((line, Via::Process));
+        }
+        Self::ssh_banner_by_helper(host, port, timeout).map(|line| (line, Via::Helper))
+    }
+
+    /// The SSH greeting as a fresh `nc` reads it – macOS only (the Mac's `nc` is in the base system; Linux hosts reach
+    /// their guests through QEMU's forwarding on localhost and never had the fault)
+    fn ssh_banner_by_helper(host: &str, port: u16, timeout: Duration) -> Option<String> {
+        if !cfg!(target_os = "macos") || socket_addr(host, port).is_none() {
+            return None;
+        }
+        let seconds = timeout.as_secs().max(1).to_string();
+        // -G: the connect timeout, -w: the idle timeout after the greeting (stdin is empty, so it ends by then)
+        let out = std::process::Command::new("/usr/bin/nc")
+            .args(["-G", &seconds, "-w", &seconds, host, &port.to_string()])
+            .stdin(std::process::Stdio::null())
+            .stderr(std::process::Stdio::null())
+            .output()
+            .ok()?;
+        let text = String::from_utf8_lossy(&out.stdout);
+        let line = text.lines().next()?.trim();
+        line.starts_with("SSH-").then(|| line.to_string())
+    }
+
     /// Does <host>:<port> accept a TCP connection at all (no matter what answers)? For diagnostics.
     pub fn is_open(host: &str, port: u16, timeout: Duration) -> bool {
         socket_addr(host, port).is_some_and(|a| TcpStream::connect_timeout(&a, timeout).is_ok())
     }
+}
+
+/// Who got an SSH greeting in `Ports::ssh_banner_any`
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Via {
+    /// This process
+    Process,
+    /// Only a fresh helper process (plan B197)
+    Helper,
 }
 
 /// Swift's defaults for `Ports.sshBanner` and `Ports.isOpen`
@@ -152,6 +192,26 @@ mod tests {
         assert_eq!(Ports::ssh_banner("127.0.0.1", port, DEFAULT_TIMEOUT).as_deref(), Some("SSH-2.0-OpenSSH_10.0"));
         t.join().unwrap();
         assert!(Ports::ssh_banner("not-an-ip", port, DEFAULT_TIMEOUT).is_none());
+    }
+
+    /// The helper reads the same greeting (macOS: /usr/bin/nc); on a closed port neither gets one
+    #[test]
+    fn the_helper_reads_the_greeting_too() {
+        let l = TcpListener::bind("127.0.0.1:0").unwrap();
+        let port = l.local_addr().unwrap().port();
+        let t = std::thread::spawn(move || {
+            let (mut c, _) = l.accept().unwrap();
+            let _ = c.write_all(b"SSH-2.0-OpenSSH_10.5\r\n");
+        });
+        let got = Ports::ssh_banner_by_helper("127.0.0.1", port, DEFAULT_TIMEOUT);
+        if cfg!(target_os = "macos") {
+            assert_eq!(got.as_deref(), Some("SSH-2.0-OpenSSH_10.5"));
+            t.join().unwrap();
+        } else {
+            assert_eq!(got, None);
+        }
+        let closed = TcpListener::bind("127.0.0.1:0").unwrap().local_addr().unwrap().port();
+        assert_eq!(Ports::ssh_banner_any("127.0.0.1", closed, Duration::from_secs(1)), None);
     }
 
     /// A port whose last connection the server closed (TIME_WAIT – what QEMU leaves behind when a VM with an SSH session

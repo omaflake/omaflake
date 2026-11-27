@@ -678,7 +678,7 @@ impl Server {
                         return Ok(Some((pid, Ok(()))));
                     }
                     let Some(host) = vz.address(&c) else { return Ok(None) };
-                    if Ports::ssh_banner(&host, 22, Duration::from_secs(3)).is_none() {
+                    if Ports::ssh_banner_any(&host, 22, Duration::from_secs(3)).is_none() {
                         return Ok(None);
                     }
                     let started = vz.start_guest_helpers(&c, &host);

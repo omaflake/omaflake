@@ -588,6 +588,11 @@ Local Network denial in the Mac's log. After `omaf service stop` the next servic
 long-running service's connections to the VMs' network (192.168.64.0/24 on bridge100) failed – the diagnosis through
 the same service had reached the test VM at 19:46; a build could say "reached from this computer but not from the
 service" by asking `omaf-runner ip` and probing from a fresh process before giving up.
+*Worked around (for 0.8.2):* every wait for a macOS guest's SSH – the image build, the base install and unchain, a
+start's `wait_for_ssh` and the service's guest helpers (B194) – asks `Ports::ssh_banner_any`: this process first, then a
+fresh `/usr/bin/nc` (macOS only). When only the helper gets the greeting the build goes on – its SSH and `nix copy`
+are processes of their own – and its log says so. Test: the helper reads a greeting from a local listener. OPEN: the
+cause; whether the helper gets through when the service does not (seen only from a shell, not yet from the service).
 Also seen: with `omaf config --flake <checkout>/nix` the image flake reads the developer's `nix/local/settings.nix`,
 whose `macUser` named the user of an older development base – activation stopped ("primary user … does not exist").
 Building with the app's image flake and the local catalog as a source avoids it.

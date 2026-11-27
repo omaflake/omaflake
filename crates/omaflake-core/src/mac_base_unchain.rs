@@ -604,7 +604,7 @@ impl<'a> Session<'a> {
         while Instant::now() < deadline {
             self.still_running()?;
             if let Some(a) = DhcpLeases::ip(&self.mac)
-                && Ports::ssh_banner(&a, 22, sockets::DEFAULT_TIMEOUT).is_some()
+                && Ports::ssh_banner_any(&a, 22, sockets::DEFAULT_TIMEOUT).is_some()
             {
                 return Ok(a);
             }

@@ -27,6 +27,9 @@ are collected under *Unreleased*. Releases: [GitHub](https://github.com/omaflake
 - **The agent of a macOS VM starts after every start** – after a restart in the guest, or a start with `omaf start`
   while the app was closed, the guest's agent (and with it the camera, MIDI and the diagnosis), the clipboard helper
   and the volumes under Locations did not come; the core service now starts them by itself.
+- **macOS builds that waited for SSH in vain** – a core service that had run for hours sometimes no longer reached a
+  new VM, and a macOS image build ended with "No SSH after 10 minutes" although the VM was up; omaflake now also asks
+  through a fresh helper process and goes on when that one gets through.
 - **Long pages scroll** – the diagnosis, a build and the macOS base page grew past the window's top when they were
   taller than the window, and the way back with them; they scroll now.
 - **The diagnosis checks volumes where they are** – the guest agent looked for them under `/Volumes/My Shared Files`
