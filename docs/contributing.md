@@ -6,7 +6,9 @@ permalink: /contributing/
 
 # Contributing
 
-omaflake is a Rust workspace (`crates/`: the core, the `omaf` CLI, the Linux app) and a Swift package (the macOS menu
+omaflake is a Rust workspace (`crates/`: the core `omaflake-core`, the program `omaf` (package `omaflake`), `omaflake-sdk`, `omaf ui`
+(`omaflake-tui`), the Linux app (`omaflake-gui`), `omaflake-i18n`, `omaflake-macros` – all on crates.io, published by
+CI's `crates` job on a tag `v*`; the guest agent `nix/agent` is `omaflake-agent`) and a Swift package (the macOS menu
 bar app and `omaf-runner`), plus the image flake in `nix/` and the QEMU build in `qemu/`. It runs on macOS (Apple
 silicon) and on Linux hosts ([Linux](linux.md)). Recipes are not here: they live in [omaflake/catalog](https://github.com/omaflake/catalog).
 

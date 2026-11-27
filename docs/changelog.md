@@ -13,6 +13,12 @@ are collected under *Unreleased*. Releases: [GitHub](https://github.com/omaflake
 
 ## [Unreleased]
 
+### Fixed
+
+- **The diagnosis checks volumes where they are** – the guest agent looked for them under `/Volumes/My Shared Files`
+  instead of `/Volumes/<name>`, so the share check failed in VMs from 0.8.1 images (takes effect after a rebuild of
+  the image).
+
 ## [0.8.1] – 2026-11-27
 
 The camera in macOS VMs: smooth with OBS, and without OBS in an "unchained" VM; omaflake Tools, omaflake's own app

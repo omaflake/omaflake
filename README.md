@@ -7,7 +7,7 @@
 Clean NixOS and macOS virtual machines on Mac and Linux – one click away.
 
 **[Download](https://omaflake.app) · [Documentation](https://omaflake.dev) · [Changelog](docs/changelog.md) ·
-[Recipes](https://github.com/omaflake/recipes)**
+[Catalog](https://github.com/omaflake/catalog) · [crates.io](https://crates.io/crates/omaflake)**
 
 omaflake builds VM images from **recipes** you declare in Nix, and runs disposable **instances**
 of them from an app (the menu bar on a Mac, a native window with a tray icon on Linux), `omaf ui` or the `omaf` CLI.
@@ -34,10 +34,13 @@ Images never change: *reset* throws an instance's state away and starts over fro
   (Virtualization.framework, base installed from Apple's IPSW with no manual steps).
 - **Templates (images)** built from recipes, with versions you can keep, pick as default or delete; builds queue,
   one per guest kind at a time, with step progress and a live log.
-- **Integrations:** sound and microphone (both), shared clipboard with text and images (both), the host's camera in
-  NixOS guests (on only while an app uses it), shared folders, dynamic resolution, ephemeral VMs.
-- **Doctor:** checks what the computer brings; on a Mac it sets up Nix and nix-darwin with the Linux builder by click (macOS'
-  administrator dialog), applies and cleans up the builder, checks for updates.
+- **Integrations:** sound and microphone (both), shared clipboard with text and images (both), the host's camera
+  (NixOS guests; macOS guests through OBS or, in an unchained VM, omaflake's own camera extension – on only while an
+  app uses it), **volumes** (folders of the host at `/Volumes/<name>` in the guest – several per VM, shared between
+  VMs), networks between VMs, dynamic resolution, ephemeral VMs.
+- **Doctor:** checks what the computer brings; on a Mac it sets up Nix (macOS' administrator dialog,
+  once) and omaflake's own Linux builder (as you, no nix-darwin) by click, repairs and cleans up the builder, checks
+  for updates.
 - **Developer mode:** the `lab` recipes with the "omaflake Test" app (camera, sound, microphone, clipboard) and debug
   tools; lab recipes stay hidden otherwise.
 
@@ -57,6 +60,13 @@ key – details and install in [docs/linux.md](docs/linux.md). On a Mac:
 `omaf doctor` (or the app's Doctor) checks all of this and shows how to set up what is missing.
 - To build omaflake itself: Swift 6 toolchain (Xcode or Command Line Tools)
 
+## Install
+
+The app: [omaflake.app](https://omaflake.app) (Mac) and [docs/linux.md](docs/linux.md) (Linux). The CLI alone, from
+[crates.io](https://crates.io/crates/omaflake): `cargo install omaflake` (the program `omaf`). Tools of your own talk
+to `omaf serve` through the crate [omaflake-sdk](https://crates.io/crates/omaflake-sdk) – the client, the API's
+types, the page models and texts ([docs/api.md](docs/api.md)).
+
 ## Build
 
 ```sh
@@ -67,12 +77,14 @@ scripts/bundle-app.sh             # build/omaflake.app (menu bar app; SIGN_IDENT
 ```
 
 CI: [.github/workflows/](.github/workflows/) – flake checks on every push, macOS build and tests, the QEMU package
-with a binary cache, and signed, notarized releases on version tags (once the Developer ID exists).
+with a binary cache, and on version tags `v*` the crates on crates.io (job `crates`, Trusted Publishing) and the release – signed and
+notarized once the Developer ID exists.
 
 ## Recipes
 
-omaflake ships no recipes. It reads them from **recipe sources** – by default
-[omaflake/recipes](https://github.com/omaflake/recipes) (`minimal`, `research`, `lab` for NixOS and macOS); you can
+omaflake ships no recipes. It reads them from **recipe sources** – by default the official catalog
+[omaflake/catalog](https://github.com/omaflake/catalog) (NixOS: `neovim-minimal`, `neovim-research`, `emacs-minimal`,
+`docker`; macOS: `minimal`, `research`; `lab` for both) – recipes and the modules they are made of; you can
 add other GitHub repositories (also private ones, with a fine-grained token), any HTTPS folder with a `catalog.json`,
 or a folder on your Mac. In the app: the Recipes tab (install, update, remove) and Settings → Recipe Sources. On the
 command line:
@@ -91,7 +103,7 @@ Who you are in the guests – user, full name, SSH keys, locale, keyboard, time 
 app's credentials), never from a recipe; every image is built from a recipe with a credential and a look (omaflake,
 Catppuccin, Rosé Pine Dawn or each program's own colours). Images are built by omaflake's image flake ([nix/](nix/README.md)); the app
 ships it, a checkout uses `omaf config --flake "$PWD/nix"`. Personal Nix extras for developers go into the
-git-ignored `nix/local/` (template `nix/local.example/`). Writing recipes: omaflake/recipes' CONTRIBUTING.md;
+git-ignored `nix/local/` (template `nix/local.example/`). Writing recipes: the catalog's [CONTRIBUTING.md](https://github.com/omaflake/catalog/blob/main/CONTRIBUTING.md);
 the design: [docs/spec.md §11.3](docs/spec.md).
 
 ## macOS guests
@@ -123,10 +135,14 @@ Details: [docs/cli.md](docs/cli.md), [docs/macos-base.md](docs/macos-base.md).
 | [docs/spec.md](docs/spec.md) | goals, scope, architecture, milestones, open points |
 | [docs/plan.md](docs/plan.md) | verified findings (B…, BM…), milestone checklists |
 | [docs/cli.md](docs/cli.md) | `omaf` and `omaf-runner` commands |
+| [docs/api.md](docs/api.md) | the JSON-RPC API of `omaf serve` and the page models (crate `omaflake-sdk`) |
 | [docs/app.md](docs/app.md) | menu bar app |
+| [docs/recipes.md](docs/recipes.md) | recipes, modules and sources |
 | [docs/linux.md](docs/linux.md) | omaflake on a Linux host: requirements, KVM, the Linux app |
 | [docs/macos-base.md](docs/macos-base.md) | what a macOS base contains and how it is built |
 | [docs/linux-builder.md](docs/linux-builder.md) | building NixOS images on a Mac |
+| [docs/contributing.md](docs/contributing.md) | contributing to omaflake |
+| [docs/changelog.md](docs/changelog.md) | what changed in each release |
 | [nix/README.md](nix/README.md) | the image flake, its inputs and your local settings |
 | [qemu/README.md](qemu/README.md) | QEMU build with virglrenderer |
 | [brand/README.md](brand/README.md) | design tokens and the copies of the artwork; the brand kit itself is [omaflake/brand](https://github.com/omaflake/brand) |

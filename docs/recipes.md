@@ -47,7 +47,7 @@ disk_gb = 40
 [vm]                    # how a VM from it runs
 display = "gpu"
 network = "shared"
-share = true
+share = true            # a volume of its own: share/<name> on the host, /Volumes/<name> in the guest
 ephemeral = false
 ```
 

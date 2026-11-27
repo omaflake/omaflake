@@ -20,7 +20,12 @@ the app is on [omaflake.app](https://omaflake.app).
 | Page | What it covers |
 |---|---|
 | [Writing recipes]({{ '/recipes/' | relative_url }}) | what a recipe is, its `recipe.toml`, architectures and variants, recipe sources |
-| [CLI reference]({{ '/cli/' | relative_url }}) | every `omaf` command |
+| [CLI reference]({{ '/cli/' | relative_url }}) | every `omaf` command (`cargo install omaflake`) |
+| [The app]({{ '/app/' | relative_url }}) | the menu bar app on a Mac |
+| [Linux hosts]({{ '/linux/' | relative_url }}) | omaflake on Linux: requirements, KVM, the Linux app |
+| [Linux builder]({{ '/linux-builder/' | relative_url }}) | building NixOS images on a Mac |
+| [macOS base]({{ '/macos-base/' | relative_url }}) | what a macOS base contains and how it is built |
+| [Core API]({{ '/api/' | relative_url }}) | the JSON-RPC API of `omaf serve`; for Rust the crate [omaflake-sdk](https://crates.io/crates/omaflake-sdk) |
 | [Design (spec)]({{ '/spec/' | relative_url }}) | how omaflake works: data layout, components, guests, recipe sources |
 | [File schemas]({{ '/schema/' | relative_url }}) | JSON Schemas of every file omaflake writes and reads |
 | [Contributing]({{ '/contributing/' | relative_url }}) | build, test and the rules of the repository |

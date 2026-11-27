@@ -72,7 +72,7 @@ catalogs (§11.3) → recipes/<author>/<platform>/<name>/recipe.toml + the modul
         │  staged into one folder → input omaflake-catalog of the image flake nix/ (+ the platforms, nixosModules.vm-guest)
         │
         ├── kind = nixos ─────────────────────────────┐
-        │  nix build <image flake>#images.<recipe>     │  (Linux builder via nix-darwin)
+        │  nix build <image flake>#images.<recipe>     │  (omaflake's own Linux builder)
         │  → images/<recipe>-<rev>-<hash>.omaflake-image/disk.qcow2 (copied out of the store)
         │  omaf new → qemu-img create -b <relative path> … overlay
         │  omaf start → qemu-system-aarch64 -accel hvf … (virtio-gpu-gl, 9p, SSH forwarding)
@@ -89,7 +89,7 @@ catalogs (§11.3) → recipes/<author>/<platform>/<name>/recipe.toml + the modul
         ▲
 Rust core `omaflake-core` (crates/, one backend per guest kind) ── CLI `omaf` (linked)
         ▲  JSON-RPC 2.0 over stdio: `omaf serve` (docs/api.md)
-macOS app (SwiftUI, OmaflakeKit's CoreClient) – later the Linux app (Rust, iced; plan B119)
+macOS app (SwiftUI, OmaflakeKit's CoreClient), the Linux app (Rust, iced; plan B119), `omaf ui`
 ```
 
 The logic lives in the Rust core; every UI is a client of `omaf serve` and holds only presentation (plan B117).
@@ -205,8 +205,11 @@ Shift; plain keys only inside a mode; an editor's own keys stay as they are.
 
 ### 6.2 Core library + CLI `omaf`
 
-**Rust workspace** (repo root, `Cargo.toml`): `crates/omaflake-core` (logic) and `crates/omaf` (the CLI and, with
-`omaf serve`, the JSON-RPC interface every UI uses – docs/api.md). **Swift package** (`Package.swift`): `OmaflakeKit`
+**Rust workspace** (repo root, `Cargo.toml`; every crate on crates.io with omaflake's version, plan B192):
+`omaflake-core` (logic), `omaflake` (the program `omaf`: the CLI and, with `omaf serve`, the JSON-RPC interface every
+UI uses – docs/api.md), `omaflake-sdk` (the client, the API's types, page models, texts, design tokens),
+`omaflake-tui` (`omaf ui`), `omaflake-gui` (the Linux app), `omaflake-i18n`, `omaflake-macros`; the guest agent
+`nix/agent` is `omaflake-agent`. **Swift package** (`Package.swift`): `OmaflakeKit`
 (the client of `omaf serve` with the API's types, the agent protocol and macOS VM bundle for the runner, the brand
 images), `omaf-runner` (runner for macOS guests), app `omaflake`.
 External tools as child processes: `nix`, `qemu-img`, `qemu-system-aarch64`, `ssh`. No dependency on tart.
@@ -242,8 +245,8 @@ qemu-system-aarch64 \
   -device virtio-gpu-gl-pci -display cocoa,gl=es \
   -device qemu-xhci -device usb-kbd -device usb-tablet \
   -netdev user,id=n0,hostfwd=tcp:127.0.0.1:$SSH_PORT-:22 -device virtio-net-pci,netdev=n0 \
-  -fsdev local,id=fs0,path=$SHARE,security_model=mapped-xattr \
-  -device virtio-9p-pci,fsdev=fs0,mount_tag=share \
+  -fsdev local,id=fs0,path=$VOLUME,security_model=mapped-xattr \
+  -device virtio-9p-pci,fsdev=fs0,mount_tag=$NAME \    # once per volume (§11.13)
   -qmp unix:$INST/qmp.sock,server=on,wait=off \
   -serial file:$INST/serial.log
 # ephemeral: additionally -snapshot
@@ -297,7 +300,7 @@ Started like QEMU via `posix_spawn` + `setsid`, so that app and CLI do not take 
 | Disk | `VZVirtioBlockDeviceConfiguration` + `VZDiskImageStorageDeviceAttachment` (RAW) |
 | Graphics, input | `VZMacGraphicsDeviceConfiguration`, `VZMacKeyboardConfiguration`, pointing device; window with `VZVirtualMachineView` |
 | Network | `VZVirtioNetworkDeviceConfiguration` + `VZNATNetworkDeviceAttachment`, fixed MAC per instance |
-| Share | `VZVirtioFileSystemDeviceConfiguration` + `VZSingleDirectoryShare` (macOS guest: automount, OPEN) |
+| Volumes | one `VZVirtioFileSystemDeviceConfiguration` + `VZSingleDirectoryShare` per volume, tag = its name; mounted by the guest's `omaflake-volumes` daemon at `/Volumes/<name>` (§11.13) |
 | Installation | `VZMacOSRestoreImage` (local or `latestSupported`) + `VZMacOSInstaller` |
 | Control | Unix socket `runner.sock`: `status`, `stop` (`requestStop()`), `kill` (`stop()`), `show` (bring window to front) |
 | Signing | entitlement `com.apple.security.virtualization` (required per SDK header, plan BM8) |
@@ -1003,8 +1006,8 @@ their VMs (in place from 0.8.0 on, B178).
 **In the macOS Finder.** The Finder lists under Locations only what DiskArbitration mounts – of virtio-fs only the
 device with macOS's automount tag ("My Shared Files", which omaflake does not use); a volume mounted with
 `mount_virtiofs` is neither local nor a server's and shows nowhere (plan B189). So:
-- **Unchained images (plan B190):** omaflake Tools carries an FSKit module of omaflake's (`omaflakefs`, a passthrough
-  of a folder). The daemon mounts the virtio-fs device hidden at `/private/var/omaflake/volumes/<name>`, and the
+- **Unchained images (plan B190):** omaflake Tools carries an FSKit module of omaflake's (`omaflake-volumes.appex`,
+  file system type `omaflakefs`, a passthrough of a folder). The daemon mounts the virtio-fs device hidden at `/private/var/omaflake/volumes/<name>`, and the
   user's session mounts the module's volume over it at `/Volumes/<name>` – local, under Locations like an external
   disk. The module's entitlement is restricted: signed ad hoc it starts only with the boot argument
   `amfi_get_out_of_my_way=1`, which an unchained image build (and an upgrade in place to one) sets; with a Developer ID
@@ -1013,7 +1016,9 @@ device with macOS's automount tag ("My Shared Files", which omaflake does not us
   user's own favorites stay).
 Both run in the user's session, started by omaflake over SSH with the other guest helpers
 (`omaflake-volumes-session`): a launch agent may not add favorites under /Volumes and would bring a background item
-notice at every start (plan BM25).
+notice at every start (plan BM25). omaflake's launch daemons (and nix-darwin's) start through
+`/usr/local/libexec/omaflake`, so macOS names their background items "omaflake", not "sh" (BM25); allowing them without
+any notice needs managed login items from an MDM server (plan B191, after the Developer ID).
 
 Migration: a VM from before (instance.json v1) with `share` on has one volume named after itself, its folder
 `share/<name>` or its `sharePath`. Removing a volume takes it out of its VMs and forgets it – its folder always stays;
@@ -1027,7 +1032,7 @@ the New VM form's Volume section (none, a new one, one there is; the name in the
 
 ### 11.4 Prerequisites for release
 
-- **Repository:** `omaflake/omaflake` on GitHub (currently private; switch to public: OPEN) holds the public part: app, `OmaflakeCore`, CLI, `omaf-runner`,
+- **Repository:** `omaflake/omaflake` on GitHub (public since 2026-10-21) holds the public part: app, `OmaflakeCore`, CLI, `omaf-runner`,
   QEMU build script, flake module (`nixosModules.vm-guest`), the image flake `nix/` (used as `path:`, shipped in the
   app). The recipes, modules and looks live in `omaflake/catalog` (§11.3); SSH keys and user settings for development in each
   developer's git-ignored `nix/local/` (template `nix/local.example/`).
@@ -1049,8 +1054,9 @@ the New VM form's Volume section (none, a new one, one there is; the name in the
   before the first public release, so the Team ID does not change after it (a later change means re-signing; users
   grant camera, microphone and the helper once more).
 - **Signing/notarization (OPEN):** Developer ID, entitlements `com.apple.security.hypervisor` (QEMU) and `com.apple.security.virtualization` (`omaf-runner`); distribution e.g. via Homebrew cask.
-- **User prerequisites (OPEN: document, check in the app):** Nix, nix-darwin with Linux builder (for NixOS images); nothing additional for macOS guests.
+- **User prerequisites (OPEN: document, check in the app):** Nix and a Linux builder for NixOS images (omaflake's own since 0.7.4, set up by the Doctor; §11.2); nothing additional for macOS guests.
 - **Name:** **omaflake** (2026-10-16), CLI **`omaf`**, runner `omaf-runner`.
   GitHub organization **`omaflake`**, repository **`omaflake/omaflake`**.
-  Domain, package registries (npm, PyPI, crates.io, RubyGems, nixpkgs, Homebrew, App Store) and name collisions: OPEN.
+  crates.io: every crate published under its name (plan B192). Domain, other package registries (npm, PyPI,
+  RubyGems, nixpkgs, Homebrew, App Store) and name collisions: OPEN.
   Trademark search (DPMA/EUIPO/USPTO): OPEN.

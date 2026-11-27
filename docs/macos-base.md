@@ -54,7 +54,7 @@ For every new macOS version the base is recreated following this list – record
 - [ ] Software Update: automatic updates off (images are rebuilt deliberately) – proposal: not in the base; `darwin-guest.nix` sets `AutomaticallyInstallMacOSUpdates = false` in every image (automatic checking is still on in the base)
 - [x] Energy saver/screen saver: not in the base – scriptable: `darwin-guest.nix` sets `power.sleep.computer/display = "never"` (in the base: display sleep 10 min)
 - [x] Remote Login (SSH) – via provisioning; check – `OpenSSH_10.3` answers
-- [x] SSH key: your public SSH key into `~<user>/.ssh/authorized_keys` (e.g. via the share folder) – done once over SSH with the password
+- [x] SSH key: your public SSH key into `~<user>/.ssh/authorized_keys` (e.g. via a volume, `/Volumes/<name>`) – done once over SSH with the password
 - [x] Check from the Mac: `ssh <user>@<IP>` with key, without password – `ssh -o BatchMode=yes` works
 - [ ] DECISION: disable password login via SSH (base or nix-darwin) – proposal: nix-darwin (`darwin-guest.nix` sets `PasswordAuthentication no`), so the base keeps password login until the image build has put the key in place
 - [x] DECISION: install Nix here or only in the image build script (M9) – decided 2026-10-16: **not in the base**; the build script installs it

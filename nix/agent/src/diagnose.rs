@@ -27,15 +27,15 @@ pub const MAX_TEXT: usize = 64 * 1024;
 /// Requests waiting while one runs (the Mac sends one at a time; more are refused)
 pub const MAX_QUEUE: usize = 8;
 
-/// Where every guest sees its volumes, one folder each (plan B187)
-pub const SHARE: &str = "/Volumes/My Shared Files";
+/// Where every guest mounts its volumes, each as a mount of its own at /Volumes/<name> (plan B187, B189)
+pub const VOLUMES: &str = "/Volumes";
 
-/// The folder of the volume the request names (`"volume"`), else all of them
+/// The folder of the volume the request names (`"volume"`)
 fn volume_dir(args: &Value) -> Result<std::path::PathBuf, String> {
     match args.get("volume").and_then(Value::as_str) {
-        Some(v) if valid_name(v) => Ok(Path::new(SHARE).join(v)),
+        Some(v) if valid_name(v) => Ok(Path::new(VOLUMES).join(v)),
         Some(v) => Err(format!("\"{v}\" is not a plain file name")),
-        None => Ok(Path::new(SHARE).into()),
+        None => Err("The argument \"volume\" is missing".into()),
     }
 }
 
@@ -244,7 +244,7 @@ fn share_folder(dir: &Path) -> Result<(), Outcome> {
     match std::fs::metadata(dir) {
         Ok(m) if m.is_dir() => Ok(()),
         Ok(_) => Err(fail(format!("{} is not a folder", dir.display()))),
-        Err(e) => Err(fail(format!("The share folder {} is missing: {e}", dir.display()))),
+        Err(e) => Err(fail(format!("The volume {} is missing: {e}", dir.display()))),
     }
 }
 
@@ -881,8 +881,8 @@ mod tests {
 
     #[test]
     fn volume_folders() {
-        assert_eq!(volume_dir(&json!({})).unwrap(), Path::new(SHARE));
-        assert_eq!(volume_dir(&json!({"volume": "projects"})).unwrap(), Path::new(SHARE).join("projects"));
+        assert!(volume_dir(&json!({})).is_err());
+        assert_eq!(volume_dir(&json!({"volume": "projects"})).unwrap(), Path::new("/Volumes/projects"));
         assert!(volume_dir(&json!({"volume": "../etc"})).is_err());
     }
 

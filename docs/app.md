@@ -148,9 +148,11 @@ while omaflake is not in front (menu window closed, app window hidden or in the 
   disable` in the Recovery window and when to approve omaflake's camera extension. Unchained bases, images and VMs
   carry an orange "unchained" badge; every macOS image has "Make Unchained Copy …" too – the same for exactly that
   image, without building; "Build Image" offers the switch "Unchained" once the credential has such a
-  base, and an unchained image is never a recipe's current one ("New VM from this image" makes its VMs). Linux builder row: "Clean Up …" (unused store paths) and "Apply Settings …"
-  (`darwin-rebuild switch` with omaflake's builder host; warns first when this Mac's nix-darwin system is not
-  omaflake's) – both ask through macOS' administrator dialog (spec §11.5), log in `<data>/logs/linux-builder.log`;
+  base, and an unchained image is never a recipe's current one ("New VM from this image" makes its VMs). Linux builder row: "Clean Up" (unused store paths) and "Apply Settings …"
+  (omaflake's builder built again with its settings and a new disk) – as you, no administrator (plan B160); with
+  nix-darwin's builder instead both ask through macOS' administrator dialog ("Apply Settings …" is `darwin-rebuild
+  switch` with omaflake's builder host and warns first when this Mac's nix-darwin system is not omaflake's; spec
+  §11.5); log in `<data>/logs/linux-builder.log`;
   "Guide" opens the Linux builder guide (the file the core names, bundled and offline; without one its page on omaflake.dev).
   "omaf command (optional)" (plan B122): whether `omaf` is on the PATH a new Terminal gets and is this omaflake's;
   "Install …" links `/usr/local/bin/omaf` to the app's bundled `omaf` through macOS' administrator dialog (the question
@@ -197,7 +199,7 @@ while omaflake is not in front (menu window closed, app window hidden or in the 
   Listing drops them, Remove deletes them at their place
 - Limit of two running macOS VMs (plan BM16): start is disabled before a third, with the reason as tooltip
 - macOS guests are named after the instance once SSH answers (plan BM28)
-- "New VM …": recipes grouped by guest kind; name, ephemeral, CPU/RAM/disk/network/share prefilled from the recipe's `recipe.toml`
+- "New VM …": recipes grouped by guest kind; name, ephemeral, CPU/RAM/disk/network/volume prefilled from the recipe's `recipe.toml`
   (macOS: disk as the image, no `isolated` network)
 - Builds queue: one per guest kind at a time (NixOS and macOS in parallel), the rest waits; each shows as a sub-row
   of its image with progress, a click opens its log
@@ -209,6 +211,9 @@ while omaflake is not in front (menu window closed, app window hidden or in the 
   the only way the app touches protected folders like Documents or Desktop) or one there is, and the name in the VM
 - Tab "Volumes" (plan B187): the volumes with their folders and VMs, "Add VM" inline, a VM's line with "Rename …"
   (the name it sees the volume under) and "Take Out"; "New Volume …"
+- In a macOS VM each volume is at `/Volumes/<name>` and in the Finder's sidebar: under Favorites, or – in an unchained
+  VM, through omaflake Tools' FSKit module – under Locations like an external disk (plan B189, B190, spec §11.13).
+  macOS lists omaflake's background items as "omaflake" (plan BM25)
 - Gear menu: launch at login (`SMAppService.mainApp`), "Install macOS Base …" (`omaf macos install`: user, full name,
   password, live log; fully automatic, BM29), Settings, show the data folder in Finder, quit. An image row's menu
   deletes the image ("Remove Image …", refused while VMs use it) or older images of the recipe. "Build Image …" and

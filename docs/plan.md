@@ -486,7 +486,7 @@ Lume (trycua) only after a license review (OPEN).
 
 ---
 
-## 8. Next steps (as of 2026-11-26)
+## 8. Next steps (as of 2026-11-27)
 
 **Release 0.8.1 (2026-11-27, published: tag v0.8.1, the unsigned app on GitHub and omaflake.app's update.json,
 every crate on crates.io – B192):** B183 (the camera with OBS:
@@ -531,7 +531,8 @@ published, in step with omaflake's version (like aktujo: the crate with the proj
 `omaflake-…`):
 - `omaflake` – the program `omaf` (CLI and `omaf serve`; the package was `omaf`, the program keeps its name);
 - `omaflake-core` – the engine (VM control, images, stores, the server), internal – no promise of a stable API;
-  `omaflake-brand` (the design tokens, 289 generated lines without dependencies) becomes its module `brand`;
+  `omaflake-brand` (the design tokens, 289 generated lines without dependencies) becomes the module `brand` of
+  `omaflake-sdk` (below);
 - `omaflake-sdk` – what every interface and every tool of others uses to talk to omaflake: the API's types, page
   models (views), protocol and the client of the service's socket (docs/api.md) – out of `omaflake-core`, which
   depends on it; it follows `apiVersion` and the golden files. Named as in aktujo, where `-sdk` is the layer every
@@ -542,7 +543,7 @@ published, in step with omaflake's version (like aktujo: the crate with the proj
 - `omaflake-agent` – the guest agent (its own workspace, `nix/agent`): published for transparency, the code in every
   image readable per version.
 All names were free (2026-11-27). *Way:* the maintainer prepares crates.io and GitHub; placeholders 0.0.0 published
-once by hand with his token (Trusted Publishing needs a crate to exist – OPEN whether crates.io takes pending
+once by hand with the maintainer's token (Trusted Publishing needs a crate to exist – OPEN whether crates.io takes pending
 publishers), then Trusted Publishing from a CI job (as aktujo's `crates` job), 0.8.1 the first real release through it;
 the placeholders yanked. OPEN: `omaflake-gui` with `cargo install` (Wayland/X11 libraries).
 *Built:* the package `omaf` → `omaflake` (folder `crates/omaflake`, the program stays `omaf`); `omaflake-sdk` with
@@ -582,7 +583,7 @@ identities, the command queue), the enrollment in image builds, renewals; "this 
 and the server's rights over all VMs. *To decide with M12:* whether it is worth it, and as an option for users who
 want it.
 
-**B190 (2026-11-27, built for the next release in unchained images; checked on the Mac – see *Built*): volumes
+**B190 (2026-11-27, built for 0.8.1 in unchained images; checked on the Mac – see *Built*): volumes
 under Locations through FSKit.** The
 maintainer: each volume should show in the Finder like an external disk, as "My Shared Files" did (B189 made them
 favorites for now); the extension may need a Developer ID – "dann ist es erstmal nur für die unchained Images nutzbar".
@@ -630,7 +631,7 @@ lists both under Locations (seen by the maintainer). OPEN: files written through
 at once, `.fseventsd` on the volume. The Finder copies a file onto the volume and deletes it again (checked by the
 maintainer).
 
-**B189 (2026-11-27, fix after 0.8.1): no VM saw its volumes after the upgrade.** The maintainer: "Keine VM hat Zugriff
+**B189 (2026-11-27, fixed before the tag, in 0.8.1): no VM saw its volumes after the upgrade.** The maintainer: "Keine VM hat Zugriff
 auf deren Volume derzeit." *Causes:* (1) images from before 0.8.1 have no `omaflake-volumes` daemon, and 0.8.1's runner no longer gives
 macOS's automount tag – nothing is mounted there; (2) in a 0.8.1 image the daemon never ran its script: launchd starts
 it at boot before the Nix store's volume is mounted, `/bin/sh` found no script in `/nix/store` (`launchctl print`:
@@ -665,9 +666,11 @@ VMs on images from before 0.8.0 (agent 0.7.4) cannot upgrade in place – only w
 result's message or its error and log). Checked on the Mac: a NixOS image from before 0.8.1 mounts no volume (the
 device is there, no `omaflake-volumes.service`) – rebuild; a fresh NixOS VM of a rebuilt image with two volumes mounts
 both (9p, writable). Its `/Volumes/My Shared Files` link comes from the catalog's `nixos/docker` 1.0.0 – 1.1.0 without
-it is committed in `omaflake/catalog` but not pushed yet.
+it is in `omaflake/catalog` (pushed 2026-11-27). *Found after the release (2026-11-27):* the agent's share check
+(`omaf diagnose`) still looked for a volume under `/Volumes/My Shared Files/<name>` – now `/Volumes/<name>`; takes
+effect with images built after the fix (changelog, Unreleased).
 
-**B187 (2026-11-27, built for 0.8.1; the Mac and real guests OPEN): volumes – several shared folders per VM, shared
+**B187 (2026-11-27, built for 0.8.1; checked on the Mac with NixOS and macOS guests, B189): volumes – several shared folders per VM, shared
 between VMs (German "Platten").** The maintainer: "Einer VM kann man keinen, einen oder mehrere 'shared' Ordner
 zuweisen. Und VMs können sich auch welche teilen", the folder names in `share/` no longer tied to a VM's name, the New
 VM form with a new volume, one there is, or none; still in 0.8.1. And: "die Docker-VM ist … nichts besonderes" –
@@ -1933,7 +1936,7 @@ maintainer's decisions after discussing a themes repository:
 - **Steps:** (1) the maintainer creates the empty repository `omaflake/catalog` (the agent token cannot create
   repositories), (2) the recipes move over with their history, `tools/catalog.py` learns kinds, (3) `look.toml` v1 and
   the four looks as data, the image flake reads them, (4) catalog v3 and the "Looks" tab in core, CLI and the three UIs,
-  (5) settings migration to the new official source, docs and website, (6) the maintainer archives `omaflake/recipes`.
+  (5) settings migration to the new official source, docs and website, (6) the maintainer archives `omaflake/recipes`. Done 2026-11-27: `omaflake/recipes` is archived.
 
 **B141 (2026-10-25, decided; built in B142): recipes as building blocks – a recipe is data: base + modules + look + key
 bindings.** The maintainer's decisions (the German draft with every current recipe mapped: the private workspace's

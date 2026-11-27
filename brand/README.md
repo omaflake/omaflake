@@ -31,7 +31,7 @@ To change a token: edit `tokens.toml`, then run `python3 tokens.py` (Python 3.11
 - `Sources/OmaflakeApp/BrandTokens.swift` – `BrandTokens.Palette`, `.Colors`, `.Opacity`, `.Spacing`, `.Radius`,
   `.Glow`, `.Size`, `.Icon`, `.FontFamily`, `.Fonts`, `.TextStyle`; the app's `BrandStyle` is a set of shorthands for
   them,
-- `crates/omaflake-brand/src/tokens.rs` – modules `palette`, `color` (`Color { rgba8, rgba }`), `opacity`, `spacing`,
+- `crates/omaflake-sdk/src/brand/tokens.rs` (crate `omaflake-sdk`, module `brand`) – modules `palette`, `color` (`Color { rgba8, rgba }`), `opacity`, `spacing`,
   `radius`, `glow`, `size`, `icon`, `font`, `text` (`FontStyle`), plain values with no UI toolkit, and `ALL`,
 - `brand/omaflake-look.toml` – the guests' omaflake look (plan B135) as look data (schema look/v1, plan B141), its
   colours from `[look]`; copy it into `omaflake/catalog` as `looks/omaflake/omaflake/look.toml` (no look is built
@@ -39,7 +39,7 @@ To change a token: edit `tokens.toml`, then run `python3 tokens.py` (Python 3.11
 - `Sources/OmaflakeKit/Brand/BrandAssets.swift` – the app icon and the menu bar image from `png/` as base64, so the
   runner and the app need no resource bundle.
 
-Never edit the generated files. `python3 tokens.py --check` (CI) and the crate's test `cargo test -p omaflake-brand`
+Never edit the generated files. `python3 tokens.py --check` (CI) and the test `cargo test -p omaflake-sdk --test brand_up_to_date`
 fail when they are out of date. Colours with `system = "…"` stay the system colour in the macOS app (it follows the
 system's accessibility settings); their hex value, macOS' dark-appearance colour, is for the other interfaces. Add a
 token for a value that recurs or that another interface needs too, not for every one-off.

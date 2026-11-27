@@ -90,18 +90,19 @@ the folder as a `path:` flake when it has no `.git` of its own – this folder i
 
 | | |
 |---|---|
-| `flake.nix` | outputs `images.<system>.<id>`, `lib.recipeDefaults`, `nixosConfigurations.vm-<system>-<id>`, `darwinConfigurations.{linux-builder,linux-builder-bootstrap,<id>}` |
+| `flake.nix` | outputs `images.<system>.<id>`, `lib.recipeDefaults`, `nixosConfigurations.vm-<system>-<id>`, `linuxBuilders.aarch64-darwin`, `darwinConfigurations.{linux-builder,linux-builder-bootstrap,<id>}` |
 | `guest/`, `no-catalog/` | the two inputs' defaults (above) |
-| `modules/vm-guest.nix` | guest hardware for omaflake: UEFI, virtio, labels, 9p share, the omaflake agent (also root output `nixosModules.vm-guest`) |
+| `modules/vm-guest.nix` | guest hardware for omaflake: UEFI, virtio, labels, volumes (one 9p device each at `/Volumes/<name>`, `omaflake-volumes.service`; option `vm.shareFolder.enable`), the omaflake agent (also root output `nixosModules.vm-guest`) |
 | `modules/base.nix` | NixOS platform: user (zsh as login shell), locale and keyboards, SSH, Nix |
 | `modules/platform.nix`, `modules/darwin-platform.nix` | the options modules share and the host name (above) |
-| `modules/darwin-guest.nix` | macOS platform: primary user, language/region/keyboards, key-only SSH, shutdown without password, widgets/sleep/updates off, the clipboard helper |
+| `modules/darwin-guest.nix` | macOS platform: primary user, language/region/keyboards, key-only SSH, shutdown without password, widgets/sleep/updates off, the clipboard helper, volumes (daemon `omaflake-volumes`, session `omaflake-volumes-session`: Finder favorites or the FSKit mount), launchd jobs started through `/usr/local/libexec/omaflake` |
 | `modules/look.nix` | the look (`omaflake.look`, below): its files under `/etc/omaflake/look/`, `omaflake.lookColors`, `lookMacos`, `lookParts` for modules – NixOS and macOS guests |
 | `looks/` | `adapter.nix` turns a look's data (look.toml, schema look/v1) into each program's part |
 | `lib/keys.nix` | the key notations (above) |
 | `home/default.nix` | home-manager, the platform's part: the user and git's identity from the credential; the rest comes from the modules |
 | `agent/` | the omaflake agent (Rust, spec §11.9) |
-| `hosts/linux-builder.nix` | nix-darwin host with a Linux builder ([docs/linux-builder.md](../docs/linux-builder.md)) |
+| `hosts/builder-vm.nix` | the Linux builder VM's settings: omaflake's own builder (flake output `linuxBuilders`, runs as the user since 0.7.4) and the nix-darwin host ([docs/linux-builder.md](../docs/linux-builder.md)) |
+| `hosts/linux-builder.nix` | nix-darwin host with a Linux builder – for nix-darwin's builder instead |
 
 ## Looks
 

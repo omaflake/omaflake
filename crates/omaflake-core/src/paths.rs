@@ -387,7 +387,7 @@ pub struct Settings {
     /// The image flake – omaflake's Nix side that builds images from recipes (folder or flake URL, e.g. <checkout>/nix)
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub flake: Option<String>,
-    /// Recipe sources in their order (spec §11.3, plan B107); None = omaflake/recipes on GitHub
+    /// Recipe sources in their order (spec §11.3, plan B107); None = the official catalog, omaflake/catalog on GitHub
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub sources: Option<Vec<RecipeSource>>,
     /// VM packages that live outside the data folder (e.g. on an external disk) and run from there (plan B108)

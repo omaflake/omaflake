@@ -69,7 +69,7 @@ GBM pointed at it (`__EGL_VENDOR_LIBRARY_FILENAMES`, `__GLX_VENDOR_LIBRARY_NAME`
 `GBM_BACKENDS_PATH`, `LD_LIBRARY_PATH`). qemu.log says which Mesa, or why there is none. A distribution's own QEMU is
 left alone.
 
-Not on Linux yet (OPEN): the share folder writable from both sides (the Mac's QEMU has a guest-owner patch; Linux uses
+Not on Linux yet (OPEN): volumes writable from both sides (the Mac's QEMU has a guest-owner patch; Linux uses
 `mapped-xattr`: files from the host are read-only in the guest).
 
 ### Integrations: agent, clipboard, camera, sound (plan B126)

@@ -8,7 +8,9 @@ permalink: /api/
 
 omaflake's logic lives in one **Rust core** (`crates/omaflake-core`). Every user interface talks to it through the
 interface described here: the macOS app (SwiftUI; menu bar, window or both – plan B119), the Linux app (native Rust
-with iced, plan B119, issue #4, [docs/linux.md](linux.md)), a terminal interface (`omaf ui`, macOS and Linux, plan B121), scripts and tests. The CLI `omaf` is built on the same core. No UI holds logic of its own beyond presentation: what a VM, an
+with iced, plan B119, issue #4, [docs/linux.md](linux.md)), a terminal interface (`omaf ui`, macOS and Linux, plan B121), scripts and tests. The CLI `omaf` is built on the same core. Rust programs use the crate
+[omaflake-sdk](https://crates.io/crates/omaflake-sdk): the client (`omaflake_sdk::client::Client`), the API's types,
+the page models, texts and design tokens. No UI holds logic of its own beyond presentation: what a VM, an
 image or a recipe is, what may be done with it and what happens then is decided in the core.
 
 ```
@@ -516,7 +518,7 @@ stores tokens only in the system keychain (macOS Keychain; Linux: OPEN).
 ## 9. Status
 
 API v1 is new with the Rust core (plan B117). The method tables are the contract; the Rust types in
-`crates/omaflake-core/src/api/types.rs` are its implementation, and their JSON Schema is OPEN (to be generated from
+`crates/omaflake-sdk/src/types.rs` (crate `omaflake-sdk` on crates.io) are its implementation, and their JSON Schema is OPEN (to be generated from
 those types and published under `schema/api/`).
 
 **Contract tests.** `crates/omaflake-core/testdata/api/*.json` holds a representative value of every result, event
@@ -535,8 +537,9 @@ their labels, lamps and badges, the actions with whether they can be done now an
 filters, sorting and form fields with their defaults and what is wrong with them. A UI draws it with the design tokens
 (B119), sends the actions it names and keeps only what is its own: which tab and page are open, which rows are
 expanded, the filter it asked with, what the user is typing, whether the activity was seen, launch at login, its
-language. The model is the app's presentation as of B117, moved into `crates/omaflake-core/src/api/views/` (one module
-per page; the Rust types there are the contract, the JSON below their shape).
+language. The model is the app's presentation as of B117, its types are in `crates/omaflake-sdk/src/views/` (one module
+per page; the Rust types there are the contract, the JSON below their shape), the core builds them in
+`crates/omaflake-core/src/api/views/`.
 
 ### 10.1 Getting and following pages
 
