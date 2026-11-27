@@ -39,7 +39,10 @@ nix flake check "path:$PWD/nix" --override-input omaflake-catalog "path:$PWD/../
 
 To build images from recipes you are working on, add your checkout of omaflake/catalog as the first source
 (`omaf sources add <path> --first`) and point omaflake at the image flake of your checkout
-(`omaf config --flake "$PWD/nix"`). Personal Nix settings for your guests go into `nix/local/` (git-ignored; template
+(`omaf config --flake "$PWD/nix"`) – or keep your own data folder apart: `VM_HOME=~/.omaflake-dev scripts/bundle-app.sh`,
+then `scripts/dev-app.sh` starts that build with `~/.omaflake-dev`, this checkout's image flake and `../catalog` as the
+first source (your installed omaflake and `~/.omaflake` stay untouched). MIDI end to end: `scripts/miditest.swift`
+(`swiftc -O scripts/miditest.swift -o build/miditest`, then `build/miditest vm <vm>`). Personal Nix settings for your guests go into `nix/local/` (git-ignored; template
 `nix/local.example/`).
 
 ## Rules

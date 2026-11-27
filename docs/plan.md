@@ -1447,7 +1447,7 @@ timed out on this VM's audio device), the relay end to end with the real agent o
 control socket (`omaf-runner diagnose-check`). OPEN: everything in a running guest – a full diagnosis from the app,
 sound/microphone (TCC for the SSH-started agent), NixOS session checks, the camera status, `omaf-runner bridge
 --control` against a QEMU guest, the page looked at on screen. The draft as noted:
-After testing MIDI by hand (MIDI Monitor in the guest; the workspace tool `_tools/miditest`, which copies itself into
+After testing MIDI by hand (MIDI Monitor in the guest; `scripts/miditest.swift`, a workspace tool until 2026-11-27, which copies itself into
 the VM over `omaf ssh`, runs there and echoes on the Mac, then writes a log): every feature of a VM should be testable
 from the app (and `omaf ui`, the CLI), with its result judged and kept. Draft:
 - *One job per run:* `diagnostics.run {vm, checks?}` → Job `diagnostics`, one step per check, each with a result
@@ -1508,7 +1508,7 @@ what MIDI does not carry (a piano's USB audio, vendor tools). Implemented:
   and clippy (aarch64-unknown-linux-gnu), `midi-check` with the new agent (see below), flakes evaluate.
   **Checked by the maintainer (2026-11-22, release 0.7.4, a new macOS VM from a 0.7.4 image with MIDI on):** the
   Mac's stage piano → the guest – notes arrive in MIDI Monitor, so CoreMIDI from the SSH-started agent reaches the
-  guest's apps. `miditest vm music` (workspace tool, 2026-11-22): the agent 0.7.4 with 4 endpoints in the guest, round
+  guest's apps. `miditest vm music` (`scripts/miditest.swift`, 2026-11-22): the agent 0.7.4 with 4 endpoints in the guest, round
   trip 0.64 ms (median of 60), the Scarlett 4i4 mirrored by name; found: the Mac's pair was "omaflake vm" for every
   macOS VM (the runner took the bundle's folder name) – fixed before 0.7.4 is out: `omaf-runner run --vm-name`. **OPEN:**
   everything else with a running guest or Linux MIDI hardware – guest → Mac, Dorico, latency
@@ -1939,8 +1939,8 @@ maintainer's decisions after discussing a themes repository:
   (5) settings migration to the new official source, docs and website, (6) the maintainer archives `omaflake/recipes`. Done 2026-11-27: `omaflake/recipes` archived and then deleted, before 1.0 (nothing used it: omaflake migrates settings naming it since 0.6.0; it is no longer an official source).
 
 **B141 (2026-10-25, decided; built in B142): recipes as building blocks – a recipe is data: base + modules + look + key
-bindings.** The maintainer's decisions (the German draft with every current recipe mapped: the private workspace's
-Entwurf-Baukasten.md):
+bindings.** The maintainer's decisions (from a German draft with every recipe of then mapped, kept in the private workspace until
+2026-11-27; what was decided is here):
 - **Guiding rule: the abstraction must not sprawl** – otherwise the building blocks are not worth it and one writes
   whole modules instead. So: a short, fixed list of capabilities; "needs" and "enhances" only; warnings, never refusals;
   no conditions, no plugin system for checks. Versions only as below (none = latest, exact, minimum and/or maximum).
@@ -2203,8 +2203,8 @@ extended. OPEN: clicked in the app (the maintainer's disk had 26 GiB free on 202
 space freed first).
 
 **B147 (2026-10-28, wishes of the maintainer – decided the same day, not built): every key binding with its modes, a
-key binding view, a key binding studio, a recipe studio, navigation.** The German draft with recommendations and open
-questions: the private workspace's Entwurf-Tasten-und-Navigation.md. In short: modules describe all their bindings
+key binding view, a key binding studio, a recipe studio, navigation.** A German draft with recommendations and open
+questions was kept in the private workspace until 2026-11-27; what was decided is here. In short: modules describe all their bindings
 (module.toml v2: modes, `after` – the mode after an action –, `does` – the program's own command); configurations
 such as Zellij's KDL are generated from that data so a key binding set can change a key and its `after`; a keyboard
 button at VMs, images and recipes opens their keys grouped by module and mode, showing the chain (Ctrl g › p › n,

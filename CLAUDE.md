@@ -102,7 +102,7 @@ Sources/omaflake-tools/    "omaflake Tools.app", omaflake's app in a macOS guest
 Sources/omaflake-volumes/  for unchained macOS guests: the FSKit module (omaflake-volumes.appex, fs type omaflakefs) that
                            shows volumes under Locations (plan B190; built by scripts/bundle-tools.sh with swiftc)
 App/                       Info.plist, runner entitlements
-scripts/                   bundle-app.sh, bundle-tools.sh (omaflake Tools for macOS guests, into omaflake.app; ad hoc two builds, plan B184), sign-runner.sh, notarize.sh, check-age.py, translations.py, repair-linux-builder.sh, bootprobe.sh, trim-target.sh (leftovers of interrupted builds)
+scripts/                   bundle-app.sh, bundle-tools.sh (omaflake Tools for macOS guests, into omaflake.app; ad hoc two builds, plan B184), sign-runner.sh, notarize.sh, check-age.py, translations.py, repair-linux-builder.sh, dev-app.sh (the development build with its own data folder ~/.omaflake-dev), miditest.swift (MIDI end to end, plan B161), bootprobe.sh, trim-target.sh (leftovers of interrupted builds)
 qemu/                      QEMU build with virglrenderer + ANGLE, patches
 nix/modules/vm-guest.nix   guest module (root flake output nixosModules.vm-guest)
 docs/                      spec, plan, cli, api, app, recipes, linux, macos-base, linux-builder, contributing, changelog,
