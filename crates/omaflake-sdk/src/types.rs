@@ -149,6 +149,8 @@ pub enum JobKind {
     ModuleInstall,
     /// A running VM's diagnosis (`diagnostics.run`, plan B162)
     Diagnostics,
+    /// Add a file a module needs to the Nix Store – unpacked, checked against its hash (`files.add`, plan B198)
+    FileAdd,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -717,6 +719,34 @@ pub struct RecipePartsDto {
     pub unfree: Vec<String>,
     pub requirements: crate::models::Requirements,
     pub locales: crate::models::LocaleRules,
+    /// Files its modules need to be built, which nobody may pass on (plan B198: Xcode)
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub files: Vec<NeededFileDto>,
+}
+
+/// A file a module needs to be built (module.toml `[[files]]`, module/v3, plan B198): a fixed-output path of the Nix
+/// Store, filled once from a file of this computer – found by itself in the places the module names, or chosen
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct NeededFileDto {
+    /// The module's id ("omaflake.macos.xcode")
+    pub module: String,
+    /// Its name in the Nix Store ("Xcode.app")
+    pub name: String,
+    /// What it is, for people ("Xcode 27.2")
+    pub title: String,
+    /// Its path in the Nix Store (known from its name and hash)
+    pub store_path: String,
+    /// It is in the Nix Store
+    pub present: bool,
+    /// Not in the Nix Store, but found on this computer: what the build will add
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub found: Option<String>,
+    /// The file names it looks for ("Xcode_27.2.xip", "Xcode.app")
+    pub from: Vec<String>,
+    /// Where it can be downloaded
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub url: Option<String>,
 }
 
 /// A module as a recipe uses it
@@ -1405,6 +1435,7 @@ mod tests {
         assert_eq!(s(RecipeSourceKind::Url), json!("url"));
         assert_eq!(s(JobKind::BuilderCleanUp), json!("builder-clean-up"));
         assert_eq!(s(JobKind::NixCleanUp), json!("nix-clean-up"));
+        assert_eq!(s(JobKind::FileAdd), json!("file-add"));
         assert_eq!(s(JobKind::CliInstall), json!("cli-install"));
         assert_eq!(s(JobKind::MacosInstall), json!("macos-install"));
         assert_eq!(s(JobKind::Diagnostics), json!("diagnostics"));

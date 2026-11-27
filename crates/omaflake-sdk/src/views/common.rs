@@ -202,6 +202,8 @@ pub enum AskKind {
     Folder,
     /// A file
     File,
+    /// A file or a folder – an app bundle counts as one (plan B198)
+    Path,
     /// An omaflake package (`accept`: vm, image or recipe) – a recipe may also be a plain folder
     Package,
 }

@@ -439,6 +439,7 @@ mod tests {
             desktop: false,
             own_keys: false,
             unfree: false,
+            files: vec![],
             actions: actions
                 .iter()
                 .map(|(a, k, mode)| {

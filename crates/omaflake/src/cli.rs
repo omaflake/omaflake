@@ -74,6 +74,12 @@ pub enum Command {
         args_conflicts_with_subcommands = true
     )]
     Volumes(Volumes),
+    #[command(
+        about = "Files modules need to be built, which nobody may pass on (Xcode): which are there, and adding one to \
+                 the Nix Store.",
+        args_conflicts_with_subcommands = true
+    )]
+    Files(Files),
     #[command(name = "macos", about = "macOS bases: install from Apple's IPSW with a credential, or assign one.")]
     #[command(subcommand_required = true, arg_required_else_help = true)]
     MacOs {
@@ -232,6 +238,29 @@ pub struct NetworkMember {
     pub network: String,
     #[arg(value_name = "vm")]
     pub vm: String,
+}
+
+#[derive(Debug, Args)]
+pub struct Files {
+    #[command(subcommand)]
+    pub command: Option<FilesCommand>,
+}
+
+#[derive(Debug, Subcommand)]
+pub enum FilesCommand {
+    #[command(about = "The files the modules here need: in the Nix Store, found on this computer, or missing.")]
+    List,
+    #[command(about = "Add a file a module needs to the Nix Store: a download (.xip, .zip), a folder or an app – \
+                       checked against the module's hash; without a path: found where the module looks.")]
+    Add(FileAdd),
+}
+
+#[derive(Debug, Args)]
+pub struct FileAdd {
+    #[arg(value_name = "module", help = "The module (omaflake/xcode) – or a recipe that has it (macos/xcode)")]
+    pub module: String,
+    #[arg(value_name = "path", help = "The file, folder or archive (default: found where the module looks)")]
+    pub path: Option<String>,
 }
 
 #[derive(Debug, Args)]

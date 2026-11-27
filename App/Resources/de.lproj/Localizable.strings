@@ -1383,7 +1383,6 @@
 "Not here yet – installed with the recipe" = "Noch nicht da – wird mit dem Rezept installiert";
 "from the catalog" = "aus dem Katalog";
 "Add" = "Hinzufügen";
-"Add %@" = "%@ hinzufügen";
 "Every module is in the recipe" = "Alle Module sind im Rezept";
 "No module matches – change the search" = "Kein Modul passt – ändere die Suche";
 "Your recipe – %lld modules" = "Dein Rezept – %lld Module";
@@ -1961,3 +1960,21 @@
 "The name the VM sees this volume under – from its next start." = "Der Name, unter dem die VM diese Platte sieht – ab ihrem nächsten Start.";
 "Every volume both ways" = "Jede Platte in beide Richtungen";
 "no folder here: %@" = "kein Ordner hier: %@";
+
+/* Files modules need (plan B198) */
+"%@ holds no %@" = "%@ enthält kein %@";
+"%@ is not %@ – its content differs from what the module needs (another version?)" = "%@ ist nicht %@ – der Inhalt weicht von dem ab, was das Modul braucht (eine andere Version?)";
+"%@ is not in %@ – choose the file" = "%@ liegt nicht in %@ – wähle die Datei aus";
+"%@ is not there" = "%@ gibt es nicht";
+"%@ needs %@ (%@), which is not on this computer yet – download it%@, then build again: it is found in %@, or choose it on the build page (omaf files add %@ <file>)" = "%@ braucht %@ (%@), das auf diesem Computer noch fehlt – lade es%@ und baue dann noch einmal: Es wird in %@ gefunden, oder wähle es auf der Build-Seite aus (omaf files add %@ <Datei>)";
+"%@: no valid hash" = "%@: keine gültige Prüfsumme";
+"Could not copy %@: %@" = "%@ ließ sich nicht kopieren: %@";
+"Could not unpack %@: %@" = "%@ ließ sich nicht entpacken: %@";
+"Nix is not installed – see the Doctor" = "Nix ist nicht installiert – siehe Doctor";
+"The module %@ needs no such file" = "Das Modul %@ braucht keine solche Datei";
+"nix-store could not add %@: %@" = "nix-store konnte %@ nicht hinzufügen: %@";
+"%@ is added to the Nix Store from %@ when the build starts" = "%@ wird beim Start des Builds aus %@ in den Nix-Store gelegt";
+"%@ – the downloaded file (%@) or the unpacked app" = "%@ – die geladene Datei (%@) oder die entpackte App";
+"Needs %@, which is not on this computer yet – download it, then choose it here" = "Braucht %@, das auf diesem Computer noch fehlt – lade es und wähle es dann hier aus";
+"Download %@ (your Apple Account)" = "%@ laden (mit deinem Apple-Account)";
+"Add %@" = "%@ hinzufügen";

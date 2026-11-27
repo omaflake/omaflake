@@ -217,7 +217,9 @@ bindings: [{module, action, title, titleDe?, keys (each does it), context ("desk
 modes it works in), after? (the mode afterwards), does? (the program's own command), own? (the program's key, shown
 only), from? (the key binding set that gave the key or `after`)}] (plan B147), issues: [{kind: missingModule|missingKeymap {reference, have?} (they block a build) | needs {module,
 capability} | incompatible {capability, modules} | keysOverlap {first, second} | keyRule {binding}}], unfree,
-requirements: {cpus, memory_gb, disk_gb}, locales: {rtl?, languages?}}`. `cpus`, `memoryGB`, `diskGB` are the
+requirements: {cpus, memory_gb, disk_gb}, locales: {rtl?, languages?}, files?: [{module, name, title, storePath, present,
+found?, from, url?}] (plan B198: files its modules need – in the Nix Store, `found` on this computer and added at the
+build's start, or missing: `images.build` then fails with `prerequisite` and the build page offers `files.add`)}`. `cpus`, `memoryGB`, `diskGB` are the
 recipe's `[requirements]`, `network`, `share`, … its `[vm]`. `lab` is a boolean here (false when unset).
 
 **Version** – `id`, `source`, `added` (left out for the recipe a local folder has now), `newest` (the line's
@@ -267,6 +269,7 @@ comes as events, and `jobs.*` ask and steer.
                             // | builder-apply | builder-clean-up | nix-clean-up | cli-install | import | export | data-move
                             // | recipe-install | look-install | module-install
                             // | builder-uninstall-nix | builder-trust | qemu-install | setup (plan B160) | diagnostics (B162)
+                            // | file-add (B198)
   "title": "Build dev",
   "recipe": "omaflake.nixos.dev@…",    // build, recipe-install
   "guestKind": "nixos",
@@ -488,6 +491,7 @@ values (plan B141). A recipe whose modules or key binding sets are not here is r
 | `shell.add` / `shell.remove` | – | as `doctor.check` – omaflake's marked block that loads Nix in ~/.zshrc (and ~/.bash_profile for bash users) |
 | `doctor.createSshKey` | – | as `doctor.check` – creates omaflake's own SSH key (`<data>/ssh/id_ed25519`, no passphrase) |
 | *(every setup job)* | | one at a time (`in-use`) |
+| `files.add` | `module` (id or reference), `name?` (the module's first file), `path?` (default: found where the module looks) | Job (`file-add`) → `result: {message}` (plan B198): a file a module needs (module.toml `[[files]]`) – a `.xip` or `.zip` is unpacked, a folder or app taken as it is – added to the Nix Store (`nix-store --add-fixed`) and checked to land at the path its hash names; another content is refused (`prerequisite`) and taken out of the store again. One at a time (`in-use`) |
 | `nix.cleanUp` | – | Job (`nix-clean-up`) → `result: {message}` (plan B149): `nix-collect-garbage` as the user – removes what nothing uses from the Nix Store; profiles' generations stay; not while a build runs (`in-use`). The Doctor offers it at `nixSpace` ("Clean Up …", with a question) |
 
 ### Views (§10)
@@ -667,7 +671,8 @@ it likes (a toast, a status line) – the activity list has it already (§10.6).
 `param`.
 
 **Ask** – `{param, kind, label, prompt?, button?, default?, accept?, multiple?, repeat?, check?}`; `kind`: `text`,
-`password` (a secret: never shown, never sent to `views.get`), `folder`, `file`, `package` (an omaflake package;
+`password` (a secret: never shown, never sent to `views.get`), `folder`, `file`, `path` (a file or a folder – an app
+bundle counts as one; plan B198), `package` (an omaflake package;
 `accept`: `vm`, `image`, `recipe` – a recipe may also be a plain folder; `ipsw` for a file). `prompt`/`button`: the
 open panel's message and button. `multiple`: several may be chosen – the action is done once per value. `repeat`: a
 password asked twice, sent only when both agree. `check: {method, params, param}`: before the panel closes, call

@@ -166,6 +166,8 @@ pub struct Module {
     pub own_keys: bool,
     /// Not free software
     pub unfree: bool,
+    /// Files it needs to be built, which nobody may pass on (module/v3, plan B198)
+    pub files: Vec<crate::needed_files::NeededFile>,
     pub actions: BTreeMap<String, ModuleAction>,
     pub modes: BTreeMap<String, ModuleMode>,
     /// `RecipeSource::id` it came from
@@ -217,6 +219,9 @@ struct ModuleToml {
     actions: BTreeMap<String, ModuleAction>,
     #[serde(default)]
     modes: BTreeMap<String, ModuleMode>,
+    /// module/v3 (plan B198): files it needs to be built
+    #[serde(default)]
+    files: Vec<crate::needed_files::NeededFile>,
     #[serde(flatten)]
     rest: BTreeMap<String, Value>,
 }
@@ -237,9 +242,11 @@ pub struct ModuleStore {
 }
 
 impl ModuleStore {
-    /// module.toml's version this omaflake reads (`"$schema" = "https://omaflake.dev/schema/module/v2.json"`; v2:
-    /// modes, several keys and modes, `after`, `does`, `own`, `title_de` – plan B147)
-    pub const MODULE_VERSION: usize = 2;
+    /// module.toml's version this omaflake reads (`"$schema" = "https://omaflake.dev/schema/module/v3.json"`; v2:
+    /// modes, several keys and modes, `after`, `does`, `own`, `title_de` – plan B147; v3: `[[files]]`, plan B198)
+    pub const MODULE_VERSION: usize = 3;
+    /// The oldest module.toml it reads: v2 has everything but `files`
+    pub const MODULE_MINIMUM: usize = 2;
 
     pub fn new(paths: Paths) -> Self {
         ModuleStore { paths }
@@ -257,12 +264,15 @@ impl ModuleStore {
             toml::from_str(&text).map_err(|e| vm_err!("{}: not a module ({})", file.display(), e.message()))?;
         match FileFormat::parse(&m.schema) {
             Some((t, v)) if t == "module" => {
-                FileFormat::check(v, Self::MODULE_VERSION, Self::MODULE_VERSION, "module.toml")?;
+                FileFormat::check(v, Self::MODULE_MINIMUM, Self::MODULE_VERSION, "module.toml")?;
             }
             _ => return Err(vm_err!("{}: not a module (\"$schema\" = \"{}\")", file.display(), m.schema)),
         }
         if !folder.join("default.nix").exists() {
             return Err(vm_err!("{}: a module needs default.nix", folder.display()));
+        }
+        if let Some(problem) = m.files.iter().find_map(crate::needed_files::NeededFile::problem) {
+            return Err(vm_err!("{}: {}", file.display(), problem));
         }
         let Some((author, Some(platform), name)) = PartKind::Module.parse_id(id) else {
             return Err(vm_err!("Not a module: {id}"));
@@ -288,6 +298,7 @@ impl ModuleStore {
             desktop: m.desktop,
             own_keys: m.own_keys,
             unfree: m.unfree,
+            files: m.files,
             actions: m.actions,
             modes: m.modes,
             source,

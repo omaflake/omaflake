@@ -203,6 +203,12 @@ locales it is made for. The image flake imports the recipe's modules and gives e
 the recipe's sets over them). Every key omaflake binds in a guest starts with Cmd/SUPER or Ctrl, optionally with
 Shift; plain keys only inside a mode; an editor's own keys stay as they are.
 
+A module may need **files nobody may pass on** (module/v3, plan B198: Xcode): its Nix asks for a fixed-output path
+(`requireFile`, a name and a hash), its module.toml (`[[files]]`) says the names the file comes as and where to look.
+omaflake knows from the name and the hash whether the path is in the Nix Store; before a build it adds a file found in
+those places (a `.xip` or `.zip` unpacked), checked to land at that path. Missing everywhere, the build is refused with
+what to do, and the build page asks for the file ("Choose …": a download, a folder or an app; `omaf files add`).
+
 ### 6.2 Core library + CLI `omaf`
 
 **Rust workspace** (repo root, `Cargo.toml`; every crate on crates.io with omaflake's version, plan B192):

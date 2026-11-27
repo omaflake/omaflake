@@ -587,6 +587,7 @@ pub(crate) fn recipe_parts() -> RecipePartsDto {
         unfree: vec![],
         requirements: Requirements { cpus: 4, memory_gb: 8, disk_gb: 40 },
         locales: LocaleRules { rtl: Some(false), languages: vec![] },
+        files: vec![],
     }
 }
 

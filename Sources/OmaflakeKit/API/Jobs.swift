@@ -15,6 +15,8 @@ public struct Job: Decodable, Sendable, Equatable, Identifiable {
         case builderCheck = "builder-check", builderRepair = "builder-repair"
         /// Plan B178: a running VM upgraded in place
         case vmUpgrade = "vm-upgrade"
+        /// Plan B198: a file a module needs, added to the Nix Store
+        case fileAdd = "file-add"
         case unknown
 
         public var isBuilderTask: Bool {

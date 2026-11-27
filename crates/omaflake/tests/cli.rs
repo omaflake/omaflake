@@ -29,7 +29,7 @@ fn version_and_help() {
     for command in [
         "recipes", "sources", "build", "macos", "images", "new", "set", "start", "stop", "reset", "upgrade", "rm",
         "list", "export", "import", "external", "ssh", "wait", "agent", "log", "config", "doctor", "builder", "serve",
-        "service", "call",
+        "service", "call", "files",
     ] {
         assert!(help.contains(&format!("\n  {command} ")), "{command} missing in\n{help}");
     }

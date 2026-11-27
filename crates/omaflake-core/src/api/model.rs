@@ -138,6 +138,24 @@ pub(crate) fn parts_dto(
         issues: c.issues,
         unfree: c.unfree,
         requirements: spec.requirements,
+        files: c
+            .modules
+            .iter()
+            .flat_map(|m| m.files.iter().map(move |f| (m, f)))
+            .map(|(m, f)| {
+                let present = f.present();
+                omaflake_sdk::types::NeededFileDto {
+                    module: m.id.clone(),
+                    name: f.name.clone(),
+                    title: f.title().to_string(),
+                    store_path: f.store_path().unwrap_or_default(),
+                    present,
+                    found: if present { None } else { f.find().map(|p| p.to_string_lossy().into_owned()) },
+                    from: f.from.clone(),
+                    url: f.url.clone(),
+                }
+            })
+            .collect(),
         locales: spec.locales.clone(),
     }
 }

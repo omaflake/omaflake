@@ -3,6 +3,7 @@
 //! instances.rs), and `serve` / `call` (docs/api.md).
 
 pub mod credentials;
+pub mod files;
 pub mod instances;
 pub mod locales;
 pub mod looks;
@@ -88,6 +89,10 @@ pub fn run(command: Command) -> Outcome {
             Some(NetworksCommand::Leave(a)) => networks::leave(&a.network, &a.vm),
         },
         Command::NetworkSwitch(a) => networks::switch(&a),
+        Command::Files(f) => match f.command {
+            None | Some(FilesCommand::List) => files::list(),
+            Some(FilesCommand::Add(a)) => files::add(&a.module, a.path.as_deref()),
+        },
         Command::Volumes(v) => match v.command {
             None | Some(VolumesCommand::List) => volumes::list(),
             Some(VolumesCommand::Create(a)) => volumes::create(&a.volume, a.path.as_deref()),

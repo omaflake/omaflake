@@ -699,7 +699,7 @@ final class AppModel {
             guard await choose(t(ask.label), prompt, button: ask.button.map { t($0) } ?? String(localized: "Continue"),
                                input: input, secure: secure, repeated: again) == 0 else { return nil }
             return [.string(input.text)]
-        case .folder, .file, .package:
+        case .folder, .file, .path, .package:
             let urls = await choosePaths(ask)
             return urls.map { $0.map { .string($0.path) } }
         case .unknown:
@@ -725,6 +725,11 @@ final class AppModel {
             panel.treatsFilePackagesAsDirectories = true
             panel.showsHiddenFiles = ask.accept == nil
             if let accept = ask.accept { checker = PathChecker(extension: accept) }
+        case .path:
+            // A file or a folder, an app as one (plan B198: a download or Xcode.app)
+            panel.canChooseDirectories = true
+            panel.canChooseFiles = true
+            panel.treatsFilePackagesAsDirectories = false
         default:
             // An omaflake package of one kind; recipes also come as plain folders (a checkout, a folder of recipes)
             let accept = ask.accept ?? "vm"

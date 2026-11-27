@@ -1152,7 +1152,7 @@ impl App {
                     self.modal = Some(Modal::Ask { ask, value, repeat: String::new(), error: None });
                     Task::none()
                 }
-                AskKind::Folder | AskKind::File | AskKind::Package => {
+                AskKind::Folder | AskKind::File | AskKind::Path | AskKind::Package => {
                     flow.picking = Some(ask.clone());
                     Task::perform(pick(ask), Message::Picked)
                 }

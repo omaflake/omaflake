@@ -647,6 +647,26 @@ Also seen: with `omaf config --flake <checkout>/nix` the image flake reads the d
 whose `macUser` named the user of an older development base – activation stopped ("primary user … does not exist").
 Building with the app's image flake and the local catalog as a source avoids it.
 
+**B198 (2026-11-27, the maintainer: "module können Dateien beim Bauen verlangen, die entweder automatisch aus einem
+Verzeichnis geladen werden … und falls nicht gefunden, muss manuell die Datei oder der Ordner ausgewählt werden"):
+files a module needs.** The catalog's `macos/xcode` (Xcode 27.2 through `requireFile`) needed the user to run
+`nix-store --add-fixed` by hand, and omaflake only passed on Nix's error. *Built:* module.toml v3 (`[[files]]`: name and
+hash as the module's `requireFile`, `mode` recursive or flat, `title`, `from` – the names it comes as –, `search`,
+`url`; v2 stays readable, only modules with files use v3), `needed_files.rs`: the fixed-output store path computed from
+the name and the hash (Nix's `makeFixedOutputPath`, checked against the path Nix gave Xcode and one of a flat file – no
+Nix call to know whether it is there), found in `search`, added from a `.xip` (`xip --expand`), `.zip`, folder or app
+(cloned to the module's name when it has another), `nix-store --add-fixed`, and refused when it lands elsewhere (taken
+out of the store again). `images.build` adds what it finds at the job's start and refuses with what to do when a file
+is nowhere; `recipes` parts carry `files`; the build page shows each missing one with "Choose …" (`files.add`, the
+ask kind `path`: a file or a folder, an app as one) and "Download …"; `omaf files` / `omaf files add <module> [<path>]`.
+*Checked (2026-11-27, a data folder of its own):* `omaf files` saw Xcode in the store; `files add` with a wrong
+Xcode.app refused it and left the store as it was; with `~/Downloads/Xcode_27.2.xip` unpacked, added and confirmed in
+1:44; with a module whose hash no file has, `images.build` refused with the download and `omaf files add
+omaflake/xcode <file>`, and the build page showed the warning with "Choose …" (ask `path`) and "Download …". The
+catalog's `xcode` 1.1.0 uses it (search: Downloads and Desktop – not /Applications, where another Xcode may be).
+OPEN: the app's panel looked at; a build that adds a found file on its way (the same `files.add` code, not run inside
+a build yet).
+
 **B192 (2026-11-27, done with 0.8.1): omaflake's crates on crates.io.** The maintainer: falkOSS's other projects
 (kernoid, aktujo, verkodo) have their crates on crates.io, omaflake was the odd one out. *Decided:* every crate is
 published, in step with omaflake's version (like aktujo: the crate with the project's name is the program, the rest

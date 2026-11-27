@@ -141,7 +141,7 @@ public struct Confirm: Decodable, Sendable, Equatable {
     public var input: Input?
 }
 
-public enum AskKind: String, OpenEnum { case text, password, folder, file, package, unknown }
+public enum AskKind: String, OpenEnum { case text, password, folder, file, path, package, unknown }
 
 /// A value an action asks for before it is sent; it goes into the params at `param` (a dotted path)
 public struct Ask: Decodable, Sendable, Equatable {

@@ -183,6 +183,51 @@ pub(crate) fn page(ctx: &Ctx, p: &BuildParams) -> BuildPage {
             notes.push(Hint::new("warning", text, Tone::Warning));
         }
     }
+    // Files its modules need (plan B198): added from this computer at the build's start, or to be chosen
+    for f in parts.map(|x| x.files.as_slice()).unwrap_or_default().iter().filter(|f| !f.present) {
+        match &f.found {
+            Some(found) => notes.push(Hint::new(
+                "doc",
+                tf!("%@ is added to the Nix Store from %@ when the build starts", &f.title, found),
+                Tone::Normal,
+            )),
+            None => {
+                let choose = Action::call(
+                    "addFile",
+                    Text::new("Choose …"),
+                    Some("folder"),
+                    "files.add",
+                    json!({"module": f.module, "name": f.name}),
+                )
+                .ask(Ask::new("path", AskKind::Path, Text::new("Choose …")).prompt(tf!(
+                    "%@ – the downloaded file (%@) or the unpacked app",
+                    &f.title,
+                    f.from.first().map(String::as_str).unwrap_or(f.name.as_str())
+                )));
+                notes.push(
+                    Hint::new(
+                        "warning",
+                        tf!("Needs %@, which is not on this computer yet – download it, then choose it here", &f.title),
+                        Tone::Warning,
+                    )
+                    .action(choose),
+                );
+                if let Some(url) = &f.url {
+                    notes.push(
+                        Hint::new("doc", tf!("Download %@ (your Apple Account)", &f.title), Tone::Normal).action(
+                            Action::call(
+                                "download",
+                                Text::new("Download …"),
+                                Some("download"),
+                                "ui.open",
+                                json!({"url": url}),
+                            ),
+                        ),
+                    );
+                }
+            }
+        }
+    }
     let no_credential = ctx.credentials.is_empty();
     let base_without = base.filter(|b| b.credential.is_none());
     let mut actions = Vec::new();

@@ -13,6 +13,14 @@ are collected under *Unreleased*. Releases: [GitHub](https://github.com/omaflake
 
 ## [Unreleased]
 
+### Added
+
+- **Modules can need files nobody may pass on** – such as Xcode for the catalog's new macOS recipe `xcode`. omaflake
+  looks for the file where the module says (`Xcode_27.2.xip` in your Downloads folder), unpacks it, adds it to the Nix
+  Store and checks it is the right one – no Terminal needed. When it is nowhere, the build page says so and asks for it
+  (**Choose …**, or **Download …** for the vendor's page); on the command line `omaf files` lists such files and
+  `omaf files add` adds one. Modules that use it need omaflake 0.8.3.
+
 ## [0.8.2] – 2026-11-27
 
 Fixes for 0.8.1 and the app icon in Liquid Glass. The guest agent of a macOS VM – with it the camera, MIDI, the
