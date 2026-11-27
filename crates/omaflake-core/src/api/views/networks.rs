@@ -5,7 +5,6 @@
 //! each VM's own NAT to the host, each membership with the VM's address, and what went between which VMs while the
 //! switch runs. UIs draw the graph as a picture (app, Linux app) or as an indented tree (`omaf ui`).
 
-use serde::{Deserialize, Serialize};
 use serde_json::json;
 
 use super::Ctx;
@@ -15,84 +14,9 @@ use super::credentials::{ActionMenu, CredentialDetail, CredentialPage, Credentia
 use super::text::{Arg, Text, tf};
 use crate::api::types::Vm;
 use crate::models::{GuestKind, NetworkMode, VmStatus};
-use crate::networks::Network;
-use crate::networks::switch::SwitchStatus;
 
-/// A network as the pages see it: its record and what its running switch last wrote
-#[derive(Debug, Clone, PartialEq)]
-pub struct NetworkInfo {
-    pub network: Network,
-    pub status: Option<SwitchStatus>,
-}
-
-/// The Networks tab: the list (Credentials page shape) and the graph
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct NetworksPage {
-    #[serde(flatten)]
-    pub list: CredentialsPage,
-    pub graph: NetworkGraph,
-}
-
-/// Who is connected to what (spec §11.12)
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct NetworkGraph {
-    /// "This Mac" / "This computer"
-    pub host: Text,
-    pub networks: Vec<GraphNetwork>,
-    pub vms: Vec<GraphVm>,
-    pub links: Vec<GraphLink>,
-    /// Traffic between two VMs on a network (while its switch runs)
-    pub flows: Vec<GraphFlow>,
-}
-
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct GraphNetwork {
-    pub id: String,
-    pub label: String,
-    /// "10.231.1.0/24"
-    pub subnet: String,
-    /// Its switch runs
-    pub running: bool,
-}
-
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct GraphVm {
-    pub id: String,
-    pub label: String,
-    /// "nixos" / "macos"
-    pub kind: String,
-    pub running: bool,
-}
-
-/// A VM's connection: `to` is a network's id, or "host" for the VM's own NAT
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct GraphLink {
-    pub vm: String,
-    pub to: String,
-    /// "network" (a card on one of omaflake's networks) or "nat" (the VM's own: SSH, the internet)
-    pub kind: String,
-    /// The VM's address on that network; for "nat": shared (internet) / isolated (no internet)
-    pub label: Text,
-    /// The card is connected to the running switch / the NAT has the internet
-    pub active: bool,
-    /// Bytes through the card since the switch started (in + out)
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub bytes: Option<u64>,
-}
-
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct GraphFlow {
-    pub network: String,
-    pub from: String,
-    pub to: String,
-    pub bytes: u64,
-}
+// The page's model (plan B192: in omaflake-sdk); this file builds it
+pub use omaflake_sdk::views::networks::*;
 
 fn running(vm: Option<&Vm>) -> bool {
     vm.is_some_and(|v| v.status == VmStatus::Running)
@@ -319,17 +243,6 @@ pub(crate) fn page(ctx: &Ctx) -> NetworksPage {
 
 // MARK: Forms
 
-#[derive(Debug, Clone, Default, Deserialize)]
-pub struct NetworkValues {
-    pub name: Option<String>,
-}
-
-#[derive(Debug, Default, Deserialize)]
-pub struct NetworkParams {
-    #[serde(default)]
-    pub values: NetworkValues,
-}
-
 /// `network`: a new network – its name
 pub(crate) fn network_page(ctx: &Ctx, p: &NetworkParams) -> CredentialPage {
     let name = p.values.name.clone().unwrap_or_default();
@@ -359,18 +272,6 @@ pub(crate) fn network_page(ctx: &Ctx, p: &NetworkParams) -> CredentialPage {
         locked: None,
         actions: vec![Action::call("cancel", Text::new("Cancel"), None, "ui.back", json!({})), create],
     }
-}
-
-#[derive(Debug, Clone, Default, Deserialize)]
-pub struct MemberValues {
-    pub vm: Option<String>,
-}
-
-#[derive(Debug, Default, Deserialize)]
-pub struct MemberParams {
-    pub network: String,
-    #[serde(default)]
-    pub values: MemberValues,
 }
 
 /// `networkMember`: which VM joins a network

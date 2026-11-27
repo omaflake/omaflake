@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 //! `omaf ui` – omaflake's terminal interface (plan B121), on macOS and Linux. A pure client of the core API's page
 //! models (docs/api.md §10): it subscribes the pages it shows (`views.subscribe`), draws each `view.changed` model
-//! with the brand's colours (`omaflake_core::brand`) and sends the actions the model names. It holds no logic of omaflake's:
+//! with the brand's colours (`omaflake_sdk::brand`) and sends the actions the model names. It holds no logic of omaflake's:
 //! what a row shows, which action is possible and why not, what is asked and confirmed is the core's.
 //!
 //! Texts are the model's English `text`; translating by `key` is OPEN for the TUI.

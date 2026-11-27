@@ -59,7 +59,9 @@ use crate::json::Date;
 use crate::models::{GuestKind, RecipeId};
 use crate::paths::Paths;
 
+// What every page names (plan B192: in omaflake-sdk)
 pub use activity::ActivityEntry;
+pub use omaflake_sdk::views::{HostOs, PageRef};
 pub use text::{Arg, Text};
 
 /// Every page `views.get` knows
@@ -102,20 +104,6 @@ pub const PAGES: [&str; 37] = [
     "volume",
     "volumeMount",
 ];
-
-/// The computer the core runs on (`initialize`'s `host`): texts that name the Mac, Finder or the Keychain have a
-/// host-neutral variant for the others
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum HostOs {
-    Macos,
-    Linux,
-}
-
-impl HostOs {
-    pub fn this() -> HostOs {
-        if cfg!(target_os = "macos") { HostOs::Macos } else { HostOs::Linux }
-    }
-}
 
 /// The last `updates.check` (the Doctor's "Updates" line)
 #[derive(Debug, Clone, Default, PartialEq)]
@@ -268,26 +256,6 @@ fn per_kind<T>(p: &PerKind<T>, kind: GuestKind) -> &T {
     match kind {
         GuestKind::Nixos => &p.nixos,
         GuestKind::Macos => &p.macos,
-    }
-}
-
-/// A page and its params, as `views.get` and `views.subscribe` take them
-#[derive(Debug, Clone, PartialEq, serde::Deserialize, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct PageRef {
-    pub page: String,
-    #[serde(default = "empty_object")]
-    pub params: Value,
-}
-
-fn empty_object() -> Value {
-    json!({})
-}
-
-impl PageRef {
-    /// The key a subscription is known by
-    pub fn key(&self) -> String {
-        format!("{} {}", self.page, self.params)
     }
 }
 

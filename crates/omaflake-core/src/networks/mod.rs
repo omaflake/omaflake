@@ -27,71 +27,21 @@ use serde::{Deserialize, Serialize};
 
 use crate::error::{IoContext, Result, codes};
 use crate::file_format::{FileFormat, Step, write_atomic};
-use crate::json::Date;
 use crate::paths::Paths;
 use crate::spawn::{Pid, live_pid, spawn_detached};
 use crate::vm_err;
 use packets::Mac;
 
-/// The first two octets of every network's subnet
-pub const PREFIX: [u8; 2] = [10, 231];
-/// The switch's own host number in each network
-pub const SWITCH_HOST: u8 = 1;
+// In omaflake-sdk (plan B192): part of the API's page models
+pub use omaflake_sdk::networks::{MAC_PREFIX, Network, PREFIX, SWITCH_HOST, mac_for};
+
 /// Host numbers VMs get
 pub const FIRST_HOST: u8 = 10;
 pub const LAST_HOST: u8 = 254;
-/// MAC prefix of every card on omaflake's networks: locally administered, unicast, "om"
-pub const MAC_PREFIX: [u8; 3] = [0x02, 0x6f, 0x6d];
 /// The most networks a VM joins (QEMU: one fixed PCI slot each, `qemu_command::slot::NETWORKS`)
 pub const MAX_PER_VM: usize = 4;
 
 static NETWORKS_STEPS: [Step; 1] = [|_| Ok(())];
-
-/// One network
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct Network {
-    /// Its name ("dev"): lowercase letters, digits and dashes – it is part of paths and of what the guest sees
-    pub name: String,
-    /// The third octet of its subnet `10.231.<number>.0/24` (1–254)
-    pub number: u8,
-    #[serde(with = "crate::json::iso8601")]
-    pub created: Date,
-    /// VM name → its host number
-    #[serde(default)]
-    pub members: BTreeMap<String, u8>,
-}
-
-impl Network {
-    pub fn address(&self, host: u8) -> Ipv4Addr {
-        Ipv4Addr::new(PREFIX[0], PREFIX[1], self.number, host)
-    }
-
-    pub fn switch_address(&self) -> Ipv4Addr {
-        self.address(SWITCH_HOST)
-    }
-
-    /// "10.231.3.0/24"
-    pub fn subnet(&self) -> String {
-        format!("{}/24", self.address(0))
-    }
-
-    pub fn mac(&self, host: u8) -> Mac {
-        mac_for(self.number, host)
-    }
-
-    pub fn switch_mac(&self) -> Mac {
-        self.mac(SWITCH_HOST)
-    }
-
-    /// The address of a member
-    pub fn member_address(&self, vm: &str) -> Option<Ipv4Addr> {
-        self.members.get(vm).map(|h| self.address(*h))
-    }
-}
-
-pub fn mac_for(number: u8, host: u8) -> Mac {
-    [MAC_PREFIX[0], MAC_PREFIX[1], MAC_PREFIX[2], number, host, 0]
-}
 
 /// (network number, host number) of a MAC on one of omaflake's networks
 pub fn parse_member_mac(mac: &Mac) -> Option<(u8, u8)> {

@@ -86,7 +86,8 @@ agent and the volumes, and upgrade their VMs.
 ### Changed
 
 - **omaflake's crates are on crates.io**: `cargo install omaflake` gives the command line `omaf` (on Linux
-  `cargo install omaflake-gui` the app), and `omaflake-sdk` lets a program of yours talk to omaflake's service.
+  `cargo install omaflake-gui` the app), and `omaflake-sdk` lets a program of yours talk to omaflake's service – with every type of the API and the page
+  models omaflake's own interfaces draw.
   The Rust package of the command line is called `omaflake` now (`cargo build -p omaflake`); the program is `omaf`
   as before.
 - **The share folder is a volume now** – no longer at `/Volumes/My Shared Files` (macOS VMs) or `/mnt/share` (NixOS

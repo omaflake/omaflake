@@ -4,40 +4,14 @@
 //! network volume (a VM run from where it is). A UI shows no page for it: it runs `action` (asking `confirm`) or shows
 //! `reason` (the app's `importPackage` and `chooseExternal`).
 
-use serde::{Deserialize, Serialize};
 use serde_json::json;
 
 use super::common::*;
 use super::text::{Text, tf};
-use crate::api::types::{Inspection, PackageKindDto};
+use crate::api::types::Inspection;
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct ImportPage {
-    /// "Import" (a UI shows no page for it – a dialog's title)
-    pub title: Text,
-    pub path: String,
-    /// The package's file name
-    pub name: String,
-    pub kind: PackageKindDto,
-    pub valid: bool,
-    /// Why it cannot be imported ("<name>: <reason>")
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub reason: Option<Text>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub action: Option<Action>,
-    pub inspection: Inspection,
-}
-
-#[derive(Debug, Deserialize)]
-pub struct ImportParams {
-    pub path: String,
-    #[serde(default)]
-    pub expect: Option<PackageKindDto>,
-    /// Run a VM from where it is instead of copying it
-    #[serde(default)]
-    pub external: bool,
-}
+// The page's model (plan B192: in omaflake-sdk); this file builds it
+pub use omaflake_sdk::views::import::*;
 
 pub fn page(p: &ImportParams, inspection: Inspection) -> ImportPage {
     let name = p.path.trim_end_matches('/').rsplit('/').next().unwrap_or(&p.path).to_string();

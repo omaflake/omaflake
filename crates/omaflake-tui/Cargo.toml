@@ -15,6 +15,7 @@ categories = ["command-line-interface", "virtualization"]
 
 [dependencies]
 omaflake-core.workspace = true
+omaflake-sdk.workspace = true
 omaflake-i18n.workspace = true
 serde_json.workspace = true
 jiff.workspace = true

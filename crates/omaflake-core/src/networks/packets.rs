@@ -5,6 +5,9 @@
 
 use std::net::Ipv4Addr;
 
+// In omaflake-sdk (plan B192): part of the API's page models
+pub use omaflake_sdk::networks::Mac;
+
 pub const ETHERTYPE_IPV4: u16 = 0x0800;
 pub const ETHERTYPE_ARP: u16 = 0x0806;
 pub const BROADCAST: [u8; 6] = [0xff; 6];
@@ -16,8 +19,6 @@ const DHCP_CLIENT_PORT: u16 = 68;
 const DHCP_MAGIC: [u8; 4] = [99, 130, 83, 99];
 /// A day; a VM's address never changes, so renewing is only a formality
 pub const LEASE_SECONDS: u32 = 86_400;
-
-pub type Mac = [u8; 6];
 
 pub fn mac_text(m: &Mac) -> String {
     m.iter().map(|b| format!("{b:02x}")).collect::<Vec<_>>().join(":")

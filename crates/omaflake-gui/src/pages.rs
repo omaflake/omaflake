@@ -7,25 +7,25 @@ use std::fmt;
 
 use iced::widget::{Column, button, column, container, pick_list, progress_bar, row, space, text, text_input, toggler};
 use iced::{Alignment, Color, Length};
-use omaflake_core::api::views::activity::ActivityPage;
-use omaflake_core::api::views::build::{BuildPage, LogRef, Outcome};
-use omaflake_core::api::views::common::{Action, Blockers, Field, FieldKind, Filter, FilterKind, Hint, ListHead, Tone};
-use omaflake_core::api::views::credentials::{ActionMenu, CredentialPage, CredentialRow, CredentialsPage, DetailItem};
-use omaflake_core::api::views::diagnostics::{DiagnosisState, DiagnosticsCheck, DiagnosticsPage};
-use omaflake_core::api::views::doctor::{DoctorItem, DoctorPage, Download, MacBasePage};
-use omaflake_core::api::views::images::{BuildJobRow, ImageRowView, ImagesPage};
-use omaflake_core::api::views::keymap_studio::KeymapStudioPage;
-use omaflake_core::api::views::keys::KeysPage;
-use omaflake_core::api::views::look_studio::LookStudioPage;
-use omaflake_core::api::views::networks::NetworkGraph;
-use omaflake_core::api::views::new_vm::NewVmPage;
-use omaflake_core::api::views::recipe_studio::{RecipeStudioPage, StudioModule};
-use omaflake_core::api::views::recipes::{OfferedRow, RecipeRowView, RecipesPage};
-use omaflake_core::api::views::settings::{SettingsPage, SettingsSection, SourcesPage};
-use omaflake_core::api::views::vms::{VmRowView, VmsPage};
-use omaflake_core::api::views::{PageRef, Text};
-use omaflake_core::diagnostics::CheckStatus;
-use omaflake_core::prerequisites::PrerequisiteStatus;
+use omaflake_sdk::diagnostics::CheckStatus;
+use omaflake_sdk::models::PrerequisiteStatus;
+use omaflake_sdk::views::activity::ActivityPage;
+use omaflake_sdk::views::build::{BuildPage, LogRef, Outcome};
+use omaflake_sdk::views::common::{Action, Blockers, Field, FieldKind, Filter, FilterKind, Hint, ListHead, Tone};
+use omaflake_sdk::views::credentials::{ActionMenu, CredentialPage, CredentialRow, CredentialsPage, DetailItem};
+use omaflake_sdk::views::diagnostics::{DiagnosisState, DiagnosticsCheck, DiagnosticsPage};
+use omaflake_sdk::views::doctor::{DoctorItem, DoctorPage, Download, MacBasePage};
+use omaflake_sdk::views::images::{BuildJobRow, ImageRowView, ImagesPage};
+use omaflake_sdk::views::keymap_studio::KeymapStudioPage;
+use omaflake_sdk::views::keys::KeysPage;
+use omaflake_sdk::views::look_studio::LookStudioPage;
+use omaflake_sdk::views::networks::NetworkGraph;
+use omaflake_sdk::views::new_vm::NewVmPage;
+use omaflake_sdk::views::recipe_studio::{RecipeStudioPage, StudioModule};
+use omaflake_sdk::views::recipes::{OfferedRow, RecipeRowView, RecipesPage};
+use omaflake_sdk::views::settings::{SettingsPage, SettingsSection, SourcesPage};
+use omaflake_sdk::views::vms::{VmRowView, VmsPage};
+use omaflake_sdk::views::{PageRef, Text};
 use serde_json::{Value, json};
 
 use crate::app::{App, Message, Model};
@@ -41,7 +41,7 @@ use crate::widgets::{
 pub fn waiting<'a>(status: Option<&str>) -> El<'a> {
     container(
         row![
-            widgets::lamp_dot(omaflake_core::api::views::common::LampState::Working, false),
+            widgets::lamp_dot(omaflake_sdk::views::common::LampState::Working, false),
             secondary(status.map(str::to_string).unwrap_or_else(|| tr("Loading …"))).size(text_size::CALLOUT),
         ]
         .spacing(spacing::L)
@@ -250,7 +250,7 @@ fn filter_menu<'a>(page: &str, f: &'a Filter) -> El<'a> {
                     .padding([spacing::XS, spacing::L])
                     .style(style::action_button(style::TEXT, false))
                     .on_press(Message::Run(
-                        Box::new(omaflake_core::api::views::common::Action::call(
+                        Box::new(omaflake_sdk::views::common::Action::call(
                             "resetFilter",
                             Text::new("Reset Filter"),
                             None,
@@ -384,7 +384,7 @@ fn images<'a>(app: &'a App, p: &'a ImagesPage) -> El<'a> {
 /// A build that waits, runs, failed or was cancelled (`BuildJobRow`); a click runs its primary action (`open`: the
 /// build page)
 fn job_row<'a>(app: &'a App, j: &'a BuildJobRow) -> El<'a> {
-    use omaflake_core::api::types::JobState;
+    use omaflake_sdk::types::JobState;
     let (state, color): (_, Color) = match j.state {
         JobState::Failed => ("failed", style::RED),
         JobState::Cancelled => ("cancelled", style::SECONDARY),
@@ -392,7 +392,7 @@ fn job_row<'a>(app: &'a App, j: &'a BuildJobRow) -> El<'a> {
         _ => ("", style::ACCENT),
     };
     let status: El<'a> = if state.is_empty() {
-        widgets::lamp_dot(omaflake_core::api::views::common::LampState::Working, app.pulse)
+        widgets::lamp_dot(omaflake_sdk::views::common::LampState::Working, app.pulse)
     } else {
         icon(state, text_size::CALLOUT, color).into()
     };
@@ -480,12 +480,9 @@ fn recipes<'a>(app: &'a App, page: &str, p: &'a RecipesPage) -> El<'a> {
     if let (true, Some(t)) = (p.loading, &p.loading_text) {
         rows.push(
             container(
-                row![
-                    widgets::lamp_dot(omaflake_core::api::views::common::LampState::Working, app.pulse),
-                    secondary(s(t))
-                ]
-                .spacing(spacing::L)
-                .align_y(Alignment::Center),
+                row![widgets::lamp_dot(omaflake_sdk::views::common::LampState::Working, app.pulse), secondary(s(t))]
+                    .spacing(spacing::L)
+                    .align_y(Alignment::Center),
             )
             .padding(spacing::CARD_PADDING)
             .into(),
@@ -536,17 +533,14 @@ fn recipes<'a>(app: &'a App, page: &str, p: &'a RecipesPage) -> El<'a> {
 
 /// The Looks tab (plan B141): the looks here with a strip of their colours, what the sources offer besides
 /// `page`: the tab it is (`looks`, `modules`, `keymaps`) – its filter and search go there
-fn looks<'a>(app: &'a App, page: &str, p: &'a omaflake_core::api::views::looks::LooksPage) -> El<'a> {
+fn looks<'a>(app: &'a App, page: &str, p: &'a omaflake_sdk::views::looks::LooksPage) -> El<'a> {
     let mut rows: Vec<El<'a>> = Vec::new();
     if let (true, Some(t)) = (p.loading, &p.loading_text) {
         rows.push(
             container(
-                row![
-                    widgets::lamp_dot(omaflake_core::api::views::common::LampState::Working, app.pulse),
-                    secondary(s(t))
-                ]
-                .spacing(spacing::L)
-                .align_y(Alignment::Center),
+                row![widgets::lamp_dot(omaflake_sdk::views::common::LampState::Working, app.pulse), secondary(s(t))]
+                    .spacing(spacing::L)
+                    .align_y(Alignment::Center),
             )
             .padding(spacing::CARD_PADDING)
             .into(),
@@ -584,7 +578,7 @@ fn swatches<'a>(colors: &[String]) -> El<'a> {
         .into()
 }
 
-fn look_row<'a>(app: &'a App, r: &'a omaflake_core::api::views::looks::LookRow) -> El<'a> {
+fn look_row<'a>(app: &'a App, r: &'a omaflake_sdk::views::looks::LookRow) -> El<'a> {
     let key = format!("look:{}", r.id);
     let mut header = row![lamp(&r.lamp, app.pulse)].spacing(spacing::XL).align_y(Alignment::Center);
     // A look's colours; a module's row has none
@@ -752,7 +746,7 @@ fn offered_row<'a>(app: &'a App, r: &'a OfferedRow) -> El<'a> {
 }
 
 fn activity<'a>(app: &'a App, p: &'a ActivityPage) -> El<'a> {
-    use omaflake_core::api::types::Level;
+    use omaflake_sdk::types::Level;
     let rows = p
         .entries
         .iter()
@@ -1148,7 +1142,7 @@ fn studio<'a>(app: &'a App, page: &str, st: &'a RecipeStudioPage) -> El<'a> {
         }));
     }
     if cat.pages.count > 1 {
-        let pager = |name: &str, a: &'a Option<omaflake_core::api::views::common::Action>| -> El<'a> {
+        let pager = |name: &str, a: &'a Option<omaflake_sdk::views::common::Action>| -> El<'a> {
             widgets::icon_button(
                 name,
                 a.as_ref().map(|a| s(&a.label)).unwrap_or_default(),
@@ -1432,7 +1426,7 @@ fn keymap_studio<'a>(app: &'a App, page: &str, k: &'a KeymapStudioPage) -> El<'a
 
 /// The key editor (plan B148): the keys now (each to take out), a key put together from modifiers and a key – never
 /// typed as "Ctrl" – or typed, the mode afterwards, what it overlaps, the module's own, Cancel and Apply
-fn key_editor<'a>(app: &'a App, page: &str, e: &'a omaflake_core::api::views::keymap_studio::KeyEditor) -> El<'a> {
+fn key_editor<'a>(app: &'a App, page: &str, e: &'a omaflake_sdk::views::keymap_studio::KeyEditor) -> El<'a> {
     let card =
         |c: Column<'a, Message>| container(c).padding(spacing::CARD_PADDING).width(Length::Fill).style(style::card);
     let mut head = row![caption(s(&e.context)).color(style::SECONDARY)].spacing(spacing::M).align_y(Alignment::Center);
@@ -1614,9 +1608,9 @@ fn build<'a>(app: &'a App, page: &str, b: &'a BuildPage) -> El<'a> {
     }
     c = c.push(status);
     if let Some(p) = &b.progress {
-        let now = omaflake_core::json::Date::now();
-        let running = p.started.map(|t| omaflake_core::json::seconds_between(now, t)).unwrap_or(0);
-        let quiet = p.last_output.map(|t| omaflake_core::json::seconds_between(now, t)).unwrap_or(0);
+        let now = omaflake_sdk::time::Date::now();
+        let running = p.started.map(|t| omaflake_sdk::time::seconds_between(now, t)).unwrap_or(0);
+        let quiet = p.last_output.map(|t| omaflake_sdk::time::seconds_between(now, t)).unwrap_or(0);
         let mut times =
             row![secondary(format!("{} · {}", s(&p.step), s(&p.title))).width(Length::Fill)].spacing(spacing::L);
         if let Some(count) = &p.count {
@@ -2344,7 +2338,7 @@ pub mod tests {
         }
         let home = decode("home", golden("home"));
         assert_eq!(home.title().map(s).as_deref(), Some("omaflake"));
-        let vm: omaflake_core::api::views::vms::VmPage = golden("vm");
+        let vm: omaflake_sdk::views::vms::VmPage = golden("vm");
         assert_eq!(s(&vm.title), vm.row.name);
         let (app, _) = App::boot();
         let mut app = app;
@@ -2378,7 +2372,7 @@ pub mod tests {
         let sp: SourcesPage = golden("sources");
         assert!(sp.sources.add_action.primary);
         // The home header's short labels
-        let home: omaflake_core::api::views::home::HomePage = golden("home");
+        let home: omaflake_sdk::views::home::HomePage = golden("home");
         let short: Vec<String> = home.actions.iter().filter_map(|a| a.short_label.as_ref().map(s)).collect();
         assert_eq!(short, ["Doctor", "Data Folder", "Quit"]);
     }
@@ -2406,7 +2400,7 @@ pub mod tests {
     fn ui_field_sets_the_value_of_its_page() {
         let m: MacBasePage = golden("macBase");
         let mut app = app_with("macBase", serde_json::json!({}), Model::MacBase(Box::new(m.clone())), true);
-        let mut choose = omaflake_core::api::views::common::Action::field(
+        let mut choose = omaflake_sdk::views::common::Action::field(
             "chooseIpsw",
             Text::new("Choose IPSW …"),
             None,
@@ -2421,7 +2415,7 @@ pub mod tests {
         assert_eq!(app.current().unwrap().params["values"]["ipsw"], serde_json::json!("/tmp/x.ipsw"));
         // "Use Apple's": value null – back to the default
         let apple = m.ipsw.actions.iter().find(|a| a.id == "useApple").cloned().unwrap_or_else(|| {
-            let mut a = omaflake_core::api::views::common::Action::field(
+            let mut a = omaflake_sdk::views::common::Action::field(
                 "useApple",
                 Text::new("Use Apple's"),
                 None,
@@ -2470,7 +2464,7 @@ pub mod tests {
         let answer = v.get("result").cloned().unwrap_or(v);
         let why = crate::app::refusal("/x", &answer);
         assert!(why.starts_with("/x: ") && !why.ends_with("not usable"), "{why}");
-        let import: omaflake_core::api::views::import::ImportPage = golden("import");
+        let import: omaflake_sdk::views::import::ImportPage = golden("import");
         assert!(!s(&import.title).is_empty());
     }
 
@@ -2504,8 +2498,7 @@ pub mod tests {
     #[test]
     fn rows_map_their_model() {
         let vms: VmsPage = golden("vms");
-        let running =
-            vms.rows.iter().find(|r| r.lamp.state == omaflake_core::api::views::common::LampState::On).unwrap();
+        let running = vms.rows.iter().find(|r| r.lamp.state == omaflake_sdk::views::common::LampState::On).unwrap();
         // A running VM's row offers terminal and stop; its details hold switches and greyed-out removals
         let ids: Vec<&str> = running.actions.iter().map(|a| a.id.as_str()).collect();
         assert!(ids.contains(&"terminal") && ids.contains(&"stop"), "{ids:?}");

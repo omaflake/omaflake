@@ -20,6 +20,9 @@ use crate::models::GuestKind;
 use crate::modules::{Capability, Module};
 use crate::vm_err;
 
+// The API's kinds (plan B192: in omaflake-sdk)
+pub use omaflake_sdk::models::{Binding, Issue, LocaleRules, Outside, Requirements};
+
 /// A reference to a module, look or key binding set: "<author>/<name>" and which versions it allows – none given is
 /// the newest, else an exact version, or a minimum and/or a maximum (both included)
 #[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize)]
@@ -93,54 +96,6 @@ pub fn version(v: &str) -> Option<(u64, u64, u64)> {
         return None;
     }
     Some((p[0].parse().ok()?, p[1].parse().ok()?, p[2].parse().ok()?))
-}
-
-/// What a VM from the recipe needs at least (`[requirements]`)
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
-pub struct Requirements {
-    pub cpus: u32,
-    pub memory_gb: u32,
-    pub disk_gb: u32,
-}
-
-/// The locales a recipe works with (`[locales]`): no right-to-left languages, or only these languages
-#[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize)]
-pub struct LocaleRules {
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub rtl: Option<bool>,
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub languages: Vec<String>,
-}
-
-impl LocaleRules {
-    /// Languages written right to left (ISO 639-1/-3)
-    const RTL: [&'static str; 9] = ["ar", "he", "fa", "ur", "yi", "ps", "dv", "sd", "ug"];
-
-    /// Why a locale ("de_DE.UTF-8") is outside these rules – None when it is fine
-    pub fn outside(&self, locale: &str) -> Option<Outside> {
-        let language = locale.split(['_', '.']).next().unwrap_or(locale);
-        if !self.languages.is_empty() && !self.languages.iter().any(|l| l == language) {
-            return Some(Outside::Languages(self.languages.clone()));
-        }
-        if self.rtl == Some(false) && Self::RTL.contains(&language) {
-            return Some(Outside::RightToLeft);
-        }
-        None
-    }
-}
-
-/// Why a locale is not one a recipe is made for
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum Outside {
-    /// Made for these languages only
-    Languages(Vec<String>),
-    RightToLeft,
-}
-
-impl LocaleRules {
-    pub fn is_empty(&self) -> bool {
-        self.rtl.is_none() && self.languages.is_empty()
-    }
 }
 
 /// recipe.toml v2, as read
@@ -292,72 +247,6 @@ fn expand(seq: &[Chord]) -> Vec<Vec<Chord>> {
             .collect();
     }
     result
-}
-
-/// A key bound to a module's action in a recipe
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct Binding {
-    /// "<author>/<name>" of the module
-    pub module: String,
-    pub action: String,
-    pub title: String,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub title_de: Option<String>,
-    /// Each of them does it
-    pub keys: Vec<String>,
-    /// Where it works: "desktop" or a module ("omaflake/neovim")
-    pub context: String,
-    /// The module's modes it works in; empty: whenever its program has the keys
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub modes: Vec<String>,
-    /// The mode afterwards (plan B147); None: it stays
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub after: Option<String>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub does: Option<String>,
-    /// The program's own key, shown only
-    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
-    pub own: bool,
-    /// The key binding set that gave the key; None: the module's default
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub from: Option<String>,
-}
-
-impl Binding {
-    /// For people: "Ctrl+g", "h / Left"
-    pub fn key_text(&self) -> String {
-        self.keys.join(" / ")
-    }
-}
-
-/// What is wrong with a recipe – blockers (`blocks`) and warnings
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(tag = "kind", rename_all = "camelCase")]
-pub enum Issue {
-    /// A module of the recipe is not here (`have`: here, but in a version the recipe does not allow)
-    #[serde(rename_all = "camelCase")]
-    MissingModule { reference: String, have: Option<String> },
-    #[serde(rename_all = "camelCase")]
-    MissingKeymap { reference: String, have: Option<String> },
-    /// A module needs a capability no module of the recipe provides
-    #[serde(rename_all = "camelCase")]
-    Needs { module: String, capability: String },
-    /// Modules providing the same exclusive capability
-    #[serde(rename_all = "camelCase")]
-    Incompatible { capability: String, modules: Vec<String> },
-    #[serde(rename_all = "camelCase")]
-    KeysOverlap { first: Box<Binding>, second: Box<Binding> },
-    /// Without a mode a key starts with Super or Ctrl (an editor's own keys excepted)
-    #[serde(rename_all = "camelCase")]
-    KeyRule { binding: Box<Binding> },
-}
-
-impl Issue {
-    /// It stops a build: the image flake would not find the part
-    pub fn blocks(&self) -> bool {
-        matches!(self, Issue::MissingModule { .. } | Issue::MissingKeymap { .. })
-    }
 }
 
 /// A recipe with the parts that are here

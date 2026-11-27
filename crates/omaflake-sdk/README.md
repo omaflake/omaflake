@@ -14,7 +14,9 @@ println!("omaflake {} on {}", session.omaf_version, session.host.os);
 let vms = omaf.call("vms.list", serde_json::Value::Null)?;
 ```
 
-It needs a running omaflake: the app, or `omaf service start`. The API: <https://omaflake.dev/api/>. The session, jobs,
-events, errors and texts are here now; the other types and the page models follow.
+It needs a running omaflake: the app, or `omaf service start`. The API: <https://omaflake.dev/api/>.
+
+Inside: the client, every type of the API, the page models every omaflake interface draws (what each page shows:
+rows, details, actions, fields), texts with their translation keys, error kinds, and omaflake's design tokens.
 
 Licence: AGPL-3.0-or-later. Source and issues: <https://github.com/omaflake/omaflake>. All of omaflake's crates are released together, with omaflake's version.

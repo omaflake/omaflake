@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 //! omaflake's design tokens for the Rust interfaces (the iced app, plan B119): the same colours, spacing, radii and
 //! type as the macOS app. The values live in `brand/tokens.toml`; `python3 brand/tokens.py` generates
-//! `src/brand/tokens.rs` (and the app's `BrandTokens.swift`). A module of the core since plan B192 (it was the crate
-//! omaflake-brand). Plain values, no UI toolkit: with iced, e.g.
+//! `src/brand/tokens.rs` (and the app's `BrandTokens.swift`). A module of omaflake-sdk since plan B192 – what every
+//! interface uses (it was the crate omaflake-brand). Plain values, no UI toolkit: with iced, e.g.
 //! `iced::Color::from_rgba(r, g, b, a)` from [`Color::rgba`] and `iced::font::Weight` from [`Weight`].
 
 // Generated with its own layout; `cargo fmt` leaves it as it is

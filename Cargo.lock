@@ -3469,6 +3469,7 @@ dependencies = [
  "notify-rust",
  "omaflake-core",
  "omaflake-i18n",
+ "omaflake-sdk",
  "rfd",
  "serde",
  "serde_json",
@@ -3491,6 +3492,7 @@ dependencies = [
  "jiff",
  "serde",
  "serde_json",
+ "toml",
 ]
 
 [[package]]
@@ -3502,6 +3504,7 @@ dependencies = [
  "libc",
  "omaflake-core",
  "omaflake-i18n",
+ "omaflake-sdk",
  "ratatui",
  "serde_json",
  "tempfile",

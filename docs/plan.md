@@ -528,12 +528,16 @@ All names were free (2026-11-27). *Way:* the maintainer prepares crates.io and G
 once by hand with his token (Trusted Publishing needs a crate to exist – OPEN whether crates.io takes pending
 publishers), then Trusted Publishing from a CI job (as aktujo's `crates` job), 0.8.1 the first real release through it;
 the placeholders yanked. OPEN: `omaflake-gui` with `cargo install` (Wayland/X11 libraries).
-*Built:* `omaflake-brand` → `omaflake_core::brand` (brand/tokens.py writes there); the package `omaf` → `omaflake`
-(folder `crates/omaflake`, the program stays `omaf`); `omaflake-sdk` stage 1 – `client` (its errors carry texts
-like the core's), `protocol` (`RpcError`, codes), `codes`, `time` (dates), `text` (`Text`, `Arg`), `models`
-(`GuestKind`), `types` (session, jobs and their results, events, `Via`, `PackageKindDto`); the core re-exports them
-at their old paths, so nothing else changed. Stage 2 (OPEN): the rest of `api::types` and the page models
-(`api/views`, ~25 files with the core's builders beside their types). Images the crates embed are copies in their
+*Built:* the package `omaf` → `omaflake` (folder `crates/omaflake`, the program stays `omaf`); `omaflake-sdk` with
+everything an interface needs – `client` (its errors carry texts like the core's), `protocol` (`RpcError`), `codes`,
+`time` (dates), `text` (`Text`, `Arg`), `types` (all of `api::types`), `models` (the kinds they use: `GuestKind`,
+`VmStatus`, `NetworkMode`, `DisplayMode`, `StopResult`, `PrerequisiteItem/Status`, `RecipeSourceKind`,
+`Requirements`, `LocaleRules`, `Binding`, `Issue`, `ModuleMode`, `Swatches`), `networks` (`Network` and its
+switch's status), `diagnostics` (the checks), `views` (every page model with its building blocks – split from the
+core's builders, which stay in `api/views` and build these types; `Blockers::of` stayed as `blockers_of`: its hints
+are the Doctor's) and `brand` (the design tokens, the crate omaflake-brand before – the core uses none, the
+interfaces all; brand/tokens.py writes there). The core re-exports all of it at its old paths. `omaf ui` and the
+Linux app take everything from the SDK and the core only for its in-process server (when no service runs). Images the crates embed are copies in their
 `assets/` (`omaflake-core`: Dock icon, loading picture; `omaflake-gui`: icons, glyph) – omaflake/brand's `copy.py`
 writes them. Every crate has its README, keywords and categories; `cargo package --workspace` and the agent's
 package build (checked). CI job `crates` (ci.yml, on a tag `v*`, environment `crates-io`, after linux, dependencies,

@@ -4,8 +4,9 @@
 //! size and `%lld` for a whole number – so the app's `de.lproj/Localizable.strings` translates them as they are; other
 //! UIs keep their own tables under the same keys. A text without a key is data (a name, a path) and is shown as it is.
 
-use crate::time::Date;
 use serde::{Deserialize, Serialize};
+
+use crate::time::Date;
 
 /// A user-facing text: `key` (absent: shown as it is), the English `text`, and the `args` its placeholders take, in order
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -170,16 +171,17 @@ pub(crate) fn bytes_text(bytes: i64) -> String {
     }
 }
 
+/// `Text::fmt` with arguments of any type that becomes an `Arg` (the core has its own)
+macro_rules! tf {
+    ($key:expr $(, $arg:expr)* $(,)?) => {
+        $crate::text::Text::fmt($key, vec![$($crate::text::Arg::from($arg)),*])
+    };
+}
+pub(crate) use tf;
+
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    /// The core's `tf!`, for these tests
-    macro_rules! tf {
-        ($key:expr $(, $arg:expr)* $(,)?) => {
-            Text::fmt($key, vec![$(Arg::from($arg)),*])
-        };
-    }
     use serde_json::json;
 
     #[test]

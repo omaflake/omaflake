@@ -13,8 +13,9 @@ use std::time::Duration;
 use iced::futures::channel::mpsc::Sender;
 use iced::futures::{SinkExt, Stream};
 use omaflake_core::Paths;
-use omaflake_core::api::client::Client;
-use omaflake_core::api::{RpcError, Server};
+use omaflake_core::api::Server;
+use omaflake_sdk::client::Client;
+use omaflake_sdk::protocol::RpcError;
 use serde_json::{Value, json};
 
 /// A failed call: what to show
@@ -159,7 +160,7 @@ fn run(mut out: Sender<Event>) {
 fn initialize(core: &dyn Core) -> Result<Value, String> {
     core.call(
         "initialize",
-        json!({"client": "omaflake-linux", "clientVersion": omaflake_core::VERSION, "apiVersion": 1, "language": crate::text::lang().code()}),
+        json!({"client": "omaflake-linux", "clientVersion": omaflake_sdk::VERSION, "apiVersion": 1, "language": crate::text::lang().code()}),
     )
     .map_err(|e| e.message)
 }

@@ -10,7 +10,6 @@
 //! (the look it starts from), plain, `color.<name>`, `normal.<0-7>`, `bright.<0-7>`, `border.<0-1>`,
 //! `inactive_border`, `clock`, `prompt.<ok|error|directory>`, neovim, emacs ("<theme>:<variant>"), `macos.<setting>`.
 
-use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value, json};
 
 use super::Ctx;
@@ -19,67 +18,10 @@ use super::text::{Text, tf};
 use crate::looks::{Look, LookStore};
 use crate::my_recipes::MyRecipes;
 
+// The page's model (plan B192: in omaflake-sdk); this file builds it
+pub use omaflake_sdk::views::look_studio::*;
+
 pub const PAGE: &str = "lookStudio";
-
-#[derive(Debug, Default, Deserialize)]
-pub struct LookStudioParams {
-    /// The look it starts from ("my.look.dusk" is edited, any other copied)
-    #[serde(default)]
-    pub id: Option<String>,
-    #[serde(default)]
-    pub values: Map<String, Value>,
-}
-
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct LookStudioPage {
-    pub title: Text,
-    /// The look of yours being edited ("dusk"); None for a new one or a copy
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub id: Option<String>,
-    pub intro: Text,
-    /// Name, title, description, light or dark, tags, the look it starts from, plain
-    pub about: Vec<Field>,
-    /// The colours and the rest, a section each (none while it is plain)
-    pub sections: Vec<LookSection>,
-    /// The look as it is now, for a preview a UI draws itself
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub preview: Option<LookPreview>,
-    /// What is hard to read (text on its background and the like)
-    pub hints: Vec<Hint>,
-    pub actions: Vec<Action>,
-}
-
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct LookSection {
-    pub id: String,
-    pub title: Text,
-    /// What the section's colours colour (help)
-    pub help: Text,
-    pub fields: Vec<Field>,
-}
-
-/// The colours of the look now: "#rrggbb" each
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct LookPreview {
-    pub background: String,
-    pub surface: String,
-    pub selection: String,
-    pub text: String,
-    pub subtext: String,
-    pub muted: String,
-    pub accent: String,
-    pub urgent: String,
-    /// The terminal's eight, then its bright eight
-    pub normal: Vec<String>,
-    pub bright: Vec<String>,
-    /// The active window's border: one colour or a gradient of two
-    pub border: Vec<String>,
-    pub inactive_border: String,
-    pub clock: String,
-}
 
 /// The eight colours every look with colours names, with what they colour
 const COLORS: [(&str, &str); 8] = [

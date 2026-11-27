@@ -333,7 +333,7 @@ impl App {
             icons: self.icons,
             expanded: &self.expanded,
             collapsed: &self.collapsed,
-            now: omaflake_core::json::Date::now(),
+            now: omaflake_sdk::time::Date::now(),
             tick: self.tick,
             help: self.home.as_ref().and_then(|h| h["help"]["on"].as_bool()).unwrap_or(false),
         }

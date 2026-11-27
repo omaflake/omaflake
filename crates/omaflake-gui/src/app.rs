@@ -9,20 +9,20 @@ use std::time::{Duration, Instant};
 
 use iced::widget::image;
 use iced::{Size, Subscription, Task, window};
-use omaflake_core::api::types::JobDto;
-use omaflake_core::api::views::activity::ActivityPage;
-use omaflake_core::api::views::build::{BuildPage, LogRef};
-use omaflake_core::api::views::common::{Action, Ask, AskKind, Confirm, Field, Then, set_param};
-use omaflake_core::api::views::credentials::{CredentialPage, CredentialsPage};
-use omaflake_core::api::views::doctor::{DoctorPage, MacBasePage};
-use omaflake_core::api::views::home::HomePage;
-use omaflake_core::api::views::images::{ImagePage, ImagesPage};
-use omaflake_core::api::views::import::ImportPage;
-use omaflake_core::api::views::new_vm::NewVmPage;
-use omaflake_core::api::views::recipes::RecipesPage;
-use omaflake_core::api::views::settings::SettingsPage;
-use omaflake_core::api::views::vms::{VmPage, VmsPage};
-use omaflake_core::api::views::{PageRef, Text};
+use omaflake_sdk::types::JobDto;
+use omaflake_sdk::views::activity::ActivityPage;
+use omaflake_sdk::views::build::{BuildPage, LogRef};
+use omaflake_sdk::views::common::{Action, Ask, AskKind, Confirm, Field, Then, set_param};
+use omaflake_sdk::views::credentials::{CredentialPage, CredentialsPage};
+use omaflake_sdk::views::doctor::{DoctorPage, MacBasePage};
+use omaflake_sdk::views::home::HomePage;
+use omaflake_sdk::views::images::{ImagePage, ImagesPage};
+use omaflake_sdk::views::import::ImportPage;
+use omaflake_sdk::views::new_vm::NewVmPage;
+use omaflake_sdk::views::recipes::RecipesPage;
+use omaflake_sdk::views::settings::SettingsPage;
+use omaflake_sdk::views::vms::{VmPage, VmsPage};
+use omaflake_sdk::views::{PageRef, Text};
 use serde_json::{Map, Value, json};
 
 use crate::backend::{self, CallError, Handle};
@@ -41,28 +41,28 @@ pub enum Model {
     Build(Box<BuildPage>),
     Doctor(Box<DoctorPage>),
     /// A VM's diagnosis (plan B162)
-    Diagnostics(Box<omaflake_core::api::views::diagnostics::DiagnosticsPage>),
+    Diagnostics(Box<omaflake_sdk::views::diagnostics::DiagnosticsPage>),
     MacBase(Box<MacBasePage>),
     Settings(Box<SettingsPage>),
     /// Credentials (plan B137)
     Credentials(Box<CredentialsPage>),
     Credential(Box<CredentialPage>),
     /// Networks between VMs (plan B170): the credentials' list and the graph
-    Networks(Box<omaflake_core::api::views::networks::NetworksPage>),
+    Networks(Box<omaflake_sdk::views::networks::NetworksPage>),
     /// Looks (plan B141)
-    Looks(Box<omaflake_core::api::views::looks::LooksPage>),
+    Looks(Box<omaflake_sdk::views::looks::LooksPage>),
     Activity(Box<ActivityPage>),
     Vm(Box<VmPage>),
     Image(Box<ImagePage>),
     /// A recipe's keys by module and mode (plan B147)
-    Keys(Box<omaflake_core::api::views::keys::KeysPage>),
+    Keys(Box<omaflake_sdk::views::keys::KeysPage>),
     /// The recipe studio (plan B147)
-    Studio(Box<omaflake_core::api::views::recipe_studio::RecipeStudioPage>),
+    Studio(Box<omaflake_sdk::views::recipe_studio::RecipeStudioPage>),
     /// The key binding studio (plan B147)
-    KeymapStudio(Box<omaflake_core::api::views::keymap_studio::KeymapStudioPage>),
-    LookStudio(Box<omaflake_core::api::views::look_studio::LookStudioPage>),
+    KeymapStudio(Box<omaflake_sdk::views::keymap_studio::KeymapStudioPage>),
+    LookStudio(Box<omaflake_sdk::views::look_studio::LookStudioPage>),
     /// The recipe sources (plan B147: a tab of the catalog)
-    Sources(Box<omaflake_core::api::views::settings::SourcesPage>),
+    Sources(Box<omaflake_sdk::views::settings::SourcesPage>),
     /// A page that cannot be built (`model: {error}`) or that this app cannot read
     Error(String),
 }
@@ -86,8 +86,7 @@ pub fn pulses(v: &Value) -> bool {
 pub fn decode(page: &str, v: Value) -> Model {
     if let Some(e) = v.get("error") {
         // In the app's language when the message has a key (api.md §3)
-        let text =
-            e.get("text").and_then(|t| serde_json::from_value::<omaflake_core::api::views::text::Text>(t.clone()).ok());
+        let text = e.get("text").and_then(|t| serde_json::from_value::<omaflake_sdk::text::Text>(t.clone()).ok());
         return Model::Error(match text {
             Some(t) => crate::text::s(&t),
             None => e["message"].as_str().map(str::to_string).unwrap_or_else(|| tr("This page cannot be shown")),
@@ -1050,7 +1049,7 @@ impl App {
         if self.tab == "activity" && self.stack.is_empty() {
             self.seen_activity = newest;
         } else if let Some(e) = fresh.first() {
-            let error = e.level == omaflake_core::api::types::Level::Error;
+            let error = e.level == omaflake_sdk::types::Level::Error;
             self.say(s(&e.text), error);
         }
     }

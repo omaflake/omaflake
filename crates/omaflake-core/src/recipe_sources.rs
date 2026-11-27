@@ -38,15 +38,6 @@ use crate::platform::{Platform, abbreviate_tilde, expand_tilde, standardize};
 use crate::trash::Disposal;
 use crate::vm_err;
 
-/// Swift `RecipeSource.Kind`
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
-#[serde(rename_all = "lowercase")]
-pub enum RecipeSourceKind {
-    Github,
-    Url,
-    Folder,
-}
-
 /// Where recipes come from. Kept in config.json (`sources`); a token for a private repository lives in the Keychain (Linux: the keyring, else a 0600 file – `SourceTokens`).
 /// JSON keys: kind, location, branch, private, enabled (None fields left out).
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -333,6 +324,9 @@ fn is_blank(c: char) -> bool {
 
 /// Tokens of private sources: the Keychain on macOS, the Secret Service or a 0600 file on Linux (source_tokens.rs)
 pub use crate::source_tokens::SourceTokens;
+
+// The API's kinds (plan B192: in omaflake-sdk)
+pub use omaflake_sdk::models::RecipeSourceKind;
 
 // MARK: Catalog
 

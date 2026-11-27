@@ -3,7 +3,6 @@
 //! Same shapes as the Credentials page and form, so every UI draws them as it draws those. A new VM is created with
 //! the default profile unless the New VM page chooses another (or custom values).
 
-use serde::Deserialize;
 use serde_json::json;
 
 use super::Ctx;
@@ -12,6 +11,9 @@ use super::credentials::{CredentialDetail, CredentialPage, CredentialRow, Creden
 use super::text::{Text, tf};
 use crate::api::types::ProfileDto;
 use crate::profiles::Profiles;
+
+// The page's model (plan B192: in omaflake-sdk); this file builds it
+pub use omaflake_sdk::views::profiles::*;
 
 fn size(p: &ProfileDto) -> Text {
     tf!("%lld CPU · %lld GB RAM", p.cpus, p.memory_gb)
@@ -67,23 +69,6 @@ pub(crate) fn page(ctx: &Ctx) -> CredentialsPage {
             "Profiles stay on this computer – they are never in a catalog. A VM's disk is its own: the recipe's size, changed on the New VM page.",
         ),
     }
-}
-
-/// The form's values (kept by the UI while the user chooses)
-#[derive(Debug, Clone, Default, Deserialize)]
-pub struct ProfileValues {
-    pub name: Option<String>,
-    pub cpus: Option<u32>,
-    #[serde(rename = "memoryGB")]
-    pub memory_gb: Option<u32>,
-}
-
-#[derive(Debug, Default, Deserialize)]
-pub struct ProfileParams {
-    #[serde(default)]
-    pub id: Option<String>,
-    #[serde(default)]
-    pub values: ProfileValues,
 }
 
 /// `profile`: a new profile (4 CPU, 8 GB to start from) or one to edit

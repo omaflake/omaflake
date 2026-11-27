@@ -3,7 +3,6 @@
 //! region, one time zone, one to three keyboards. Same shapes as the Credentials page and form, so every UI draws
 //! them as it draws those. An image is built with one locale (the default unless the build chooses another).
 
-use serde::Deserialize;
 use serde_json::json;
 
 use super::Ctx;
@@ -11,6 +10,9 @@ use super::common::*;
 use super::credentials::{CredentialDetail, CredentialPage, CredentialRow, CredentialsPage};
 use super::text::{Text, tf};
 use crate::api::types::{LocaleDto, SettingsAnswer};
+
+// The page's model (plan B192: in omaflake-sdk); this file builds it
+pub use omaflake_sdk::views::locales::*;
 
 fn keyboards_text(l: &LocaleDto) -> String {
     l.keyboards.join(" + ")
@@ -97,26 +99,6 @@ pub(crate) fn page(ctx: &Ctx) -> CredentialsPage {
             "Locales stay on this computer – they are never in a catalog. A recipe may say which languages it works with; a locale outside gets a warning at the build. This computer's own keyboard is in the Settings.",
         ),
     }
-}
-
-/// The form's values (kept by the UI while the user chooses)
-#[derive(Debug, Clone, Default, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct LocaleValues {
-    pub name: Option<String>,
-    pub locale: Option<String>,
-    pub time_zone: Option<String>,
-    pub keyboard: Option<String>,
-    pub keyboard2: Option<String>,
-    pub keyboard3: Option<String>,
-}
-
-#[derive(Debug, Default, Deserialize)]
-pub struct LocaleParams {
-    #[serde(default)]
-    pub id: Option<String>,
-    #[serde(default)]
-    pub values: LocaleValues,
 }
 
 /// `locale`: a new locale (preset with this computer's values) or one to edit – only its name while images use it

@@ -31,7 +31,7 @@ jobs:
       # Without recipes (they live in omaflake/recipes, which checks them against this flake): evaluates on its own
       - name: Image flake – evaluates
         run: nix flake check --all-systems --no-build "path:$PWD/nix"
-      # BrandTokens.swift and crates/omaflake-core/src/brand/tokens.rs are generated from brand/tokens.toml (plan B119)
+      # BrandTokens.swift and crates/omaflake-sdk/src/brand/tokens.rs are generated from brand/tokens.toml (plan B119)
       - name: Design tokens up to date
         run: python3 brand/tokens.py --check
       # crates/omaflake-i18n/src/de.rs is generated from the macOS app's German Localizable.strings

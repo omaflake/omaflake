@@ -7,8 +7,9 @@ use std::sync::Arc;
 use std::sync::mpsc::{self, Receiver, Sender};
 use std::time::Duration;
 
-use omaflake_core::api::client::Client;
-use omaflake_core::api::{RpcError, Server};
+use omaflake_core::api::Server;
+use omaflake_sdk::client::Client;
+use omaflake_sdk::protocol::RpcError;
 use serde_json::{Value, json};
 
 /// A refused or failed request: the core's message – in the TUI's language when it has a key (`data.text`) – and its
@@ -73,7 +74,7 @@ pub fn from_client(client: Client, via: &str) -> Connection {
     // The session in the TUI's language (initialize again: recipe descriptions, the pages' language)
     let _ = client.call(
         "initialize",
-        json!({"client": "omaf ui", "clientVersion": omaflake_core::VERSION, "apiVersion": 1,
+        json!({"client": "omaf ui", "clientVersion": omaflake_sdk::VERSION, "apiVersion": 1,
                "language": crate::text::lang().code()}),
     );
     let client = Arc::new(client);
@@ -116,7 +117,7 @@ pub fn in_process(paths: omaflake_core::Paths, client: &str) -> Result<Connectio
     );
     server.call(
         "initialize",
-        json!({"client": client, "clientVersion": omaflake_core::VERSION, "apiVersion": 1,
+        json!({"client": client, "clientVersion": omaflake_sdk::VERSION, "apiVersion": 1,
                "language": crate::text::lang().code()}),
     )?;
     Ok(Connection { core: Arc::new(Local(server)), events: rx, via: "in-process".into() })

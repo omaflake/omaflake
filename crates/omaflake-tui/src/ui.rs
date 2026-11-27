@@ -236,7 +236,7 @@ fn draw_status(f: &mut Frame, app: &App, area: Rect) {
         None => Line::from(Span::styled(
             format!(
                 " {}",
-                trf("omaf ui %@ · %@ · Tab pages · q quit", &[omaflake_core::VERSION.into(), app.via.clone().into()])
+                trf("omaf ui %@ · %@ · Tab pages · q quit", &[omaflake_sdk::VERSION.into(), app.via.clone().into()])
             ),
             th.secondary(),
         )),

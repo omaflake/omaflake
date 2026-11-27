@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 [package]
 name = "omaflake-sdk"
-description = "Talk to omaflake: the client of its service (omaf serve), the API's types, errors and texts"
+description = "Talk to omaflake: the client of its service (omaf serve), the API's types, its page models, texts and design tokens"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -17,6 +17,10 @@ categories = ["api-bindings", "virtualization"]
 jiff.workspace = true
 serde.workspace = true
 serde_json.workspace = true
+
+[dev-dependencies]
+# The up-to-date test of the design tokens re-reads brand/tokens.toml
+toml.workspace = true
 
 [lints]
 workspace = true

@@ -14,56 +14,11 @@ use crate::omaflake_id::{OmaflakeId, OmaflakeIdKind};
 use crate::platform::Platform;
 use crate::recipe_sources::{RecipeRef, RecipeSource};
 
-/// Network mode from recipe.toml (spec §6.3).
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
-#[serde(rename_all = "lowercase")]
-pub enum NetworkMode {
-    /// -netdev user with SSH forwarding
-    Shared,
-    /// -netdev user,restrict=on – no outside access
-    Isolated,
-    /// no network card
-    None,
-}
-
-impl NetworkMode {
-    pub const ALL: [NetworkMode; 3] = [NetworkMode::Shared, NetworkMode::Isolated, NetworkMode::None];
-
-    pub fn as_str(self) -> &'static str {
-        match self {
-            NetworkMode::Shared => "shared",
-            NetworkMode::Isolated => "isolated",
-            NetworkMode::None => "none",
-        }
-    }
-}
-
 /// NixOS or macOS (in omaflake-sdk since plan B192)
 pub use omaflake_sdk::models::GuestKind;
 
-/// Display mode at start.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
-#[serde(rename_all = "lowercase")]
-pub enum DisplayMode {
-    /// headless: serial console + SSH only
-    None,
-    /// Cocoa window with virtio-gpu-pci (no 3D)
-    Window,
-    /// Cocoa window with virtio-gpu-gl-pci (virglrenderer, custom QEMU build, M2)
-    Gpu,
-}
-
-impl DisplayMode {
-    pub const ALL: [DisplayMode; 3] = [DisplayMode::None, DisplayMode::Window, DisplayMode::Gpu];
-
-    pub fn as_str(self) -> &'static str {
-        match self {
-            DisplayMode::None => "none",
-            DisplayMode::Window => "window",
-            DisplayMode::Gpu => "gpu",
-        }
-    }
-}
+// The API's kinds (plan B192: in omaflake-sdk)
+pub use omaflake_sdk::models::{DisplayMode, NetworkMode, StopResult, VmStatus};
 
 /// OpenGL path for `-display cocoa,gl=…`: native macOS OpenGL (CGL, default) or ANGLE (OpenGL ES over Metal).
 /// With ANGLE, virgl offers the guest only GLSL 130 (GL 3.0) – kitty then fails to start (plan B22).
@@ -85,52 +40,6 @@ impl GlBackend {
         match self {
             GlBackend::Es => "es",
             GlBackend::On => "on",
-        }
-    }
-}
-
-/// How `stop` ended. `Display` gives Swift's raw values ("shut down cleanly", …).
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub enum StopResult {
-    AlreadyStopped,
-    Powerdown,
-    Quit,
-    ForcedOff,
-    Killed,
-}
-
-impl StopResult {
-    /// Swift's raw value – the text shown to the user
-    pub fn description(self) -> &'static str {
-        match self {
-            StopResult::AlreadyStopped => "was already stopped",
-            StopResult::Powerdown => "shut down cleanly",
-            StopResult::Quit => "stopped via QMP quit",
-            StopResult::ForcedOff => "forced off (omaf-runner kill)",
-            StopResult::Killed => "killed (SIGKILL)",
-        }
-    }
-}
-
-impl std::fmt::Display for StopResult {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_str(self.description())
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
-#[serde(rename_all = "lowercase")]
-pub enum VmStatus {
-    Stopped,
-    Running,
-}
-
-impl VmStatus {
-    pub fn as_str(self) -> &'static str {
-        match self {
-            VmStatus::Stopped => "stopped",
-            VmStatus::Running => "running",
         }
     }
 }

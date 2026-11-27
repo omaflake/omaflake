@@ -4,9 +4,9 @@
 //! shows is built here from the `vms` page and the jobs, the same on every platform (and tested); the D-Bus side
 //! exists only on Linux.
 
-use omaflake_core::api::types::{JobDto, JobKind};
-use omaflake_core::api::views::common::{Action, LampState};
-use omaflake_core::api::views::vms::VmsPage;
+use omaflake_sdk::types::{JobDto, JobKind};
+use omaflake_sdk::views::common::{Action, LampState};
+use omaflake_sdk::views::vms::VmsPage;
 
 use crate::text::{s, tr, trf};
 
@@ -295,7 +295,7 @@ mod tests {
 
     #[test]
     fn builds_and_empty_lists() {
-        let images: omaflake_core::api::views::images::ImagesPage = golden("images");
+        let images: omaflake_sdk::views::images::ImagesPage = golden("images");
         let jobs: Vec<JobDto> = images.jobs.iter().map(|j| j.job.clone()).collect();
         let active = jobs.iter().filter(|j| j.kind == JobKind::Build && j.state.is_active()).count();
         let m = model(None, &jobs);

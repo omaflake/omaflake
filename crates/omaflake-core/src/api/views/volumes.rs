@@ -4,7 +4,6 @@
 //! page's shape, so every UI draws it as it draws that: each volume with its folder, its VMs as lines of their own
 //! (the name each sees it under, "Rename …", "Take Out") and "Add VM" right there, as in the Networks tab.
 
-use serde::Deserialize;
 use serde_json::json;
 
 use super::Ctx;
@@ -14,6 +13,9 @@ use super::text::{Text, tf};
 use crate::api::types::{Vm, VolumeDto};
 use crate::models::{GuestKind, VmStatus};
 use crate::volumes::Volumes;
+
+// The page's model (plan B192: in omaflake-sdk); this file builds it
+pub use omaflake_sdk::views::volumes::*;
 
 fn kind_icon(v: Option<&Vm>) -> &'static str {
     match v.map(|v| v.kind) {
@@ -141,18 +143,6 @@ pub(crate) fn page(ctx: &Ctx) -> CredentialsPage {
 
 // MARK: Forms
 
-#[derive(Debug, Clone, Default, Deserialize)]
-pub struct VolumeValues {
-    pub name: Option<String>,
-    pub path: Option<String>,
-}
-
-#[derive(Debug, Default, Deserialize)]
-pub struct VolumeParams {
-    #[serde(default)]
-    pub values: VolumeValues,
-}
-
 /// `volume`: a new volume – its name and folder
 pub(crate) fn volume_page(ctx: &Ctx, p: &VolumeParams) -> CredentialPage {
     let name = p.values.name.clone().unwrap_or_default();
@@ -201,20 +191,6 @@ pub(crate) fn volume_page(ctx: &Ctx, p: &VolumeParams) -> CredentialPage {
         locked: None,
         actions: vec![Action::call("cancel", Text::new("Cancel"), None, "ui.back", json!({})), create],
     }
-}
-
-#[derive(Debug, Clone, Default, Deserialize)]
-pub struct MountValues {
-    #[serde(rename = "as")]
-    pub mount: Option<String>,
-}
-
-#[derive(Debug, Default, Deserialize)]
-pub struct MountParams {
-    pub volume: String,
-    pub vm: String,
-    #[serde(default)]
-    pub values: MountValues,
 }
 
 /// `volumeMount`: the name a VM sees a volume under

@@ -5,41 +5,19 @@
 
 use std::collections::VecDeque;
 
-use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 
 use super::common::*;
 use super::text::{Text, tf};
 use crate::api::protocol::RpcError;
 use crate::api::types::*;
-use crate::json::Date;
 use crate::models::RecipeId;
+
+// The page's model (plan B192: in omaflake-sdk); this file builds it
+pub use omaflake_sdk::views::activity::*;
 
 /// Entries kept (the app kept 30; a TUI's list may be longer)
 pub const MAX: usize = 100;
-
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct ActivityEntry {
-    /// Stable and rising, never reused while the server runs (`clear` included): a UI marks entries seen by
-    /// remembering the highest id it has shown – higher ones are unseen (api.md §10.6)
-    pub id: u64,
-    #[serde(with = "crate::json::iso8601")]
-    pub time: Date,
-    pub level: Level,
-    pub text: Text,
-    /// What a system notification says, when one belongs to it (VM ready or ended, image built or failed) – the UI
-    /// posts it if notifications are on (Settings) and its window is not in front
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub notification: Option<Notification>,
-}
-
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct Notification {
-    pub title: Text,
-    pub body: Text,
-}
 
 #[derive(Debug, Default)]
 pub(crate) struct ActivityLog {
@@ -61,16 +39,6 @@ impl ActivityLog {
     pub fn list(&self) -> Vec<ActivityEntry> {
         self.entries.iter().cloned().collect()
     }
-}
-
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct ActivityPage {
-    #[serde(flatten)]
-    pub head: ListHead,
-    pub entries: Vec<ActivityEntry>,
-    /// The user wants system notifications (Settings): a UI posts an entry's `notification` only then
-    pub notifications: bool,
 }
 
 pub fn page(entries: &[ActivityEntry], notifications: bool) -> ActivityPage {

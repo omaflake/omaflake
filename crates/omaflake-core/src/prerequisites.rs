@@ -34,76 +34,8 @@ use crate::shell::{RunOptions, Shell};
 use crate::shell_setup::ShellSetup;
 use crate::sockets::{DEFAULT_TIMEOUT, Ports};
 
-/// Swift `Prerequisite.Item`; serialized as Swift's raw value (camelCase: "nixDarwin", "linuxBuilder", …)
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub enum PrerequisiteItem {
-    // what the Mac brings
-    Host,
-    /// Linux hosts: /dev/kvm usable (else VMs run with TCG, plan B124)
-    Kvm,
-    Nix,
-    Flakes,
-    /// Nix in the user's login shells (plan B160; optional – omaflake finds Nix by its paths)
-    Shell,
-    NixDarwin,
-    LinuxBuilder,
-    Qemu,
-    Flake,
-    SshKey,
-    /// At least one credential – the default one (plan B139): who you are in the guests, with its password
-    Credential,
-    /// At least one installed look – the default one (plan B141): how the guests look
-    Look,
-    Git,
-    /// The `omaf` command on the user's PATH (optional, plan B122)
-    Cli,
-    // preflight NixOS: builder VM answering, recipes evaluating, space in the Nix store
-    BuilderRunning,
-    FlakeEval,
-    NixSpace,
-    // preflight macOS: IPSW from Apple, base, space for installation and images
-    Ipsw,
-    MacBase,
-    MacSpace,
-}
-
-impl PrerequisiteItem {
-    /// Swift `rawValue` (also the `id`)
-    pub fn as_str(self) -> &'static str {
-        match self {
-            PrerequisiteItem::Host => "host",
-            PrerequisiteItem::Kvm => "kvm",
-            PrerequisiteItem::Nix => "nix",
-            PrerequisiteItem::Flakes => "flakes",
-            PrerequisiteItem::Shell => "shell",
-            PrerequisiteItem::NixDarwin => "nixDarwin",
-            PrerequisiteItem::LinuxBuilder => "linuxBuilder",
-            PrerequisiteItem::Qemu => "qemu",
-            PrerequisiteItem::Flake => "flake",
-            PrerequisiteItem::SshKey => "sshKey",
-            PrerequisiteItem::Credential => "credential",
-            PrerequisiteItem::Look => "look",
-            PrerequisiteItem::Git => "git",
-            PrerequisiteItem::Cli => "cli",
-            PrerequisiteItem::BuilderRunning => "builderRunning",
-            PrerequisiteItem::FlakeEval => "flakeEval",
-            PrerequisiteItem::NixSpace => "nixSpace",
-            PrerequisiteItem::Ipsw => "ipsw",
-            PrerequisiteItem::MacBase => "macBase",
-            PrerequisiteItem::MacSpace => "macSpace",
-        }
-    }
-}
-
-/// Swift `Prerequisite.Status`
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
-#[serde(rename_all = "lowercase")]
-pub enum PrerequisiteStatus {
-    Ok,
-    Limited,
-    Missing,
-}
+// The API's kinds (plan B192: in omaflake-sdk)
+pub use omaflake_sdk::models::{PrerequisiteItem, PrerequisiteStatus};
 
 /// One check's result. JSON (docs/api.md §4.4): camelCase keys, the computed `required` and `settablePath` written as
 /// fields, optional fields left out when unset; reading ignores `required` and `settablePath`.

@@ -6,9 +6,9 @@ use iced::widget::{
     button, center, column, container, image, mouse_area, opaque, row, scrollable, space, stack, text, text_input,
 };
 use iced::{Alignment, Color, Length, Padding, Size, window};
-use omaflake_core::api::views::PageRef;
-use omaflake_core::api::views::common::LampState;
-use omaflake_core::api::views::home::HomePage;
+use omaflake_sdk::views::PageRef;
+use omaflake_sdk::views::common::LampState;
+use omaflake_sdk::views::home::HomePage;
 use serde_json::json;
 
 use crate::app::{App, Message, Modal, Model, page_ref};
@@ -26,9 +26,9 @@ pub const SIDEBAR_WIDTH: f32 = 180.0;
 pub fn glow_image(size: Size) -> image::Handle {
     let (w, h) = (size.width.max(1.0).round() as u32, size.height.max(1.0).round() as u32);
     let base = style::WINDOW;
-    let red = omaflake_core::brand::color::GLOW_RED.rgba;
-    let cyan = omaflake_core::brand::color::GLOW_CYAN.rgba;
-    let (rr, cr) = (omaflake_core::brand::glow::RED_RADIUS, omaflake_core::brand::glow::CYAN_RADIUS);
+    let red = omaflake_sdk::brand::color::GLOW_RED.rgba;
+    let cyan = omaflake_sdk::brand::color::GLOW_CYAN.rgba;
+    let (rr, cr) = (omaflake_sdk::brand::glow::RED_RADIUS, omaflake_sdk::brand::glow::CYAN_RADIUS);
     let mut px = Vec::with_capacity((w * h * 4) as usize);
     for y in 0..h {
         for x in 0..w {
@@ -151,7 +151,7 @@ impl App {
     }
 
     /// The help switch (plan B148): off by default; on, every page shows its explanations, each in a box of its own
-    fn help_switch<'a>(&self, a: &'a omaflake_core::api::views::common::Action) -> El<'a> {
+    fn help_switch<'a>(&self, a: &'a omaflake_sdk::views::common::Action) -> El<'a> {
         let on = a.on.unwrap_or(false);
         let fg = if on { style::CYAN } else { style::SECONDARY };
         let label = row![
@@ -312,7 +312,7 @@ impl App {
                 c.push(buttons(s(&confirm.button), color)).into()
             }
             Modal::Ask { ask, value, repeat, error } => {
-                let secret = ask.kind == omaflake_core::api::views::common::AskKind::Password;
+                let secret = ask.kind == omaflake_sdk::views::common::AskKind::Password;
                 let mut c =
                     column![text(s(&ask.label)).size(text_size::HEADLINE).font(style::bold())].spacing(spacing::XXL);
                 if let Some(p) = &ask.prompt {
@@ -368,8 +368,8 @@ fn buttons<'a>(answer: String, color: Color) -> El<'a> {
 
 fn dot<'a>(c: Color) -> El<'a> {
     container(space())
-        .width(omaflake_core::brand::size::DOT)
-        .height(omaflake_core::brand::size::DOT)
+        .width(omaflake_sdk::brand::size::DOT)
+        .height(omaflake_sdk::brand::size::DOT)
         .style(move |_| container::Style {
             background: Some(c.into()),
             border: iced::border::rounded(100.0),
@@ -380,8 +380,8 @@ fn dot<'a>(c: Color) -> El<'a> {
 
 /// "omaflake" in the monospaced wordmark font with the hero's red/cyan offset (`Wordmark`)
 pub fn wordmark<'a>() -> El<'a> {
-    let f = style::font(omaflake_core::brand::font::WORDMARK);
-    let size = omaflake_core::brand::font::WORDMARK.size;
+    let f = style::font(omaflake_sdk::brand::font::WORDMARK);
+    let size = omaflake_sdk::brand::font::WORDMARK.size;
     let t = |c: Color| text("omaflake").font(f).size(size).color(c);
     stack![
         container(t(style::RED)).padding(Padding { left: 0.0, ..Padding::ZERO }),

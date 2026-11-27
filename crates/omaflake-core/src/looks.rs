@@ -22,23 +22,8 @@ use crate::paths::{Paths, Settings};
 use crate::recipe_sources::{CatalogFile, RecipeCatalog, SourceClient};
 use crate::vm_err;
 
-/// The main colours of a look in the catalog, for a preview without downloading it
-#[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize)]
-pub struct Swatches {
-    #[serde(default)]
-    pub background: String,
-    #[serde(default)]
-    pub surface: String,
-    #[serde(default)]
-    pub text: String,
-    #[serde(default)]
-    pub accent: String,
-    #[serde(default)]
-    pub urgent: String,
-    /// The terminal's 16 colours
-    #[serde(default)]
-    pub terminal: Vec<String>,
-}
+// The API's kinds (plan B192: in omaflake-sdk)
+pub use omaflake_sdk::models::Swatches;
 
 /// One look in catalog.json (catalog v4)
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

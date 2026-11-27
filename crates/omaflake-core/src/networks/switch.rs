@@ -19,8 +19,6 @@ use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::{Duration, Instant};
 
-use serde::{Deserialize, Serialize};
-
 use super::packets::{self, BROADCAST, DhcpAnswer, Mac, mac_text};
 use super::{Network, Networks, parse_member_mac};
 use crate::error::{IoContext, Result};
@@ -29,59 +27,13 @@ use crate::json::Date;
 use crate::paths::Paths;
 use crate::vm_err;
 
+// In omaflake-sdk (plan B192): part of the API's page models
+pub use omaflake_sdk::networks::{Flow, PortStatus, SwitchStatus};
+
 /// Largest frame accepted (QEMU's stream protocol allows more; jumbo frames are not configured anywhere)
 const MAX_FRAME: usize = 65_535;
 /// A stream port's queue beyond which frames to it are dropped
 const MAX_QUEUE: usize = 4 << 20;
-
-/// One port's numbers in status.json
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
-pub struct PortStatus {
-    /// "qemu" or "vz"
-    pub kind: String,
-    /// The card's MAC, once it sent a frame
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub mac: Option<String>,
-    /// The member behind that MAC
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub vm: Option<String>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub address: Option<String>,
-    /// From the VM into the switch
-    #[serde(rename = "rxFrames")]
-    pub rx_frames: u64,
-    #[serde(rename = "rxBytes")]
-    pub rx_bytes: u64,
-    /// From the switch to the VM
-    #[serde(rename = "txFrames")]
-    pub tx_frames: u64,
-    #[serde(rename = "txBytes")]
-    pub tx_bytes: u64,
-    #[serde(rename = "dropped")]
-    pub dropped: u64,
-}
-
-/// Bytes from one VM to another (unicast frames only)
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct Flow {
-    pub from: String,
-    pub to: String,
-    pub bytes: u64,
-}
-
-/// status.json of a running switch
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct SwitchStatus {
-    pub network: String,
-    pub pid: i32,
-    #[serde(with = "crate::json::iso8601")]
-    pub started: Date,
-    #[serde(with = "crate::json::iso8601")]
-    pub updated: Date,
-    pub ports: Vec<PortStatus>,
-    #[serde(default)]
-    pub flows: Vec<Flow>,
-}
 
 enum Endpoint {
     Stream { stream: UnixStream, input: Vec<u8>, output: Vec<u8> },

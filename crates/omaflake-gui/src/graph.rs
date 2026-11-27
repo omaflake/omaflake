@@ -11,9 +11,9 @@
 use iced::mouse;
 use iced::widget::canvas::{self, Cache, Canvas, Frame, Geometry, Path, Stroke, Text};
 use iced::{Color, Element, Length, Point, Rectangle, Renderer, Size, Theme, Vector};
-use omaflake_core::api::views::common::Action;
-use omaflake_core::api::views::networks::NetworkGraph;
-use omaflake_core::api::views::text::Text as ViewText;
+use omaflake_sdk::text::Text as ViewText;
+use omaflake_sdk::views::common::Action;
+use omaflake_sdk::views::networks::NetworkGraph;
 use serde_json::json;
 
 use crate::app::Message;
@@ -384,7 +384,7 @@ fn node(frame: &mut Frame, at: Point, title: &str, detail: &str, on: bool, targe
 #[cfg(test)]
 mod tests {
     use super::*;
-    use omaflake_core::api::views::networks::{GraphLink, GraphNetwork, GraphVm};
+    use omaflake_sdk::views::networks::{GraphLink, GraphNetwork, GraphVm};
 
     fn graph() -> NetworkGraph {
         let vm = |id: &str| GraphVm { id: id.into(), label: id.into(), kind: "nixos".into(), running: true };

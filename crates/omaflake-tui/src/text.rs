@@ -6,8 +6,8 @@
 
 use std::sync::OnceLock;
 
-use omaflake_core::json::Date;
 pub use omaflake_i18n::Arg as I18nArg;
+use omaflake_sdk::time::Date;
 use serde_json::Value;
 
 pub use omaflake_i18n::Language;
@@ -132,7 +132,7 @@ pub fn date_text(iso: &str) -> String {
 }
 
 pub fn parse_date(iso: &str) -> Option<Date> {
-    omaflake_core::json::parse_date(iso)
+    omaflake_sdk::time::parse_date(iso)
 }
 
 /// "12.3 GB" (decimal units, as the core; "12,3 GB" in German)

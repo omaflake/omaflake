@@ -11,7 +11,6 @@
 use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
 
-use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 
 use crate::agent_protocol::AgentState;
@@ -19,26 +18,8 @@ use crate::cancellation::Cancellation;
 use crate::models::{GuestKind, InstanceConfig, NetworkMode};
 use crate::paths::Paths;
 
-/// The checks, in the order they run
-pub const CHECKS: [&str; 10] =
-    ["agent", "ssh", "clipboard", "share", "network", "sound", "microphone", "camera", "midi", "disk"];
-
-/// A check's title (a key of the views' texts)
-pub fn title(id: &str) -> &'static str {
-    match id {
-        "agent" => "Agent",
-        "ssh" => "SSH",
-        "clipboard" => "Clipboard",
-        "share" => "Volumes",
-        "network" => "Network",
-        "sound" => "Sound",
-        "microphone" => "Microphone",
-        "camera" => "Camera",
-        "midi" => "MIDI",
-        "disk" => "Disk",
-        _ => "?",
-    }
-}
+// In omaflake-sdk (plan B192): part of the API's page models
+pub use omaflake_sdk::diagnostics::{CHECKS, CheckResult, CheckStatus, title};
 
 /// The details this module writes itself (English; the views show them translated – keys with German), as opposed to
 /// what a guest or a tool said (shown as it is)
@@ -64,58 +45,6 @@ pub const SKIP_MIDI: &str = "MIDI is off for this VM";
 pub const NO_DIAGNOSIS: &str = "The guest's agent has no diagnosis – an image built before it";
 pub const NO_AGENT: &str = "Not checked – no word from the guest's agent";
 pub const PASS_BOTH_WAYS: &str = "both ways";
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "lowercase")]
-pub enum CheckStatus {
-    Pending,
-    Running,
-    Pass,
-    Fail,
-    /// Only the user can tell (did you hear it?)
-    Confirm,
-    Skipped,
-}
-
-impl CheckStatus {
-    /// The log's mark
-    pub fn mark(self) -> &'static str {
-        match self {
-            CheckStatus::Pass => "✓",
-            CheckStatus::Fail => "✗",
-            CheckStatus::Confirm => "?",
-            CheckStatus::Skipped => "–",
-            CheckStatus::Pending | CheckStatus::Running => "·",
-        }
-    }
-
-    pub fn is_done(self) -> bool {
-        !matches!(self, CheckStatus::Pending | CheckStatus::Running)
-    }
-}
-
-/// One check's outcome (the job's `result.checks[]`)
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct CheckResult {
-    pub id: String,
-    pub status: CheckStatus,
-    pub detail: String,
-}
-
-impl CheckResult {
-    pub fn new(id: &str, status: CheckStatus, detail: impl Into<String>) -> CheckResult {
-        CheckResult { id: id.into(), status, detail: detail.into() }
-    }
-
-    /// `✓ Clipboard: both ways`
-    pub fn line(&self) -> String {
-        if self.detail.is_empty() {
-            format!("{} {}", self.status.mark(), title(&self.id))
-        } else {
-            format!("{} {}: {}", self.status.mark(), title(&self.id), self.detail)
-        }
-    }
-}
 
 // MARK: The relay
 

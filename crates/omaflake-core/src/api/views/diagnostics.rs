@@ -4,100 +4,18 @@
 //! the Doctor's style. The checks themselves are `crate::diagnostics`; the server keeps the newest run per VM
 //! (`DiagnosisRecord`) and runs one when the page is subscribed and the VM has none since it started.
 
-use serde::{Deserialize, Serialize};
 use serde_json::json;
 
 use super::Ctx;
-use super::build::{LogRef, log_ref};
+use super::build::log_ref;
 use super::common::*;
 use super::text::{Text, tf};
 use crate::api::types::JobState;
-use crate::diagnostics::{CHECKS, CheckResult, CheckStatus, OWN_DETAILS, title};
-use crate::json::Date;
+use crate::diagnostics::{CHECKS, CheckStatus, OWN_DETAILS, title};
 use crate::models::{GuestKind, VmStatus};
 
-/// The newest diagnosis of a VM in its current run (the server's state)
-#[derive(Debug, Clone, PartialEq)]
-pub struct DiagnosisRecord {
-    /// The VM's run it belongs to (`diagnostics::run_id`)
-    pub run: Option<String>,
-    /// Its job (`diagnostics`)
-    pub job: String,
-    /// Every check: pending, running or done (confirmed ones as pass or fail)
-    pub checks: Vec<CheckResult>,
-    pub file: String,
-    pub finished: Option<Date>,
-}
-
-impl DiagnosisRecord {
-    pub fn new(run: Option<String>, file: String) -> DiagnosisRecord {
-        DiagnosisRecord {
-            run,
-            job: String::new(),
-            checks: CHECKS.iter().map(|id| CheckResult::new(id, CheckStatus::Pending, "")).collect(),
-            file,
-            finished: None,
-        }
-    }
-
-    /// Replaces the check of the same id
-    pub fn set(&mut self, r: &CheckResult) {
-        if let Some(x) = self.checks.iter_mut().find(|x| x.id == r.id) {
-            *x = r.clone();
-        }
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct DiagnosticsPage {
-    /// "Diagnosis"
-    pub title: Text,
-    /// "<VM> · <recipe>"
-    pub subtitle: Text,
-    pub state: DiagnosisState,
-    /// When the newest run ended
-    #[serde(default, skip_serializing_if = "Option::is_none", with = "crate::json::iso8601::option")]
-    pub checked: Option<Date>,
-    pub intro: Text,
-    pub checks: Vec<DiagnosticsCheck>,
-    /// Run (Again), Copy Log, Show Log File
-    pub actions: Vec<Action>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub log: Option<LogRef>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub file: Option<String>,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "lowercase")]
-pub enum DiagnosisState {
-    Idle,
-    Running,
-    Finished,
-    Failed,
-}
-
-/// One check's row
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct DiagnosticsCheck {
-    pub id: String,
-    pub title: Text,
-    pub icon: String,
-    pub status: CheckStatus,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub detail: Option<Text>,
-    /// What to do, while it failed or waits for the user
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub hint: Option<Text>,
-    pub actions: Vec<Action>,
-}
-
-#[derive(Debug, Deserialize)]
-pub struct DiagnosticsParams {
-    pub name: String,
-}
+// The page's model (plan B192: in omaflake-sdk); this file builds it
+pub use omaflake_sdk::views::diagnostics::*;
 
 fn icon(id: &str) -> &'static str {
     match id {

@@ -4,7 +4,6 @@
 //! for what you chose (Set Up for NixOS, the suggested recipes and looks, the macOS base). The page has a credential
 //! form's shape, so every interface draws it as one; the app opens it at its first start, the Doctor offers it.
 
-use serde::Deserialize;
 use serde_json::json;
 
 use super::common::*;
@@ -12,22 +11,8 @@ use super::credentials::{CredentialPage, valid_user};
 use super::text::{Text, tf};
 use super::{Ctx, HostOs};
 
-/// The form's values (kept by the UI while the user answers)
-#[derive(Debug, Clone, Default, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct WelcomeValues {
-    pub guests: Option<String>,
-    pub recommended: Option<bool>,
-    pub user: Option<String>,
-    pub full_name: Option<String>,
-    pub lab: Option<bool>,
-}
-
-#[derive(Debug, Default, Deserialize)]
-pub struct WelcomeParams {
-    #[serde(default)]
-    pub values: WelcomeValues,
-}
+// The page's model (plan B192: in omaflake-sdk); this file builds it
+pub use omaflake_sdk::views::welcome::*;
 
 pub(crate) fn page(ctx: &Ctx, p: &WelcomeParams) -> CredentialPage {
     let v = &p.values;

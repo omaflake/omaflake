@@ -24,6 +24,9 @@ use crate::paths::{Paths, Settings};
 use crate::recipe_sources::{CatalogFile, RecipeCatalog, RecipeSourceKind, SourceClient};
 use crate::vm_err;
 
+// The API's kinds (plan B192: in omaflake-sdk)
+pub use omaflake_sdk::models::ModuleMode;
+
 /// One key or mode, or several: module.toml and keymap.toml write a single one as a string, several as a list
 pub mod one_or_many {
     use serde::{Deserialize, Deserializer, Serialize, Serializer};
@@ -81,26 +84,6 @@ pub struct ModuleAction {
 
 impl ModuleAction {
     /// The title in `language` when the module has it
-    pub fn title_in(&self, language: Option<&str>) -> &str {
-        match (language, &self.title_de) {
-            (Some("de"), Some(t)) => t,
-            _ => &self.title,
-        }
-    }
-}
-
-/// A mode of a module's program (module.toml `[modes.<name>]`): its keys differ there
-#[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize)]
-pub struct ModuleMode {
-    pub title: String,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub title_de: Option<String>,
-    /// The program starts in it
-    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
-    pub start: bool,
-}
-
-impl ModuleMode {
     pub fn title_in(&self, language: Option<&str>) -> &str {
         match (language, &self.title_de) {
             (Some("de"), Some(t)) => t,

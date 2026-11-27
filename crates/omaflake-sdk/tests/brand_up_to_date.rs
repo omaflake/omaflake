@@ -2,7 +2,7 @@
 //! The generated `src/brand/tokens.rs` matches `brand/tokens.toml`: every token there is in [`ALL`] with the same value,
 //! and nothing else is. Fails after a token change without `python3 brand/tokens.py`.
 
-use omaflake_core::brand::{ALL, Token, Weight};
+use omaflake_sdk::brand::{ALL, Token, Weight};
 use std::collections::BTreeMap;
 use toml::{Table, Value};
 
@@ -41,7 +41,7 @@ fn expected() -> Vec<(String, Token)> {
     let mut out = Vec::new();
     let color = |rgb: [f32; 3], a: f32| {
         let rgba = [rgb[0], rgb[1], rgb[2], a];
-        Token::Color(omaflake_core::brand::Color { rgba8: rgba.map(|x| (x * 255.0).round() as u8), rgba })
+        Token::Color(omaflake_sdk::brand::Color { rgba8: rgba.map(|x| (x * 255.0).round() as u8), rgba })
     };
     for (k, v) in &palette {
         out.push((format!("palette.{k}"), color(hex(v.as_str().unwrap()), 1.0)));
@@ -67,7 +67,7 @@ fn expected() -> Vec<(String, Token)> {
     }
     for group in ["font_style", "text"] {
         for (k, s) in &table(group) {
-            let font = omaflake_core::brand::FontStyle {
+            let font = omaflake_sdk::brand::FontStyle {
                 size: number(&s["size"]),
                 weight: weight(s["weight"].as_str().unwrap()),
                 monospaced: s.get("design").and_then(Value::as_str) == Some("monospaced"),

@@ -5,8 +5,8 @@
 
 use iced::widget::{Column, button, column, container, row, space, text, tooltip};
 use iced::{Alignment, Color, Element, Length, Padding};
-use omaflake_core::api::views::Text;
-use omaflake_core::api::views::common::{Action, Badge, Hint, InfoLine, Lamp, LampState, Tone};
+use omaflake_sdk::views::Text;
+use omaflake_sdk::views::common::{Action, Badge, Hint, InfoLine, Lamp, LampState, Tone};
 
 use crate::app::Message;
 use crate::icons::icon;

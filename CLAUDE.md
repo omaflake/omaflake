@@ -81,9 +81,10 @@ versions at least 14 days old, `cargo deny`). It deviates where it has a reason:
 
 ```
 Cargo.toml, crates/        Rust, every crate on crates.io with omaflake's version (plan B192): omaflake (the program
-                           `omaf`: CLI and `omaf serve`, the JSON-RPC API: docs/api.md), omaflake-core (all logic; the
-                           design tokens in its module `brand`, generated from brand/tokens.toml), omaflake-sdk (client,
-                           protocol and the API's session/job/event types – for every interface and others' tools)
+                           `omaf`: CLI and `omaf serve`, the JSON-RPC API: docs/api.md), omaflake-core (all logic, builds
+                           and serves the API), omaflake-sdk (what every interface and others' tools use: the client, the
+                           API's types, the page models, texts, errors; the design tokens in its module `brand`,
+                           generated from brand/tokens.toml)
                            omaflake-tui (`omaf ui`: ratatui client of the page models, docs/api.md §10)
                            omaflake-gui (the Linux app, iced); omaflake-i18n (translations of omaf ui and the Linux app,
                            generated from App/Resources/de.lproj by scripts/translations.py); omaflake-macros
