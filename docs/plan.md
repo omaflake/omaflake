@@ -488,12 +488,12 @@ Lume (trycua) only after a license review (OPEN).
 
 ## 8. Next steps (as of 2026-11-27)
 
-**Next: release 0.8.4 (planned, 2026-11-27):** B199 (a removed volume stays removed), B200 (the volumes in the Mac's
-Finder, stage 1: `<data>/volumes.localized`, "omaflake Platten" in the sidebar, place and name in the settings) and
-B201 (moving the data folder takes everything along) – on main, not released. Before the tag: B200 looked at in the
-Finder, its place, name and switch changed in the app; the catalog's `xcode` 1.1.0 pushed once 0.8.3 is out (module/v3 needs it). Candidates if time allows: B193
-(the agent's forwards in a macOS VM – retrying, then the agent inside omaflake Tools for the local network rule). After
-M12: B200 stage 2, B191.
+**Release 0.8.4 (2026-11-28):** B199 (a removed volume stays removed), B200 (the volumes in the Mac's Finder, stage 1:
+`<data>/volumes.localized`, "omaflake Platten" in the sidebar, place and name in the settings) and B201 (moving the
+data folder takes everything along). Looked at by the maintainer before the tag: the folder in the sidebar as "omaflake
+Platten", its icon everywhere but the sidebar (decided: stays so, B200). The catalog's `xcode` 1.1.0 is out since
+0.8.3. OPEN, not tried: B200's place, name and switch changed in the app; B201 with a real move. Left for later: B193
+(the agent's forwards in a macOS VM), B200 stage 2 and B191 after M12.
 
 **Release 0.8.3 (2026-11-27):** B198 (modules can need files nobody may pass on: module.toml v3 `[[files]]`, found and
 added to the Nix Store before a build, the build page and `omaf files add` asking for them – the catalog's `xcode`

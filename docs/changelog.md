@@ -13,11 +13,17 @@ are collected under *Unreleased*. Releases: [GitHub](https://github.com/omaflake
 
 ## [Unreleased]
 
+## [0.8.4] – 2026-11-28
+
+Your volumes in the Finder: a folder **omaflake Platten** (in English **omaflake volumes**) in the sidebar holds every
+volume – no more going into the hidden `.omaflake` folder. Also: a removed volume stays removed, and moving the data
+folder takes omaflake's SSH key and everything else along.
+
 ### Added
 
-- **Your volumes in the Finder** – a folder in omaflake's data folder holds every volume and is in the Finder's
-  sidebar with omaflake's icon – as **omaflake volumes**, in German **omaflake Platten** – so you no longer go into the
-  hidden `.omaflake` folder. omaflake keeps it in step when volumes come and go; take the sidebar entry out and it
+- **Your volumes in the Finder** – a folder in omaflake's data folder, with omaflake's icon, holds every volume and is
+  in the Finder's sidebar – as **omaflake volumes**, in German **omaflake Platten** – so you no longer go into the
+  hidden `.omaflake` folder (the sidebar shows its own folder symbol there). omaflake keeps it in step when volumes come and go; take the sidebar entry out and it
   stays out. In Settings you choose another place or name for it, or switch it off (**Volumes in the Finder**); on the
   command line `omaf config --volumes-in-finder`, `--volumes-folder`, `--volumes-name`. In the Terminal it is
   `~/.omaflake/volumes`.
