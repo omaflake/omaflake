@@ -715,8 +715,13 @@ choose, a name) and `omaf config --volumes-in-finder/--volumes-folder/--volumes-
 the names written, a user's name, a chosen place moving the folder, a user's file kept, a foreign folder left alone,
 settings v6 → v7. *Checked on the maintainer's Mac (2026-11-28):* a service of this build took out the first build's
 `~/omaflake` and its entry, made `~/.omaflake/volumes.localized` with the four volumes, the icon and the link, and the
-sidebar lists it as "omaflake Platten" (`LSSharedFileListItemCopyDisplayName`). OPEN: the look in the Finder; the place
-and name changed in the app; stage 2.
+sidebar lists it as "omaflake Platten" (`LSSharedFileListItemCopyDisplayName`). The maintainer sees the icon everywhere
+(the folder, its window, Get Info) but in the sidebar: the Finder's sidebar shows a favorite folder with its own plain
+symbol, never the folder's icon (only an extension's entry under Locations has one). *Decided (2026-11-28):* it stays
+so for now; stage 2 after the Developer ID (M12) is a **File Provider** first – one "omaflake" entry under Locations
+with the app's icon and the volumes in it, as Google Drive's –, FSKit volumes (each a disk, as in the guests) only if
+wanted besides. OPEN: whether a File Provider runs signed with a free Apple Developer account for one's own use before
+M12; whether an FSKit volume's own icon shows in the sidebar; the place and name changed in the app.
 
 **B201 (2026-11-28, found while building B200): moving the data folder left entries behind.** `DataFolder::move_to`
 moves only `Paths::DATA_ENTRIES`, and the list lacked `builder`, `keymaps`, `looks`, `modules`, `ssh` and
