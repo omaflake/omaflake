@@ -17,7 +17,7 @@ debug = "line-tables-only"
 debug = false
 
 [workspace.package]
-version = "0.8.4"
+version = "0.8.5"
 edition = "2024"
 # The oldest Rust that builds omaflake: nixpkgs' rustc (linux/package.nix); development and CI use rust-toolchain.toml
 rust-version = "1.98"
@@ -31,11 +31,11 @@ homepage = "https://omaflake.dev"
 # be younger.
 [workspace.dependencies]
 # omaflake's own crates: the path here, the version on crates.io – raise it with workspace.package's version
-omaflake-core = { path = "crates/omaflake-core", version = "0.8.4" }
-omaflake-sdk = { path = "crates/omaflake-sdk", version = "0.8.4" }
-omaflake-tui = { path = "crates/omaflake-tui", version = "0.8.4" }
-omaflake-i18n = { path = "crates/omaflake-i18n", version = "0.8.4" }
-omaflake-macros = { path = "crates/omaflake-macros", version = "0.8.4" }
+omaflake-core = { path = "crates/omaflake-core", version = "0.8.5" }
+omaflake-sdk = { path = "crates/omaflake-sdk", version = "0.8.5" }
+omaflake-tui = { path = "crates/omaflake-tui", version = "0.8.5" }
+omaflake-i18n = { path = "crates/omaflake-i18n", version = "0.8.5" }
+omaflake-macros = { path = "crates/omaflake-macros", version = "0.8.5" }
 serde = { version = "=1.0.229", features = ["derive"] }
 serde_json = "=1.0.154"
 toml = "=1.2.1"

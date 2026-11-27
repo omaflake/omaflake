@@ -13,6 +13,10 @@ are collected under *Unreleased*. Releases: [GitHub](https://github.com/omaflake
 
 ## [Unreleased]
 
+## [0.8.5] – 2026-11-28
+
+A fix: the catalog's macOS recipe `xcode` builds again.
+
 ### Fixed
 
 - **The macOS recipe `xcode` builds** – 0.8.3 and 0.8.4 refused it ("module.toml needs $schema = …/module/v2.json"):

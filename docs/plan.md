@@ -488,6 +488,9 @@ Lume (trycua) only after a license review (OPEN).
 
 ## 8. Next steps (as of 2026-11-27)
 
+**Release 0.8.5 (2026-11-28):** B202 – the image flake takes module/v3, so the catalog's `xcode` builds (0.8.3 and
+0.8.4 refused it). Checked before the tag with `nix flake check` with the catalog, as CLAUDE.md asks.
+
 **Release 0.8.4 (2026-11-28):** B199 (a removed volume stays removed), B200 (the volumes in the Mac's Finder, stage 1:
 `<data>/volumes.localized`, "omaflake Platten" in the sidebar, place and name in the settings) and B201 (moving the
 data folder takes everything along). Looked at by the maintainer before the tag: the folder in the sidebar as "omaflake
