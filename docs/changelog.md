@@ -13,6 +13,13 @@ are collected under *Unreleased*. Releases: [GitHub](https://github.com/omaflake
 
 ## [Unreleased]
 
+## [0.8.2] – 2026-11-27
+
+Fixes for 0.8.1 and the app icon in Liquid Glass. The guest agent of a macOS VM – with it the camera, MIDI, the
+diagnosis and the volumes under Locations – now starts after every start, also after a restart inside the VM or with
+the app closed; long pages scroll; and macOS image builds no longer wait in vain for SSH when the core service has run
+for a long time. Rebuild your macOS images to get the agent that checks volumes where they are.
+
 ### Changed
 
 - **omaflake/recipes is gone** – the old recipe repository (deleted, replaced by

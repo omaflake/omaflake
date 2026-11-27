@@ -488,6 +488,11 @@ Lume (trycua) only after a license review (OPEN).
 
 ## 8. Next steps (as of 2026-11-27)
 
+**Release 0.8.2 (2026-11-27):** fixes for 0.8.1 found the same evening – B194 (the guest helpers start without a
+client watching, and an early start is not logged as a failure), B195 (pages taller than the window scroll), B197 (SSH
+waits also ask a fresh process) – and B196 (the app icons in Liquid Glass). Checked with the development app before
+the tag: B194 and an image build; B195 and B196 looked at by the maintainer ("Beides passt"). OPEN: B197's cause.
+
 **Release 0.8.1 (2026-11-27, published: tag v0.8.1, the unsigned app on GitHub and omaflake.app's update.json,
 every crate on crates.io – B192):** B183 (the camera with OBS:
 Metal, the agent decoding H.264, the agent's log kept) and B184 (omaflake Tools and omaflake's own camera

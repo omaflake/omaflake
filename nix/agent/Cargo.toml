@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 [package]
 name = "omaflake-agent"
-version = "0.8.1"
+version = "0.8.2"
 edition = "2024"
 description = "omaflake's guest agent: runs in omaflake's VMs and talks to omaflake on the host over the virtio port org.omaflake.agent"
 license = "AGPL-3.0-or-later"
