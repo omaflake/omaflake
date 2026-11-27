@@ -488,6 +488,14 @@ Lume (trycua) only after a license review (OPEN).
 
 ## 8. Next steps (as of 2026-11-27)
 
+**Release 0.8.3 (2026-11-27):** B198 (modules can need files nobody may pass on: module.toml v3 `[[files]]`, found and
+added to the Nix Store before a build, the build page and `omaf files add` asking for them – the catalog's `xcode`
+1.1.0 uses it), B189's double start of the volumes session fixed, B186 written down as a proposal. Gone through and
+left, with reasons: B193 (forwards in a macOS VM refused, most likely the local network rule for the agent – the agent
+inside omaflake Tools is a change of its own, to be tried with a Docker VM), B197's cause (seen once; 0.8.2's helper
+process works around it), what waits for the Developer ID (M12, B191) or for trying on the Mac (B164, B178–B182, B183,
+B185).
+
 **Release 0.8.2 (2026-11-27):** fixes for 0.8.1 found the same evening – B194 (the guest helpers start without a
 client watching, and an early start is not logged as a failure), B195 (pages taller than the window scroll), B197 (SSH
 waits also ask a fresh process) – and B196 (the app icons in Liquid Glass). Checked with the development app before

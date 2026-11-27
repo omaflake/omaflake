@@ -3421,7 +3421,7 @@ dependencies = [
 
 [[package]]
 name = "omaflake"
-version = "0.8.2"
+version = "0.8.3"
 dependencies = [
  "clap",
  "jiff",
@@ -3435,7 +3435,7 @@ dependencies = [
 
 [[package]]
 name = "omaflake-core"
-version = "0.8.2"
+version = "0.8.3"
 dependencies = [
  "block2 0.6.2",
  "jiff",
@@ -3459,7 +3459,7 @@ dependencies = [
 
 [[package]]
 name = "omaflake-gui"
-version = "0.8.2"
+version = "0.8.3"
 dependencies = [
  "iced",
  "image",
@@ -3480,15 +3480,15 @@ dependencies = [
 
 [[package]]
 name = "omaflake-i18n"
-version = "0.8.2"
+version = "0.8.3"
 
 [[package]]
 name = "omaflake-macros"
-version = "0.8.2"
+version = "0.8.3"
 
 [[package]]
 name = "omaflake-sdk"
-version = "0.8.2"
+version = "0.8.3"
 dependencies = [
  "jiff",
  "serde",
@@ -3498,7 +3498,7 @@ dependencies = [
 
 [[package]]
 name = "omaflake-tui"
-version = "0.8.2"
+version = "0.8.3"
 dependencies = [
  "crossterm",
  "jiff",

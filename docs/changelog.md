@@ -13,6 +13,12 @@ are collected under *Unreleased*. Releases: [GitHub](https://github.com/omaflake
 
 ## [Unreleased]
 
+## [0.8.3] – 2026-11-27
+
+Modules can now need files nobody may pass on – the catalog's macOS recipe `xcode` brings Xcode 27.2 into a VM, and
+omaflake takes Xcode from your Downloads folder by itself, or asks for it on the build page. Also: the volumes of a
+macOS VM are mounted once at a start.
+
 ### Added
 
 - **Modules can need files nobody may pass on** – such as Xcode for the catalog's new macOS recipe `xcode`. omaflake
