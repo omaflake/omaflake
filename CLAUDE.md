@@ -56,7 +56,8 @@ any work and keep them up to date.
 - **Changelog:** every user-visible change gets a line under `## [Unreleased]` in `docs/changelog.md` (on omaflake.dev)
   in the same commit; a release turns that section into `## [x.y.z] – date`, and its text is the release's notes.
 - **No secrets** in the repository (passwords, tokens, keys). Developer-local files (e.g. tokens for tooling)
-  belong in `~/.omaflake/developer/`, which omaflake never touches.
+  belong outside the checkout: in the workspace's `.local/developer/` next to it (as in every falkOSS project) or in
+  `~/.omaflake/developer/`, which omaflake never touches.
 
 ## falkOSS starterpack
 
