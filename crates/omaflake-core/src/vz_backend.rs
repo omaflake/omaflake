@@ -573,6 +573,7 @@ fn guest_helpers_command(c: &InstanceConfig) -> String {
     const CLIPBOARD: &str = "/run/current-system/sw/bin/omaflake-clipboard-agent";
     const AGENT: &str = "/run/current-system/sw/bin/omaflake-agent-start";
     const SESSION: &str = "/run/current-system/sw/bin/omaflake-volumes-session";
+    const SESSION_MARK: &str = "/tmp/.omaflake-volumes-session";
     // Right after the guest's start SSH can answer before nix-darwin made /run/current-system: then say so with a status
     // of its own instead of failing on the first helper (it was logged as a failed start at every start)
     let mut parts = vec![format!("[ -d /run/current-system/sw/bin ] || exit {NOT_READY_STATUS}")];
@@ -583,7 +584,11 @@ fn guest_helpers_command(c: &InstanceConfig) -> String {
     // The VM's volumes in the user's session (plan B189, B190; images from this fix on): FSKit volumes in unchained
     // images, favorites in the Finder's sidebar otherwise – in the background, it waits for the volumes to be mounted;
     // over SSH, since a launch agent may not add favorites under /Volumes and brings a notice at every start (BM25)
-    parts.push(format!("{{ [ ! -x {SESSION} ] || nohup {SESSION} >/dev/null 2>&1 </dev/null & }}"));
+    // Once per guest start: a start's `wait_for_ssh` and the service's look may both start the helpers (plan B189:
+    // a second session mounted the volumes again – "Resource busy" in its log); /tmp is emptied at each start
+    parts.push(format!(
+        "{{ [ ! -x {SESSION} ] || [ -e {SESSION_MARK} ] || {{ touch {SESSION_MARK}; nohup {SESSION} >/dev/null 2>&1 </dev/null & }}; }}"
+    ));
     parts.push("sleep 1".into());
     let mut checks = Vec::new();
     if c.clipboard_on() {
@@ -941,7 +946,10 @@ pub(crate) mod tests {
         let agent = "{ [ ! -x /run/current-system/sw/bin/omaflake-agent-start ] || /run/current-system/sw/bin/omaflake-agent-start; }";
         let agent_runs = "{ [ ! -x /run/current-system/sw/bin/omaflake-agent-start ] || pgrep -xq omaflake-agent; }";
         let fav = "/run/current-system/sw/bin/omaflake-volumes-session";
-        let agent = format!("{agent}; {{ [ ! -x {fav} ] || nohup {fav} >/dev/null 2>&1 </dev/null & }}");
+        let mark = "/tmp/.omaflake-volumes-session";
+        let agent = format!(
+            "{agent}; {{ [ ! -x {fav} ] || [ -e {mark} ] || {{ touch {mark}; nohup {fav} >/dev/null 2>&1 </dev/null & }}; }}"
+        );
         let ready = "[ -d /run/current-system/sw/bin ] || exit 75";
         let mut c = mac_config("m1", NetworkMode::Shared);
         assert_eq!(

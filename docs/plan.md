@@ -580,7 +580,7 @@ log no start at all (`~/Library/Logs/omaflake`), and `/Volumes/<name>` came only
 *Fixed:* the core service looks every 5 s on its own (`Server::keep_guest_helpers`, called from the service's accept
 loop) – cheap: the instances' config files and their runners' pid files, no QEMU lookup, nothing for a runner that got
 its helpers; `omaf start` of a macOS VM with a network makes sure the core service runs. Tests: the predicate and a
-look without VMs; OPEN: checked on the Mac with a restart in the guest and the app closed; a service started with
+look without VMs; checked on the Mac with the development app (see B197); a service started with
 `--idle-exit` (no launch agent installed) still ends after its idle time – a later restart in the guest then waits for
 the next client.
 
@@ -590,8 +590,8 @@ the log), a build with notes and the macOS base page were plain stacks: taller t
 `ViewThatFits` – the page as it is while it fits (its log fills the room left), scrolled as a whole otherwise (the log
 at its minimum height, 160 – the build page's log has one now too). The other pages are forms and scroll themselves.
 `swift build` and `swift test` green with Xcode 27.2 (`CoreClientTests.coreIdentityComparison` compared with
-`/usr/local/bin/omaf`, which links to the app where it is installed – now a path that exists nowhere). OPEN: the look
-checked in the app.
+`/usr/local/bin/omaf`, which links to the app where it is installed – now a path that exists nowhere). The look
+checked by the maintainer in the development app before 0.8.2 ("Beides passt").
 
 **B196 (2026-11-27): the app icons in Liquid Glass.** macOS 26+ draws app icons from layers (Icon Composer's `.icon`
 document, compiled into the asset catalog); a flat `.icns` only shows as a picture inside the system's tile.
@@ -802,7 +802,8 @@ did), over SSH they do – most likely the privacy rules for network volumes (OP
 with two volumes has both as favorites after its first start, the `test` VM its volume after an upgrade in place.
 *Next (the maintainer):* omaflake Tools brings an FSKit file system so that each volume is a volume under Locations
 (OPEN: whether FSKit on macOS 27 passes a path through without a block device, and whether the Finder lists it there).
-*OPEN:* the guest helpers ran twice at a start (the favorites log has two lines; harmless, nothing is added twice);
+*Fixed for 0.8.3:* the guest helpers ran twice at a start (the favorites log has two lines, a second session mounting
+the volumes again: "Resource busy") – the volumes session now starts once per guest start (a mark in the guest's /tmp);
 VMs on images from before 0.8.0 (agent 0.7.4) cannot upgrade in place – only with a fresh disk. Fixed since:
 `omaf upgrade --keep` printed nothing and exited 0 when the upgrade failed (it read the ended job wrong – now its
 result's message or its error and log). Checked on the Mac: a NixOS image from before 0.8.1 mounts no volume (the

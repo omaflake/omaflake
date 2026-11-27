@@ -21,6 +21,11 @@ are collected under *Unreleased*. Releases: [GitHub](https://github.com/omaflake
   (**Choose …**, or **Download …** for the vendor's page); on the command line `omaf files` lists such files and
   `omaf files add` adds one. Modules that use it need omaflake 0.8.3.
 
+### Fixed
+
+- **Volumes of a macOS VM are mounted once** – the helpers that mount them at a start could run twice and tried to
+  mount them again ("Resource busy" in the guest's log).
+
 ## [0.8.2] – 2026-11-27
 
 Fixes for 0.8.1 and the app icon in Liquid Glass. The guest agent of a macOS VM – with it the camera, MIDI, the
