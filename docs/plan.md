@@ -514,6 +514,46 @@ real VMs); the camera over vsock – H.264 (B174) made the camera smooth at 30 f
 the Mac (VsockBench) to show it is needed; dragging in the Linux app and `omaf ui`. To try on the Mac: everything
 marked OPEN in B164, B178–B182 (they need images built with 0.8.0).
 
+**B186 (2026-11-27, proposed – not decided, not built; parts since built elsewhere: item 3 as volumes, B187, at
+`/Volumes/<name>` – not `omaf shares` –, and from item 1 the catalog's modules `omaflake/docker-client` (NixOS, macOS)
+with `omaflake/docker` 1.1.0; SSH trust and tunnels remain proposals): several VMs working against one Docker VM.** The
+maintainer's goal: a macOS VM for Claude and Xcode, a NixOS VM for Neovim and other agent harnesses, both using one
+Docker VM (`nixos/docker`, B170), all in one omaflake network. Not the goal: one share folder for everything.
+Wished: several shares per VM, and SSH and tunnels controlled by omaflake.
+*Tried (2026-11-27, a macOS VM and a Docker VM in one network; a small Compose stack of a web service, PostgreSQL and
+an S3 store):* the network works – 0.5 ms, the Docker VM's address reached, `DOCKER_HOST=tcp://<address>:2375`
+with docker-client and docker-compose from nixpkgs (29.8.1 on both sides, buildx 0.35 included), pulls and Compose
+builds fine, a published port reached at the Docker VM's address. Friction: (1) bind mounts name paths of the client
+(`./init.sh`), which the daemon looks up in the Docker VM – every such Compose file needed an override that bakes the
+files into images; (2) Compose files bind ports to `127.0.0.1`, which is the Docker VM's loopback – unreachable from
+the client without an override; (3) no SSH from the client to the Docker VM (its key is not in `authorized_keys`);
+(4) the client's Docker CLI and context set up by hand. The VM had no B180 forward configured; names over mDNS
+(B179) not checked: OPEN.
+*Proposal, in order of effect:*
+1. **SSH trust inside a network.** Each VM gets a key pair of its own (made at first start, by the agent); joining a
+   network puts the members' public keys into each other's `authorized_keys` (a marked block omaflake owns) and their
+   host keys into `known_hosts` under `<vm>.<network>.local` – `ssh docker.<network>.local` works without a question,
+   leaving removes the lines. Then `DOCKER_HOST=ssh://docker.<network>.local`: TCP 2375 without TLS or login can become
+   opt-in in `omaflake/docker` instead of the default, and which members may use Docker becomes a per-member right
+   (today every member is root on the Docker VM). A module `omaflake/docker-client` (both platforms): Docker CLI,
+   Compose, buildx and a Docker context pointing at the network's Docker VM.
+2. **Tunnels controlled by omaflake, container ports forwarded by themselves.** B180's forwards are static. The
+   Docker VM's agent follows Docker's events (containers started or stopped with published ports, also those bound to
+   127.0.0.1 – the agent listens on its network address and passes on to its loopback) and reports them; omaflake
+   forwards them to the localhost of the member that started the container (as dev containers forward ports), so
+   Compose files stay unchanged. Tunnels as objects in the network's picture and list: from, to, port, on/off – also
+   Mac → VM (spec §11.9's "tunnels from the Mac"). Over the agent, not `ssh -L`: same on both platforms, no keys
+   needed; SSH stays for shells and `DOCKER_HOST`. OPEN: the same port published by two members; Compose project
+   names colliding when two members start the same repository.
+3. **Shares as objects of their own, several per VM.** `omaf shares create <name> <folder>`, attached to any VMs like
+   networks; macOS guests through `VZMultipleDirectoryShare` (each share a folder under `/Volumes/My Shared
+   Files/<name>`), NixOS guests one 9p `mount_tag` each. A Docker VM mounts the shares of its network's members
+   **at the paths the members see them** (for NixOS members a link where the paths differ), so `docker run -v
+   "$PWD":/app` and relative Compose mounts work from every member without overrides. To document: changes made in
+   one VM reach another without inotify events (watchers in containers need polling), and 9p/virtiofs are slow with
+   many small files – `node_modules`, `target/` and databases belong in Docker volumes. OPEN: virtiofs and 9p
+   caching when two VMs write the same host folder.
+
 **B193 (2026-11-27, found while testing the catalog's Docker modules; OPEN): ports of other VMs in a macOS VM.** The
 catalog's `nixos/docker` 1.1.0 and `docker-client` (both platforms) checked on the Mac with a local source: a Docker
 VM, a NixOS and a macOS client in one network (`dockertest`), the forward `2375=<docker VM>`, one volume in all three.

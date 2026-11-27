@@ -984,7 +984,9 @@ offers no `forward` and gets no list).
 
 **Later (OPEN).** Rules per network (internet, host access) and `isolated` for macOS VMs (BM27) – a gateway on the
 switch (e.g. gvproxy as one port); dragging in the Linux app's and `omaf ui`'s graph; throughput measured against VZ's
-NAT. The macOS app's graph is edited by dragging since plan B181: a VM dropped on a network joins it, an address's
+NAT. Proposed (plan B186): SSH trust between a network's members (Docker over `ssh://`, 2375 opt-in), container
+ports forwarded by themselves and tunnels as objects, and a Docker VM mounting its members' volumes (§11.13, since
+plan B187) at the paths the members see them. The macOS app's graph is edited by dragging since plan B181: a VM dropped on a network joins it, an address's
 menu takes the VM out.
 
 ### 11.13 Volumes (DECIDED and built 2026-11-27 for 0.8.1, plan B187; German "Platten")
