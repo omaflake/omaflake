@@ -578,6 +578,20 @@ guest, looked at; the icon at 16/32 px
 in the catalog's flat renditions (actool renders those from the `.icon`, not the small glyph); the look itself – a
 proposal for the maintainer (glass on the white flake, 0.4 translucency, pure black when dark).
 
+**B197 (2026-11-27, found while building the catalog's new `macos/xcode`; OPEN): a core service that no longer reaches
+its build VM.** Four macOS image builds in a row ended with "No SSH after 10 minutes (address …, port 22 closed)" –
+from the same unchained base that had built an image at 19:28. The build VM was fine: started by hand it reached the
+desktop at its first start, and from a shell on the Mac port 22 was open with `SSH-2.0-OpenSSH_10.5`, while the build
+in the core service (`omaf serve`, running since 18:33) still waited – `sample` showed it in `provision`'s loop, `lsof`
+no TCP socket of the process. Not the other running VM (stopped: same result), not memory (64 GB, 77 % free), no
+Local Network denial in the Mac's log. After `omaf service stop` the next service built the image at once. OPEN: why the
+long-running service's connections to the VMs' network (192.168.64.0/24 on bridge100) failed – the diagnosis through
+the same service had reached the test VM at 19:46; a build could say "reached from this computer but not from the
+service" by asking `omaf-runner ip` and probing from a fresh process before giving up.
+Also seen: with `omaf config --flake <checkout>/nix` the image flake reads the developer's `nix/local/settings.nix`,
+whose `macUser` named the user of an older development base – activation stopped ("primary user … does not exist").
+Building with the app's image flake and the local catalog as a source avoids it.
+
 **B192 (2026-11-27, done with 0.8.1): omaflake's crates on crates.io.** The maintainer: falkOSS's other projects
 (kernoid, aktujo, verkodo) have their crates on crates.io, omaflake was the odd one out. *Decided:* every crate is
 published, in step with omaflake's version (like aktujo: the crate with the project's name is the program, the rest
