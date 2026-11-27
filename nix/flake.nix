@@ -77,7 +77,8 @@
       # What a recipe of each platform can be built for (plan B114, Platform.swift); recipe.toml lists its own
       kindSystems = { nixos = [ "aarch64-linux" "x86_64-linux" ]; macos = [ "aarch64-darwin" ]; };
       recipeSchema = "https://omaflake.dev/schema/recipe/v2.json";
-      moduleSchema = "https://omaflake.dev/schema/module/v2.json";
+      # module/v3 (plan B198) adds `[[files]]`, which omaflake reads before a build – the Nix side is the same as v2's
+      moduleSchemas = [ "https://omaflake.dev/schema/module/v2.json" "https://omaflake.dev/schema/module/v3.json" ];
       keymapSchema = "https://omaflake.dev/schema/keymap/v2.json";
       validName = what: s: lib.assertMsg (builtins.match "[a-z0-9][a-z0-9-]*" s != null)
         "${what} \"${s}\" – use lowercase letters, digits and -";
@@ -104,8 +105,8 @@
             assert lib.assertMsg (builtins.pathExists (dir + "/module.toml"))
               "${where}: the module ${ref} (${kind}) is not here – install it, or add the source that has it";
             let m = readToml (dir + "/module.toml"); in
-            assert lib.assertMsg ((m."$schema" or "") == moduleSchema)
-              "${ref}: module.toml needs \"$schema\" = \"${moduleSchema}\"";
+            assert lib.assertMsg (builtins.elem (m."$schema" or "") moduleSchemas)
+              "${ref}: module.toml needs \"$schema\" = \"${lib.concatStringsSep "\" or \"" moduleSchemas}\"";
             { inherit ref dir; actions = m.actions or { }; modes = m.modes or { }; };
           modules = map moduleOf refs;
           # Keys: each module's defaults, then the recipe's key binding sets in order (a later set wins)

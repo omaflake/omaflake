@@ -730,6 +730,15 @@ B160, the volumes B187). After a move omaflake made a new SSH key that no VM kne
 volumes. *Fixed:* they are in the list, with B200's `volumes.localized`, `volumes` and `finder-volumes.json`. OPEN: a
 data folder moved on the Mac with VMs, end to end.
 
+**B202 (2026-11-28, found by the maintainer building `macos/xcode` with 0.8.4): the image flake refused module/v3.**
+B198 made module.toml v3 and taught the core to read it, but the image flake checks every module's `$schema` itself
+(`moduleOf` in nix/flake.nix) and knew only v2: "omaflake/xcode: module.toml needs $schema = …/module/v2.json" – the
+catalog's `xcode` 1.1.0 did not build with 0.8.3 or 0.8.4. Missed because the releases ran `nix flake check` without
+the catalog (CLAUDE.md asks for both); the evaluation with the catalog had been done before the module moved to v3.
+*Fixed:* the flake takes v2 and v3 (`moduleSchemas`); `nix flake check` with the catalog and an evaluation of
+`darwinConfigurations."omaflake.macos.xcode"` pass. Releases from now on run the check with `--override-input
+omaflake-catalog` as CLAUDE.md says.
+
 **B192 (2026-11-27, done with 0.8.1): omaflake's crates on crates.io.** The maintainer: falkOSS's other projects
 (kernoid, aktujo, verkodo) have their crates on crates.io, omaflake was the odd one out. *Decided:* every crate is
 published, in step with omaflake's version (like aktujo: the crate with the project's name is the program, the rest

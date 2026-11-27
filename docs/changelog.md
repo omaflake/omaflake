@@ -13,6 +13,11 @@ are collected under *Unreleased*. Releases: [GitHub](https://github.com/omaflake
 
 ## [Unreleased]
 
+### Fixed
+
+- **The macOS recipe `xcode` builds** – 0.8.3 and 0.8.4 refused it ("module.toml needs $schema = …/module/v2.json"):
+  the Nix side of omaflake did not know the new module format the recipe's Xcode module uses.
+
 ## [0.8.4] – 2026-11-28
 
 Your volumes in the Finder: a folder **omaflake Platten** (in English **omaflake volumes**) in the sidebar holds every
