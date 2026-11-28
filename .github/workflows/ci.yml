@@ -1,26 +1,32 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
-# Checks on every push and pull request (plan B67). The licence check (REUSE) and a sign-off (DCO) on every commit of a
-# pull request come from falkoss/starterpack, pinned by commit. Actions are pinned by commit, with the version as a
-# comment.
-# While the repository is private, the macOS job runs only by hand (workflow_dispatch): macOS minutes count tenfold
-# on private repositories. Once public, it runs on every push as well.
+# Every check, on every push to main and every pull request (plan B67). A release checks nothing again: release.yml
+# only asks whether this workflow passed for the tagged commit and takes the app this workflow built from it – so
+# everything a release relies on must be checked here, and a tag never starts this workflow.
+# The licence check (REUSE) and a sign-off (DCO) on every commit of a pull request come from falkoss/starterpack,
+# pinned by commit. Actions are pinned by commit, with the version as a comment.
 name: CI
 
 on:
   push:
     branches: [main]
-    # A version tag publishes the crates (job `crates`, plan B192); release.yml builds the app from the same tag
-    tags: ["v*"]
   pull_request:
+  # By hand: for a commit of main whose run is gone or was cancelled, before it is released
   workflow_dispatch:
 
 permissions:
   contents: read
 
+# A newer push to a pull request replaces its running checks; on main every commit is checked to the end (a release
+# needs the result of exactly its commit).
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   flakes:
-    name: Flakes and guest scripts
+    name: Flakes, the catalog, generated files
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: cachix/install-nix-action@448cde739abec1eaf0646249e3d25bb8d9bc7702 # v31.11.2
@@ -28,9 +34,18 @@ jobs:
           extra_nix_config: experimental-features = nix-command flakes
       - name: Root flake (QEMU package, guest module) – evaluate all systems
         run: nix flake check --all-systems --no-build
-      # Without recipes (they live in omaflake/recipes, which checks them against this flake): evaluates on its own
+      # Without a catalog: the image flake evaluates on its own
       - name: Image flake – evaluates
         run: nix flake check --all-systems --no-build "path:$PWD/nix"
+      # With the official catalog as it is now: every recipe and module evaluates against this image flake – what broke
+      # a recipe in two releases (plan B202) shows here, before a release
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: omaflake/catalog
+          path: .catalog
+          persist-credentials: false
+      - name: Image flake – evaluates with the official catalog
+        run: nix flake check --all-systems --no-build "path:$PWD/nix" --override-input omaflake-catalog "path:$PWD/.catalog"
       # BrandTokens.swift and crates/omaflake-sdk/src/brand/tokens.rs are generated from brand/tokens.toml (plan B119)
       - name: Design tokens up to date
         run: python3 brand/tokens.py --check
@@ -41,28 +56,69 @@ jobs:
         run: |
           for f in nix/modules/*.py; do python3 -I -c "import ast,sys; ast.parse(open(sys.argv[1]).read())" "$f"; done
           for f in scripts/*.sh; do bash -n "$f"; done
+      # What a release compares with its tag (release.yml's gate): one version everywhere
+      - name: One version – crates, guest agent, Info.plist, changelog
+        run: python3 scripts/release-version.py
 
-  rust:
-    name: Rust core (fmt, clippy, test)
-    if: ${{ !github.event.repository.private || github.event_name == 'workflow_dispatch' }}
-    # The core drives macOS (Keychain, Virtualization through omaf-runner): built and tested on macOS
+  macos:
+    name: macOS (Rust core, Swift app, the app bundle)
+    # The core drives macOS (Keychain, Virtualization through omaf-runner): built and tested on macOS. The macOS 27 SDK
+    # is needed (Package.swift): GitHub's xcode-27 image (preview; macOS 27.0.1, Xcode 27.0 by default)
     runs-on: ${{ vars.MACOS_RUNNER || 'xcode-27' }}
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Toolchain – the macOS 27 SDK is needed (Package.swift)
+        run: |
+          sw_vers
+          xcodebuild -version
+          swift --version
+          sdk=$(xcrun --show-sdk-version)
+          if [ "${sdk%%.*}" -lt 27 ]; then
+            echo "::error::macOS SDK $sdk – omaflake needs the macOS 27 SDK (Xcode 27). Use the xcode-27 image or set the repository variable MACOS_RUNNER to a runner with Xcode 27."
+            exit 1
+          fi
       - name: Rust toolchain from rust-toolchain.toml
         run: rustup toolchain install
       - name: Format
         run: cargo fmt --all --check
-      - name: Clippy
-        run: cargo clippy --all-targets --locked
-      - name: Test
+      - name: Clippy – a warning fails
+        run: cargo clippy --all-targets --locked -- -D warnings
+      - name: Rust tests
         run: cargo test --locked
+      - name: Swift build
+        run: swift build
+      - name: Swift tests
+        # A test that waits forever held a macOS runner for six hours and every release behind it (plan B176); one at a
+        # time: in parallel on the runner's few cores one run in two still hung after the PortWriter fix (its output
+        # comes only at the end, so it does not say which test) – the suite takes a second either way.
+        # OPEN (plan B204): the app's client against the real `omaf serve` (CoreEndToEndTests, with OMAF_BIN) is not
+        # run here yet – its recipe still comes from the flake's `lib.recipeDefaults`, which the core has not read
+        # since recipes come from sources (it fails with 0.8.5 as well); once it installs its recipe from a local
+        # source: `cargo build -p omaflake && OMAF_BIN=$PWD/target/debug/omaf swift test --no-parallel`
+        timeout-minutes: 15
+        run: swift test --no-parallel
+      # The release build, signed ad hoc: what a release without a Developer ID ships as it is (release.yml takes this
+      # artifact of the tagged commit and builds nothing). A tar keeps what an artifact's zip loses – the executable
+      # bits, the symlinks and with them the signature.
+      - name: App bundle (ad hoc)
+        run: |
+          scripts/bundle-app.sh
+          tar -C build -cf build/omaflake-app.tar omaflake.app
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: omaflake-app
+          path: build/omaflake-app.tar
+          # Long enough to release a commit of main some weeks later; after that run CI by hand for it
+          retention-days: ${{ github.event_name == 'pull_request' && 3 || 60 }}
+          if-no-files-found: error
 
   linux:
-    name: Linux host (x86_64 package, Rust tests)
+    name: Linux host (x86_64 package, Rust tests, guest agent, crate packages)
     # The Linux app and omaf as `nix run github:omaflake/omaflake#omaflake-gui` builds them (docs/linux.md); the
     # flakes job only evaluates. GitHub's ubuntu-latest is x86_64 – aarch64-linux is built in the lab VM.
     runs-on: ubuntu-latest
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: cachix/install-nix-action@448cde739abec1eaf0646249e3d25bb8d9bc7702 # v31.11.2
@@ -85,108 +141,38 @@ jobs:
           sudo apt-get install -y -qq libasound2-dev
           cargo clippy --all-targets --locked --manifest-path nix/agent/Cargo.toml
           cargo test --locked --manifest-path nix/agent/Cargo.toml
-
-  swift:
-    name: Build and test (macOS)
-    if: ${{ !github.event.repository.private || github.event_name == 'workflow_dispatch' }}
-    # macOS 27 SDK needed (Package.swift): GitHub's xcode-27 image (preview; macOS 27.0.1, Xcode 27.0 by default)
-    runs-on: ${{ vars.MACOS_RUNNER || 'xcode-27' }}
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - name: Xcode – the image's default; the macOS 27 SDK is needed (Package.swift)
+      # What crates.io will get: every crate packs (its files, its manifest, its dependencies' versions). A release
+      # publishes these without building them again – the sources are the ones built and tested above.
+      - name: Crates pack
         run: |
-          xcodebuild -version
-          sdk=$(xcrun --show-sdk-version)
-          if [ "${sdk%%.*}" -lt 27 ]; then
-            echo "::error::macOS SDK $sdk – omaflake needs the macOS 27 SDK (Xcode 27). Use the xcode-27 image or set the repository variable MACOS_RUNNER to a runner with Xcode 27."
-            exit 1
-          fi
-      - name: Toolchain
-        run: |
-          sw_vers
-          xcodebuild -version
-          swift --version
-      - name: Build
-        run: swift build
-      - name: Test
-        # A test that waits forever held a macOS runner for six hours and every release behind it (plan B176); one at a
-        # time: in parallel on the runner's few cores one run in two still hung after the PortWriter fix (its output
-        # comes only at the end, so it does not say which test) – the suite takes a second either way
-        timeout-minutes: 15
-        run: swift test --no-parallel
-      # The bundle carries the Rust `omaf` (the app's core, `omaf serve`)
-      - name: Rust toolchain from rust-toolchain.toml
-        run: rustup toolchain install
-      - name: App bundle (ad hoc)
-        run: scripts/bundle-app.sh
-      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: omaflake-app-adhoc
-          path: build/omaflake.app
-          retention-days: 7
+          cargo package --locked --no-verify --workspace
+          cargo package --locked --no-verify --manifest-path nix/agent/Cargo.toml
 
   dependencies:
-    name: Dependencies (cargo deny)
+    name: Dependencies (cargo deny, age)
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 2
       - uses: EmbarkStudios/cargo-deny-action@3c6349835b2b7b196a839186cb8b78e02f7b5f25 # v2.1.1
         with:
           command: check
-
-  # Every crate on crates.io, from a version tag once the checks passed (plan B192): Trusted Publishing from this
-  # workflow and the environment `crates-io` (its approval is the maintainer's), in the order they depend on each
-  # other; a version already there is skipped, so a run can be repeated. The tag must be on main and name the version.
-  crates:
-    needs: [linux, dependencies, licences]
-    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
-    runs-on: ubuntu-latest
-    environment: crates-io
-    permissions:
-      contents: read
-      id-token: write
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: The guest agent's dependencies
+        uses: EmbarkStudios/cargo-deny-action@3c6349835b2b7b196a839186cb8b78e02f7b5f25 # v2.1.1
         with:
-          fetch-depth: 0
-      - name: Rust toolchain from rust-toolchain.toml
-        run: rustup toolchain install
-      - name: The tag is on main and names the workspace's version
+          command: check
+          manifest-path: nix/agent/Cargo.toml
+      # Exact versions at least 14 days old (CLAUDE.md, falkOSS starterpack); only where the dependencies changed –
+      # an unchanged lock file has passed before
+      - name: Age of new dependencies
         run: |
-          git merge-base --is-ancestor "$GITHUB_SHA" origin/main \
-            || { echo "::error::$GITHUB_REF_NAME is not on main: release a commit of main"; exit 1; }
-          version=$(cargo metadata --no-deps --format-version 1 | jq -r '.packages[] | select(.name == "omaflake-core") | .version')
-          test "v$version" = "$GITHUB_REF_NAME" \
-            || { echo "::error::the crates are $version, the tag $GITHUB_REF_NAME"; exit 1; }
-          agent=$(cargo metadata --no-deps --format-version 1 --manifest-path nix/agent/Cargo.toml | jq -r '.packages[0].version')
-          test "$agent" = "$version" || { echo "::error::the guest agent is $agent, the crates $version"; exit 1; }
-      # The guest agent links libasound (MIDI through ALSA); its package is built to check it
-      - name: ALSA development files
-        run: |
-          sudo apt-get update -qq
-          sudo apt-get install -y -qq libasound2-dev
-      - uses: rust-lang/crates-io-auth-action@c6f97d42243bad5fab37ca0427f495c86d5b1a18 # v1.0.5
-        id: auth
-      - name: Publish
-        env:
-          CARGO_REGISTRY_TOKEN: ${{ steps.auth.outputs.token }}
-        run: |
-          version="${GITHUB_REF_NAME#v}"
-          there() {
-            curl -fsS -A "omaflake release (https://github.com/omaflake/omaflake)" \
-              "https://crates.io/api/v1/crates/$1/$version" >/dev/null 2>&1
-          }
-          for name in omaflake-macros omaflake-i18n omaflake-sdk omaflake-core omaflake-tui omaflake omaflake-gui; do
-            if there "$name"; then echo "$name $version is on crates.io already"; continue; fi
-            # The Linux app needs a desktop's libraries to compile, which this runner lacks: its package is checked
-            # by the linux job's Nix build and before a release by `cargo package --workspace`
-            verify=""; [ "$name" = omaflake-gui ] && verify=--no-verify
-            cargo publish --locked $verify -p "$name"
-          done
-          if there omaflake-agent; then
-            echo "omaflake-agent $version is on crates.io already"
+          if git diff --quiet HEAD^ HEAD -- Cargo.lock Cargo.toml 'crates/*/Cargo.toml' nix/agent/Cargo.lock nix/agent/Cargo.toml; then
+            echo "No dependency changed"
           else
-            cargo publish --locked --manifest-path nix/agent/Cargo.toml
+            python3 scripts/check-age.py
+            python3 scripts/check-age.py --dir=nix/agent
           fi
 
   licences:

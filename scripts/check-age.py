@@ -3,8 +3,7 @@
 # Lists the crates in Cargo.lock published less than two weeks ago (but for SECURITY_FIXES), from crates.io's API –
 # once a second, as its crawler policy asks. Exit status 1 if there is one. With --fix, each is set back to its newest
 # version old enough (`cargo update -p <crate>@<version> --precise <older>`), and the lock file is checked again. Run
-# it after changing Cargo.lock; CI does not (it needs the network and minutes). Taken over from kernoid; pnpm checks
-# the web app itself (minimumReleaseAge in web/pnpm-workspace.yaml).
+# it after changing Cargo.lock; CI runs it when a push changed the dependencies.
 #   scripts/check-age.py [--fix] [--dir=<workspace>] [days]
 import json
 import subprocess

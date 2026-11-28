@@ -90,7 +90,9 @@ Cargo.toml, crates/        Rust, every crate on crates.io with omaflake's versio
                            omaflake-gui (the Linux app, iced); omaflake-i18n (translations of omaf ui and the Linux app,
                            generated from App/Resources/de.lproj by scripts/translations.py); omaflake-macros
                            (vm_err!: an error's format string is its translation key, plan B125; a crate of its own –
-                           proc-macro). Releasing: a tag v<version> on main runs CI's `crates` job (Trusted Publishing)
+                           proc-macro). Releasing: a tag v<version> on a commit of main that CI passed runs release.yml –
+                           it checks nothing again, publishes the crates (Trusted Publishing) and drafts the release
+                           with the app CI built
 nix/agent/                 the guest agent (its own workspace; on crates.io as omaflake-agent)
 Package.swift              OmaflakeKit (library), omaf-runner, OmaflakeApp, omaflake-camera, omaflake-tools, omaflake-volumes
 Sources/OmaflakeKit/       Core/ + API/: client of `omaf serve` and the API's types; Runner/: agent protocol, macOS VM
@@ -103,7 +105,7 @@ Sources/omaflake-tools/    "omaflake Tools.app", omaflake's app in a macOS guest
 Sources/omaflake-volumes/  for unchained macOS guests: the FSKit module (omaflake-volumes.appex, fs type omaflakefs) that
                            shows volumes under Locations (plan B190; built by scripts/bundle-tools.sh with swiftc)
 App/                       Info.plist, runner entitlements
-scripts/                   bundle-app.sh, bundle-tools.sh (omaflake Tools for macOS guests, into omaflake.app; ad hoc two builds, plan B184), sign-runner.sh, notarize.sh, check-age.py, translations.py, repair-linux-builder.sh, dev-app.sh (the development build with its own data folder ~/.omaflake-dev), miditest.swift (MIDI end to end, plan B161), bootprobe.sh, trim-target.sh (leftovers of interrupted builds)
+scripts/                   bundle-app.sh, release-version.py (one version everywhere; the release's gate), bundle-tools.sh (omaflake Tools for macOS guests, into omaflake.app; ad hoc two builds, plan B184), sign-runner.sh, notarize.sh, check-age.py, translations.py, repair-linux-builder.sh, dev-app.sh (the development build with its own data folder ~/.omaflake-dev), miditest.swift (MIDI end to end, plan B161), bootprobe.sh, trim-target.sh (leftovers of interrupted builds)
 qemu/                      QEMU build with virglrenderer + ANGLE, patches
 nix/modules/vm-guest.nix   guest module (root flake output nixosModules.vm-guest)
 docs/                      spec, plan, cli, api, app, recipes, linux, macos-base, linux-builder, contributing, changelog,

@@ -1,40 +1,172 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
-# Release on a version tag (v0.2.0 …): builds the app, signs it with the Developer ID and notarizes it when the
-# secrets exist, and drafts a GitHub release with the zip and its SHA-256 (plan B67, spec §11.4/§11.8).
-# Secrets (M12): DEVELOPER_ID_P12 (base64), DEVELOPER_ID_P12_PASSWORD, SIGN_IDENTITY ("Developer ID Application: …"),
-# NOTARY_KEY_P8 (base64), NOTARY_KEY_ID, NOTARY_ISSUER_ID. Without them: an unsigned draft, marked as such.
+# A release, from a version tag (v0.8.6 …) on a commit of main (plan B67, B192, spec §11.4/§11.8). It checks nothing
+# that CI has checked: the gate asks whether CI passed for exactly this commit (and waits for a run still going – a
+# tag may be pushed together with its commit), and then
+#   – every crate goes to crates.io as it is (Trusted Publishing; packed in CI, built and tested there),
+#   – the app CI built from this commit becomes the release's zip, with its SHA-256, a build provenance attestation
+#     and the changelog's section as the notes of a draft release.
+# No test, lint or build runs here – with one exception: with a Developer ID (M12) the app is built again, because the
+# identity is part of the build (omaflake Tools is one signed build instead of two ad hoc ones, scripts/bundle-tools.sh).
+# Secrets (M12, in the environment `release`): DEVELOPER_ID_P12 (base64), DEVELOPER_ID_P12_PASSWORD, SIGN_IDENTITY
+# ("Developer ID Application: …"), TEAM_ID, NOTARY_KEY_P8 (base64), NOTARY_KEY_ID, NOTARY_ISSUER_ID. Without them: an
+# unsigned draft, marked as such.
+# Environments: `crates-io` (crates.io's trusted publisher names this workflow, release.yml, and it) and `release`;
+# an approval there is the maintainer's. By hand (workflow_dispatch) only from a tag: repeats what is not done yet.
 name: Release
 
 on:
   push:
-    tags: ['v*']
+    tags: ["v*"]
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
+
+# One release of a tag at a time; a second start waits
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
 
 jobs:
-  release:
+  gate:
+    name: The tag – on main, the code's version, checked by CI
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    permissions:
+      contents: read
+      actions: read
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      run: ${{ steps.ci.outputs.run }}
+    steps:
+      - name: Started from a version tag
+        run: |
+          case "$GITHUB_REF" in
+            refs/tags/v*) ;;
+            *) echo "::error::a release starts from a version tag, not from $GITHUB_REF"; exit 1 ;;
+          esac
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+      - name: The tag is on main
+        run: |
+          git merge-base --is-ancestor "$GITHUB_SHA" origin/main \
+            || { echo "::error::$GITHUB_REF_NAME is not on main: release a commit of main"; exit 1; }
+      - name: The tag names the code's version and has its changelog section
+        id: version
+        run: |
+          version=$(python3 scripts/release-version.py --tag="$GITHUB_REF_NAME" --notes=notes.md)
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: release-notes
+          path: notes.md
+          retention-days: 7
+          if-no-files-found: error
+      # CI's run for this commit (a push to main, or started by hand for it): passed – go on; still running – wait;
+      # failed, cancelled or none – no release. The newest run counts.
+      - name: CI passed for this commit
+        id: ci
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          for _ in $(seq 1 160); do
+            run=$(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/ci.yml/runs?head_sha=$GITHUB_SHA&per_page=50" \
+              --jq '[.workflow_runs[] | select(.event == "push" or .event == "workflow_dispatch")
+                     | select(.head_branch == "main")] | sort_by(.run_started_at) | last
+                    | if . == null then "none" else "\(.id) \(.status) \(.conclusion)" end')
+            read -r id status conclusion <<< "$run"
+            case "$id ${status:-} ${conclusion:-}" in
+              "none  ")
+                echo "No CI run for $GITHUB_SHA yet"; sleep 30 ;;
+              *" completed success")
+                echo "CI run $id passed for $GITHUB_SHA"
+                echo "run=$id" >> "$GITHUB_OUTPUT"
+                exit 0 ;;
+              *" completed "*)
+                echo "::error::CI run $id for $GITHUB_SHA ended as $conclusion: fix main, or run CI again for this commit, then start this release again"
+                exit 1 ;;
+              *)
+                echo "CI run $id is $status"; sleep 30 ;;
+            esac
+          done
+          echo "::error::no finished CI run for $GITHUB_SHA: run CI for this commit of main (Actions → CI → Run workflow), then start this release again"
+          exit 1
+
+  # Every crate on crates.io (plan B192), in the order they depend on each other; a version already there is skipped,
+  # so the job can be repeated. Not built again (--no-verify): CI built, tested and packed exactly these sources.
+  crates:
+    name: Crates on crates.io
+    needs: gate
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment: crates-io
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Rust toolchain from rust-toolchain.toml
+        run: rustup toolchain install
+      - uses: rust-lang/crates-io-auth-action@c6f97d42243bad5fab37ca0427f495c86d5b1a18 # v1.0.5
+        id: auth
+      - name: Publish
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ steps.auth.outputs.token }}
+          VERSION: ${{ needs.gate.outputs.version }}
+        run: |
+          there() {
+            curl -fsS -A "omaflake release (https://github.com/omaflake/omaflake)" \
+              "https://crates.io/api/v1/crates/$1/$VERSION" >/dev/null 2>&1
+          }
+          for name in omaflake-macros omaflake-i18n omaflake-sdk omaflake-core omaflake-tui omaflake omaflake-gui; do
+            if there "$name"; then echo "$name $VERSION is on crates.io already"; continue; fi
+            cargo publish --locked --no-verify -p "$name"
+          done
+          if there omaflake-agent; then
+            echo "omaflake-agent $VERSION is on crates.io already"
+          else
+            cargo publish --locked --no-verify --manifest-path nix/agent/Cargo.toml
+          fi
+
+  app:
+    name: The app – a draft release
+    needs: gate
     runs-on: ${{ vars.MACOS_RUNNER || 'xcode-27' }}
+    timeout-minutes: 90
+    environment: release
+    permissions:
+      contents: write        # the draft release
+      actions: read          # CI's artifact
+      id-token: write        # the attestation's signature
+      attestations: write
     env:
       HAS_CERT: ${{ secrets.DEVELOPER_ID_P12 != '' }}
       HAS_NOTARY: ${{ secrets.NOTARY_KEY_P8 != '' }}
+      VERSION: ${{ needs.gate.outputs.version }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - name: Xcode – the image's default; the macOS 27 SDK is needed (Package.swift)
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: release-notes
+          path: build
+
+      # Without a Developer ID: the app CI built from this commit, as it is
+      - name: The app CI built
+        if: ${{ env.HAS_CERT != 'true' }}
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: omaflake-app
+          path: build
+          run-id: ${{ needs.gate.outputs.run }}
+          github-token: ${{ github.token }}
+      - name: Unpack it
+        if: ${{ env.HAS_CERT != 'true' }}
         run: |
-          xcodebuild -version
-          sdk=$(xcrun --show-sdk-version)
-          if [ "${sdk%%.*}" -lt 27 ]; then
-            echo "::error::macOS SDK $sdk – omaflake needs the macOS 27 SDK (Xcode 27). Use the xcode-27 image or set the repository variable MACOS_RUNNER to a runner with Xcode 27."
-            exit 1
-          fi
-      - name: Version from the tag matches Info.plist
-        if: startsWith(github.ref, 'refs/tags/v')
-        run: |
-          want="${GITHUB_REF_NAME#v}"
-          have=$(plutil -extract CFBundleShortVersionString raw App/Info.plist)
-          [ "$want" = "$have" ] || { echo "Tag $GITHUB_REF_NAME but Info.plist says $have"; exit 1; }
+          tar -C build -xf build/omaflake-app.tar
+          rm build/omaflake-app.tar
+
+      # With a Developer ID (M12; untested until the account exists): built with the identity
       - name: Developer ID certificate into a temporary keychain
         if: ${{ env.HAS_CERT == 'true' }}
         env:
@@ -49,13 +181,22 @@ jobs:
           security import "$RUNNER_TEMP/id.p12" -k "$kc" -P "$P12_PASSWORD" -T /usr/bin/codesign
           security set-key-partition-list -S apple-tool:,apple: -s -k "$pw" "$kc"
           security list-keychains -d user -s "$kc"
-      # The bundle carries the Rust `omaf` (scripts/bundle-app.sh: cargo build --release -p omaf)
       - name: Rust toolchain from rust-toolchain.toml
+        if: ${{ env.HAS_CERT == 'true' }}
         run: rustup toolchain install
       - name: Build and sign
+        if: ${{ env.HAS_CERT == 'true' }}
         env:
           SIGN_IDENTITY: ${{ secrets.SIGN_IDENTITY }}
+          TEAM_ID: ${{ secrets.TEAM_ID }}
         run: scripts/bundle-app.sh
+
+      - name: The bundle is this version's, and whole
+        run: |
+          have=$(plutil -extract CFBundleShortVersionString raw build/omaflake.app/Contents/Info.plist)
+          [ "$have" = "$VERSION" ] || { echo "::error::the app is $have, the release $VERSION"; exit 1; }
+          codesign --verify --strict build/omaflake.app
+          build/omaflake.app/Contents/MacOS/omaf --version
       - name: Notarize
         if: ${{ env.HAS_NOTARY == 'true' }}
         env:
@@ -68,20 +209,29 @@ jobs:
       - name: Zip (unsigned builds)
         if: ${{ env.HAS_NOTARY != 'true' }}
         run: |
-          v=$(plutil -extract CFBundleShortVersionString raw build/omaflake.app/Contents/Info.plist)
-          ditto -c -k --keepParent build/omaflake.app "build/omaflake-$v-unsigned.zip"
-          (cd build && shasum -a 256 "omaflake-$v-unsigned.zip" > "omaflake-$v-unsigned.zip.sha256")
+          ditto -c -k --keepParent build/omaflake.app "build/omaflake-$VERSION-unsigned.zip"
+          (cd build && shasum -a 256 "omaflake-$VERSION-unsigned.zip" > "omaflake-$VERSION-unsigned.zip.sha256")
       - name: Update feed (spec §11.6) – published on the website once the release is out
         run: |
-          zip=$(find build -maxdepth 1 -name 'omaflake-*.zip' | head -1); v=$(plutil -extract CFBundleShortVersionString raw build/omaflake.app/Contents/Info.plist)
+          zip=$(find build -maxdepth 1 -name 'omaflake-*.zip' | head -1)
           sum=$(cut -d' ' -f1 "$zip.sha256")
           url="https://github.com/${GITHUB_REPOSITORY}/releases/download/${GITHUB_REF_NAME}/$(basename "$zip")"
           page="https://github.com/${GITHUB_REPOSITORY}/releases/tag/${GITHUB_REF_NAME}"
-          printf '{"version":"%s","url":"%s","sha256":"%s","notes":null,"page":"%s"}\n' "$v" "$url" "$sum" "$page" > build/update.json
-      - name: Draft release
+          printf '{"version":"%s","url":"%s","sha256":"%s","notes":null,"page":"%s"}\n' "$VERSION" "$url" "$sum" "$page" > build/update.json
+      # Who built the zip, from which commit, in which workflow: `gh attestation verify <zip> --repo omaflake/omaflake`
+      - uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-path: build/omaflake-*.zip
+      - name: Draft release, with the changelog's section as its notes
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          tag="${GITHUB_REF_NAME}"
-          gh release create "$tag" build/omaflake-*.zip build/omaflake-*.zip.sha256 build/update.json --draft --title "omaflake $tag" \
-            --notes "Draft – check the files, then publish. $( [ -f build/.notarized-upload.zip ] || echo 'UNSIGNED build: for testing only.')"
+          if [ ! -f build/.notarized-upload.zip ]; then
+            printf '\n\n> UNSIGNED build: macOS asks before it opens it. Check it with its .sha256 file and "gh attestation verify".\n' >> build/notes.md
+          fi
+          if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
+            gh release upload "$GITHUB_REF_NAME" build/omaflake-*.zip build/omaflake-*.zip.sha256 build/update.json --clobber
+          else
+            gh release create "$GITHUB_REF_NAME" build/omaflake-*.zip build/omaflake-*.zip.sha256 build/update.json \
+              --draft --verify-tag --title "omaflake $GITHUB_REF_NAME" --notes-file build/notes.md
+          fi

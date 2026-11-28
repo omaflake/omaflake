@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 # Builds omaflake's QEMU (virglrenderer, libepoxy, ANGLE from nixpkgs) and fills the binary cache, so users do not
-# compile it (spec §11.8, plan B67). By hand, on version tags, and weekly (nixpkgs moves).
+# compile it (spec §11.8, plan B67). By hand, when the package changes on main, and weekly (nixpkgs moves) – not on a
+# version tag: a release builds nothing (release.yml).
 # Cache: Cachix (secret CACHIX_AUTH_TOKEN, variable CACHIX_CACHE) or an S3-compatible bucket (secrets NIX_SIGNING_KEY,
 # AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY; variable NIX_S3_CACHE, e.g. s3://omaflake-cache?endpoint=…&region=auto).
 # Without them the job only builds.
@@ -9,7 +10,8 @@ name: QEMU package
 on:
   workflow_dispatch:
   push:
-    tags: ['v*']
+    branches: [main]
+    paths: ["qemu/**", "flake.nix", "flake.lock", ".github/workflows/qemu.yml"]
   schedule:
     - cron: '17 3 * * 1'
 
@@ -18,7 +20,6 @@ permissions:
 
 jobs:
   qemu:
-    if: ${{ !github.event.repository.private || github.event_name == 'workflow_dispatch' }}
     runs-on: macos-latest
     timeout-minutes: 120
     steps:
@@ -40,7 +41,8 @@ jobs:
           AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           NIX_SIGNING_KEY: ${{ secrets.NIX_SIGNING_KEY }}
+          NIX_S3_CACHE: ${{ vars.NIX_S3_CACHE }}
         run: |
           printf '%s' "$NIX_SIGNING_KEY" > "$RUNNER_TEMP/cache-key"
           nix store sign --key-file "$RUNNER_TEMP/cache-key" --recursive ./result-qemu
-          nix copy --to "${{ vars.NIX_S3_CACHE }}" ./result-qemu
+          nix copy --to "$NIX_S3_CACHE" ./result-qemu
