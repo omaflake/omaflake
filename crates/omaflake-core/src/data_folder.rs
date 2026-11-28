@@ -163,6 +163,41 @@ mod tests {
         assert_eq!(s.qemu.as_deref(), Some(&*new.root.join("qemu/current/bin/qemu-system-aarch64").to_string_lossy()));
     }
 
+    /// Plan B201: every entry omaflake makes in the data folder moves – its SSH key, the parts, the volumes, the
+    /// Linux builder's folder and the volumes' folder for the Finder (B200) with its link
+    #[test]
+    fn every_own_entry_moves() {
+        let (_t, tp) = temp_paths();
+        let tmp = tp.root.clone();
+        let old = Paths::new(tmp.join("a"), None);
+        let files = [
+            "ssh/id_ed25519",
+            "volumes.json",
+            "networks.json",
+            "finder-volumes.json",
+            "modules/omaflake/macos/xcode/module.toml",
+            "keymaps/omaflake/default/keymap.toml",
+            "looks/omaflake/omaflake/look.toml",
+            "builder/disk.img",
+            "volumes.localized/.omaflake-volumes",
+            "share/music/song.mp3",
+        ];
+        for f in files {
+            let path = old.root.join(f);
+            fs::create_dir_all(path.parent().unwrap()).unwrap();
+            fs::write(path, f).unwrap();
+        }
+        std::os::unix::fs::symlink("volumes.localized", old.root.join("volumes")).unwrap();
+        let target = tmp.join("b");
+        let new = DataFolder::move_to(&old, &target, &tmp.join("home/config.json"), &|_| {}).unwrap();
+        for f in files {
+            assert_eq!(fs::read_to_string(new.root.join(f)).unwrap(), f, "{f} moved");
+            assert!(!old.root.join(f).exists(), "{f} left behind");
+        }
+        // The relative link still leads to the moved folder
+        assert!(new.root.join("volumes/.omaflake-volumes").exists());
+    }
+
     #[test]
     fn refuses_clashes_and_nesting() {
         let (_t, tp) = temp_paths();
