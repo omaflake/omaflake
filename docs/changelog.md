@@ -15,10 +15,13 @@ are collected under *Unreleased*. Releases: [GitHub](https://github.com/omaflake
 
 ## [0.8.5] – 2026-11-28
 
-A fix: the catalog's macOS recipe `xcode` builds again.
+Fixes: the catalog's macOS recipe `xcode` builds again, also with `omaf build` while the app is closed.
 
 ### Fixed
 
+- **`omaf build` adds the files a recipe needs also without the app** – with no omaflake service running, the command
+  builds by itself and did not look for Xcode in your Downloads folder; it does now, and stops at once when a file is
+  nowhere.
 - **The macOS recipe `xcode` builds** – 0.8.3 and 0.8.4 refused it ("module.toml needs $schema = …/module/v2.json"):
   the Nix side of omaflake did not know the new module format the recipe's Xcode module uses.
 

@@ -1478,33 +1478,7 @@ impl Server {
         // Files its modules need (plan B198), looked at now (the recipe list may be older than the Nix Store): one that
         // is neither in the Nix Store nor found on this computer stops the build here and says what to do; those found
         // are added at the job's start
-        let mut add_files = Vec::new();
-        for (module, f) in self.needed_files_of(parts) {
-            if f.present() {
-                continue;
-            }
-            match f.find() {
-                Some(path) => add_files.push((f, path)),
-                None => {
-                    // "omaflake.macos.xcode" → "omaflake/xcode", as `omaf files add` takes it
-                    let mut words = module.split('.');
-                    let reference = match (words.next(), words.next_back()) {
-                        (Some(author), Some(name)) => format!("{author}/{name}"),
-                        _ => module.clone(),
-                    };
-                    return Err(RpcError::from(vm_err!(
-                        codes::PREREQUISITE,
-                        "{} needs {} ({}), which is not on this computer yet – download it{}, then build again: it is found in {}, or choose it on the build page (omaf files add {} <file>)",
-                        RecipeId::qualified(&p.recipe),
-                        f.title(),
-                        module,
-                        f.url.as_deref().map(|u| format!(" ({u})")).unwrap_or_default(),
-                        f.search.join(", "),
-                        reference
-                    )));
-                }
-            }
-        }
+        let add_files = crate::needed_files::to_add(&self.paths(), &p.recipe).map_err(err)?;
         let kind = d.kind;
         let paths = self.paths();
         // The look: the one chosen, else the recipe's when it is here, else the default (plan B142)
@@ -1594,24 +1568,6 @@ impl Server {
         Ok(Answer::Job(job))
     }
 
-    /// The files the modules of a recipe need (plan B198): (module id, file) of each module here
-    fn needed_files_of(
-        &self,
-        parts: Option<&omaflake_sdk::types::RecipePartsDto>,
-    ) -> Vec<(String, crate::needed_files::NeededFile)> {
-        let Some(parts) = parts.filter(|x| !x.files.is_empty()) else { return Vec::new() };
-        let paths = self.paths();
-        let modules = crate::modules::ModuleStore::new(paths.clone()).list(&Settings::load(&paths));
-        parts
-            .files
-            .iter()
-            .filter_map(|n| {
-                let m = modules.iter().find(|m| m.id == n.module)?;
-                Some((m.id.clone(), m.files.iter().find(|f| f.name == n.name)?.clone()))
-            })
-            .collect()
-    }
-
     /// Adds a file a module needs to the Nix Store, in a job (plan B198)
     fn add_needed_file(
         &self,
@@ -1619,13 +1575,8 @@ impl Server {
         f: &crate::needed_files::NeededFile,
         path: &std::path::Path,
     ) -> crate::Result<String> {
-        let paths = self.paths();
-        let nix = crate::prerequisites::Prerequisites::locate_nix(&Settings::load(&paths))
-            .ok_or_else(|| vm_err!(codes::PREREQUISITE, "Nix is not installed – see the Doctor"))?;
-        ctx.log(&format!("{} from {}", f.title(), path.display()));
-        let work = paths.cache().join("files").join(&f.name);
         let log = ctx.log_sink();
-        let landed = f.add(path, &nix, &work, ctx.cancellation(), &|l: &str| log(l))?;
+        let landed = crate::needed_files::add_from(&self.paths(), f, path, ctx.cancellation(), &|l: &str| log(l))?;
         self.reload_recipes_later();
         Ok(landed)
     }

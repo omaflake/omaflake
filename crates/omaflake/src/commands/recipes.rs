@@ -217,6 +217,9 @@ pub fn build(a: &cli::Build) -> Outcome {
         ))
         .into());
     }
+    // Files its modules need (plan B198): one found nowhere stops here, before anything is asked; those found are added
+    // below when this command builds itself – in the core service its job does it (plan B203)
+    let add_files = omaflake_core::needed_files::to_add(&env.paths, &recipe)?;
     // Routine lines of the disk image tool are left out (BuildLog::is_noise, plan B83); --verbose shows everything
     let verbose = a.verbose;
     let log = move |line: &str| {
@@ -297,6 +300,9 @@ pub fn build(a: &cli::Build) -> Outcome {
             token.cancel();
         })?
     };
+    for (f, path) in &add_files {
+        omaflake_core::needed_files::add_from(&env.paths, f, path, &token, &log)?;
+    }
     let built = match mac {
         Some((builder, base, user, password)) => builder.build(
             &BuildRequest {

@@ -221,6 +221,71 @@ impl NeededFile {
     }
 }
 
+/// The files the modules of a recipe need (module id, file) – of the modules here in versions the recipe allows
+pub fn of_recipe(paths: &crate::paths::Paths, recipe: &str) -> Vec<(String, NeededFile)> {
+    let settings = crate::paths::Settings::load(paths);
+    let Some(folder) = crate::recipe_sources::RecipeLibrary::new(paths.clone())
+        .available(&settings)
+        .into_iter()
+        .find(|x| x.id == recipe)
+        .map(|x| x.folder)
+    else {
+        return Vec::new();
+    };
+    let Ok(spec) = crate::composition::RecipeSpec::read(&folder) else { return Vec::new() };
+    let store = crate::modules::ModuleStore::new(paths.clone());
+    let modules = store.list(&settings);
+    let keymaps = crate::keymaps::KeymapStore::new(paths.clone()).list(&settings);
+    let c = crate::composition::Composition::of(&spec, &modules, &keymaps, &store.capabilities(&settings));
+    c.modules.iter().flat_map(|m| m.files.iter().map(|f| (m.id.clone(), f.clone()))).collect()
+}
+
+/// What a build of `recipe` has to add first (plan B198, B203): each file not in the Nix Store with where it was
+/// found; one found nowhere is the error, with what to do. Both ways of building ask this – the core service's
+/// `images.build` and `omaf build` without the service.
+pub fn to_add(paths: &crate::paths::Paths, recipe: &str) -> Result<Vec<(NeededFile, PathBuf)>> {
+    let mut add = Vec::new();
+    for (module, f) in of_recipe(paths, recipe) {
+        if f.present() {
+            continue;
+        }
+        let Some(path) = f.find() else {
+            // "omaflake.macos.xcode" → "omaflake/xcode", as `omaf files add` takes it
+            let mut words = module.split('.');
+            let reference = match (words.next(), words.next_back()) {
+                (Some(author), Some(name)) => format!("{author}/{name}"),
+                _ => module.clone(),
+            };
+            return Err(vm_err!(
+                codes::PREREQUISITE,
+                "{} needs {} ({}), which is not on this computer yet – download it{}, then build again: it is found in {}, or choose it on the build page (omaf files add {} <file>)",
+                crate::models::RecipeId::qualified(recipe),
+                f.title(),
+                module,
+                f.url.as_deref().map(|u| format!(" ({u})")).unwrap_or_default(),
+                f.search.join(", "),
+                reference
+            ));
+        };
+        add.push((f, path));
+    }
+    Ok(add)
+}
+
+/// Adds `f` from `path` to the Nix Store with this computer's Nix (`NeededFile::add` in `<data>/cache/files/`)
+pub fn add_from(
+    paths: &crate::paths::Paths,
+    f: &NeededFile,
+    path: &Path,
+    cancel: &Cancellation,
+    log: &dyn Fn(&str),
+) -> Result<String> {
+    let nix = crate::prerequisites::Prerequisites::locate_nix(&crate::paths::Settings::load(paths))
+        .ok_or_else(|| vm_err!(codes::PREREQUISITE, "Nix is not installed – see the Doctor"))?;
+    log(&format!("{} from {}", f.title(), path.display()));
+    f.add(path, &nix, &paths.cache().join("files").join(&f.name), cancel, log)
+}
+
 /// The 32 bytes of an SRI sha256 hash ("sha256-<base64>")
 fn sha256_of_sri(sri: &str) -> Option<[u8; 32]> {
     let bytes = crate::encoding::from_base64(sri.strip_prefix("sha256-")?)?;

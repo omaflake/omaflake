@@ -489,7 +489,10 @@ Lume (trycua) only after a license review (OPEN).
 ## 8. Next steps (as of 2026-11-27)
 
 **Release 0.8.5 (2026-11-28):** B202 – the image flake takes module/v3, so the catalog's `xcode` builds (0.8.3 and
-0.8.4 refused it). Checked before the tag with `nix flake check` with the catalog, as CLAUDE.md asks.
+0.8.4 refused it) – and B203 – `omaf build` without the service adds the needed files too. Checked before the tag with
+`nix flake check` with the catalog, as CLAUDE.md asks, and end to end: the `xcode` image built with the 0.8.5 bundle
+from the official catalog, Xcode taken from Downloads, a VM of it with Xcode working; B200's place and name changed
+with `omaf config` and followed by the installed 0.8.4; B201 by a test with every entry. Found and left OPEN: B204.
 
 **Release 0.8.4 (2026-11-28):** B199 (a removed volume stays removed), B200 (the volumes in the Mac's Finder, stage 1:
 `<data>/volumes.localized`, "omaflake Platten" in the sidebar, place and name in the settings) and B201 (moving the
@@ -741,6 +744,22 @@ the catalog (CLAUDE.md asks for both); the evaluation with the catalog had been 
 *Fixed:* the flake takes v2 and v3 (`moduleSchemas`); `nix flake check` with the catalog and an evaluation of
 `darwinConfigurations."omaflake.macos.xcode"` pass. Releases from now on run the check with `--override-input
 omaflake-catalog` as CLAUDE.md says.
+
+**B203 (2026-11-28, found by the end-to-end check before 0.8.5): `omaf build` without the service skipped the needed
+files.** With no core service running, `omaf build` builds in its own process – a second way B198 missed: it never
+looked for Xcode in Downloads, and Nix stopped with its own requireFile message. *Fixed:* `needed_files::to_add` (what
+to add, or the error for a file found nowhere) and `add_from` in the core, used by `images.build` and by `omaf build`
+(checked at its start, before anything is asked; added before it builds by itself). *Checked end to end (2026-11-28,
+a data folder of its own, the 0.8.5 bundle, the official catalog's `xcode` 1.1.0):* Xcode taken out of the Nix Store
+with the five system builds that held it, `omaf files` found `~/Downloads/Xcode_27.2.xip`; without a service the
+build unpacked and added it, built the image, and a VM of it had Xcode 27.2 in Applications (`root:wheel`), in the
+Dock, the licence accepted and `swift run` of a SwiftUI package working.
+
+**B204 (2026-11-28, seen in the same check; OPEN): a silent wait for the Keychain.** A newly built omaf (ad hoc, a new
+signature) reading a credential's password makes macOS ask in a dialog whether it may; until someone answers, `omaf
+build` prints nothing and looks hung (seen: 15 minutes, `sample` in `SecItemCopyMatching`). With the Developer ID the
+question goes away (a stable signature). Until then: say "waiting for the Keychain – answer macOS's question" before
+the read (OPEN: where the service does it, the app could show it too).
 
 **B192 (2026-11-27, done with 0.8.1): omaflake's crates on crates.io.** The maintainer: falkOSS's other projects
 (kernoid, aktujo, verkodo) have their crates on crates.io, omaflake was the odd one out. *Decided:* every crate is
