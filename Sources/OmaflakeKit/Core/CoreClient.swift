@@ -143,10 +143,14 @@ public final class CoreClient: @unchecked Sendable {
             return
         }
         do {
-            let result: InitializeResult = try await request("initialize", initialize, generation: gen)
-            guard result.apiVersion == Self.apiVersion else {
-                throw APIError(message: "omaflake's core speaks API \(result.apiVersion), this app \(Self.apiVersion)")
+            let hello: Handshake = try await request("initialize", initialize, generation: gen)
+            guard hello.apiVersion == Self.apiVersion else {
+                // A running service of another omaf: it is asked to make way first, and this client connects again
+                // once it has ended (`failed`). The connection stays open until then – that is how its end is seen.
+                if await askToMakeWay(hello.core, socket: conn.socket, generation: gen) { return }
+                throw APIError(message: "omaflake's core speaks API \(hello.apiVersion), this app \(Self.apiVersion)")
             }
+            let result = try hello.result.get()
             let _: Ignored = try await request("events.subscribe", ["topics": topics], generation: gen)
             let waiters = lock.withLock { () -> [CheckedContinuation<Void, Error>]? in
                 guard generation == gen, phase == .connecting else { return nil }
@@ -234,6 +238,41 @@ public final class CoreClient: @unchecked Sendable {
                     FileHandle.standardError.write(Data("omaflake: service.restart failed: \(error.localizedDescription)\n".utf8))
                 }
             }
+        }
+    }
+
+    /// A service that speaks another API version (an older or newer omaf's): nothing but `service.restart` is asked
+    /// of it. True when it was asked and will end – this client is not ready meanwhile, requests wait. False when
+    /// that is not possible: a private server, no core of this client's own, the same core, one that was asked
+    /// before and came back, or one that refuses – the caller then fails with the version mismatch.
+    private func askToMakeWay(_ core: CoreIdentity?, socket: String?, generation gen: Int) async -> Bool {
+        guard let ownCore, let socket else { return false }
+        let ask = lock.withLock { () -> Bool in
+            guard generation == gen else { return false }
+            handover = nil
+            guard !ownCore.isSame(as: core), !ended.contains(core) else { return false }
+            handover = (core, socket)
+            return true
+        }
+        guard ask else { return false }
+        /// Read leniently: another API version may answer in another shape
+        struct Restart: Decodable {
+            let jobs: Int?
+            init(from decoder: Decoder) throws {
+                jobs = try? decoder.container(keyedBy: CodingKeys.self).decodeIfPresent(Int.self, forKey: .jobs)
+            }
+            enum CodingKeys: String, CodingKey { case jobs }
+        }
+        do {
+            let r: Restart? = try await request("service.restart", Optional<[String: String]>.none, generation: gen)
+            eventSink.yield(.coreHandover(.waiting(jobs: r?.jobs ?? 0)))
+            return true
+        } catch {
+            lock.withLock {
+                if handover?.socket == socket, generation == gen { handover = nil }
+            }
+            FileHandle.standardError.write(Data("omaflake: service.restart failed: \(error.localizedDescription)\n".utf8))
+            return false
         }
     }
 
@@ -508,6 +547,22 @@ private struct Request<P: Encodable>: Encodable {
         try c.encode(id, forKey: .id)
         try c.encode(method, forKey: .method)
         try c.encodeIfPresent(params, forKey: .params)
+    }
+}
+
+/// `initialize`'s answer, read in two steps: the API version and the core first – a server that speaks another version
+/// may answer in a shape `InitializeResult` does not take, and must still be recognized as such
+private struct Handshake: Decodable {
+    let apiVersion: Int
+    let core: CoreIdentity?
+    let result: Result<InitializeResult, Error>
+
+    enum CodingKeys: String, CodingKey { case apiVersion, core }
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        apiVersion = try c.decode(Int.self, forKey: .apiVersion)
+        core = (try? c.decodeIfPresent(CoreIdentity.self, forKey: .core)) ?? nil
+        result = Result { try InitializeResult(from: decoder) }
     }
 }
 

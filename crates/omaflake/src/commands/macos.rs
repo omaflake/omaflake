@@ -5,12 +5,11 @@ use std::io::Write;
 use std::path::Path;
 
 use omaflake_core::MacBaseInstaller;
-use omaflake_core::api::service::socket_path;
 use omaflake_core::credentials::Credentials;
 use omaflake_core::mac_base_installer::{BaseOutcome, BaseRequest};
 use omaflake_core::mac_base_unchain::UnchainRequest;
-use omaflake_core::{Error, Paths};
-use serde_json::{Value, json};
+use omaflake_sdk::types::BaseResult;
+use serde_json::json;
 
 use crate::cli;
 use crate::commands::service;
@@ -40,58 +39,36 @@ pub fn install(a: &cli::MacInstall) -> Outcome {
                 format!("No macOS base {name} in {}", env.paths.bases().display()),
             ));
         };
-        if in_use_by_service(&env.paths, name) {
-            return Err(Error::new(format!(
-                "{name} is in use – an image build works with it; try again when it is done"
-            ))
-            .into());
-        }
         request.replace = Some(old.path);
     }
     if let Some(base) = installer.existing_base(&request) {
         println!("{} exists already – nothing to do (delete {} to start over).", last_component(&base), base.display());
         return Ok(());
     }
-    if !a.no_first_boot {
-        request.password = Some(login.password.clone());
-    }
     println!("Guest user {user} from the credential {}.", login.credential.name);
-    let outcome = installer.install(&request, &|_| {}, &|_, _| {}, &|line: &str| {
-        println!("{line}");
-        let _ = std::io::stdout().flush();
-    })?;
-    // The base it replaces goes once the new one is ready (plan B166) – not while the service builds with it
-    let outcome = match (&request.replace, outcome) {
-        (Some(old), BaseOutcome::Created { dir, ready: true })
-            if !in_use_by_service(&env.paths, &last_component(old)) =>
-        {
-            let dir = installer.supersede(old, &dir, &|line: &str| println!("{line}"))?;
-            BaseOutcome::Created { dir, ready: true }
-        }
-        (Some(old), outcome @ BaseOutcome::Created { ready: true, .. }) => {
-            println!(
-                "{} is kept – an image build uses it; omaf macos remove {} when that is done",
-                last_component(old),
-                last_component(old)
-            );
-            outcome
-        }
-        (_, outcome) => outcome,
-    };
+    // A job of the core service (the app sees it, and no image build takes the base it replaces meanwhile – plan
+    // B166): its log on stdout, Ctrl-C cancels it
+    let mut params = json!({
+        "credential": login.credential.id,
+        "cpus": a.cpus,
+        "memoryGb": a.memory,
+        "diskGb": a.disk,
+        "window": a.window,
+        "noFirstBoot": a.no_first_boot,
+    });
+    if let Some(ipsw) = &request.ipsw {
+        params["ipsw"] = json!(ipsw);
+    }
+    if let Some(name) = &a.replace {
+        params["replace"] = json!(name);
+    }
+    let job = service::rpc_job("macos.installBase", params, &mut service::to_stdout)?;
+    let result: BaseResult = service::finished_as(job, "Creating the macOS base")?;
+    let dir = std::path::PathBuf::from(result.base);
+    let outcome =
+        if result.existing { BaseOutcome::Existing(dir) } else { BaseOutcome::Created { dir, ready: result.ready } };
     println!("{}", outcome_text(&outcome, &user));
     Ok(())
-}
-
-/// The running service has a job that uses base `name` (`bases.list`'s `inUse`); false without a service
-fn in_use_by_service(paths: &Paths, name: &str) -> bool {
-    let Some((client, _)) = service::connect(&socket_path(paths)) else { return false };
-    client
-        .call("bases.list", Value::Null)
-        .ok()
-        .and_then(|v| v.as_array().cloned())
-        .unwrap_or_default()
-        .iter()
-        .any(|b| b["name"] == json!(name) && b["inUse"] == json!(true))
 }
 
 /// `omaf macos bases`: every base, newest first (plan B166)
@@ -134,21 +111,16 @@ pub fn bases() -> Outcome {
     Ok(())
 }
 
-/// `omaf macos remove <base>`: through the service when it runs (it knows which builds use a base), else here
+/// `omaf macos remove <base>`: by the core service – it knows which builds use a base
 pub fn remove(a: &cli::MacRemove) -> Outcome {
     let env = Env::new();
-    if let Some((client, _)) = service::connect(&socket_path(&env.paths)) {
-        client.call("macos.removeBase", json!({"name": a.base})).map_err(Error::from)?;
-        println!("Removed {}", a.base);
-        return Ok(());
-    }
-    let Some(base) = MacBaseInstaller::list(&env.paths).into_iter().find(|b| b.name == a.base) else {
+    if !MacBaseInstaller::list(&env.paths).iter().any(|b| b.name == a.base) {
         return Err(usage(
             &["macos", "remove"],
             format!("No macOS base {} in {}", a.base, env.paths.bases().display()),
         ));
-    };
-    omaflake_core::trash::Disposal::delete(&[&base.path])?;
+    }
+    service::rpc("macos.removeBase", json!({"name": a.base}))?;
     println!("Removed {} – macOS images and VMs made from it stay", a.base);
     Ok(())
 }
@@ -210,10 +182,15 @@ pub fn assign(a: &cli::MacAssign) -> Outcome {
             format!("No macOS base {} in {}", a.base, env.paths.bases().display()),
         ));
     };
-    let record = Credentials::new(env.paths.clone()).assign_to_base(&base.path, &a.credential)?;
+    service::rpc("bases.assign", json!({"name": base.name, "credential": a.credential}))?;
+    let credential = MacBaseInstaller::list(&env.paths)
+        .into_iter()
+        .find(|b| b.name == a.base)
+        .and_then(|b| b.record)
+        .map_or_else(|| a.credential.clone(), |r| r.credential_name);
     println!(
-        "{} uses the credential {} – macOS images are built with its password now (a wrong one shows at the next build).",
-        a.base, record.credential_name
+        "{} uses the credential {credential} – macOS images are built with its password now (a wrong one shows at the next build).",
+        a.base
     );
     Ok(())
 }

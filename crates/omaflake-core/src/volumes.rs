@@ -90,6 +90,8 @@ impl Volumes {
 
     fn write(&self, f: &VolumesFile) -> Result<()> {
         std::fs::create_dir_all(&self.paths.root).with_path(&self.paths.root)?;
+        // `read` gave no volumes for a file it could not read: writing would forget every volume's own folder
+        Self::FILE_FORMAT.check_intact(&self.file())?;
         write_atomic(&self.file(), &Self::FILE_FORMAT.encode(f)?)
     }
 

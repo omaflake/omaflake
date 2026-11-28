@@ -696,6 +696,16 @@ impl ImageStore {
     /// every start). If it was the recipe's current image, `current/` moves to the next newest image of that recipe.
     pub fn remove(&self, name: &str, instances: &InstanceStore) -> Result<()> {
         let image = self.image(name)?;
+        // A VM whose file cannot be read (damaged, or a newer omaflake's) may be built on this image: not known, so
+        // nothing is deleted under it
+        let unknown: Vec<String> = instances.unreadable().into_iter().map(|u| u.name).collect();
+        if !unknown.is_empty() {
+            return Err(vm_err!(
+                codes::IN_USE,
+                "{name} may be used by {}, which cannot be read – repair or remove them first",
+                unknown.join(", ")
+            ));
+        }
         let mut users: Vec<String> = instances.list().into_iter().filter(|c| c.image == name).map(|c| c.name).collect();
         users.sort();
         if !users.is_empty() {

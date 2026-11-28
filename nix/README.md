@@ -90,7 +90,7 @@ the folder as a `path:` flake when it has no `.git` of its own – this folder i
 
 | | |
 |---|---|
-| `flake.nix` | outputs `images.<system>.<id>`, `lib.recipeDefaults`, `nixosConfigurations.vm-<system>-<id>`, `linuxBuilders.aarch64-darwin`, `darwinConfigurations.{linux-builder,linux-builder-bootstrap,<id>}` |
+| `flake.nix` | outputs `images.<system>.<id>`, `lib.recipeDefaults`, `nixosConfigurations.vm-<system>-<id>`, `linuxBuilders.aarch64-darwin`, `darwinConfigurations.{linux-builder,linux-builder-bootstrap,<id>}`, `checks.<system>.data` |
 | `guest/`, `no-catalog/` | the two inputs' defaults (above) |
 | `modules/vm-guest.nix` | guest hardware for omaflake: UEFI, virtio, labels, volumes (one 9p device each at `/Volumes/<name>`, `omaflake-volumes.service`; option `vm.shareFolder.enable`), the omaflake agent (also root output `nixosModules.vm-guest`) |
 | `modules/base.nix` | NixOS platform: user (zsh as login shell), locale and keyboards, SSH, Nix |
@@ -99,6 +99,7 @@ the folder as a `path:` flake when it has no `.git` of its own – this folder i
 | `modules/look.nix` | the look (`omaflake.look`, below): its files under `/etc/omaflake/look/`, `omaflake.lookColors`, `lookMacos`, `lookParts` for modules – NixOS and macOS guests |
 | `looks/` | `adapter.nix` turns a look's data (look.toml, schema look/v1) into each program's part |
 | `lib/keys.nix` | the key notations (above) |
+| `lib/validate.nix`, `lib/validate-tests.nix` | what is checked of looks, key binding sets and keys (below), and its tests (`checks.<system>.data`, evaluated only) |
 | `home/default.nix` | home-manager, the platform's part: the user and git's identity from the credential; the rest comes from the modules |
 | `agent/` | the omaflake agent (Rust, spec §11.9) |
 | `hosts/builder-vm.nix` | the Linux builder VM's settings: omaflake's own builder (flake output `linuxBuilders`, runs as the user since 0.7.4) and the nix-darwin host ([docs/linux-builder.md](../docs/linux-builder.md)) |
@@ -112,6 +113,27 @@ every program keeps its own colours. `modules/look.nix` puts one file per progra
 to modules: `omaflake.lookColors` (the desktop's colours as "RRGGBB", null for a plain look), `omaflake.lookMacos` (the
 macOS system appearance) and `omaflake.lookParts` (everything `looks/adapter.nix` makes). A changed look comes with
 the next build of an image; the user's own files stay.
+
+## Data is checked here once more
+
+Looks and key binding sets are data, also from other people's sources, and they end up inside configuration files of
+the guest (Lua, Emacs Lisp, KDL, …). Whatever omaflake and `tools/catalog.py` checked before, the flake checks again
+when it evaluates (`lib/validate.nix`), and the build fails with a message naming the look or the set and the field:
+
+- **A look** is look/v1 and nothing else: no unknown key or table; a colour is `#RRGGBB` (six hex digits); `appearance`,
+  the editors' themes with their options, `gtk`, `cursor_theme` and `[macos]` are one of the schema's choices; `title`,
+  `description` (also `description_<language>`), `license`, `homepage` and tags are one line of text without control
+  characters (C0, DEL, C1, U+2028/2029, the bidirectional controls); `author` and `version` have their patterns;
+  `plain` is a boolean. A look that sets colours needs `appearance`, `[colors]` and `[terminal]`. The title only ever
+  stands in a comment on a line of its own; `looks/adapter.nix` passes every colour and choice through the same checks.
+- **A key binding set** gives an action a key, several keys, or `{ key, after }` – any other field (`does`, `mode`, …)
+  is refused, so a set never changes what an action does. It gives nothing to an action the module does not have or
+  to a program's own keys (`own = true`); `after` is one of the module's modes.
+- **A key** is chords separated by one space; a chord is modifiers (`Super`, `Ctrl`, `Alt`, `Shift`, each once) and
+  one key joined by `+`; the key is `Return`, `Space`, `Escape`, `Tab`, `Backspace`, `Left`, `Right`, `Up`, `Down`,
+  `PageUp`, `PageDown`, `Plus`, `Digit`, `Arrow`, `F1`–`F12`, a lowercase letter, a digit or one of `- = [ ] ; , . /`.
+  Quotes, backslash, backtick, blanks and control characters are no keys, so `lib/keys.nix` has nothing to escape; its
+  functions check their key themselves.
 
 ## Keys
 

@@ -159,6 +159,24 @@ impl FileFormat {
         let Ok(Value::Object(object)) = serde_json::from_slice::<Value>(&data) else { return Ok(()) };
         self.version_of(&object).map(|_| ())
     }
+
+    /// For files that are read as "nothing there" when they cannot be read (the settings, the volumes): refuses to
+    /// write over one that is there and unreadable – damaged, edited with a typo, or of a newer version. Writing
+    /// would replace all it holds with the defaults plus one change. An empty file counts as none.
+    pub fn check_intact(&self, path: &Path) -> Result<()> {
+        let Ok(data) = std::fs::read(path) else { return Ok(()) };
+        if data.iter().all(u8::is_ascii_whitespace) {
+            return Ok(());
+        }
+        match self.upgrade(&data) {
+            Ok(_) => Ok(()),
+            Err(e) => Err(vm_err!(
+                "{} cannot be read and is not overwritten ({}) – correct it, or move it away to start with an empty one",
+                path.display(),
+                e.message()
+            )),
+        }
+    }
 }
 
 /// A file of omaflake's that cannot be read (too old, too new, damaged) – listed with a warning instead of left out
@@ -179,10 +197,23 @@ impl UnreadableFile {
 /// Writes `data` atomically (temporary file next to it, then rename) – Swift `write(to:options: .atomic)`
 pub fn write_atomic(path: &Path, data: &[u8]) -> Result<()> {
     use crate::error::IoContext;
+    use std::io::Write;
+    use std::sync::atomic::{AtomicU64, Ordering};
+    // Its own temporary file per write: two threads of one process writing the same file must not share one
+    static WRITES: AtomicU64 = AtomicU64::new(0);
     let dir = path.parent().unwrap_or_else(|| Path::new("."));
     let name = path.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
-    let tmp = dir.join(format!(".{name}.tmp-{}", std::process::id()));
-    std::fs::write(&tmp, data).with_path(&tmp)?;
+    let tmp = dir.join(format!(".{name}.tmp-{}-{}", std::process::id(), WRITES.fetch_add(1, Ordering::Relaxed)));
+    let written = (|| -> std::io::Result<()> {
+        let mut file = std::fs::File::create(&tmp)?;
+        file.write_all(data)?;
+        // On the disk before it takes the old file's place: a crash leaves the old file or the new one, never half
+        file.sync_all()
+    })();
+    if let Err(e) = written {
+        let _ = std::fs::remove_file(&tmp);
+        return Err(e).with_path(&tmp);
+    }
     if let Err(e) = std::fs::rename(&tmp, path) {
         let _ = std::fs::remove_file(&tmp);
         return Err(Error::from(e).context(format!("{}: ", path.display())));
@@ -193,6 +224,28 @@ pub fn write_atomic(path: &Path, data: &[u8]) -> Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// A file that cannot be read is not written over (it would be replaced by the defaults); none or an empty one is
+    #[test]
+    fn an_unreadable_file_is_not_overwritten() {
+        let f = crate::paths::Settings::FILE_FORMAT;
+        let dir = tempfile::tempdir().unwrap();
+        let file = dir.path().join("config.json");
+        assert!(f.check_intact(&file).is_ok());
+        std::fs::write(&file, " \n").unwrap();
+        assert!(f.check_intact(&file).is_ok());
+        std::fs::write(&file, r#"{"sources": [,]}"#).unwrap();
+        let e = f.check_intact(&file).unwrap_err();
+        assert!(e.message().contains("is not overwritten"), "{}", e.message());
+        std::fs::write(&file, r#"{"$schema":"https://omaflake.dev/schema/config/v999.json"}"#).unwrap();
+        assert!(f.check_intact(&file).is_err());
+        std::fs::write(&file, f.encode(&crate::paths::Settings::default()).unwrap()).unwrap();
+        assert!(f.check_intact(&file).is_ok());
+        // Writing leaves no temporary file behind, and two writes do not share one
+        write_atomic(&file, b"{}").unwrap();
+        write_atomic(&file, b"{}").unwrap();
+        assert_eq!(std::fs::read_dir(dir.path()).unwrap().count(), 1);
+    }
 
     #[test]
     fn newer_or_foreign_schemas_are_refused() {

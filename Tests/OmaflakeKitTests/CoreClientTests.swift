@@ -34,6 +34,8 @@ final class FakeServer: @unchecked Sendable {
     nonisolated(unsafe) let core: [String: Any]?
     /// Hands the connection out as the service's on this socket path (plan B165)
     let socket: String?
+    /// What `initialize` answers at the n-th launch (from 1) instead of API 1 and `core`: another omaf's service
+    nonisolated(unsafe) var hello: ((Int) -> (apiVersion: Int, core: [String: Any]?))?
 
     init(core: [String: Any]? = nil, socket: String? = nil, respond: @escaping @Sendable (Instance, [String: Any]) -> Void) {
         self.core = core
@@ -45,7 +47,7 @@ final class FakeServer: @unchecked Sendable {
         { [self] ended in
             let toServer = Pipe(), fromServer = Pipe()
             let instance = Instance(output: fromServer.fileHandleForWriting, ended: ended)
-            lock.withLock { _launches += 1 }
+            let launch = lock.withLock { () -> Int in _launches += 1; return _launches }
             let input = toServer.fileHandleForReading
             Thread {
                 var buffer = Data()
@@ -63,7 +65,12 @@ final class FakeServer: @unchecked Sendable {
                             var result: [String: Any] = ["apiVersion": 1, "omafVersion": "0.0.0-test", "dataFolder": "/tmp/data",
                                                          "configFile": "/tmp/data/config.json",
                                                          "host": ["system": "aarch64-darwin", "os": "macOS 27.0"]]
-                            if let core = self.core { result["core"] = core }
+                            if let hello = self.hello?(launch) {
+                                result["apiVersion"] = hello.apiVersion
+                                result["core"] = hello.core
+                            } else if let core = self.core {
+                                result["core"] = core
+                            }
                             instance.result(request["id"]!, result)
                         case "events.subscribe", "shutdown":
                             instance.result(request["id"]!, NSNull())
@@ -308,6 +315,71 @@ struct CoreClientTests {
         #expect(server.launches == 2)
         #expect(server.requests.filter { $0["method"] as? String == "service.restart" }.count == 1)
         c.stop()
+    }
+
+    /// A service that speaks another API version is asked to restart before anything else; the client connects
+    /// again once it has ended and then finds its own core
+    @Test func aServiceOfAnotherAPIVersionIsAskedToRestart() async throws {
+        let own: [String: Any] = ["executable": Self.own.executable, "size": Self.own.size, "modified": Self.own.modified]
+        let server = FakeServer(socket: "/nonexistent-omaflake-test/service.sock") { s, r in
+            if r["method"] as? String == "service.restart" {
+                s.result(r["id"]!, ["jobs": 1])
+                DispatchQueue.global().asyncAfter(deadline: .now() + 0.2) { s.die() }
+            } else {
+                s.result(r["id"]!, NSNull())
+            }
+        }
+        server.hello = { launch in launch == 1 ? (CoreClient.apiVersion + 1, Self.older) : (CoreClient.apiVersion, own) }
+        let c = CoreClient(launcher: server.launcher, initialize: Self.params, restartDelays: [.milliseconds(50)],
+                           ownCore: Self.own, handoverPolls: [.milliseconds(10)])
+        let events = EventLog(c)
+        // Sent before the handover: it waits and is answered by the client's own core
+        async let early: Ignored = c.call("test.ping")
+        c.start()
+        try await events.wait("waiting") { if case .coreHandover(.waiting(jobs: 1)) = $0 { true } else { false } }
+        try await events.wait("connected") { if case .connected = $0 { true } else { false } }
+        _ = try? await early
+        #expect(server.launches == 2)
+        let methods = server.requests.compactMap { $0["method"] as? String }
+        // Nothing but the restart was asked of the other version
+        #expect(Array(methods.prefix(3)) == ["initialize", "service.restart", "initialize"])
+        #expect(methods.filter { $0 == "service.restart" }.count == 1)
+        #expect(!events.all.contains { if case .disconnected(let why) = $0 { why.contains("speaks API") } else { false } })
+        c.stop()
+    }
+
+    /// Where no handover is possible the mismatch is reported as it is: a private server, and a service that was
+    /// asked, ended and came back with the same core (no loop of restarts)
+    @Test func anotherAPIVersionWithoutHandoverFailsClearly() async throws {
+        let mismatch: @Sendable (ServerEvent) -> Bool = {
+            if case .disconnected(let why) = $0 { why.contains("speaks API \(CoreClient.apiVersion + 1)") } else { false }
+        }
+        let privateServer = FakeServer(socket: nil) { s, r in s.result(r["id"]!, NSNull()) }
+        privateServer.hello = { _ in (CoreClient.apiVersion + 1, Self.older) }
+        let c = CoreClient(launcher: privateServer.launcher, initialize: Self.params, restartDelays: [.milliseconds(50)],
+                           ownCore: Self.own)
+        let events = EventLog(c)
+        c.start()
+        try await events.wait("mismatch", mismatch)
+        #expect(!privateServer.requests.contains { $0["method"] as? String == "service.restart" })
+        c.stop()
+
+        let service = FakeServer(socket: "/nonexistent-omaflake-test/service.sock") { s, r in
+            if r["method"] as? String == "service.restart" {
+                s.result(r["id"]!, ["jobs": 0])
+                DispatchQueue.global().asyncAfter(deadline: .now() + 0.1) { s.die() }
+            } else {
+                s.result(r["id"]!, NSNull())
+            }
+        }
+        service.hello = { _ in (CoreClient.apiVersion + 1, Self.older) }
+        let c2 = CoreClient(launcher: service.launcher, initialize: Self.params, restartDelays: [.milliseconds(50)],
+                            ownCore: Self.own, handoverPolls: [.milliseconds(10)])
+        let events2 = EventLog(c2)
+        c2.start()
+        try await events2.wait("mismatch", mismatch)
+        #expect(service.requests.filter { $0["method"] as? String == "service.restart" }.count == 1)
+        c2.stop()
     }
 
     @Test func theSameCoreOrAPrivateServerIsLeftAlone() async throws {

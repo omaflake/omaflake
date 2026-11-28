@@ -8,6 +8,10 @@ use omaflake_core::credentials::{Credential, CredentialChange, Credentials};
 use omaflake_core::guest_settings::BuildChoice;
 use omaflake_core::platform::{full_user_name, user_name};
 
+use omaflake_sdk::types::{CredentialAnswer, CredentialDto};
+use serde_json::json;
+
+use super::service;
 use crate::cli;
 use crate::util::{Env, Failure, Outcome, pad, read_password, usage};
 
@@ -72,10 +76,28 @@ fn change(
     })
 }
 
-fn said(place: Option<omaflake_core::source_tokens::TokenPlace>) {
-    if let Some(omaflake_core::source_tokens::TokenPlace::File(path)) = place {
-        eprintln!("The password is stored unencrypted in {} – no keyring", path.display());
+/// `credentials.add` / `credentials.update` in the core service: only what is given; where the password went when
+/// there is no keyring is said on stderr
+fn send(method: &str, id: Option<&str>, c: CredentialChange) -> omaflake_core::Result<CredentialDto> {
+    let mut params = json!({});
+    let fields = [
+        ("id", id.map(str::to_string)),
+        ("name", c.name),
+        ("user", c.user),
+        ("fullName", c.full_name),
+        ("email", c.email),
+        ("password", c.password),
+    ];
+    for (key, value) in fields {
+        if let Some(v) = value {
+            params[key] = json!(v);
+        }
     }
+    let answer: CredentialAnswer = service::rpc_as(method, params)?;
+    if let Some(note) = &answer.note {
+        eprintln!("{note}");
+    }
+    Ok(answer.credential)
 }
 
 pub fn add(a: &cli::CredentialArgs) -> Outcome {
@@ -85,8 +107,7 @@ pub fn add(a: &cli::CredentialArgs) -> Outcome {
         return Err(usage(&["credentials", "add"], "--user: the guest user of this credential"));
     }
     let first = credentials.list().is_empty();
-    let (c, place) = credentials.add(change(a, Some(a.name.clone()), true, first)?)?;
-    said(place);
+    let c = send("credentials.add", None, change(a, Some(a.name.clone()), true, first)?)?;
     println!("Credential {} added ({}).", c.name, c.user.as_deref().unwrap_or("–"));
     Ok(())
 }
@@ -95,11 +116,9 @@ pub fn edit(a: &cli::CredentialArgs) -> Outcome {
     let env = Env::new();
     let credentials = Credentials::new(env.paths.clone());
     let c = credential(&credentials, &a.name, "edit")?;
-    let change = change(a, a.rename.clone(), false, false)?;
-    // Images and macOS bases carry its values: while used, only the name can change (plan B137, B139)
-    omaflake_core::credentials::Usage::of(&env.paths, &c.id).check_change(&c, &change)?;
-    let (c, place) = credentials.update(&c.id, change)?;
-    said(place);
+    // Images and macOS bases carry its values: while used, only the name can change (plan B137, B139) – the service
+    // checks it
+    let c = send("credentials.update", Some(&c.id), change(a, a.rename.clone(), false, false)?)?;
     println!("Credential {} changed – images built with it are now outdated: build them again to take it.", c.name);
     Ok(())
 }
@@ -108,8 +127,7 @@ pub fn remove(reference: &str) -> Outcome {
     let env = Env::new();
     let credentials = Credentials::new(env.paths.clone());
     let c = credential(&credentials, reference, "rm")?;
-    omaflake_core::credentials::Usage::of(&env.paths, &c.id).check_remove()?;
-    credentials.remove(&c.id)?;
+    service::rpc("credentials.remove", json!({"id": c.id}))?;
     println!("Credential {} removed.", c.name);
     Ok(())
 }
@@ -118,7 +136,7 @@ pub fn set_default(reference: &str) -> Outcome {
     let env = Env::new();
     let credentials = Credentials::new(env.paths.clone());
     let c = credential(&credentials, reference, "default")?;
-    credentials.set_default(&c.id)?;
+    service::rpc("settings.set", json!({"defaultCredential": c.id}))?;
     println!("New images and macOS bases get the credential {}.", c.name);
     Ok(())
 }

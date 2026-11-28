@@ -3,7 +3,10 @@
 
 use omaflake_core::{RecipeLibrary, RecipeSource, SourceClient, SourceTokens};
 use omaflake_sdk::models::RecipeSourceKind;
+use omaflake_sdk::types::SourceAdded;
+use serde_json::json;
 
+use super::service;
 use crate::cli;
 use crate::util::{Env, Failure, Outcome, pad, read_line, usage};
 
@@ -67,64 +70,46 @@ pub fn list() -> Outcome {
 
 pub fn add(a: &cli::SourcesAdd) -> Outcome {
     let env = Env::new();
+    // Read here what must be known before the service is asked: whether it is a source already, and whether a token
+    // is to be read from stdin
     let mut s = RecipeSource::parse(&a.location, a.private)?;
     if let Some(branch) = &a.branch {
         s.branch = Some(branch.clone());
     }
-    let mut settings = env.settings();
-    let mut list = settings.recipe_sources();
-    if list.iter().any(|x| x.id() == s.id()) {
+    if env.settings().recipe_sources().iter().any(|x| x.id() == s.id()) {
         return Err(usage(&["sources", "add"], format!("{} is already a source", s.display_name())));
     }
-    let mut token = None;
+    let mut params = json!({"input": a.location, "private": a.private, "first": a.first});
+    if let Some(branch) = &a.branch {
+        params["branch"] = json!(branch);
+    }
     if s.is_private_repository() {
         match read_line() {
-            Some(line) if !line.is_empty() => token = Some(line),
+            Some(line) if !line.is_empty() => params["token"] = json!(line),
             _ => return Err(usage(&["sources", "add"], "No token on stdin")),
         }
     }
-    // Checked before it is kept: the repository (with the token), the catalog, or the folder's recipes
-    println!("{}: {}", s.display_name(), SourceClient::new(s.clone(), token.clone()).verify()?);
-    if let Some(token) = &token {
-        // Without a keyring (Linux server, SSH session): a 0600 file, and the user is told
-        if let Some(note) = SourceTokens::set(Some(token), &s)?.and_then(|p| p.note()) {
-            println!("{note}");
-        }
-    }
-    if a.first {
-        list.insert(0, s);
-    } else {
-        list.push(s);
-    }
-    settings.sources = Some(list);
-    settings.save(&env.paths)?;
+    // Checked by the service before it is kept: the repository (with the token), the catalog, or the folder's
+    // recipes; without a keyring (Linux server, SSH session) the token is in a 0600 file, and the note says so
+    let added: SourceAdded = service::rpc_as("sources.add", params)?;
+    println!("{}", added.note);
     println!("Added. Recipes: omaf recipes available");
     Ok(())
 }
 
 pub fn remove(reference: &str) -> Outcome {
-    let env = Env::new();
-    let mut settings = env.settings();
-    let mut list = settings.recipe_sources();
-    let i = source_index(reference, &list, "remove")?;
-    let s = list.remove(i);
-    let _ = SourceTokens::set(None, &s);
-    settings.sources = Some(list);
-    settings.save(&env.paths)?;
+    let list = Env::new().settings().recipe_sources();
+    let s = &list[source_index(reference, &list, "remove")?];
+    service::rpc("sources.remove", json!({"id": s.id()}))?;
     println!("Removed {}.", s.display_name());
     Ok(())
 }
 
 pub fn toggle(reference: &str, on: bool) -> Outcome {
-    let env = Env::new();
-    let mut settings = env.settings();
-    let mut list = settings.recipe_sources();
-    let i = source_index(reference, &list, if on { "enable" } else { "disable" })?;
-    list[i].enabled = if on { None } else { Some(false) };
-    let name = list[i].display_name();
-    settings.sources = Some(list);
-    settings.save(&env.paths)?;
-    println!("{name}: {}", if on { "on" } else { "off" });
+    let list = Env::new().settings().recipe_sources();
+    let s = &list[source_index(reference, &list, if on { "enable" } else { "disable" })?];
+    service::rpc("sources.setEnabled", json!({"id": s.id(), "enabled": on}))?;
+    println!("{}: {}", s.display_name(), if on { "on" } else { "off" });
     Ok(())
 }
 

@@ -5,10 +5,16 @@
 # sequence of chords separated by spaces ("Space f f"). Modifiers: Super (the Mac's Cmd), Ctrl, Alt, Shift. Keys:
 # lowercase letters, digits, punctuation, Plus, Return, Space, Escape, Tab, Backspace, Left, Right, Up, Down, PageUp,
 # PageDown, F1–F12, and two placeholders a module expands itself: Digit (1–9) and Arrow (the four arrows).
-{ lib }:
+#
+# Nothing here escapes: every function first checks its key against the grammar of lib/validate.nix (a key's name, a
+# lowercase letter, a digit or one of - = [ ] ; , . /), and none of that means anything inside a quoted string of
+# Lua, KDL or Emacs Lisp or in Vim's <…> notation. A key with a quote, a backslash, a blank or a control character
+# fails the build instead of reaching a configuration file.
+{ lib, validate ? import ./validate.nix { inherit lib; } }:
 
 let
-  chords = key: lib.filter (c: c != "") (lib.splitString " " key);
+  checked = key: validate.checkedKey "key" key;
+  chords = key: lib.filter (c: c != "") (lib.splitString " " (checked key));
   parts = chord: lib.splitString "+" chord;
   modsOf = chord: lib.init (parts chord);
   keyOf = chord: lib.last (parts chord);
@@ -20,7 +26,8 @@ let
 in
 rec {
   # "Super+Arrow" → [ { key = "Super+Left"; arrow = "Left"; } … ]; "Super+Digit" → [ { key = "Super+1"; digit = "1"; } … ]
-  expand = key:
+  expand = key0:
+    let key = checked key0; in
     if lib.hasSuffix "Arrow" key then map (a: { key = lib.removeSuffix "Arrow" key + a; arrow = a; }) arrows
     else if lib.hasSuffix "Digit" key then map (d: { key = lib.removeSuffix "Digit" key + d; digit = d; }) digits
     else [ { inherit key; } ];

@@ -49,6 +49,9 @@ impl InstanceStore {
         InstanceStore { paths, qemu_img: qemu_img.into() }
     }
 
+    /// Names no VM can have: folders of omaflake's own under `<data>/run/`
+    pub const RESERVED: [&'static str; 1] = ["net"];
+
     /// Lowercase letters, digits, hyphen, 1–32 characters, not starting with "-"; short enough for Unix sockets
     /// (< 104 bytes for the longest, runner.sock, plan B12). Errors: "Invalid name \"<name>\": 1–32 characters a–z,
     /// 0–9, \"-\"", "Path <socket> too long for a Unix socket (max. 103 bytes) – choose a shorter name or VM_HOME".
@@ -59,6 +62,11 @@ impl InstanceStore {
             && name.chars().all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '-');
         if !ok {
             return Err(vm_err!("Invalid name \"{name}\": 1–32 characters a–z, 0–9, \"-\""));
+        }
+        // `<data>/run/net/` holds the networks' switches (`Networks::run_dir`): a VM of that name would share its run
+        // folder with them, and removing it would take every network's sockets along
+        if Self::RESERVED.contains(&name) {
+            return Err(vm_err!("\"{name}\" is a name omaflake uses itself – choose another one"));
         }
         // longest socket name of both guest kinds (qmp.sock, runner.sock)
         let socket = self.paths.instance(name).runner_socket();

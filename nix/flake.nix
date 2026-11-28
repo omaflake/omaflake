@@ -89,7 +89,9 @@
       splitRef = r: let p = lib.splitString "/" r; in
         assert lib.assertMsg (builtins.length p == 2) "\"${r}\" is no reference – write <author>/<name>";
         { author = builtins.elemAt p 0; name = builtins.elemAt p 1; };
-      keyLib = import ./lib/keys.nix { inherit lib; };
+      # What catalogs call data is checked here once more (looks, key binding sets, keys): lib/validate.nix
+      validate = import ./lib/validate.nix { inherit lib; };
+      keyLib = import ./lib/keys.nix { inherit lib validate; };
 
       # One recipe: its tree (catalog-shaped), …/recipes/<author>/<kind>/<name>/, and the ID it is known by
       recipeEntry = id: tree: author: kind: name:
@@ -109,18 +111,19 @@
               "${ref}: module.toml needs \"$schema\" = \"${lib.concatStringsSep "\" or \"" moduleSchemas}\"";
             { inherit ref dir; actions = m.actions or { }; modes = m.modes or { }; };
           modules = map moduleOf refs;
-          # Keys: each module's defaults, then the recipe's key binding sets in order (a later set wins)
+          # Keys: each module's defaults, then the recipe's key binding sets in order (a later set wins). A set is data
+          # from a source: all of it is checked (lib/validate.nix), and an entry – a key ("Ctrl+g"), several keys, or a
+          # table with `key` and/or `after` (keymap/v2) – gives an action nothing but those two, so no set changes what
+          # an action does
           sets = map (k:
             let r = splitRef (refOf k); f = tree + "/keymaps/${r.author}/${r.name}/keymap.toml"; in
             assert lib.assertMsg (builtins.pathExists f) "${where}: the key bindings ${refOf k} are not here";
             let m = readToml f; in
             assert lib.assertMsg ((m."$schema" or "") == keymapSchema) "${refOf k}: keymap.toml needs \"$schema\" = \"${keymapSchema}\"";
-            m.keys or { }) (d.keymaps or [ ]);
-          # A set's entry is a key ("Ctrl+g"), several keys, or a table with `key` and/or `after` (keymap/v2)
-          entry = v: if builtins.isAttrs v then v else { key = v; };
+            let keys = validate.keymap (refOf k) (m.keys or { }); in
+            { name = refOf k; keys = builtins.deepSeq keys keys; }) (d.keymaps or [ ]);
           bindings = lib.listToAttrs (map (m: lib.nameValuePair m.ref
-            (lib.foldl (acc: set: acc // lib.mapAttrs (a: v: acc.${a} // entry v)
-              (lib.filterAttrs (a: _: m.actions ? ${a}) (set.${m.ref} or { }))) m.actions sets)) modules);
+            (validate.bindings { inherit where sets; inherit (m) ref actions modes; })) modules);
           keys = lib.mapAttrs (_: lib.mapAttrs (_: b: b.key)) bindings;
         in
         assert validName "recipe author" author && validName "recipe name" name;
@@ -228,8 +231,31 @@
       # UEFI qcow2 per recipe (nixpkgs variant "qemu-efi", labels nixos/ESP).
       # Size "auto" keeps the image small; the CLI applies disk_gb from recipe.toml to the overlay.
       imageOf = vm: vm.config.system.build.images.qemu-efi;
+
+      # Evaluated only (`nix flake check`): looks, key binding sets and keys are checked before they reach a guest's
+      # configuration (lib/validate-tests.nix), and every look and key binding set of the catalog this flake is
+      # evaluated with – a catalog checkout has looks/ and keymaps/ – and every recipe's keys pass those checks
+      dataChecks = system:
+        let
+          pkgs = nixpkgs.legacyPackages.${system};
+          failed = import ./lib/validate-tests.nix { inherit lib pkgs; };
+          looks = import ./looks { inherit pkgs lib; };
+          partsIn = dir: file: lib.concatMap (author: map (name: { ref = "${author}/${name}"; file = dir + "/${author}/${name}/${file}"; })
+            (builtins.filter (name: builtins.pathExists (dir + "/${author}/${name}/${file}")) (dirsIn (dir + "/${author}")))) (dirsIn dir);
+          catalogLooks = map (p:
+            let l = looks.get (readToml p.file); in
+            [ (looks.nameOf (readToml p.file)) l.wezterm l.zellij.kdl l.nvim.lua l.emacs.elisp l.macos ]
+            ++ lib.optionals (l.desktop != null) [ l.desktop.border l.desktop.gtk.name l.desktop.prompt l.desktop.split ])
+            (partsIn (omaflake-catalog + "/looks") "look.toml");
+          catalogKeymaps = map (p: validate.keymap p.ref ((readToml p.file).keys or { })) (partsIn (omaflake-catalog + "/keymaps") "keymap.toml");
+          recipeKeys = lib.mapAttrs (_: e: e.keys) recipes;
+        in
+        assert lib.assertMsg (failed == [ ]) "lib/validate-tests.nix failed: ${lib.concatStringsSep ", " failed}";
+        builtins.deepSeq [ catalogLooks catalogKeymaps recipeKeys ] (pkgs.runCommand "omaflake-data-checks" { } "touch $out");
     in
     {
+      checks = lib.genAttrs (lib.unique (lib.concatLists (builtins.attrValues kindSystems))) (system: { data = dataChecks system; });
+
       nixosConfigurations = lib.concatMapAttrs (system: lib.mapAttrs' (f: vm: lib.nameValuePair "vm-${system}-${f}" vm)) vms;
 
       # What omaflake expects: images.<system>.<recipe> and lib.recipeDefaults

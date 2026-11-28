@@ -503,6 +503,12 @@ impl Settings {
         value
     }
 
+    /// What is wrong with the settings file (None: readable, or none there) – shown as a warning, since every command
+    /// works with the defaults until it is corrected
+    pub fn problem(paths: &Paths) -> Option<String> {
+        Self::FILE_FORMAT.check_intact(&paths.config_file).err().map(|e| e.message().to_string())
+    }
+
     pub fn save(&self, paths: &Paths) -> Result<()> {
         self.save_file(&paths.config_file)
     }
@@ -536,6 +542,9 @@ impl Settings {
     /// Swift `save(file:)`: refuses a newer format's file, pretty-printed with sorted keys
     pub fn save_file(&self, file: &Path) -> Result<()> {
         Self::FILE_FORMAT.check_writable(file)?;
+        // `load_file` gave the defaults for a file it could not read: saving them would lose the sources, the external
+        // VMs, the profiles and the data folder's place
+        Self::FILE_FORMAT.check_intact(file)?;
         if let Some(dir) = file.parent() {
             fs::create_dir_all(dir).with_path(dir)?;
         }

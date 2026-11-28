@@ -3429,6 +3429,7 @@ dependencies = [
  "omaflake-core",
  "omaflake-sdk",
  "omaflake-tui",
+ "serde",
  "serde_json",
  "tempfile",
 ]

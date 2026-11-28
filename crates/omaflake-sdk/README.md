@@ -18,5 +18,7 @@ It needs a running omaflake: the app, or `omaf service start`. The API: <https:/
 
 Inside: the client, every type of the API, the page models every omaflake interface draws (what each page shows:
 rows, details, actions, fields), texts with their translation keys, error kinds, and omaflake's design tokens.
+For an interface of your own there is `session`: the state `omaf ui` and the Linux app share – the pages subscribed
+and their models, an action's way to the core with its questions, jobs and their logs –, without threads or a toolkit.
 
 Licence: AGPL-3.0-or-later. Source and issues: <https://github.com/omaflake/omaflake>. All of omaflake's crates are released together, with omaflake's version.

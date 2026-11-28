@@ -2,7 +2,6 @@
 //! `omaf networks` (plan B170, spec §11.12): networks between VMs – each member gets a second card on a switch omaflake
 //! runs; its own NAT stays. `omaf network-switch` is that switch (hidden, started before a member starts).
 
-use omaflake_core::instance_store::InstanceStore;
 use omaflake_core::networks::Networks;
 use omaflake_core::networks::packets::mac_text;
 use omaflake_core::networks::switch::Switch;
@@ -10,6 +9,9 @@ use omaflake_core::paths::Paths;
 use omaflake_sdk::networks::Network;
 use omaflake_sdk::networks::SwitchStatus;
 
+use serde_json::json;
+
+use super::service;
 use crate::cli;
 use crate::util::{Env, Outcome, pad};
 
@@ -39,32 +41,31 @@ pub fn list() -> Outcome {
 }
 
 pub fn create(name: &str) -> Outcome {
-    let env = Env::new();
-    let n = store(&env).create(name)?;
+    let created = service::rpc("networks.create", json!({"name": name}))?;
+    let name = created["name"].as_str().unwrap_or(name);
+    let n = store(&Env::new()).get(name)?;
     println!("Network {} created: {} (the switch is {}).", n.name, n.subnet(), n.switch_address());
     Ok(())
 }
 
 pub fn remove(name: &str) -> Outcome {
-    let env = Env::new();
-    store(&env).remove(name)?;
+    service::rpc("networks.remove", json!({"name": name}))?;
     println!("Network {name} removed – its members lose that card at their next start.");
     Ok(())
 }
 
 pub fn join(network: &str, vm: &str) -> Outcome {
-    let env = Env::new();
-    if !InstanceStore::new(env.paths.clone(), "qemu-img").exists(vm) {
-        return Err(omaflake_core::Error::new(format!("No VM \"{vm}\"")).into());
-    }
-    let address = store(&env).join(network, vm)?;
-    println!("{vm} joins network {network} as {address} (a second card from its next start).");
+    let joined = service::rpc("networks.join", json!({"network": network, "vm": vm}))?;
+    let address = joined["address"].as_str().unwrap_or("?");
+    // A running NixOS VM got its card at once (plan B179)
+    let when =
+        if joined["now"] == json!(true) { "a second card, there now" } else { "a second card from its next start" };
+    println!("{vm} joins network {network} as {address} ({when}).");
     Ok(())
 }
 
 pub fn leave(network: &str, vm: &str) -> Outcome {
-    let env = Env::new();
-    store(&env).leave(network, vm)?;
+    service::rpc("networks.leave", json!({"network": network, "vm": vm}))?;
     println!("{vm} leaves network {network} (from its next start).");
     Ok(())
 }

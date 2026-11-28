@@ -31,11 +31,16 @@ fn main() {
             }
         },
     };
-    if !matches!(cli.command, cli::Command::Serve(_)) {
+    if !matches!(cli.command, cli::Command::Serve(_) | cli::Command::Ui(_)) {
         // Output into a closed pipe (`omaf list | head`) ends the process quietly, as it did in Swift; the server
-        // keeps Rust's default and sees the error instead
+        // keeps Rust's default and sees the error instead – and so does `omaf ui`, which writes to no pipe but to the
+        // service's socket: a service that ends must not end it (it connects again)
         // SAFETY: setting a signal's disposition to the default
         unsafe { libc::signal(libc::SIGPIPE, libc::SIG_DFL) };
+    }
+    // Settings that cannot be read count as none: say so, or every list is silently empty
+    if let Some(problem) = omaflake_core::paths::Settings::problem(&omaflake_core::Paths::standard()) {
+        eprintln!("Warning: {problem}");
     }
     let code = match commands::run(cli.command) {
         Ok(()) => 0,

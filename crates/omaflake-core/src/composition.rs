@@ -200,8 +200,10 @@ pub fn parse_key(key: &str) -> Option<Vec<Chord>> {
         "F11",
         "F12",
     ];
-    let chords: Vec<&str> = key.split_whitespace().collect();
-    if chords.is_empty() {
+    // Chords with exactly one space between them – the image flake's grammar (nix/lib/validate.nix), which refuses
+    // what this lets through
+    let chords: Vec<&str> = key.split(' ').collect();
+    if chords.iter().any(|c| c.is_empty()) {
         return None;
     }
     let mut out = Vec::new();
@@ -217,7 +219,10 @@ pub fn parse_key(key: &str) -> Option<Vec<Chord>> {
             m.push(known);
         }
         m.sort_by_key(|x| MODIFIERS.iter().position(|k| k == x));
-        let single = name.chars().count() == 1 && !name.chars().any(|c| c.is_ascii_uppercase() || c.is_whitespace());
+        // One plain character: nothing that ends a string or starts an escape in a guest's config (quotes,
+        // backslash, backtick), which a key is written into
+        let single = name.chars().count() == 1
+            && name.chars().all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || "=;,./[]-".contains(c));
         if !named.contains(name) && !single {
             return None;
         }
@@ -675,5 +680,14 @@ mod tests {
             parse_key("Hyper+x").is_none() && parse_key("Super+Super+x").is_none() && parse_key("Super+Q").is_none()
         );
         assert_eq!(expand(&parse_key("Super+Digit").unwrap()).len(), 9);
+        // Nothing that ends a string or starts an escape in a guest's configuration; one space between chords
+        for key in
+            ["Super+\"", "Super+'", "Super+\\", "Super+`", "Super+$", "Super+é", "Space  f", " x", "x ", "a\tb", "a\nb"]
+        {
+            assert!(parse_key(key).is_none(), "{key:?}");
+        }
+        for key in ["Super+[", "Ctrl+;", "Alt+-", "=", "Super+/"] {
+            assert!(parse_key(key).is_some(), "{key}");
+        }
     }
 }

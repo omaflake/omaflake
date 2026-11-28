@@ -1,9 +1,10 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! The TUI's state and what keys do: which tab and page are open, the pages subscribed (`views.subscribe`), the
-//! models as they come (`view.changed`), and an action's way from a key to the core – ask its values, confirm, send,
-//! then reveal / open a terminal / go back (api.md §10.3–10.4). Everything that touches the terminal or the system
-//! (a command in the terminal, opening a file) is an [`Effect`] the run loop carries out, so this module is tested
-//! without a terminal.
+//! The TUI's state and what keys do: which tab and page are open, what is selected and typed, and how the open
+//! question is asked in a terminal. What every interface of the page models does the same way – the pages subscribed
+//! and their models, an action's way to the core with its asks, checks and confirmation, the logs, what is new in
+//! the activity – is the SDK's [`Session`]; this module turns keys into what the user wants of it and carries its
+//! effects out. Everything that touches the terminal or the system (a command in the terminal, opening a file) is an
+//! [`Effect`] the run loop carries out, so this module is tested without a terminal.
 
 use std::collections::{HashMap, HashSet, VecDeque};
 use std::sync::Arc;
@@ -11,6 +12,9 @@ use std::sync::mpsc::Sender;
 use std::time::Instant;
 
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
+use omaflake_sdk::protocol::RpcError;
+use omaflake_sdk::session::{self, FlowId, News, Notice, Question, Session};
+pub use omaflake_sdk::views::PageRef;
 use serde_json::{Map, Value, json};
 
 use crate::core::{Core, CoreError};
@@ -44,24 +48,6 @@ const TABS: [&str; 17] = [
 /// Keys every page has; a page's tools get the other lowercase letters, `home`'s actions uppercase ones
 pub const RESERVED: &[char] = &['q', 'j', 'k', 'g', 'h', 'l', 'a', 'G'];
 
-/// A page and the params it is asked with
-#[derive(Debug, Clone, PartialEq)]
-pub struct PageRef {
-    pub page: String,
-    pub params: Value,
-}
-
-impl PageRef {
-    pub fn new(page: &str, params: Value) -> PageRef {
-        let params = if params.is_object() { params } else { json!({}) };
-        PageRef { page: page.into(), params }
-    }
-
-    fn key(&self) -> String {
-        format!("{} {}", self.page, self.params)
-    }
-}
-
 /// What the TUI gets from its threads
 #[derive(Debug)]
 pub enum Msg {
@@ -88,20 +74,15 @@ pub enum Command {
     Shell(String),
 }
 
-/// An action on its way: its params as they fill up
-#[derive(Debug, Clone)]
-pub struct Flow {
-    pub action: Value,
-    pub params: Value,
-    /// The next ask to ask
-    pub ask: usize,
-    pub confirmed: bool,
-}
-
 /// Where a prompt's value goes
 #[derive(Debug, Clone)]
 pub enum Target {
-    Ask(Flow),
+    /// The open ask of an action (the session's question)
+    Ask {
+        flow: FlowId,
+        index: usize,
+        ask: Value,
+    },
     Field(Value),
 }
 
@@ -123,8 +104,11 @@ pub struct Prompt {
 #[derive(Debug, Clone)]
 pub enum Modal {
     Prompt(Prompt),
+    /// The open confirmation of an action (the session's question), for these params
     Confirm {
-        flow: Flow,
+        flow: FlowId,
+        action: Value,
+        params: Value,
         input: Option<String>,
     },
     Choice {
@@ -147,16 +131,6 @@ pub enum Modal {
     },
 }
 
-/// What an answer is for
-#[derive(Debug)]
-enum Pending {
-    Action(Flow),
-    Check(Flow, String),
-    Step,
-    Log(String),
-    Quiet,
-}
-
 pub struct App {
     pub core: Arc<dyn Core>,
     tx: Sender<Msg>,
@@ -165,16 +139,13 @@ pub struct App {
     pub via: String,
     pub tab: String,
     pub stack: Vec<PageRef>,
-    filters: HashMap<String, Value>,
+    /// Pages, questions, logs, activity: what every interface keeps (the filters too)
+    pub session: Session,
     /// The form values of a form shown as a tab (the studios), by tab
     tab_values: HashMap<String, Value>,
-    /// Several values are being set at once (`ui.field` with `also`): one subscription afterwards, not one each – sent
-    /// from threads, an earlier one could arrive last
+    /// Several values are being set at once (`ui.field` with `also`): one page set afterwards, not one each
     holding: bool,
-    models: Vec<(PageRef, Value)>,
-    last_by_name: HashMap<String, Value>,
     pub home: Option<Value>,
-    pub logs: HashMap<String, Vec<String>>,
     selected: HashMap<String, String>,
     pub scroll: HashMap<String, usize>,
     pub expanded: HashSet<String>,
@@ -183,10 +154,6 @@ pub struct App {
     pub status: Option<(String, Tone, Instant)>,
     pub effects: VecDeque<Effect>,
     pub quit: bool,
-    pending: HashMap<u64, Pending>,
-    next_id: u64,
-    subscribed: Vec<PageRef>,
-    last_activity: Option<u64>,
     catalogs_asked: bool,
     /// The Looks tab looked into the catalogs once (plan B141)
     looks_asked: bool,
@@ -209,13 +176,10 @@ impl App {
             via: via.into(),
             tab: "vms".into(),
             stack: vec![],
-            filters: HashMap::new(),
+            session: Session::new(),
             tab_values: HashMap::new(),
             holding: false,
-            models: vec![],
-            last_by_name: HashMap::new(),
             home: None,
-            logs: HashMap::new(),
             selected: HashMap::new(),
             scroll: HashMap::new(),
             expanded: HashSet::new(),
@@ -224,10 +188,6 @@ impl App {
             status: None,
             effects: VecDeque::new(),
             quit: false,
-            pending: HashMap::new(),
-            next_id: 1,
-            subscribed: vec![],
-            last_activity: None,
             catalogs_asked: false,
             looks_asked: false,
             tick: 0,
@@ -237,32 +197,118 @@ impl App {
         }
     }
 
-    /// The first requests: job logs as they come, then the pages
+    /// The connection is there: job logs as they come, then the pages
     pub fn start(&mut self) {
-        self.request("events.subscribe", json!({"topics": ["jobs"]}), Pending::Quiet);
-        self.resubscribe();
+        let pages = self.wanted();
+        let fx = self.session.show(pages);
+        self.apply(fx);
+        let fx = self.session.connected(&Value::Null);
+        self.apply(fx);
     }
 
-    /// After a new connection: everything asked again
+    /// After a new connection: nothing of the old one counts (its jobs, logs, answers), everything is asked again
     pub fn reconnect(&mut self, core: Arc<dyn Core>, via: &str) {
+        let fx = self.session.disconnected();
+        self.apply(fx);
         self.core = core;
         self.via = via.into();
-        self.subscribed.clear();
-        self.pending.clear();
         self.start();
     }
 
-    // MARK: Requests
+    // MARK: The session
 
-    fn request(&mut self, method: &str, params: Value, then: Pending) {
-        let id = self.next_id;
-        self.next_id += 1;
-        self.pending.insert(id, then);
-        let (core, tx, method) = (self.core.clone(), self.tx.clone(), method.to_string());
-        std::thread::spawn(move || {
-            let answer = core.call(&method, params);
-            let _ = tx.send(Msg::Answer(id, answer));
-        });
+    /// Carries out what the session asks for
+    fn apply(&mut self, effects: Vec<session::Effect>) {
+        for effect in effects {
+            match effect {
+                session::Effect::Send(request) => {
+                    // A thread per request: the session sends in order what must not overtake each other
+                    let (core, tx) = (self.core.clone(), self.tx.clone());
+                    std::thread::spawn(move || {
+                        let answer = core.call(&request.method, request.params);
+                        let _ = tx.send(Msg::Answer(request.id, answer));
+                    });
+                }
+                session::Effect::Model(page) => self.on_model(&page),
+                session::Effect::Question => self.ask(),
+                session::Effect::Activity(news) => self.notify_activity(&news),
+                session::Effect::Ui { verb, params } => self.verb(&verb, &params),
+                session::Effect::Done { action, result } => self.then(&action, &result),
+                session::Effect::Notice(notice) => self.notice(notice),
+                // The log is drawn from the session; jobs are rows of the pages
+                session::Effect::Log(_) | session::Effect::Jobs | session::Effect::Answered { .. } => {}
+            }
+        }
+    }
+
+    fn notice(&mut self, notice: Notice) {
+        match notice {
+            Notice::Failed { error, .. } => self.set_status(error.message, Tone::Danger),
+            Notice::Disabled { reason } => {
+                let why = reason.as_ref().map(t).unwrap_or_else(|| tr("Not possible now"));
+                self.set_status(why, Tone::Warning);
+            }
+            Notice::Refused { reason, name } => self.set_status(reason.as_ref().map(t).unwrap_or(name), Tone::Danger),
+            Notice::Skipped { refused } => {
+                if let Some(r) = refused.first() {
+                    self.set_status(format!("{}: {}", r.value, refusal(r)), Tone::Warning);
+                }
+            }
+            Notice::NotConnected { .. } => self.set_status(tr("The service ended – connecting again …"), Tone::Warning),
+        }
+    }
+
+    /// The session's open question as this TUI's modal: a prompt for an ask, the question of a confirmation. A
+    /// prompt that is open for the same ask keeps what was typed; without a question, its modal closes.
+    fn ask(&mut self) {
+        match self.session.question() {
+            None => {
+                if matches!(
+                    &self.modal,
+                    Some(Modal::Confirm { .. } | Modal::Prompt(Prompt { target: Target::Ask { .. }, .. }))
+                ) {
+                    self.modal = None;
+                }
+            }
+            Some(Question::Ask { flow, ask, index, checking, refused, .. }) => {
+                if let Some(Modal::Prompt(p)) = &mut self.modal
+                    && matches!(&p.target, Target::Ask { flow: f, index: i, .. } if *f == flow && *i == index)
+                {
+                    p.checking = checking;
+                    if let Some(r) = refused.first() {
+                        p.error = Some(refusal(r));
+                    }
+                    return;
+                }
+                let kind = s(&ask, "kind").to_string();
+                let input = match &kind[..] {
+                    "password" => String::new(),
+                    "folder" | "file" | "package" => {
+                        ask.get("default").and_then(Value::as_str).map(str::to_string).unwrap_or_else(home_slash)
+                    }
+                    _ => ask.get("default").and_then(Value::as_str).unwrap_or_default().to_string(),
+                };
+                self.modal = Some(Modal::Prompt(Prompt {
+                    label: t(&ask["label"]),
+                    prompt: ask.get("prompt").map(t),
+                    kind,
+                    input,
+                    candidates: vec![],
+                    error: refused.first().map(refusal),
+                    first: None,
+                    checking,
+                    target: Target::Ask { flow, index, ask },
+                }));
+            }
+            Some(Question::Confirm { flow, action, confirm, params }) => {
+                if matches!(&self.modal, Some(Modal::Confirm { flow: f, params: p, .. }) if *f == flow && *p == params)
+                {
+                    return;
+                }
+                let input = confirm.get("input").map(|i| s(i, "default").to_string());
+                self.modal = Some(Modal::Confirm { flow, action, params, input });
+            }
+        }
     }
 
     pub fn set_status(&mut self, text: impl Into<String>, tone: Tone) {
@@ -282,7 +328,7 @@ impl App {
     /// A tab's page: its filter, and – a form as a tab (the studios) – what the user chose in it
     fn tab_page(&self, tab: &str) -> PageRef {
         let mut params = json!({});
-        if let Some(f) = self.filters.get(tab) {
+        if let Some(f) = self.session.filters.get(tab) {
             params["filter"] = f.clone();
         }
         if let Some(v) = self.tab_values.get(tab).filter(|v| v.as_object().is_some_and(|o| !o.is_empty())) {
@@ -309,22 +355,24 @@ impl App {
         pages
     }
 
+    /// The pages shown now are the ones to follow
     pub fn resubscribe(&mut self) {
         if self.holding {
             return;
         }
-        let wanted = self.wanted();
-        if wanted == self.subscribed {
-            return;
-        }
-        let pages: Vec<Value> = wanted.iter().map(|p| json!({"page": p.page, "params": p.params})).collect();
-        self.subscribed = wanted;
-        self.request("views.subscribe", json!({"pages": pages}), Pending::Quiet);
+        let pages = self.wanted();
+        let fx = self.session.show(pages);
+        self.apply(fx);
     }
 
     /// The model of a page: as asked, else the latest of that page (while the new one is on its way)
     pub fn model(&self, page: &PageRef) -> Option<&Value> {
-        self.models.iter().find(|(p, _)| p == page).map(|(_, m)| m).or_else(|| self.last_by_name.get(&page.page))
+        self.session.model_or_latest(page)
+    }
+
+    /// A job's log as far as it was read
+    pub fn log(&self, job: &str) -> &[String] {
+        self.session.log(job).unwrap_or_default()
     }
 
     pub fn ctx(&self) -> Ctx<'_> {
@@ -351,100 +399,56 @@ impl App {
     // MARK: Messages
 
     pub fn handle(&mut self, msg: Msg) {
-        match msg {
-            Msg::Event(method, params) => self.event(&method, params),
-            Msg::Answer(id, answer) => {
-                if let Some(p) = self.pending.remove(&id) {
-                    self.answer(p, answer);
-                }
-            }
-        }
+        let fx = match msg {
+            Msg::Event(method, params) => self.session.event(&method, &params),
+            // (the error's message is in the TUI's language already)
+            Msg::Answer(id, answer) => self.session.answer(
+                id,
+                answer.map_err(|e| RpcError::server(e.kind.as_deref().and_then(omaflake_sdk::codes::known), e.message)),
+            ),
+        };
+        self.apply(fx);
     }
 
-    fn event(&mut self, method: &str, params: Value) {
-        match method {
-            "view.changed" => {
-                let page = PageRef::new(s(&params, "page"), params["params"].clone());
-                let model = params["model"].clone();
-                self.on_model(&page, &model);
-                self.last_by_name.insert(page.page.clone(), model.clone());
-                match self.models.iter_mut().find(|(p, _)| *p == page) {
-                    Some(slot) => slot.1 = model,
-                    None => self.models.push((page, model)),
-                }
-                // Keep only what is subscribed (and the page on top)
-                let keep = self.wanted();
-                self.models.retain(|(p, _)| keep.contains(p));
-            }
-            "job.log" => {
-                let id = s(&params, "id").to_string();
-                if let Some(lines) = self.logs.get_mut(&id) {
-                    lines.extend(arr(&params, "lines").iter().map(t));
-                    let over = lines.len().saturating_sub(5000);
-                    lines.drain(..over);
-                }
-            }
-            _ => {}
-        }
-    }
-
-    fn on_model(&mut self, page: &PageRef, model: &Value) {
+    /// What a new model brings along: the first tab, a look into the catalogs
+    fn on_model(&mut self, page: &PageRef) {
+        let Some(model) = self.session.model(page).cloned() else { return };
         match page.page.as_str() {
             "home" => {
-                if self.home.is_none()
-                    && let Some(first) = model.get("firstTab").and_then(Value::as_str)
-                {
+                let first = self.home.is_none().then(|| model.get("firstTab").and_then(Value::as_str)).flatten();
+                if let Some(first) = first {
                     self.tab = first.to_string();
-                    self.resubscribe();
                 }
                 self.home = Some(model.clone());
+                if first.is_some() {
+                    self.resubscribe();
+                }
             }
-            "activity" => self.notify_activity(model),
             "looks" | "modules" | "keymaps"
-                if !b(model, "catalogsLoaded") && !b(model, "loading") && !self.looks_asked =>
+                if !b(&model, "catalogsLoaded") && !b(&model, "loading") && !self.looks_asked =>
             {
                 self.looks_asked = true;
-                if let Some(refresh) = arr(model, "actions").iter().find(|a| s(a, "id") == "refresh").cloned() {
+                if let Some(refresh) = arr(&model, "actions").iter().find(|a| s(a, "id") == "refresh").cloned() {
                     self.run_action(&refresh);
                 }
             }
             "recipes" | "recipeCatalog"
-                if !b(model, "catalogsLoaded") && !b(model, "loading") && !self.catalogs_asked =>
+                if !b(&model, "catalogsLoaded") && !b(&model, "loading") && !self.catalogs_asked =>
             {
                 // As the app: the tab looks into the remote catalogs once when it opens (api.md §10.5)
                 self.catalogs_asked = true;
-                if let Some(refresh) = arr(model, "actions").iter().find(|a| s(a, "id") == "refresh").cloned() {
+                if let Some(refresh) = arr(&model, "actions").iter().find(|a| s(a, "id") == "refresh").cloned() {
                     self.run_action(&refresh);
                 }
             }
             _ => {}
         }
-        // A job's log (build, macBase: a LogRef): what the core keeps from `from` on, then `job.log`
-        let log = match page.page.as_str() {
-            "build" | "macBase" | "diagnostics" => model.get("log").and_then(model::LogBox::from_model),
-            _ => None,
-        };
-        if let Some(log) = log.filter(|l| !self.logs.contains_key(&l.job)) {
-            self.logs.insert(log.job.clone(), vec![]);
-            self.request("jobs.log", json!({"id": log.job, "from": log.from}), Pending::Log(log.job.clone()));
-        }
     }
 
-    /// New activity lines go to the status line (a TUI's notifications, api.md §10.6). Seen or not is the UI's: it
-    /// remembers the highest entry `id` it has shown (`last_activity`); entries above it are unseen. Ids are stable
-    /// and rise; a cleared list keeps the mark. When the newest id in the list is lower than the mark, the server is
-    /// a new one (its ids start at 1 again): the mark is forgotten, so its entries count as unseen. The first list
-    /// after the start only sets the mark (nothing was shown before).
-    fn notify_activity(&mut self, model: &Value) {
-        let entries = arr(model, "entries");
-        let newest = entries.iter().filter_map(|e| e.get("id").and_then(Value::as_u64)).max();
-        let seen = match (self.last_activity, newest) {
-            (Some(mark), Some(n)) if n < mark => Some(0),
-            (mark, _) => mark,
-        };
-        self.last_activity = newest.or(seen);
-        let Some(seen) = seen else { return };
-        if let Some(e) = entries.iter().find(|e| e.get("id").and_then(Value::as_u64).is_some_and(|id| id > seen)) {
+    /// New activity lines go to the status line (a TUI's notifications, api.md §10.6): the newest entry not seen
+    /// before. Which those are is the session's – the first list after the start is no news, a new server's list is.
+    fn notify_activity(&mut self, news: &News) {
+        if let Some(e) = news.fresh.first() {
             let tone = match s(e, "level") {
                 "error" => Tone::Danger,
                 "warning" => Tone::Warning,
@@ -458,119 +462,16 @@ impl App {
         }
     }
 
-    fn answer(&mut self, pending: Pending, answer: Result<Value, CoreError>) {
-        match (pending, answer) {
-            (Pending::Action(flow), Ok(result)) => self.then(&flow, &result),
-            (Pending::Check(flow, value), Ok(result)) => {
-                if result.get("valid").and_then(Value::as_bool) == Some(false) {
-                    // `reason` is a text (§10.2)
-                    let reason = result.get("reason").map(t).unwrap_or_else(|| tr("Not accepted"));
-                    if let Some(Modal::Prompt(p)) = &mut self.modal {
-                        p.checking = false;
-                        p.error = Some(reason);
-                    }
-                } else {
-                    self.modal = None;
-                    self.asked(flow, Value::String(value));
-                }
-            }
-            (Pending::Check(_, _), Err(e)) => {
-                if let Some(Modal::Prompt(p)) = &mut self.modal {
-                    p.checking = false;
-                    p.error = Some(e.message);
-                }
-            }
-            (Pending::Step, Ok(model)) => match model.get("action").filter(|a| a.is_object()) {
-                Some(a) if b(&model, "valid") => {
-                    let a = a.clone();
-                    self.run_action(&a)
-                }
-                _ => {
-                    let reason = model.get("reason").map(t).unwrap_or_else(|| s(&model, "name").to_string());
-                    self.set_status(reason, Tone::Danger)
-                }
-            },
-            (Pending::Log(job), Ok(log)) => {
-                let mut lines: Vec<String> = arr(&log, "lines").iter().map(t).collect();
-                // Lines that came as job.log meanwhile follow
-                if let Some(got) = self.logs.get(&job) {
-                    lines.extend(got.iter().cloned());
-                }
-                self.logs.insert(job, lines);
-            }
-            (Pending::Quiet, Ok(_)) => {}
-            (_, Err(e)) => self.set_status(e.message, Tone::Danger),
-        }
-    }
-
     // MARK: Actions
 
-    /// A key or click asks for `action`
+    /// A key or click asks for `action`: the session asks what it needs (a prompt, a confirmation) and sends it
     pub fn run_action(&mut self, action: &Value) {
-        if !b(action, "enabled") {
-            let why = action.get("reason").map(t).unwrap_or_else(|| tr("Not possible now"));
-            self.set_status(why, Tone::Warning);
-            return;
-        }
-        let flow = Flow { action: action.clone(), params: action["params"].clone(), ask: 0, confirmed: false };
-        self.go_on(flow);
-    }
-
-    /// The next step of an action: its next ask, its confirmation, or sending it
-    fn go_on(&mut self, flow: Flow) {
-        let asks = arr(&flow.action, "ask");
-        if let Some(ask) = asks.get(flow.ask) {
-            let kind = s(ask, "kind").to_string();
-            let input = match &kind[..] {
-                "password" => String::new(),
-                "folder" | "file" | "package" => {
-                    ask.get("default").and_then(Value::as_str).map(str::to_string).unwrap_or_else(home_slash)
-                }
-                _ => ask.get("default").and_then(Value::as_str).unwrap_or_default().to_string(),
-            };
-            self.modal = Some(Modal::Prompt(Prompt {
-                label: t(&ask["label"]),
-                prompt: ask.get("prompt").map(t),
-                kind,
-                input,
-                candidates: vec![],
-                error: None,
-                first: None,
-                checking: false,
-                target: Target::Ask(flow),
-            }));
-            return;
-        }
-        if let (Some(c), false) = (flow.action.get("confirm").filter(|c| c.is_object()), flow.confirmed) {
-            let input = c.get("input").map(|i| s(i, "default").to_string());
-            self.modal = Some(Modal::Confirm { flow, input });
-            return;
-        }
-        self.send(flow);
-    }
-
-    /// An ask was answered
-    fn asked(&mut self, mut flow: Flow, value: Value) {
-        let ask = &arr(&flow.action, "ask")[flow.ask];
-        let param = s(ask, "param").to_string();
-        set_path(&mut flow.params, &param, value);
-        flow.ask += 1;
-        self.go_on(flow);
-    }
-
-    fn send(&mut self, flow: Flow) {
-        let method = s(&flow.action, "method").to_string();
-        if let Some(verb) = method.strip_prefix("ui.") {
-            self.verb(verb, flow);
-        } else {
-            let params = flow.params.clone();
-            self.request(&method, params, Pending::Action(flow));
-        }
+        let fx = self.session.start(action);
+        self.apply(fx);
     }
 
     /// What the UI does itself (api.md §10.4)
-    fn verb(&mut self, verb: &str, flow: Flow) {
-        let p = &flow.params;
+    fn verb(&mut self, verb: &str, p: &Value) {
         match verb {
             "show" => {
                 let page = s(p, "page");
@@ -590,16 +491,8 @@ impl App {
                 }
             }
             "back" => self.back(),
-            "step" => {
-                let params = json!({"page": s(p, "page"), "params": p["params"]});
-                self.request("views.get", params, Pending::Step);
-            }
             "filter" => {
-                let page = s(p, "page").to_string();
-                match p.get("filter").filter(|f| !f.is_null()) {
-                    Some(f) => self.filters.insert(page, f.clone()),
-                    None => self.filters.remove(&page),
-                };
+                self.session.filters.set(s(p, "page"), p.get("filter").cloned().unwrap_or(Value::Null));
                 self.resubscribe();
             }
             "field" => {
@@ -631,8 +524,8 @@ impl App {
     }
 
     /// The answer of a core method: what the action does with it (`then`)
-    fn then(&mut self, flow: &Flow, result: &Value) {
-        match s(&flow.action, "then") {
+    fn then(&mut self, action: &Value, result: &Value) {
+        match s(action, "then") {
             "reveal" => match result.get("path").and_then(Value::as_str) {
                 Some(path) => self.effects.push_back(Effect::Reveal(path.into())),
                 None => self.set_status(tr("No path in the answer"), Tone::Warning),
@@ -673,7 +566,9 @@ impl App {
                 // The UI's own verb (a catalog tab's search goes into its filter, plan B148)
                 self.run_action(&json!({"method": s(set, "method"), "params": params, "enabled": true}));
             } else {
-                self.request(s(set, "method"), params, Pending::Quiet);
+                // One after the other, so that the last value set is the one that stays
+                let fx = self.session.set(s(set, "method"), params);
+                self.apply(fx);
             }
         } else if let Some(key) = f.get("valueParam").and_then(Value::as_str) {
             // A form field of the page shown now
@@ -1070,53 +965,64 @@ impl App {
                     self.modal = Some(Modal::Filter { page, groups, values, index });
                 }
                 KeyCode::Char('r') | KeyCode::Backspace => {
-                    self.filters.remove(&page);
+                    self.session.filters.set(&page, Value::Null);
                     self.resubscribe();
                 }
                 KeyCode::Enter => {
-                    if values.is_empty() {
-                        self.filters.remove(&page);
-                    } else {
-                        self.filters.insert(page, Value::Object(values));
-                    }
+                    self.session.filters.set(&page, Value::Object(values));
                     self.resubscribe();
                 }
                 _ => self.modal = Some(Modal::Filter { page, groups, values, index }),
             },
-            Modal::Confirm { mut flow, input } => match key.code {
-                KeyCode::Enter => {
-                    if let (Some(text), Some(i)) = (&input, flow.action["confirm"].get("input")) {
-                        set_path(&mut flow.params, s(i, "param"), json!(text));
-                    }
-                    flow.confirmed = true;
-                    self.go_on(flow);
+            Modal::Confirm { flow, action, params, input } => match key.code {
+                // Enter opened this question (the actions menu): a second Enter, or the key held down, must not
+                // delete anything – what destroys is confirmed with y, or with Enter after the text asked for
+                KeyCode::Enter if input.is_none() && Self::confirm_texts(&action, &params).3 => {
+                    self.modal = Some(Modal::Confirm { flow, action, params, input })
                 }
-                KeyCode::Esc => self.set_status(tr("Cancelled"), Tone::Normal),
-                KeyCode::Char('y') if input.is_none() => {
-                    flow.confirmed = true;
-                    self.go_on(flow);
-                }
-                KeyCode::Char('n') if input.is_none() => self.set_status(tr("Cancelled"), Tone::Normal),
+                KeyCode::Enter => self.confirm(flow, input),
+                KeyCode::Esc => self.cancel(flow),
+                KeyCode::Char('y') if input.is_none() => self.confirm(flow, None),
+                KeyCode::Char('n') if input.is_none() => self.cancel(flow),
                 KeyCode::Char(c) if input.is_some() => {
                     let mut text = input.unwrap_or_default();
                     text.push(c);
-                    self.modal = Some(Modal::Confirm { flow, input: Some(text) });
+                    self.modal = Some(Modal::Confirm { flow, action, params, input: Some(text) });
                 }
                 KeyCode::Backspace if input.is_some() => {
                     let mut text = input.unwrap_or_default();
                     text.pop();
-                    self.modal = Some(Modal::Confirm { flow, input: Some(text) });
+                    self.modal = Some(Modal::Confirm { flow, action, params, input: Some(text) });
                 }
-                _ => self.modal = Some(Modal::Confirm { flow, input }),
+                _ => self.modal = Some(Modal::Confirm { flow, action, params, input }),
             },
             Modal::Prompt(p) => self.prompt_key(p, key),
         }
     }
 
+    /// Yes to the open confirmation: the session sends the action (with the text the question asked for)
+    fn confirm(&mut self, flow: FlowId, input: Option<String>) {
+        let fx = self.session.confirm(flow, input);
+        self.apply(fx);
+    }
+
+    /// The user gives the action up: whatever answer still comes for it, nothing more is sent
+    fn cancel(&mut self, flow: FlowId) {
+        let fx = self.session.cancel(flow);
+        self.apply(fx);
+        self.set_status(tr("Cancelled"), Tone::Normal);
+    }
+
     fn prompt_key(&mut self, mut p: Prompt, key: KeyEvent) {
         let is_path = matches!(p.kind.as_str(), "folder" | "file" | "package");
+        let before = p.input.clone();
         match key.code {
-            KeyCode::Esc => return self.set_status(tr("Cancelled"), Tone::Normal),
+            KeyCode::Esc => {
+                return match p.target {
+                    Target::Ask { flow, .. } => self.cancel(flow),
+                    Target::Field(_) => self.set_status(tr("Cancelled"), Tone::Normal),
+                };
+            }
             KeyCode::Tab if is_path => {
                 let (done, cands) = paths::complete(&p.input, p.kind == "folder");
                 p.input = done;
@@ -1134,7 +1040,16 @@ impl App {
             KeyCode::Enter if !p.checking => return self.submit(p),
             _ => {}
         }
+        // Typed on while the core checks the value before: that check's answer is not for this text any more
+        let retract = match &p.target {
+            Target::Ask { flow, .. } if p.checking && p.input != before => Some(*flow),
+            _ => None,
+        };
         self.modal = Some(Modal::Prompt(p));
+        if let Some(flow) = retract {
+            let fx = self.session.retract(flow);
+            self.apply(fx);
+        }
     }
 
     fn submit(&mut self, mut p: Prompt) {
@@ -1161,8 +1076,7 @@ impl App {
                 };
                 self.change_field(&f, v);
             }
-            Target::Ask(flow) => {
-                let ask = arr(&flow.action, "ask")[flow.ask].clone();
+            Target::Ask { flow, ask, .. } => {
                 if p.kind == "password" && b(&ask, "repeat") {
                     match p.first.take() {
                         None => {
@@ -1181,24 +1095,29 @@ impl App {
                         Some(_) => {}
                     }
                 }
-                if let Some(check) = ask.get("check").filter(|c| c.is_object()) {
-                    let mut params = check.get("params").filter(|p| p.is_object()).cloned().unwrap_or(json!({}));
-                    set_path(&mut params, s(check, "param"), json!(value));
-                    p.checking = true;
-                    let method = s(check, "method").to_string();
-                    self.modal = Some(Modal::Prompt(p));
-                    self.request(&method, params, Pending::Check(flow, value));
-                    return;
-                }
-                self.asked(flow, json!(value));
+                // The prompt stays while the session has the core check the value (`ask.check`); it closes, or the
+                // next question opens, with the session's question
+                p.error = None;
+                self.modal = Some(Modal::Prompt(p));
+                let fx = self.session.reply(flow, vec![value]);
+                self.apply(fx);
             }
         }
     }
 
     /// A confirmation's texts with the asked values filled in
-    pub fn confirm_texts(flow: &Flow) -> (String, String, String, bool) {
-        let c = &flow.action["confirm"];
-        (fill(&c["title"], &flow.params), fill(&c["text"], &flow.params), t(&c["button"]), b(c, "destructive"))
+    pub fn confirm_texts(action: &Value, params: &Value) -> (String, String, String, bool) {
+        let c = &action["confirm"];
+        (fill(&c["title"], params), fill(&c["text"], params), t(&c["button"]), b(c, "destructive"))
+    }
+}
+
+/// Why a value was not taken: the check's reason, or what went wrong with the check
+fn refusal(r: &session::Refusal) -> String {
+    match (&r.reason, &r.error) {
+        (Some(reason), _) => t(reason),
+        (None, Some(e)) => e.message.clone(),
+        (None, None) => tr("Not accepted"),
     }
 }
 

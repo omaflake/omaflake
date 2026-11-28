@@ -295,8 +295,15 @@ pub fn follow(client: &Client, job: &Value, on_lines: &mut dyn FnMut(&[String]))
     let interrupted = Arc::new(AtomicBool::new(false));
     let interrupts = {
         let flag = interrupted.clone();
-        // The job's log says "Cancelling …" itself
-        Interrupts::handle(move || flag.store(true, Ordering::SeqCst))?
+        let cancellable = job["cancellable"] != json!(false);
+        Interrupts::handle(move || {
+            // The job's log says "Cancelling …" itself – one that cannot be stopped midway (an import, an export, an
+            // install) goes on in the service, and this command waits for it
+            if !cancellable && !flag.load(Ordering::SeqCst) {
+                eprintln!("omaf: this cannot be cancelled midway – waiting for it to end");
+            }
+            flag.store(true, Ordering::SeqCst)
+        })?
     };
     let flag = interrupted.clone();
     let ended = client.follow_job(&id, 0, on_lines, &move || flag.load(Ordering::SeqCst));
@@ -308,6 +315,79 @@ pub fn follow(client: &Client, job: &Value, on_lines: &mut dyn FnMut(&[String]))
 pub fn is_job(v: &Value) -> bool {
     v["id"].is_string() && v["kind"].is_string() && v["state"].is_string() && v.get("logLines").is_some()
 }
+
+// MARK: How the commands change state
+
+/// This process's connection to the service of the standard data folder (the one of `VM_HOME` when that is set),
+/// made at the first call – the service is started when it does not run
+fn client() -> Result<&'static Client> {
+    static CLIENT: std::sync::OnceLock<Client> = std::sync::OnceLock::new();
+    if let Some(client) = CLIENT.get() {
+        return Ok(client);
+    }
+    let client = ensure_running(&Paths::standard())?.client;
+    Ok(CLIENT.get_or_init(|| client))
+}
+
+/// One request to the core service – how every command changes state (docs/cli.md): the same write path as the app
+/// and `omaf ui`, under the service's locks. The service is started when it does not run.
+pub fn rpc(method: &str, params: Value) -> Result<Value> {
+    Ok(client()?.call(method, params)?)
+}
+
+/// `rpc` with the answer as one of the API's types (omaflake-sdk)
+pub fn rpc_as<T: serde::de::DeserializeOwned>(method: &str, params: Value) -> Result<T> {
+    serde_json::from_value(rpc(method, params)?)
+        .map_err(|e| Error::new(format!("The service's answer to {method}: {e}")))
+}
+
+/// `rpc` for a method that starts a job: followed to its end, its log lines given to `on_lines` as they come;
+/// Ctrl-C cancels the job and waits for its end. The ended job is the answer – `finished` reads it.
+pub fn rpc_job(method: &str, params: Value, on_lines: &mut dyn FnMut(&[String])) -> Result<JobDto> {
+    let client = client()?;
+    // The jobs' events wake the follower at once (without them it looks twice a second)
+    static SUBSCRIBED: std::sync::Once = std::sync::Once::new();
+    SUBSCRIBED.call_once(|| {
+        let _ = client.call("events.subscribe", json!({"topics": ["jobs"]}));
+    });
+    let job = client.call(method, params)?;
+    follow(client, &job, on_lines)
+}
+
+/// An ended job's result – or why there is none: cancelled ("<what> cancelled"), or its error ("<what> failed"
+/// when it gave none)
+pub fn finished(job: JobDto, what: &str) -> Result<Value> {
+    match job.state {
+        omaflake_sdk::types::JobState::Finished => Ok(job.result.unwrap_or_default()),
+        omaflake_sdk::types::JobState::Cancelled => {
+            Err(Error::with_code(omaflake_sdk::codes::CANCELLED, format!("{what} cancelled")))
+        }
+        _ => Err(Error::new(job.error.unwrap_or_else(|| format!("{what} failed")))),
+    }
+}
+
+/// `finished` with the result as one of the API's types
+pub fn finished_as<T: serde::de::DeserializeOwned>(job: JobDto, what: &str) -> Result<T> {
+    serde_json::from_value(finished(job, what)?).map_err(|e| Error::new(format!("The service's result: {e}")))
+}
+
+/// A job's log lines on stdout (what the command printed itself before)
+pub fn to_stdout(lines: &[String]) {
+    for line in lines {
+        println!("{line}");
+    }
+    let _ = std::io::stdout().flush();
+}
+
+/// A job's log lines on stderr
+pub fn to_stderr(lines: &[String]) {
+    for line in lines {
+        eprintln!("{line}");
+    }
+}
+
+/// A job's log lines left out: the command says itself what was done
+pub fn quiet_lines(_: &[String]) {}
 
 // MARK: The agent
 

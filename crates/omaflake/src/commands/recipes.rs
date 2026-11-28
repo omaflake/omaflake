@@ -15,7 +15,7 @@ use omaflake_sdk::models::{GuestKind, RecipeSourceKind};
 
 use omaflake_sdk::client::Client;
 use omaflake_sdk::codes;
-use omaflake_sdk::types::{BuildResult, JobState};
+use omaflake_sdk::types::{BuildResult, InstallResult, JobState, LineRemoval};
 use serde_json::{Value, json};
 
 use super::service;
@@ -188,11 +188,21 @@ fn build_in_service(
             let result: BuildResult = serde_json::from_value(ended.result.unwrap_or_default())
                 .map_err(|e| Error::new(format!("The service's build result: {e}")))?;
             let n = Lengths::current(&env.paths);
-            let image = match env.images().image(&result.image) {
-                Ok(image) => OmaflakeId::image(&image, n.image),
+            let built = env.images().image(&result.image);
+            let image = match &built {
+                Ok(image) => OmaflakeId::image(image, n.image),
                 Err(_) => result.image.clone(),
             };
-            println!("Image {image} ready – new VMs of {} use it.", OmaflakeId::recipe(recipe, n.recipe));
+            if built.is_ok_and(|i| i.info.unchained) {
+                // Never the recipe's current image (plan B184): its VMs are made from it by name
+                println!(
+                    "Image {image} ready – unchained, System Integrity Protection off. A VM from it: omaf new <name> \
+                     --image {}",
+                    result.image
+                );
+            } else {
+                println!("Image {image} ready – new VMs of {} use it.", OmaflakeId::recipe(recipe, n.recipe));
+            }
             Ok(())
         }
         JobState::Cancelled => Err(Error::with_code(codes::CANCELLED, "Build cancelled").into()),
@@ -278,14 +288,20 @@ pub fn build(a: &cli::Build) -> Outcome {
         choice.credential = Some(login.credential.clone());
         mac = Some((builder, base, user, login.password));
     }
-    // With the core service running, the build is its job: the app and other clients see it, it waits in the same
-    // queue (plan B120); this command follows its log. Not with VM_FLAKE: the service – started by the app or another
-    // terminal – does not have this terminal's environment and would build with config.json's flake
-    let mut service = service::connect_running(&env.paths);
-    if service.is_some() && std::env::var("VM_FLAKE").is_ok_and(|v| !v.is_empty()) {
-        eprintln!("VM_FLAKE is set: building here, not in the omaflake service (it builds with config.json's flake)");
-        service = None;
-    }
+    // The build is a job of the core service: the app and other clients see it, it waits in the same queue (plan
+    // B120); this command follows its log. Not with VM_FLAKE: the service – started by the app or another terminal –
+    // does not have this terminal's environment and would build with config.json's flake
+    let service = if std::env::var("VM_FLAKE").is_ok_and(|v| !v.is_empty()) {
+        if service::connect_running(&env.paths).is_some() {
+            eprintln!(
+                "VM_FLAKE is set: building here, not in the omaflake service (it builds with config.json's flake)"
+            );
+        }
+        None
+    } else {
+        // Started when it does not run, as for every command that changes something (docs/cli.md)
+        Some(service::ensure_running(&env.paths)?)
+    };
     if let Some(service::Running { client, .. }) = service {
         // The service takes the base's credential itself
         let base = mac.as_ref().map(|(_, b, _, _)| b.to_string_lossy().into_owned());
@@ -337,7 +353,10 @@ pub fn build(a: &cli::Build) -> Outcome {
             OmaflakeId::recipe(&recipe, n.recipe)
         );
     }
-    if let Ok(backends) = env.backends() {
+    // Not while a VM's file cannot be read: its image is not known, and must not go
+    if let Ok(backends) = env.backends()
+        && backends.store.unreadable().is_empty()
+    {
         let used: HashSet<String> = backends.store.list().into_iter().map(|c| c.image).collect();
         for name in images.prune(&recipe, &used) {
             println!("Removed older image {name}");
@@ -408,21 +427,22 @@ pub fn install(a: &cli::RecipesInstall) -> Outcome {
         if !catalog.recipes.iter().any(|r| r.id == id) {
             continue;
         }
-        let library = RecipeLibrary::new(env.paths.clone());
-        let written = library.install(&id, &catalog, &client)?;
+        // A job of the core service: the recipe, then what it is made of – modules, key bindings, its look (plan
+        // B142); its log names each
+        let mut lines: Vec<String> = Vec::new();
+        let job = service::rpc_job("recipes.install", json!({"id": id, "source": s.id()}), &mut |new: &[String]| {
+            lines.extend_from_slice(new)
+        })?;
+        let written = service::finished_as::<InstallResult>(job, "Installing the recipe")?.installed;
         if written.is_empty() {
             println!("{} is up to date.", a.recipe);
         } else {
             let names: Vec<String> = written.iter().map(|w| RecipeId::qualified(w)).collect();
             println!("Installed from {}: {}", s.display_name(), names.join(", "));
         }
-        // What it is made of comes along: modules, key bindings, its look (plan B142)
-        let folder = written.first().and_then(|w| library.folder(w)).or_else(|| {
-            library.available(&env.settings()).into_iter().find(|x| RecipeId::base(&x.id) == id).map(|x| x.folder)
-        });
-        if let Some(spec) = folder.and_then(|f| omaflake_core::composition::RecipeSpec::read(&f).ok()) {
-            let catalogs = omaflake_core::parts::fetch_part_catalogs(&env.settings());
-            omaflake_core::parts::install_recipe_parts(&env.paths, &spec, &catalogs, &mut |line| println!("{line}"))?;
+        let said: Vec<String> = written.iter().map(|w| format!("Installed {}", RecipeId::qualified(w))).collect();
+        for line in lines.iter().filter(|l| !said.contains(l)) {
+            println!("{line}");
         }
         return Ok(());
     }
@@ -440,15 +460,16 @@ pub fn remove(a: &cli::RecipesRemove) -> Outcome {
     let id = RecipeId::resolve(&a.recipe, &ids, None)?;
     if a.all {
         let source = versions.iter().find(|v| v.id == id).map(|v| v.source.as_str()).unwrap_or("");
-        let (removed, kept) = library.remove_line(&RecipeId::line_key(&id, source));
-        for r in removed {
+        let gone: LineRemoval =
+            service::rpc_as("recipes.removeLine", json!({"line": RecipeId::line_key(&id, source)}))?;
+        for r in gone.removed {
             println!("Removed {}", OmaflakeId::recipe(&r, 3));
         }
-        for k in kept {
+        for k in gone.kept {
             println!("Kept {k}");
         }
     } else {
-        library.remove(&id)?;
+        service::rpc("recipes.remove", json!({"id": id}))?;
         println!("Removed {}.", OmaflakeId::recipe(&id, 3));
     }
     Ok(())
@@ -514,8 +535,8 @@ pub fn show(a: &cli::RecipesShow) -> Outcome {
     };
     let spec = RecipeSpec::read(&entry.folder)?;
     if a.install {
-        let catalogs = omaflake_core::parts::fetch_part_catalogs(&settings);
-        omaflake_core::parts::install_recipe_parts(&env.paths, &spec, &catalogs, &mut |line| println!("{line}"))?;
+        let job = service::rpc_job("recipes.installParts", json!({"id": id}), &mut service::to_stdout)?;
+        service::finished(job, "Installing what the recipe is made of")?;
     }
     let modules = omaflake_core::modules::ModuleStore::new(env.paths.clone());
     let c = Composition::of(

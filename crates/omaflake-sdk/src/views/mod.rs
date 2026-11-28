@@ -56,6 +56,11 @@ pub struct PageRef {
 }
 
 impl PageRef {
+    /// A page with its params; anything but an object counts as none
+    pub fn new(page: &str, params: Value) -> PageRef {
+        PageRef { page: page.into(), params: if params.is_object() { params } else { json!({}) } }
+    }
+
     /// The key a subscription is known by
     pub fn key(&self) -> String {
         format!("{} {}", self.page, self.params)

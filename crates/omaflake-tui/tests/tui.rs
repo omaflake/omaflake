@@ -344,18 +344,152 @@ fn draws_every_page() {
     }
 }
 
+/// A core whose job log grows: `jobs.log` answers from `from` on, as the core does
+fn log_core(log: Arc<Mutex<Vec<String>>>) -> impl Fn(&str, &Value) -> Value + Send + Sync + 'static {
+    move |m, p| match m {
+        "jobs.log" => {
+            let lines = log.lock().unwrap();
+            let from = (p["from"].as_u64().unwrap() as usize).min(lines.len());
+            json!({"lines": lines[from..], "next": lines.len()})
+        }
+        _ => Value::Null,
+    }
+}
+
+/// The log is read with `jobs.log` from the line after the last one read; a `job.log` event says there is more – its
+/// lines may be in an answer already, so no line comes twice and none is lost
 #[test]
 fn build_log_comes_from_jobs_log_and_job_log() {
-    let mut h = Harness::new(|m, _| match m {
-        "jobs.log" => json!({"lines": ["building '/nix/store/abc'", "copying path"], "next": 2}),
-        _ => Value::Null,
-    });
+    let log = Arc::new(Mutex::new(vec!["building '/nix/store/abc'".to_string(), "copying path".to_string()]));
+    let mut h = Harness::new(log_core(log.clone()));
     h.show("build", json!({"recipe": "r"}), fixture("build"));
     h.settle();
     assert_eq!(h.calls("jobs.log"), [json!({"id": "j1", "from": 0})]);
+    // An event that brings a line the answer had already (it was on its way while the log was read)
+    h.app.handle(Msg::Event("job.log".into(), json!({"id": "j1", "lines": ["copying path"]})));
+    h.settle();
+    let s = h.screen();
+    assert_eq!(s.matches("copying path").count(), 1, "{s}");
+    // A new line: read from where the log was read to
+    log.lock().unwrap().push("[3/5] Copying the image".into());
     h.app.handle(Msg::Event("job.log".into(), json!({"id": "j1", "lines": ["[3/5] Copying the image"]})));
+    h.settle();
+    assert_eq!(h.calls("jobs.log").last().unwrap(), &json!({"id": "j1", "from": 2}));
     let s = h.screen();
     assert!(s.contains("building '/nix/store/abc'") && s.contains("[3/5] Copying the image"), "{s}");
+    assert_eq!(s.matches("[3/5] Copying the image").count(), 1, "{s}");
+    // Lines whose events never came (two at once, one event) are there all the same
+    log.lock().unwrap().extend(["four".to_string(), "five".to_string()]);
+    h.app.handle(Msg::Event("job.log".into(), json!({"id": "j1", "lines": ["five"]})));
+    h.settle();
+    let s = h.screen();
+    assert!(s.contains("│four ") && s.contains("│five "), "{s}");
+}
+
+/// A service that started again counts its jobs from j1: the new build's log is not the old one's
+#[test]
+fn a_new_service_shows_its_own_log() {
+    let log = Arc::new(Mutex::new(vec!["line of the old service".to_string()]));
+    let mut h = Harness::new(log_core(log.clone()));
+    h.show("build", json!({"recipe": "r"}), fixture("build"));
+    h.settle();
+    assert!(h.screen().contains("line of the old service"));
+    // The service ends; the next one has another job j1
+    *log.lock().unwrap() = vec!["line of the new service".to_string()];
+    let before = h.calls("views.subscribe").len();
+    h.app.reconnect(h.fake.clone(), "test");
+    h.settle();
+    assert!(!h.screen().contains("line of the old service"), "the old job's log is still shown");
+    // The pages are subscribed again, and with the page's model its log is read from its start
+    let subs = h.calls("views.subscribe");
+    assert_eq!(subs.len(), before + 1);
+    assert_eq!(subs.last().unwrap()["pages"][3], json!({"page": "build", "params": {"recipe": "r"}}));
+    h.model("build", json!({"recipe": "r"}), fixture("build"));
+    h.settle();
+    assert_eq!(h.calls("jobs.log").last().unwrap(), &json!({"id": "j1", "from": 0}));
+    let s = h.screen();
+    assert!(s.contains("line of the new service") && !s.contains("line of the old service"), "{s}");
+}
+
+/// Two quick tab switches: the page sets reach the core one after the other, the last one last – however long the
+/// core takes for each
+#[test]
+fn page_sets_reach_the_core_in_order() {
+    let mut h = Harness::new(|m, p| {
+        // The first switch's subscription takes longer than the second's would
+        let slow = m == "views.subscribe" && p["pages"].as_array().unwrap().iter().any(|p| p["page"] == "images");
+        if slow {
+            std::thread::sleep(Duration::from_millis(30));
+        }
+        Value::Null
+    });
+    h.model("vms", json!({}), fixture("vms"));
+    let before = h.calls("views.subscribe").len();
+    h.app.key(KeyEvent::new(KeyCode::Tab, KeyModifiers::NONE));
+    h.app.key(KeyEvent::new(KeyCode::Tab, KeyModifiers::NONE));
+    h.settle();
+    assert_eq!(h.app.tab, "activity");
+    // (the fake notes a call when it is answered)
+    // (the tab's page is the last of each set: home, activity, the tab – activity is in it already)
+    let tabs: Vec<Value> = h.calls("views.subscribe")[before..]
+        .iter()
+        .map(|c| c["pages"].as_array().unwrap().last().unwrap()["page"].clone())
+        .collect();
+    assert_eq!(tabs.last().unwrap(), "activity", "the core is left with an old page set: {tabs:?}");
+    assert_eq!(tabs, ["images", "activity"]);
+}
+
+/// Esc while the core checks the chosen package: the import does not go on when the check says yes
+#[test]
+fn a_cancelled_prompt_does_not_run_its_action() {
+    let dir = tempfile::tempdir().unwrap();
+    let pkg = dir.path().join("research.omaflake-vm");
+    std::fs::create_dir(&pkg).unwrap();
+    let new = || {
+        let mut h = Harness::new(|m, _| match m {
+            "packages.inspect" => {
+                std::thread::sleep(Duration::from_millis(30));
+                json!({"kind": "vm", "valid": true})
+            }
+            "views.get" => fixture("import"),
+            _ => Value::Null,
+        });
+        h.model("vms", json!({}), fixture("vms"));
+        h.key(KeyCode::Char('i'));
+        h.app.key(KeyEvent::new(KeyCode::Char('u'), KeyModifiers::CONTROL));
+        h.type_text(&pkg.display().to_string());
+        // Enter without waiting for the check's answer
+        h.app.key(KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE));
+        let Some(Modal::Prompt(p)) = &h.app.modal else { panic!("no prompt") };
+        assert!(p.checking);
+        h
+    };
+    // Cancelled while it is checked
+    let mut h = new();
+    h.app.key(KeyEvent::new(KeyCode::Esc, KeyModifiers::NONE));
+    h.settle();
+    assert_eq!(h.calls("packages.inspect").len(), 1);
+    assert!(h.calls("views.get").is_empty(), "the cancelled import went on");
+    assert!(h.app.modal.is_none());
+    assert_eq!(h.app.status.as_ref().unwrap().0, "Cancelled");
+    // Typed on while it is checked: the answer is not for this text – the prompt stays, with what was typed
+    let mut h = new();
+    h.type_text("x");
+    h.settle();
+    assert!(h.calls("views.get").is_empty(), "the check of another value was taken");
+    let Some(Modal::Prompt(p)) = &h.app.modal else { panic!("the prompt closed") };
+    assert!(!p.checking && p.input.ends_with("research.omaflake-vmx"), "{p:?}");
+    // The service ends while it is checked: the prompt does not wait for ever, Enter asks again
+    let mut h = new();
+    h.app.reconnect(h.fake.clone(), "test");
+    let Some(Modal::Prompt(p)) = &h.app.modal else { panic!("the prompt closed") };
+    assert!(!p.checking);
+    h.settle();
+    assert!(h.calls("views.get").is_empty(), "an answer of the old connection was taken");
+    h.key(KeyCode::Enter);
+    assert_eq!(h.calls("packages.inspect").len(), 2);
+    assert_eq!(h.calls("views.get").len(), 1);
+    assert!(matches!(h.app.modal, Some(Modal::Confirm { .. })));
 }
 
 #[test]

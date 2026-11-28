@@ -3,9 +3,12 @@
 //! like credentials, kept in config.json; an image is built with one (`omaf build --locale`), the default otherwise.
 
 use omaflake_core::guest_settings::GuestSettings;
-use omaflake_core::locales::{LocaleChange, Locales};
+use omaflake_core::locales::{GuestLocale, LocaleChange, Locales};
 use omaflake_core::{GuestChoices, Settings};
 
+use serde_json::json;
+
+use super::service;
 use crate::cli;
 use crate::util::{Env, Outcome, pad, usage};
 
@@ -44,45 +47,73 @@ pub fn list() -> Outcome {
     Ok(())
 }
 
+/// The locale `id` as it is stored now
+fn stored(id: &str) -> omaflake_core::Result<GuestLocale> {
+    Locales::new(Env::new().paths)
+        .list()
+        .into_iter()
+        .find(|l| l.id == id)
+        .ok_or_else(|| omaflake_core::Error::new(format!("No locale {id} – see omaf locales")))
+}
+
+/// `locales.add` / `locales.update`: only what is given
+fn change(method: &str, id: Option<&str>, c: LocaleChange) -> omaflake_core::Result<GuestLocale> {
+    let mut params = json!({});
+    let texts = [("id", id.map(str::to_string)), ("name", c.name), ("locale", c.locale), ("timeZone", c.time_zone)];
+    for (key, value) in texts {
+        if let Some(v) = value {
+            params[key] = json!(v);
+        }
+    }
+    if let Some(k) = c.keyboards {
+        params["keyboards"] = json!(k);
+    }
+    let answer = service::rpc(method, params)?;
+    stored(answer["id"].as_str().unwrap_or_default())
+}
+
 pub fn add(a: &cli::LocaleArgs) -> Outcome {
     let env = Env::new();
     let mac = GuestSettings::mac();
     let host = Settings::load(&env.paths).host_keyboard.unwrap_or(mac.keyboard);
-    let change = LocaleChange {
-        name: Some(a.name.clone()),
-        locale: Some(a.locale.clone().unwrap_or(mac.locale)),
-        time_zone: Some(a.time_zone.clone().unwrap_or(mac.time_zone)),
-        keyboards: Some(match &a.keyboards {
-            Some(k) => keyboards(k)?,
-            None => vec![host],
-        }),
-    };
-    let l = Locales::new(env.paths.clone()).add(change)?;
+    let l = change(
+        "locales.add",
+        None,
+        LocaleChange {
+            name: Some(a.name.clone()),
+            locale: Some(a.locale.clone().unwrap_or(mac.locale)),
+            time_zone: Some(a.time_zone.clone().unwrap_or(mac.time_zone)),
+            keyboards: Some(match &a.keyboards {
+                Some(k) => keyboards(k)?,
+                None => vec![host],
+            }),
+        },
+    )?;
     println!("Locale {} added ({}, {}, {}).", l.name, l.locale, l.time_zone, l.keyboards.join("+"));
     Ok(())
 }
 
 pub fn edit(a: &cli::LocaleArgs) -> Outcome {
-    let env = Env::new();
-    let locales = Locales::new(env.paths.clone());
-    let Some(l) = locales.find(&a.name) else {
+    let Some(l) = Locales::new(Env::new().paths).find(&a.name) else {
         return Err(usage(&["locales", "edit"], format!("No locale {} – see omaf locales", a.name)));
     };
-    let change = LocaleChange {
-        name: a.rename.clone(),
-        locale: a.locale.clone(),
-        time_zone: a.time_zone.clone(),
-        keyboards: a.keyboards.as_deref().map(keyboards).transpose()?,
-    };
-    locales.check_change(&l.id, &change)?;
-    let l = locales.update(&l.id, change)?;
+    // The service checks the change: images are built with a locale's values
+    let l = change(
+        "locales.update",
+        Some(&l.id),
+        LocaleChange {
+            name: a.rename.clone(),
+            locale: a.locale.clone(),
+            time_zone: a.time_zone.clone(),
+            keyboards: a.keyboards.as_deref().map(keyboards).transpose()?,
+        },
+    )?;
     println!("Locale {} changed ({}, {}, {}).", l.name, l.locale, l.time_zone, l.keyboards.join("+"));
     Ok(())
 }
 
 pub fn remove(reference: &str) -> Outcome {
-    let env = Env::new();
-    let locales = Locales::new(env.paths.clone());
+    let locales = Locales::new(Env::new().paths);
     let Some(l) = locales.find(reference) else {
         return Err(usage(&["locales", "rm"], format!("No locale {reference} – see omaf locales")));
     };
@@ -93,18 +124,16 @@ pub fn remove(reference: &str) -> Outcome {
             format!("Images are built with {} ({used}) – remove them first", l.name),
         ));
     }
-    locales.remove(&l.id)?;
+    service::rpc("locales.remove", json!({"id": l.id}))?;
     println!("Locale {} removed.", l.name);
     Ok(())
 }
 
 pub fn set_default(reference: &str) -> Outcome {
-    let env = Env::new();
-    let locales = Locales::new(env.paths.clone());
-    let Some(l) = locales.find(reference) else {
+    let Some(l) = Locales::new(Env::new().paths).find(reference) else {
         return Err(usage(&["locales", "default"], format!("No locale {reference} – see omaf locales")));
     };
-    locales.set_default(&l.id)?;
+    service::rpc("locales.setDefault", json!({"id": l.id}))?;
     println!("New images get the locale {}.", l.name);
     Ok(())
 }

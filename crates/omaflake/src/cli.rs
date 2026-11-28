@@ -97,13 +97,13 @@ pub enum Command {
     #[command(about = "Shut down cleanly; force off after the timeout.")]
     Stop(Stop),
     #[command(about = "Reset: delete the instance's state and start over from its image.")]
-    Reset(NameArg),
+    Reset(DestroyArg),
     #[command(
         about = "Upgrade to the recipe's current image (the old state is deleted; --keep: a running VM keeps its files)."
     )]
     Upgrade(UpgradeArgs),
     #[command(name = "rm", about = "Delete an instance (its share folder stays).")]
-    Remove(NameArg),
+    Remove(DestroyArg),
     #[command(about = "Instances with status.")]
     List(List),
     #[command(
@@ -993,6 +993,15 @@ pub struct Stop {
     pub name: String,
     #[arg(long, value_name = "timeout", default_value_t = 60.0, help = "Seconds until forced power-off")]
     pub timeout: f64,
+}
+
+/// A command that deletes an instance's state: asks first in a terminal
+#[derive(Debug, Args)]
+pub struct DestroyArg {
+    #[arg(value_name = "name")]
+    pub name: String,
+    #[arg(short = 'y', long, help = "Do not ask (scripts: without a terminal nothing is asked anyway)")]
+    pub yes: bool,
 }
 
 #[derive(Debug, Args)]

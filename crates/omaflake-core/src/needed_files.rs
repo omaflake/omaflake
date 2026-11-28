@@ -45,6 +45,31 @@ pub struct NeededFile {
     pub url: Option<String>,
 }
 
+/// A name the Nix Store takes: letters, digits and `+-._?=`, not starting with a dot, at most 211 characters
+fn store_name(name: &str) -> bool {
+    !name.is_empty()
+        && name.len() <= 211
+        && !name.starts_with('.')
+        && name.chars().all(|c| c.is_ascii_alphanumeric() || "+-._?=".contains(c))
+}
+
+/// A plain file name: no path, no `.` or `..`, no control characters
+fn file_name(name: &str) -> bool {
+    !name.is_empty() && name != "." && name != ".." && !name.chars().any(|c| c == '/' || c == '\\' || c.is_control())
+}
+
+/// A folder a module may have searched: where downloads and apps are, or a folder below one of them
+fn search_folder(dir: &str) -> bool {
+    const ROOTS: [&str; 4] = ["~/Downloads", "~/Desktop", "~/Applications", "/Applications"];
+    ROOTS.iter().any(|root| {
+        dir == *root
+            || dir
+                .strip_prefix(root)
+                .and_then(|rest| rest.strip_prefix('/'))
+                .is_some_and(|rest| rest.split('/').all(file_name))
+    })
+}
+
 fn recursive() -> String {
     "recursive".into()
 }
@@ -60,8 +85,18 @@ impl NeededFile {
 
     /// What is wrong with the entry (None: fine) – checked when the module is read
     pub fn problem(&self) -> Option<String> {
-        if self.name.is_empty() || self.name.contains('/') {
+        if !store_name(&self.name) {
             return Some(format!("files: name \"{}\" is not a Nix Store name", self.name));
+        }
+        // A module comes from any source: it names what to look for, not where on this computer to reach. Plain file
+        // names, in the folders downloads and apps are in – anything else the user chooses on the build page
+        if let Some(from) = self.from.iter().find(|f| !file_name(f)) {
+            return Some(format!("files: from \"{from}\" is not a plain file name"));
+        }
+        if let Some(dir) = self.search.iter().find(|d| !search_folder(d)) {
+            return Some(format!(
+                "files: search \"{dir}\" is not in ~/Downloads, ~/Desktop, ~/Applications or /Applications"
+            ));
         }
         if self.mode != "recursive" && self.mode != "flat" {
             return Some(format!("files: mode \"{}\" is recursive or flat", self.mode));
@@ -208,7 +243,12 @@ impl NeededFile {
         let landed = r.stdout.trim().to_string();
         if landed != expected {
             // Not the file the module needs (another version, or changed): out of the store again
-            let _ = Shell::run(&nix_store, &["--delete", &landed], &RunOptions::default());
+            let gone = Shell::run(&nix_store, &["--delete", &landed], &RunOptions::default());
+            if !gone.is_ok_and(|r| r.status == 0) {
+                log(&format!(
+                    "{landed} could not be removed from the Nix Store – remove it with: nix-store --delete {landed}"
+                ));
+            }
             return Err(vm_err!(
                 codes::PREREQUISITE,
                 "{} is not {} – its content differs from what the module needs (another version?)",
@@ -359,6 +399,19 @@ mod tests {
     fn bad_entries_are_named() {
         assert!(NeededFile { hash: "md5-abc".into(), ..xcode() }.problem().is_some());
         assert!(NeededFile { name: "a/b".into(), ..xcode() }.problem().is_some());
+        // Names that would leave the work folder or the store's names; places a module has no business in
+        for name in ["..", ".", ".hidden", "a b", ""] {
+            assert!(NeededFile { name: name.into(), ..xcode() }.problem().is_some(), "{name}");
+        }
+        for from in ["../x", "a/b", "..", "x\ny"] {
+            assert!(NeededFile { from: vec![from.into()], ..xcode() }.problem().is_some(), "{from}");
+        }
+        for dir in ["~/.ssh", "~", "/", "/etc", "~/Downloads/../.ssh", "~/Downloadsx", "/Applications/"] {
+            assert!(NeededFile { search: vec![dir.into()], ..xcode() }.problem().is_some(), "{dir}");
+        }
+        for dir in ["~/Downloads", "~/Desktop/Xcode", "/Applications", "~/Applications"] {
+            assert_eq!(NeededFile { search: vec![dir.into()], ..xcode() }.problem(), None, "{dir}");
+        }
         assert!(NeededFile { mode: "zip".into(), ..xcode() }.problem().is_some());
     }
 

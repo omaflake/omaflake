@@ -17,6 +17,7 @@
 //! - [`client`]: the connection to the service – calls, events, following a job
 //! - [`types`]: the API's types (docs/api.md §2–§7), [`models`], [`networks`], [`diagnostics`]: the kinds they use
 //! - [`views`]: the page models (§10) – what each page shows; an interface only draws them
+//! - [`session`]: what an interface of the page models keeps and does – pages, actions with their questions, jobs, logs
 //! - [`protocol`], [`codes`]: errors and their kinds; [`text`]: texts with their translation keys; [`time`]: dates
 //! - [`brand`]: omaflake's design tokens – colours, spacing, type – for interfaces of their own
 //!
@@ -31,6 +32,7 @@ pub mod diagnostics;
 pub mod models;
 pub mod networks;
 pub mod protocol;
+pub mod session;
 pub mod text;
 pub mod time;
 pub mod types;

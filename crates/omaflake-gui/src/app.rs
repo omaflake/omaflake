@@ -1,23 +1,28 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 //! The app's state and what it does with messages. It keeps only what api.md §10 leaves to a UI: which tab and page
-//! are open, which rows are expanded, the filters it asked with, what the user types, whether the activity was seen.
+//! are open, which rows are expanded, what the user types, whether the activity was seen.
 //! Everything shown comes from the core's page models (`view.changed`); every action is sent as the model names it.
+//! What every interface of the page models does the same way – the pages subscribed and their models, an action's
+//! way to the core with its asks, checks and confirmation, the jobs, their logs, what is new in the activity – is the
+//! SDK's [`Session`], shared with `omaf ui`; this module turns messages into what the user wants of it and carries
+//! its effects out (calls as tasks, questions as dialogs).
 
-use std::collections::{BTreeMap, HashMap, HashSet, VecDeque};
+use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
 use std::time::{Duration, Instant};
 
 use iced::widget::image;
 use iced::{Size, Subscription, Task, window};
+use omaflake_sdk::protocol::RpcError;
+use omaflake_sdk::session::{self, FlowId, News, Notice, Question, Session};
 use omaflake_sdk::types::JobDto;
 use omaflake_sdk::views::activity::ActivityPage;
 use omaflake_sdk::views::build::{BuildPage, LogRef};
-use omaflake_sdk::views::common::{Action, Ask, AskKind, Confirm, Field, Then, set_param};
+use omaflake_sdk::views::common::{Action, Ask, AskKind, Confirm, Field, set_param};
 use omaflake_sdk::views::credentials::{CredentialPage, CredentialsPage};
 use omaflake_sdk::views::doctor::{DoctorPage, MacBasePage};
 use omaflake_sdk::views::home::HomePage;
 use omaflake_sdk::views::images::{ImagePage, ImagesPage};
-use omaflake_sdk::views::import::ImportPage;
 use omaflake_sdk::views::new_vm::NewVmPage;
 use omaflake_sdk::views::recipes::RecipesPage;
 use omaflake_sdk::views::settings::SettingsPage;
@@ -202,19 +207,18 @@ pub fn page_ref(page: &str, params: Value) -> PageRef {
     PageRef { page: page.into(), params: if params.is_null() { json!({}) } else { params } }
 }
 
-/// What an answer was for
-#[derive(Debug, Clone)]
-pub enum Purpose {
-    /// An action's method; `then` what to do with its result
-    Action { then: Option<Then> },
-    /// `ui.step`: the page whose action runs now
-    Step,
-    /// A log's lines (`jobs.log`)
-    Log(String),
-    /// The core's settings (notifications on?)
-    Settings,
-    /// Nothing to do but report an error
-    Quiet,
+/// A text of the core (api.md §10.2) as it came in JSON, in the app's language
+fn text_of(v: &Value) -> Option<String> {
+    serde_json::from_value::<Text>(v.clone()).ok().map(|t| s(&t))
+}
+
+/// Why chosen values were not taken, one per line
+fn refusals(refused: &[session::Refusal]) -> String {
+    let line = |r: &session::Refusal| match &r.error {
+        Some(e) => format!("{}: {}", r.value, e.message),
+        None => refusal(&r.value, &json!({"reason": r.reason})),
+    };
+    refused.iter().map(line).collect::<Vec<_>>().join("\n")
 }
 
 #[derive(Debug, Clone)]
@@ -222,7 +226,8 @@ pub enum Message {
     Core(backend::Event),
     #[cfg(target_os = "linux")]
     Tray(tray::Event),
-    Answer(Purpose, Result<Value, CallError>),
+    /// The answer to a request of the session, by its id
+    Answer(u64, Result<Value, CallError>),
     Tab(String),
     Expand(String),
     FilterMenu(Option<String>),
@@ -260,8 +265,8 @@ pub enum Message {
     ModalRepeat(String),
     ModalOk,
     ModalCancel,
-    Picked(Option<Vec<PathBuf>>),
-    Checked(Result<Vec<String>, String>),
+    /// A file dialog closed: the action it was open for, and what was chosen
+    Picked(FlowId, Option<Vec<PathBuf>>),
     Back,
     Tick(Instant),
     Focus(bool),
@@ -280,30 +285,11 @@ pub enum Modal {
     Ask { ask: Ask, value: String, repeat: String, error: Option<String> },
 }
 
-/// An action on its way: asking, confirming, sending (api.md §10.3: ask, then confirm, then send)
-#[derive(Debug, Clone)]
-pub struct Flow {
-    pub action: Action,
-    pub params: Value,
-    pub asks: VecDeque<Ask>,
-    /// The params sets to send (several when an `ask` of `multiple` got several values)
-    pub queue: VecDeque<Value>,
-    /// The ask a file dialog is open for
-    pub picking: Option<Ask>,
-}
-
 #[derive(Debug, Clone)]
 pub struct Toast {
     pub text: String,
     pub error: bool,
     pub until: Instant,
-}
-
-/// A job's log as far as it was read
-#[derive(Debug, Clone, Default)]
-pub struct Log {
-    pub lines: Vec<String>,
-    pub loaded: bool,
 }
 
 pub struct App {
@@ -321,7 +307,8 @@ pub struct App {
     pub tab: String,
     pub tab_chosen: bool,
     pub stack: Vec<PageRef>,
-    pub filters: HashMap<String, Value>,
+    /// Pages, questions, jobs, logs, activity: what every interface keeps (the filters too)
+    pub session: Session,
     pub filter_menu: Option<String>,
     pub expanded: HashSet<String>,
     /// Rows whose first state the model gives (Doctor items): what the user changed
@@ -330,24 +317,23 @@ pub struct App {
     /// A form tab's choices while the same form is open as a page on top
     pub tab_forms: HashMap<String, Map<String, Value>>,
     pub edits: HashMap<String, String>,
-    pub logs: HashMap<String, Log>,
-    pub jobs: BTreeMap<String, JobDto>,
-    pub flow: Option<Flow>,
+    /// The session's question the app shows now: its action and, for an ask, which one (None: the confirmation)
+    pub asked: Option<(FlowId, Option<usize>)>,
+    /// The action a file dialog is open for
+    pub picking: Option<FlowId>,
     pub modal: Option<Modal>,
     pub toast: Option<Toast>,
     pub seen_activity: u64,
-    pub notified: Option<u64>,
     pub notifications: bool,
     pub catalogs_asked: std::collections::HashSet<String>,
     pub pulse: bool,
     /// The pages whose model shows something working (a pulsing lamp, a busy action, loading, a running job): only
     /// then – or with a toast – the app ticks; an idle window is not redrawn (plan B123)
     pub animated: HashSet<String>,
-    pub subscribed: Vec<PageRef>,
-    /// Actions waiting for the one on its way (the imports of several packages, each with its question)
-    pub pending: VecDeque<Action>,
     /// Drawing fixture models, without a core (`OMAFLAKE_DEMO_VIEWS`)
     pub demo: bool,
+    /// The demo's log lines, by job
+    pub demo_log: Option<(String, Vec<String>)>,
     #[cfg(target_os = "linux")]
     pub tray: Option<tray::TrayHandle>,
 }
@@ -386,7 +372,7 @@ impl App {
             tab: "vms".into(),
             tab_chosen: false,
             stack: Vec::new(),
-            filters: HashMap::new(),
+            session: Session::new(),
             filter_menu: None,
             expanded: HashSet::new(),
             toggled: HashSet::new(),
@@ -394,20 +380,17 @@ impl App {
             tab_forms: HashMap::new(),
             latest: HashMap::new(),
             edits: HashMap::new(),
-            logs: HashMap::new(),
-            jobs: BTreeMap::new(),
-            flow: None,
+            asked: None,
+            picking: None,
             modal: None,
             toast: None,
             seen_activity: 0,
-            notified: None,
             notifications: true,
             catalogs_asked: std::collections::HashSet::new(),
             pulse: false,
             animated: HashSet::new(),
-            subscribed: Vec::new(),
-            pending: VecDeque::new(),
             demo: false,
+            demo_log: None,
             #[cfg(target_os = "linux")]
             tray: None,
         };
@@ -478,7 +461,7 @@ impl App {
     /// The open tab's list page with its filter; a form as a tab (the studios) with what the user chose in it
     pub fn tab_page(&self) -> PageRef {
         let mut params = json!({});
-        if let Some(f) = self.filters.get(&self.tab) {
+        if let Some(f) = self.session.filters.get(&self.tab) {
             params["filter"] = f.clone();
         }
         self.effective(&page_ref(&self.tab, params))
@@ -513,29 +496,186 @@ impl App {
         pages
     }
 
-    /// `views.subscribe` when the pages wanted changed
+    /// The pages shown now are the ones to follow: the session subscribes them when they changed (one page set at a
+    /// time, the last one wanted last)
     fn resubscribe(&mut self) -> Task<Message> {
-        let Some(core) = &self.core else { return Task::none() };
-        let wanted = self.wanted();
-        if wanted == self.subscribed {
-            return Task::none();
-        }
-        self.subscribed = wanted.clone();
-        let core = core.clone();
-        Task::perform(async move { core.call("views.subscribe", json!({"pages": wanted})).await }, |r| {
-            Message::Answer(Purpose::Quiet, r)
-        })
+        let pages = self.wanted();
+        let fx = self.session.show(pages);
+        self.apply(fx)
     }
 
-    fn call(&self, method: &str, params: Value, purpose: Purpose) -> Task<Message> {
-        let Some(core) = &self.core else {
-            return Task::done(Message::Answer(
-                purpose,
-                Err(CallError { message: tr("Not connected to omaflake's core") }),
-            ));
-        };
-        let fut = core.call(method, params);
-        Task::perform(fut, move |r| Message::Answer(purpose.clone(), r))
+    /// A job's log as far as it was read
+    pub fn log(&self, job: &str) -> &[String] {
+        match &self.demo_log {
+            Some((id, lines)) if id == job => lines,
+            _ => self.session.log(job).unwrap_or_default(),
+        }
+    }
+
+    // MARK: The session
+
+    /// Carries out what the session asks for
+    fn apply(&mut self, effects: Vec<session::Effect>) -> Task<Message> {
+        let mut tasks = Vec::new();
+        for effect in effects {
+            match effect {
+                session::Effect::Send(request) => {
+                    let id = request.id;
+                    tasks.push(match &self.core {
+                        // A thread per call (`Handle::call`): the session sends in order what must not overtake
+                        // each other
+                        Some(core) => {
+                            Task::perform(core.call(&request.method, request.params), move |r| Message::Answer(id, r))
+                        }
+                        None => Task::done(Message::Answer(
+                            id,
+                            Err(CallError { message: tr("Not connected to omaflake's core") }),
+                        )),
+                    });
+                }
+                session::Effect::Model(page) => tasks.push(self.model_arrived(&page)),
+                session::Effect::Question => tasks.push(self.ask()),
+                session::Effect::Jobs => self.update_tray(),
+                // Drawn from the session
+                session::Effect::Log(_) => {}
+                session::Effect::Activity(news) => self.activity_arrived(&news),
+                session::Effect::Ui { verb, params } => tasks.push(self.ui(&verb, params)),
+                session::Effect::Done { action, result } => tasks.push(self.done(&action, &result)),
+                session::Effect::Answered { method, result } => {
+                    if method == "settings.get" {
+                        self.notifications = result["settings"]["notifications"].as_bool().unwrap_or(true);
+                    }
+                }
+                session::Effect::Notice(notice) => self.notice(notice),
+            }
+        }
+        Task::batch(tasks)
+    }
+
+    fn notice(&mut self, notice: Notice) {
+        match notice {
+            // The activity list has refusals too; the toast shows it where the user looks
+            Notice::Failed { error, .. } => self.say(error.message, true),
+            Notice::Disabled { reason } => {
+                if let Some(why) = reason.as_ref().and_then(text_of) {
+                    self.say(why, false);
+                }
+            }
+            Notice::Refused { reason, .. } => {
+                let why = reason.as_ref().and_then(text_of).unwrap_or_else(|| tr("This cannot be imported"));
+                self.say(why, true);
+            }
+            Notice::Skipped { refused } => self.say(refusals(&refused), true),
+            Notice::NotConnected { .. } => self.say(tr("Not connected to omaflake's core"), true),
+        }
+    }
+
+    /// A page's model came: decoded for drawing; only the models the session keeps stay (a form asks a new page with
+    /// every value typed)
+    fn model_arrived(&mut self, page: &PageRef) -> Task<Message> {
+        let Some(v) = self.session.model(page).cloned() else { return Task::none() };
+        self.set_model(page.key(), &page.page, v);
+        let held: HashSet<String> = self.session.held().map(PageRef::key).collect();
+        self.models.retain(|key, _| held.contains(key));
+        self.animated.retain(|key| held.contains(key));
+        self.after_model(&page.page)
+    }
+
+    /// The session's open question as a dialog: a sheet for a text or password and for a confirmation, a file dialog
+    /// for a path. Without a question the sheet closes.
+    fn ask(&mut self) -> Task<Message> {
+        match self.session.question() {
+            None => {
+                self.asked = None;
+                self.modal = None;
+                Task::none()
+            }
+            Some(Question::Ask { flow, ask, index, checking, refused, .. }) => {
+                let same = self.asked == Some((flow, Some(index)));
+                let Ok(ask) = serde_json::from_value::<Ask>(ask) else {
+                    self.say(tr("This app cannot read what the action asks"), true);
+                    return self.give_up(flow);
+                };
+                match ask.kind {
+                    AskKind::Text | AskKind::Password => {
+                        if same && let Some(Modal::Ask { error, .. }) = &mut self.modal {
+                            // Still this question: what was typed stays; a refused value says why
+                            if !refused.is_empty() {
+                                *error = Some(refusals(&refused));
+                            }
+                            return Task::none();
+                        }
+                        self.asked = Some((flow, Some(index)));
+                        let value = ask.default.clone().unwrap_or_default();
+                        let error = (!refused.is_empty()).then(|| refusals(&refused));
+                        self.modal = Some(Modal::Ask { ask, value, repeat: String::new(), error });
+                        Task::none()
+                    }
+                    AskKind::Folder | AskKind::File | AskKind::Path | AskKind::Package => {
+                        if !refused.is_empty() {
+                            // Nothing of what was chosen can be used: the action ends, saying why
+                            self.say(refusals(&refused), true);
+                            return self.give_up(flow);
+                        }
+                        if same {
+                            return match (checking, self.picking == Some(flow)) {
+                                // The core checks what was chosen, or the dialog is still open
+                                (true, _) | (_, true) => Task::none(),
+                                // The check's answer will not come (the connection closed meanwhile)
+                                _ => self.give_up(flow),
+                            };
+                        }
+                        self.asked = Some((flow, Some(index)));
+                        self.modal = None;
+                        self.picking = Some(flow);
+                        Task::perform(pick(ask), move |paths| Message::Picked(flow, paths))
+                    }
+                }
+            }
+            Some(Question::Confirm { flow, confirm, params, .. }) => {
+                if self.asked == Some((flow, None))
+                    && matches!(&self.modal, Some(Modal::Confirm { params: p, .. }) if *p == params)
+                {
+                    return Task::none();
+                }
+                let Ok(confirm) = serde_json::from_value::<Confirm>(confirm) else {
+                    self.say(tr("This app cannot read what the action asks"), true);
+                    return self.give_up(flow);
+                };
+                self.asked = Some((flow, None));
+                let input = confirm.input.as_ref().map(|i| i.default.clone());
+                self.modal = Some(Modal::Confirm { confirm, params, input });
+                Task::none()
+            }
+        }
+    }
+
+    /// The action of `flow` is given up: nothing more of it is sent, whatever answer still comes
+    fn give_up(&mut self, flow: FlowId) -> Task<Message> {
+        let fx = self.session.cancel(flow);
+        self.apply(fx)
+    }
+
+    /// What follows an action the core did (its `then`)
+    fn done(&mut self, action: &Value, result: &Value) -> Task<Message> {
+        match action["then"].as_str() {
+            Some("reveal") => {
+                let r = system::reveal(lookup(result, "path").and_then(Value::as_str).unwrap_or_default());
+                if let Err(e) = r {
+                    self.say(e, true);
+                }
+                Task::none()
+            }
+            Some("terminal") => {
+                let line = lookup(result, "shellLine").and_then(Value::as_str).unwrap_or_default().to_string();
+                if let Err(e) = system::run_in_terminal(&line) {
+                    self.say(e, true);
+                }
+                Task::none()
+            }
+            Some("back") => self.back(),
+            _ => Task::none(),
+        }
     }
 
     /// Development aid: `OMAFLAKE_DEMO_VIEWS=<folder of page models>` (e.g. the core's testdata/api/views) draws those
@@ -577,7 +717,7 @@ impl App {
         }
         if let Some(l) = self.current().as_ref().and_then(|p| self.model(p)).and_then(Model::log).cloned() {
             let lines = (l.from + 1..=l.lines).map(|i| format!("[demo] log line {i}")).collect();
-            self.logs.insert(l.job.clone(), Log { lines, loaded: true });
+            self.demo_log = Some((l.job.clone(), lines));
         }
     }
 
@@ -602,7 +742,11 @@ impl App {
             Message::Core(e) => self.core_event(e),
             #[cfg(target_os = "linux")]
             Message::Tray(e) => self.tray_event(e),
-            Message::Answer(purpose, result) => self.answered(purpose, result),
+            Message::Answer(id, result) => {
+                // (the error's message is in the app's language already)
+                let fx = self.session.answer(id, result.map_err(|e| RpcError::server(None, e.message)));
+                self.apply(fx)
+            }
             Message::Tab(tab) => {
                 // The sidebar goes to the tab at once: pages open on top of the last one close (plan B152)
                 while let Some(p) = self.stack.pop() {
@@ -634,25 +778,7 @@ impl App {
                 Task::none()
             }
             Message::SetFilter { page, group, value } => {
-                let mut f = self.filters.get(&page).cloned().unwrap_or_else(|| json!({}));
-                // A new search starts on the first page (plan B148)
-                if group == "search"
-                    && let Some(m) = f.as_object_mut()
-                {
-                    m.remove("page");
-                }
-                if value.is_null() || value == json!(false) || value == json!("") {
-                    if let Some(m) = f.as_object_mut() {
-                        m.remove(&group);
-                    }
-                } else {
-                    f[&group] = value;
-                }
-                if f.as_object().is_some_and(|m| m.is_empty()) {
-                    self.filters.remove(&page);
-                } else {
-                    self.filters.insert(page, f);
-                }
+                self.session.filters.set_group(&page, &group, value);
                 self.resubscribe()
             }
             Message::Run(action, form) => self.start(*action, form),
@@ -693,13 +819,20 @@ impl App {
                 let Some(set) = &field.set else { return Task::none() };
                 let mut params = set.params.clone();
                 set_param(&mut params, &set.param, value);
-                self.call(&set.method, params, Purpose::Quiet)
+                // One after the other, so that the last value stored is the one that stays
+                let fx = self.session.set(&set.method, params);
+                self.apply(fx)
             }
             Message::ModalInput(v) => {
                 match &mut self.modal {
                     Some(Modal::Ask { value, error, .. }) => {
                         *value = v;
                         *error = None;
+                        // Typed on while the core checks the value before: that check's answer is not for this text
+                        if let Some((flow, _)) = self.asked {
+                            let fx = self.session.retract(flow);
+                            return self.apply(fx);
+                        }
                     }
                     Some(Modal::Confirm { input: Some(i), .. }) => *i = v,
                     _ => {}
@@ -714,28 +847,11 @@ impl App {
                 Task::none()
             }
             Message::ModalOk => self.modal_ok(),
-            Message::ModalCancel => {
-                self.modal = None;
-                self.flow = None;
-                self.next_pending()
-            }
-            Message::Picked(paths) => self.picked(paths),
-            Message::Checked(result) => match result {
-                Ok(values) if !values.is_empty() => self.chosen(values),
-                Ok(_) => {
-                    self.flow = None;
-                    Task::none()
-                }
-                Err(reason) => {
-                    self.flow = None;
-                    self.say(reason, true);
-                    Task::none()
-                }
-            },
+            Message::ModalCancel => self.cancel_question(),
+            Message::Picked(flow, paths) => self.picked(flow, paths),
             Message::Back => {
                 if self.modal.is_some() {
-                    self.modal = None;
-                    self.flow = None;
+                    return self.cancel_question();
                 } else if self.filter_menu.is_some() {
                     self.filter_menu = None;
                 } else {
@@ -884,6 +1000,15 @@ impl App {
         }
     }
 
+    /// The open question is cancelled: its action never goes on (the next one waiting may ask)
+    fn cancel_question(&mut self) -> Task<Message> {
+        self.modal = None;
+        match self.asked.take() {
+            Some((flow, _)) => self.give_up(flow),
+            None => Task::none(),
+        }
+    }
+
     fn mark_activity_seen(&mut self) {
         if let Some(Model::Activity(a)) = self.models.get(&page_ref("activity", json!({})).key()) {
             self.seen_activity = a.entries.first().map(|e| e.id).unwrap_or(0);
@@ -928,55 +1053,30 @@ impl App {
                     )),
                 };
                 self.core = Some(handle);
+                // A new connection: the session keeps nothing of the one before (jobs, logs, requests – a new
+                // service counts its jobs from j1 again) and subscribes the jobs' events and the pages
+                let pages = self.wanted();
+                let mut fx = self.session.show(pages);
+                fx.extend(self.session.connected(&init));
+                fx.extend(self.session.call("settings.get", Value::Null));
                 self.init = init;
-                self.subscribed.clear();
-                Task::batch([
-                    self.call("events.subscribe", json!({"topics": ["jobs"]}), Purpose::Quiet),
-                    self.call("settings.get", Value::Null, Purpose::Settings),
-                    self.resubscribe(),
-                ])
+                self.apply(fx)
             }
             backend::Event::Disconnected(why) => {
                 if self.core.take().is_some() || self.status.is_none() {
                     self.status = Some(trf("Connecting to omaflake's core … (%@)", &[why.clone().into()]));
                 }
-                self.subscribed.clear();
-                Task::none()
+                let fx = self.session.disconnected();
+                self.apply(fx)
             }
-            backend::Event::Notification(method, params) => self.notification(&method, params),
+            backend::Event::Notification(method, params) => {
+                let fx = self.session.event(&method, &params);
+                self.apply(fx)
+            }
         }
     }
 
-    fn notification(&mut self, method: &str, params: Value) -> Task<Message> {
-        match method {
-            "view.changed" => {
-                let page = params["page"].as_str().unwrap_or_default().to_string();
-                let r = page_ref(&page, params["params"].clone());
-                self.set_model(r.key(), &page, params["model"].clone());
-                self.after_model(&page)
-            }
-            "jobs.changed" => {
-                if let Ok(job) = serde_json::from_value::<JobDto>(params["job"].clone()) {
-                    self.jobs.insert(job.id.clone(), job);
-                }
-                self.update_tray();
-                Task::none()
-            }
-            "job.log" => {
-                let id = params["id"].as_str().unwrap_or_default();
-                if let Some(log) = self.logs.get_mut(id).filter(|l| l.loaded) {
-                    let lines: Vec<String> = serde_json::from_value(params["lines"].clone()).unwrap_or_default();
-                    log.lines.extend(lines);
-                    let over = log.lines.len().saturating_sub(5000);
-                    log.lines.drain(..over);
-                }
-                Task::none()
-            }
-            _ => Task::none(),
-        }
-    }
-
-    /// What a new model brings along: the first tab, logs to read, notifications, the tray
+    /// What a new model brings along: the first tab, the catalogs, the tray
     fn after_model(&mut self, page: &str) -> Task<Message> {
         let mut tasks = Vec::new();
         match page {
@@ -991,7 +1091,6 @@ impl App {
                     self.tab_chosen = true;
                 }
             }
-            "activity" => self.activity_arrived(),
             "vms" => self.update_tray(),
             "recipes" | "modules" | "looks" => tasks.push(self.refresh_catalogs_once()),
             "settings" => {
@@ -1003,38 +1102,27 @@ impl App {
             }
             _ => {}
         }
-        // Logs the page shows (build, macOS base): what `jobs.log` keeps from `from` on, then the `job.log` events
-        let log =
-            self.current().as_ref().and_then(|p| self.model(p)).and_then(Model::log).map(|l| (l.job.clone(), l.from));
-        if let Some((id, from)) = log
-            && !self.logs.contains_key(&id)
-        {
-            self.logs.insert(id.clone(), Log::default());
-            tasks.push(self.call("jobs.log", json!({"id": id, "from": from}), Purpose::Log(id)));
-        }
         Task::batch(tasks)
     }
 
-    fn activity_arrived(&mut self) {
-        let Some(Model::Activity(a)) = self.models.get(&page_ref("activity", json!({})).key()) else { return };
-        let newest = a.entries.first().map(|e| e.id).unwrap_or(0);
-        // Unseen = an id above the highest one shown (api.md §10.6). Ids start again at 1 with a new server: when the
-        // newest id is lower than the one remembered, the mark is forgotten – the new server's entries are unseen. The
-        // notification mark starts again at the newest (what the new server said before this app saw it is not news).
-        if newest < self.seen_activity {
-            self.seen_activity = 0;
-        }
-        if self.notified.is_some_and(|n| newest < n) {
-            self.notified = Some(newest);
-        }
-        let Some(last) = self.notified else {
+    /// What is new in the activity list (which entries those are is the session's, api.md §10.6): notifications, a
+    /// toast, the tab's dot
+    fn activity_arrived(&mut self, news: &News) {
+        let newest = news.newest.unwrap_or(0);
+        if news.first {
             // What happened before this app opened is not news
-            self.notified = Some(newest);
             self.seen_activity = newest;
             return;
-        };
-        let fresh: Vec<_> = a.entries.iter().filter(|e| e.id > last).cloned().collect();
-        self.notified = Some(newest.max(last));
+        }
+        if news.restarted {
+            // A new server (its ids start at 1 again): the mark is forgotten – its entries are unseen –, but what it
+            // said before this app saw it is not news
+            self.seen_activity = 0;
+            return;
+        }
+        let Some(Model::Activity(a)) = self.models.get(&page_ref("activity", json!({})).key()) else { return };
+        let ids: HashSet<u64> = news.fresh.iter().filter_map(|e| e["id"].as_u64()).collect();
+        let fresh: Vec<_> = a.entries.iter().filter(|e| ids.contains(&e.id)).cloned().collect();
         if fresh.is_empty() {
             return;
         }
@@ -1067,7 +1155,7 @@ impl App {
             Some(Model::Vms(v)) => Some(v.as_ref()),
             _ => None,
         };
-        let jobs: Vec<JobDto> = self.jobs.values().cloned().collect();
+        let jobs: Vec<JobDto> = self.session.jobs().cloned().collect();
         tray::model(vms, &jobs)
     }
 
@@ -1094,35 +1182,17 @@ impl App {
     /// Starts an action: its asks, its confirmation, then sending it. `form`: the page whose typed values go into its
     /// params (the page's own action: New VM's Create, the macOS base's Create, Settings' new source).
     pub fn start(&mut self, action: Action, form: Option<String>) -> Task<Message> {
-        if !action.enabled {
-            if let Some(r) = &action.reason {
-                self.say(s(r), false);
-            }
-            return Task::none();
-        }
         let mut params = action.params.clone();
         if let Some(page) = form {
             self.apply_form(&page, &mut params);
         }
         self.filter_menu = None;
-        self.flow = Some(Flow {
-            asks: action.ask.iter().cloned().collect(),
-            action,
-            params,
-            queue: VecDeque::new(),
-            picking: None,
-        });
-        self.advance()
-    }
-
-    fn next_pending(&mut self) -> Task<Message> {
-        if self.flow.is_some() || self.modal.is_some() {
-            return Task::none();
-        }
-        match self.pending.pop_front() {
-            Some(a) => self.start(a, None),
-            None => Task::none(),
-        }
+        // The session asks what the action needs (api.md §10.3: ask, then confirm, then send) – or says why it cannot
+        // be done now
+        let mut action = serde_json::to_value(&action).unwrap_or_default();
+        action["params"] = params;
+        let fx = self.session.start(&action);
+        self.apply(fx)
     }
 
     /// Puts the form's typed values (`values.<valueParam>`) into the page action's params, at each field's `param`
@@ -1143,123 +1213,38 @@ impl App {
         }
     }
 
-    fn advance(&mut self) -> Task<Message> {
-        let Some(flow) = &mut self.flow else { return Task::none() };
-        if let Some(ask) = flow.asks.pop_front() {
-            return match ask.kind {
-                AskKind::Text | AskKind::Password => {
-                    let value = ask.default.clone().unwrap_or_default();
-                    self.modal = Some(Modal::Ask { ask, value, repeat: String::new(), error: None });
-                    Task::none()
-                }
-                AskKind::Folder | AskKind::File | AskKind::Path | AskKind::Package => {
-                    flow.picking = Some(ask.clone());
-                    Task::perform(pick(ask), Message::Picked)
-                }
-            };
-        }
-        if flow.queue.is_empty() {
-            flow.queue.push_back(flow.params.clone());
-        }
-        self.confirm_next()
-    }
-
-    fn confirm_next(&mut self) -> Task<Message> {
-        let Some(flow) = &mut self.flow else { return Task::none() };
-        let Some(params) = flow.queue.pop_front() else {
-            self.flow = None;
-            return self.next_pending();
-        };
-        if let Some(c) = &flow.action.confirm {
-            let input = c.input.as_ref().map(|i| i.default.clone());
-            self.modal = Some(Modal::Confirm { confirm: c.clone(), params, input });
-            return Task::none();
-        }
-        let send = self.send(params);
-        Task::batch([send, self.confirm_next()])
-    }
-
     fn modal_ok(&mut self) -> Task<Message> {
-        match self.modal.take() {
-            Some(Modal::Ask { ask, value, repeat, .. }) => {
+        let Some((flow, _)) = self.asked else {
+            self.modal = None;
+            return Task::none();
+        };
+        // The sheet stays until the session's question changes (the core may check the value first)
+        let fx = match &mut self.modal {
+            Some(Modal::Ask { ask, value, repeat, error }) => {
                 if ask.repeat && value != repeat {
-                    self.modal = Some(Modal::Ask { ask, value, repeat, error: Some("The two entries differ.".into()) });
+                    *error = Some("The two entries differ.".into());
                     return Task::none();
                 }
-                if let Some(flow) = &mut self.flow {
-                    set_param(&mut flow.params, &ask.param, json!(value));
-                }
-                self.advance()
+                *error = None;
+                self.session.reply(flow, vec![value.clone()])
             }
-            Some(Modal::Confirm { confirm, mut params, input }) => {
-                if let (Some(i), Some(text)) = (&confirm.input, input) {
-                    set_param(&mut params, &i.param, json!(text));
-                }
-                let send = self.send(params);
-                Task::batch([send, self.confirm_next()])
-            }
-            None => Task::none(),
-        }
+            Some(Modal::Confirm { input, .. }) => self.session.confirm(flow, input.clone()),
+            None => return Task::none(),
+        };
+        self.apply(fx)
     }
 
-    fn picked(&mut self, paths: Option<Vec<PathBuf>>) -> Task<Message> {
-        let Some(ask) = self.flow.as_mut().and_then(|f| f.picking.take()) else { return Task::none() };
+    /// The file dialog closed: what was chosen answers the ask it was open for (each value checked by the core where
+    /// the ask says so; several values run the action once each); nothing chosen gives the action up
+    fn picked(&mut self, flow: FlowId, paths: Option<Vec<PathBuf>>) -> Task<Message> {
+        if self.picking == Some(flow) {
+            self.picking = None;
+        }
+        // (the dialog of an action that was given up meanwhile answers nothing: the session knows its flow no more)
         let values: Vec<String> =
             paths.unwrap_or_default().into_iter().map(|p| p.to_string_lossy().into_owned()).collect();
-        if values.is_empty() {
-            self.flow = None;
-            return Task::none();
-        }
-        if let Some(flow) = &mut self.flow {
-            flow.picking = Some(ask.clone());
-        }
-        let Some(check) = ask.check.clone() else { return self.chosen(values) };
-        let Some(core) = self.core.clone() else { return self.chosen(values) };
-        // Each chosen value is checked before it counts (packages.inspect); refused ones say why
-        Task::perform(
-            async move {
-                let mut ok = Vec::new();
-                let mut refused = Vec::new();
-                for v in values {
-                    let mut params = check.params.clone();
-                    set_param(&mut params, &check.param, json!(v));
-                    match core.call(&check.method, params).await {
-                        Ok(r) if r["valid"] == json!(false) => refused.push(refusal(&v, &r)),
-                        Ok(_) => ok.push(v),
-                        Err(e) => refused.push(format!("{v}: {}", e.message)),
-                    }
-                }
-                if ok.is_empty() && !refused.is_empty() { Err(refused.join("\n")) } else { Ok(ok) }
-            },
-            Message::Checked,
-        )
-    }
-
-    /// The values chosen for the ask a dialog was open for
-    fn chosen(&mut self, values: Vec<String>) -> Task<Message> {
-        let Some(flow) = &mut self.flow else { return Task::none() };
-        let Some(ask) = flow.picking.take() else { return Task::none() };
-        if ask.multiple && values.len() > 1 {
-            for v in &values {
-                let mut p = flow.params.clone();
-                set_param(&mut p, &ask.param, json!(v));
-                flow.queue.push_back(p);
-            }
-        } else {
-            set_param(&mut flow.params, &ask.param, json!(values[0]));
-        }
-        self.advance()
-    }
-
-    /// Sends one params set: a `ui.*` verb here, anything else to the core
-    fn send(&mut self, params: Value) -> Task<Message> {
-        let Some(flow) = &self.flow else { return Task::none() };
-        let method = flow.action.method.clone();
-        let then = flow.action.then;
-        if let Some(verb) = method.strip_prefix("ui.") {
-            return self.ui(verb, params);
-        }
-        self.call(&method, params, Purpose::Action { then })
+        let fx = self.session.reply(flow, values);
+        self.apply(fx)
     }
 
     /// The verbs a UI does itself (api.md §10.4)
@@ -1274,14 +1259,9 @@ impl App {
         match verb {
             "show" => self.show(&str_of("page").unwrap_or_default(), p["params"].clone()),
             "back" => self.back(),
-            "step" => self.call("views.get", json!({"page": p["page"], "params": p["params"]}), Purpose::Step),
             "filter" => {
                 let page = str_of("page").unwrap_or_else(|| self.tab.clone());
-                if p["filter"].is_null() {
-                    self.filters.remove(&page);
-                } else {
-                    self.filters.insert(page, p["filter"].clone());
-                }
+                self.session.filters.set(&page, p["filter"].clone());
                 self.filter_menu = None;
                 self.resubscribe()
             }
@@ -1313,66 +1293,6 @@ impl App {
                 self.say(trf("This app does not know ui.%@", &[other.into()]), true);
                 Task::none()
             }
-        }
-    }
-
-    fn answered(&mut self, purpose: Purpose, result: Result<Value, CallError>) -> Task<Message> {
-        let value = match result {
-            Ok(v) => v,
-            Err(e) => {
-                if let Purpose::Log(id) = &purpose {
-                    self.logs.remove(id);
-                }
-                // The activity list has refusals too; the toast shows it where the user looks
-                self.say(e.message, true);
-                return Task::none();
-            }
-        };
-        match purpose {
-            Purpose::Action { then } => match then {
-                Some(Then::Reveal) => {
-                    let r = system::reveal(lookup(&value, "path").and_then(Value::as_str).unwrap_or_default());
-                    if let Err(e) = r {
-                        self.say(e, true);
-                    }
-                    Task::none()
-                }
-                Some(Then::Terminal) => {
-                    let line = lookup(&value, "shellLine").and_then(Value::as_str).unwrap_or_default().to_string();
-                    if let Err(e) = system::run_in_terminal(&line) {
-                        self.say(e, true);
-                    }
-                    Task::none()
-                }
-                Some(Then::Back) => self.back(),
-                None => Task::none(),
-            },
-            Purpose::Step => match serde_json::from_value::<ImportPage>(value) {
-                Ok(page) => match page.action {
-                    Some(a) => {
-                        self.pending.push_back(a);
-                        self.next_pending()
-                    }
-                    None => {
-                        self.say(page.reason.map(|r| s(&r)).unwrap_or_else(|| tr("This cannot be imported")), true);
-                        Task::none()
-                    }
-                },
-                Err(e) => {
-                    self.say(trf("This app cannot read the import page: %@", &[e.to_string().into()]), true);
-                    Task::none()
-                }
-            },
-            Purpose::Log(id) => {
-                let lines: Vec<String> = serde_json::from_value(value["lines"].clone()).unwrap_or_default();
-                self.logs.insert(id, Log { lines, loaded: true });
-                Task::none()
-            }
-            Purpose::Settings => {
-                self.notifications = value["settings"]["notifications"].as_bool().unwrap_or(true);
-                Task::none()
-            }
-            Purpose::Quiet => Task::none(),
         }
     }
 }

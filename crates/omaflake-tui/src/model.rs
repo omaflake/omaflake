@@ -5,7 +5,7 @@
 //! come. Parts a page has that this module does not know are left out (OPEN: a generic fallback once the model
 //! grows parts without a TUI release).
 
-use std::collections::{HashMap, HashSet};
+use std::collections::HashSet;
 
 use omaflake_sdk::time::Date;
 use ratatui::style::{Color, Modifier, Style};
@@ -1777,11 +1777,9 @@ pub fn tabs(ctx: &Ctx, home: &Value, current: &str) -> Vec<Span<'static>> {
 }
 
 /// The log lines of a job, as the console shows them
-pub fn log_lines(ctx: &Ctx, logs: &HashMap<String, Vec<String>>, log: &LogBox) -> Vec<Line<'static>> {
-    let mut lines: Vec<Line<'static>> = logs
-        .get(&log.job)
-        .map(|l| l.iter().map(|s| Line::from(Span::styled(s.clone(), ctx.theme.console()))).collect())
-        .unwrap_or_default();
+pub fn log_lines(ctx: &Ctx, read: &[String], log: &LogBox) -> Vec<Line<'static>> {
+    let mut lines: Vec<Line<'static>> =
+        read.iter().map(|s| Line::from(Span::styled(s.clone(), ctx.theme.console()))).collect();
     if let Some(n) = &log.note {
         lines.push(Line::from(Span::styled(n.clone(), ctx.theme.secondary())));
     }

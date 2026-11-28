@@ -3,25 +3,30 @@
 
 use std::path::Path;
 
-use omaflake_core::{Error, Package, PackageKind, RecipeId, RecipeLibrary, Settings, Transfer};
-use omaflake_sdk::models::VmStatus;
+use omaflake_core::{Package, PackageKind, RecipeId, RecipeLibrary, Settings, Transfer};
+use omaflake_sdk::types::{ExportResult, ImportResult, PackageKindDto};
+use serde_json::json;
 
+use super::service;
 use crate::util::{Env, Outcome, folder_path};
 
-fn print_line(line: &str) {
-    println!("{line}");
+/// `packages.export` as a job of the core service: its log lines on stdout, the package's place as the answer
+fn export(kind: &str, name: &str, folder: &str, with_image: Option<bool>) -> omaflake_core::Result<String> {
+    let mut params = json!({"kind": kind, "name": name, "folder": folder_path(folder)});
+    if let Some(w) = with_image {
+        params["withImage"] = json!(w);
+    }
+    let job = service::rpc_job("packages.export", params, &mut service::to_stdout)?;
+    Ok(service::finished_as::<ExportResult>(job, "The export")?.path)
 }
 
 pub fn export_vm(name: &str, folder: &str, with_image: bool) -> Outcome {
-    let env = Env::new();
-    let transfer = Transfer::from_backends(&env.backends()?);
-    transfer.export_vm(name, &folder_path(folder), with_image, &print_line)?;
+    export("vm", name, folder, Some(with_image))?;
     Ok(())
 }
 
 pub fn export_image(name: &str, folder: &str) -> Outcome {
-    let env = Env::new();
-    Transfer::from_backends(&env.backends()?).export_image(name, &folder_path(folder), &print_line)?;
+    export("image", name, folder, None)?;
     Ok(())
 }
 
@@ -31,19 +36,21 @@ pub fn export_recipe(recipe: &str, folder: &str) -> Outcome {
     let library = RecipeLibrary::new(env.paths.clone());
     let ids: Vec<String> = library.available(&settings).into_iter().map(|r| r.id).collect();
     let id = RecipeId::resolve_newest(recipe, &ids, &library.places(&settings), &|_| true, None)?;
-    let dest = library.export_recipe(&id, &folder_path(folder), &settings)?;
-    println!("Exported to {}", dest.display());
+    println!("Exported to {}", export("recipe", &id, folder, None)?);
     Ok(())
 }
 
 pub fn import(path: &str, name: Option<&str>, replace: bool) -> Outcome {
-    let env = Env::new();
-    let result =
-        Transfer::from_backends(&env.backends()?).import_package(&folder_path(path), name, replace, &print_line)?;
+    let mut params = json!({"path": folder_path(path), "replace": replace});
+    if let Some(n) = name {
+        params["name"] = json!(n);
+    }
+    let job = service::rpc_job("packages.import", params, &mut service::to_stdout)?;
+    let result: ImportResult = service::finished_as(job, "The import")?;
     for note in &result.notes {
         println!("{note}");
     }
-    if result.kind == PackageKind::Recipe {
+    if result.kind == PackageKindDto::Recipe {
         println!("{}", imported_recipes_line(&result.names));
     }
     Ok(())
@@ -73,10 +80,10 @@ pub fn external_list() -> Outcome {
 }
 
 pub fn external_add(path: &str) -> Outcome {
-    let env = Env::new();
     let url = folder_path(path);
-    let name = Transfer::from_backends(&env.backends()?).use_external(&url)?;
-    println!("{name} runs from {}", url.display());
+    // The network volume's note is this command's own, after the fact – the service is told not to ask
+    let vm = service::rpc("vms.useExternal", json!({"path": url, "confirmNetwork": true}))?;
+    println!("{} runs from {}", vm["name"].as_str().unwrap_or("?"), url.display());
     if Transfer::is_on_network_volume(&url) {
         println!("Note: on a network volume – slower, and the VM breaks when the connection does.");
     }
@@ -84,14 +91,8 @@ pub fn external_add(path: &str) -> Outcome {
 }
 
 pub fn external_remove(name: &str) -> Outcome {
-    let env = Env::new();
-    let backends = env.backends()?;
-    if let Ok(c) = backends.store.load(name)
-        && backends.backend_for(&c)?.status(&c) != VmStatus::Stopped
-    {
-        return Err(Error::new(format!("\"{name}\" is running – first run: omaf stop {name}")).into());
-    }
-    backends.store.forget(name)?;
+    // Refused by the service while it runs ("<name> is running – stop it first")
+    service::rpc("vms.forget", json!({"name": name}))?;
     println!("{name} is no longer listed; its package stays at its place.");
     Ok(())
 }

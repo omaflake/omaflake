@@ -58,6 +58,7 @@ public final class ControlServer: @unchecked Sendable {
             let client = accept(listener, nil, nil)
             guard client >= 0 else { return }
             _ = fcntl(client, F_SETFD, FD_CLOEXEC)
+            Self.noSigpipe(client)
             // Read off the handler's queue: a slow client never holds up the VM's main thread
             io.async {
                 let request = ControlMessage(Self.readRequest(client))
@@ -101,6 +102,14 @@ public final class ControlServer: @unchecked Sendable {
         return ((try? JSONSerialization.jsonObject(with: data)) as? [String: Any]) ?? [:]
     }
 
+    /// A client that has gone must not end the process with SIGPIPE (the runner ignores the signal anyway; this holds
+    /// for every process that serves a control socket). Set when the connection is accepted: macOS refuses the option
+    /// (EINVAL) once the peer has closed, which is exactly when it is needed.
+    static func noSigpipe(_ client: Int32) {
+        var on: Int32 = 1
+        setsockopt(client, SOL_SOCKET, SO_NOSIGPIPE, &on, socklen_t(MemoryLayout<Int32>.size))
+    }
+
     static func write(_ object: [String: Any], to client: Int32) {
         var tv = timeval(tv_sec: 5, tv_usec: 0)
         setsockopt(client, SOL_SOCKET, SO_SNDTIMEO, &tv, socklen_t(MemoryLayout<timeval>.size))
@@ -111,7 +120,7 @@ public final class ControlServer: @unchecked Sendable {
             while off < buf.count {
                 let n = Darwin.write(client, buf.baseAddress! + off, buf.count - off)
                 if n < 0 && errno == EINTR { continue }
-                if n <= 0 { return }
+                if n <= 0 { return }   // the client is gone (EPIPE) or does not read (timeout): no answer then
                 off += n
             }
         }

@@ -157,6 +157,32 @@ impl LookStore {
         {
             return Err(vm_err!("{}: a look needs [colors] and [terminal]", file.display()));
         }
+        // Data only, checked before anything is built from it (the image flake checks all of it once more, field by
+        // field): texts are one line, colours are colours – nothing that could end a string or a comment in the
+        // guest's configuration
+        if let Some((key, _)) = table.iter().find(|(key, v)| {
+            (key.as_str() == "title" || key.starts_with("description"))
+                && !v.as_str().is_some_and(crate::parts::plain_text)
+        }) {
+            return Err(vm_err!("{}: {key} is one line of text", file.display()));
+        }
+        fn colours(value: &Value, out: &mut Vec<String>) {
+            match value {
+                Value::String(s) => out.push(s.clone()),
+                Value::Array(a) => a.iter().for_each(|v| colours(v, out)),
+                Value::Object(o) => o.values().for_each(|v| colours(v, out)),
+                _ => {}
+            }
+        }
+        let mut found = Vec::new();
+        for section in ["colors", "terminal"] {
+            if let Some(v) = data.get(section) {
+                colours(v, &mut found);
+            }
+        }
+        if let Some(bad) = found.iter().find(|c| !crate::parts::hex_color(c)) {
+            return Err(vm_err!("{}: \"{}\" is not a colour (#RRGGBB)", file.display(), bad.escape_debug()));
+        }
         let (author, name) = id.split_once(".look.").unwrap_or(("", id));
         let s = |k: &str| data.get(k).and_then(Value::as_str).map(str::to_string);
         let colors = data.get("colors");

@@ -150,7 +150,7 @@ struct Bridge: RunnerCommand {
 }
 
 final class ClipboardBridge: @unchecked Sendable {
-    static let text = "text/plain;charset=utf-8", png = "image/png"
+    static let text = ClipboardPolicy.text, png = ClipboardPolicy.png
     static let maxBytes = 32 * 1024 * 1024
 
     let fd: Int32
@@ -207,6 +207,12 @@ final class ClipboardBridge: @unchecked Sendable {
         guard count != lastChangeCount else { return }
         lastChangeCount = count
         guard count != lock.withLock({ writtenChangeCount }) else { return }
+        // Secrets and passing contents (nspasteboard.org: password managers and the like) stay on the Mac. The change
+        // count is remembered above, so this content is not taken for a new one at the next poll either.
+        guard ClipboardPolicy.shares(types: (pasteboard.types ?? []).map(\.rawValue)) else {
+            log("clipboard: a concealed or transient content is not sent")
+            return
+        }
         guard let (mime, data) = currentPasteboard(), data.count <= Self.maxBytes else { return }
         let fp = Self.fingerprint(mime, data)
         guard fp != lastSent else { return }
@@ -242,7 +248,8 @@ final class ClipboardBridge: @unchecked Sendable {
                     if n < 0 && errno == EINTR { continue }
                     // Send timeout: nobody reads in the guest (agent not running yet) – drop this content
                     if n < 0 && (errno == EAGAIN || errno == EWOULDBLOCK) { return }
-                    if n <= 0 { onClosed(); return }   // VM gone
+                    // VM gone (EPIPE and the like – SIGPIPE is ignored, see VMRunner.main): this content is dropped
+                    if n <= 0 { onClosed(); return }
                     off += n
                 }
                 if ProcessInfo.processInfo.environment["OMAFLAKE_DEBUG"] != nil {
@@ -278,6 +285,8 @@ final class ClipboardBridge: @unchecked Sendable {
 
     /// Guest → Mac: put the content on the pasteboard (from the old port or the agent)
     func apply(mime: String, data: Data) {
+        // Checked before anything is touched: a guest must not empty the Mac's clipboard with a type nobody takes
+        guard ClipboardPolicy.accepts(mime: mime), data.count <= Self.maxBytes else { return }
         DispatchQueue.main.async { [self] in
             let fp = Self.fingerprint(mime, data)
             pasteboard.clearContents()

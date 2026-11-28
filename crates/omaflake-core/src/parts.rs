@@ -125,6 +125,20 @@ impl PartKind {
     }
 }
 
+/// A title or description of a part: one line, without control characters or characters that reorder or break text
+/// (they are written into comments of the guest's configuration – a part is data, never code; the image flake's
+/// nix/lib/validate.nix refuses the same)
+pub fn plain_text(text: &str) -> bool {
+    !text.chars().any(|c| {
+        c.is_control() || matches!(c, '\u{2028}' | '\u{2029}' | '\u{202A}'..='\u{202E}' | '\u{2066}'..='\u{2069}')
+    })
+}
+
+/// A colour as a look writes it: "#RRGGBB"
+pub fn hex_color(text: &str) -> bool {
+    text.len() == 7 && text.starts_with('#') && text[1..].chars().all(|c| c.is_ascii_hexdigit())
+}
+
 /// One part as the catalog describes it – what installing needs
 #[derive(Debug, Clone)]
 pub struct CatalogPart<'a> {
@@ -341,6 +355,19 @@ impl PartStore {
         let (true, Some(target)) = (well_formed, target) else {
             return Err(vm_err!("The catalog's entry for {} is not well formed", part.id));
         };
+        // A part is its author, its name, its version and its content – whichever source offers it. The same version
+        // with other content is not that part: nothing replaces the installed one silently (a change needs a new version)
+        if let Some(have) = self.installed().get(part.id)
+            && have.version == part.version
+            && have.hash != part.hash
+        {
+            return Err(vm_err!(
+                "{} {} is installed with other content than {} offers – a changed part needs a new version; remove the installed one to take this one",
+                part.id,
+                part.version,
+                client.source.display_name()
+            ));
+        }
         let dir = self.dir();
         fs::create_dir_all(&dir).with_path(&dir)?;
         // Its own work folder per install: parallel installs in one process must not share one (they swapped their
@@ -447,6 +474,29 @@ pub fn install_recipe_parts(
             missing.push(r.label());
             continue;
         };
+        // The source does not matter, the content does: where two sources offer this version with different content,
+        // one of them is not the author's part – neither is installed
+        let offer = |c: &crate::recipe_sources::RecipeCatalog| -> Option<(String, String)> {
+            match kind {
+                PartKind::Module => c.modules.iter().find(|m| m.id == id).map(|m| (m.version.clone(), m.hash.clone())),
+                PartKind::Keymap => c.keymaps.iter().find(|k| k.id == id).map(|k| (k.version.clone(), k.hash.clone())),
+                PartKind::Look => c.looks.iter().find(|l| l.id == id).map(|l| (l.version.clone(), l.hash.clone())),
+            }
+        };
+        if let Some((version, hash)) = offer(catalog)
+            && let Some((other, _)) =
+                catalogs.iter().find(|(_, c)| offer(c).is_some_and(|(v, h)| v == version && h != hash))
+        {
+            log(&format!(
+                "{}: {} and {} offer version {} with different content – not installed",
+                r.label(),
+                source.display_name(),
+                other.display_name(),
+                version
+            ));
+            missing.push(r.label());
+            continue;
+        }
         let client = SourceClient::new(source.clone(), None);
         let done = match kind {
             PartKind::Module => modules.install(&id, catalog, &client).map(|m| m.title),

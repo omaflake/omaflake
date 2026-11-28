@@ -745,6 +745,37 @@ the catalog (CLAUDE.md asks for both); the evaluation with the catalog had been 
 `darwinConfigurations."omaflake.macos.xcode"` pass. Releases from now on run the check with `--override-input
 omaflake-catalog` as CLAUDE.md says.
 
+**B204 (2026-11-28, a review of the whole repository; unreleased).** *Found and fixed:*
+- *Parts are data:* a look's or key binding set's strings reached Lua, Elisp and KDL unchecked, and a set's entry
+  could redefine what an action does – now checked in the image flake (`nix/lib/validate.nix`, `checks.<system>.data`)
+  and in the core (`LookStore::read`, `KeymapStore::read`, `parse_key`), and by the catalog's `catalog.py`.
+- *A part is author, name, version and content, whatever its source:* the same version with other content is refused
+  (`PartStore::install`, `install_recipe_parts`). OPEN: a source can still offer a *new* version under another
+  author's name – that needs the author's signature or the content hash named in the recipe (spec's OPEN item on
+  signing sources).
+- *`[[files]]`:* plain names in Downloads, Desktop, Applications; the store name checked (`..` emptied the cache).
+- *The Mac's clipboard:* concealed and transient contents stay on the Mac (`ClipboardPolicy`).
+- *State files:* an unreadable `config.json`/`volumes.json` is not overwritten with defaults (`FileFormat::check_intact`);
+  `write_atomic` has its own temporary file per write and syncs it.
+- *Processes:* `omaf-runner` ignores SIGPIPE; QEMU's `stop` retries a busy monitor and sends SIGTERM before SIGKILL; a
+  child another process waits for counts as gone once it has exited (`wait_for_exit`).
+- *Names and removals:* no VM named `net`; `vms.forget` refuses a running VM; images are not pruned or removed while
+  a VM's file cannot be read.
+- *Clients:* the app asks a service of another API version to make way; `omaf ui` confirms what deletes with `y`;
+  `omaf rm`/`reset` ask in a terminal.
+- *One write path:* `omaf`'s changing commands go through the service (`service::rpc`, `rpc_job`); left in the
+  terminal on purpose: `macos unchain`, `images unchain`, `builder …`, `doctor --install-cli`. One client state
+  machine for `omaf ui` and the Linux app: `omaflake_sdk::session`.
+- *CI:* a tag starts only release.yml, which asks for CI's result of the commit and takes the app CI built; the
+  crates are published as packed (`--no-verify`). To do by the maintainer: crates.io's trusted publisher of every
+  crate names the workflow `release.yml` now (was `ci.yml`), environment `crates-io`.
+*Not checked:* nothing was run in a VM – the VM commands through the service (`new`, `start`, `stop`, `reset`, `rm`,
+`upgrade`, `set`), the runner and clipboard changes on a real guest, the Linux app in a window, the workflows on
+GitHub. *Left OPEN from the review:* QEMU installed from a moving `main` (`Prerequisites::INSTALL_QEMU`), the `/tmp`
+socket fallback, the switch's unbounded flow table and missing port security, comma-escaping of paths in QEMU
+options, a CI job that builds an image and boots it; `CoreEndToEndTests` (Swift, with `OMAF_BIN`) fails since recipes come
+from sources – its recipe is still the flake's `lib.recipeDefaults` – and is therefore not in CI yet.
+
 **B203 (2026-11-28, found by the end-to-end check before 0.8.5): `omaf build` without the service skipped the needed
 files.** With no core service running, `omaf build` builds in its own process – a second way B198 missed: it never
 looked for Xcode in Downloads, and Nix stopped with its own requireFile message. *Fixed:* `needed_files::to_add` (what

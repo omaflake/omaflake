@@ -11,6 +11,9 @@ import OmaflakeKit
 @main
 enum VMRunner {
     static func main() {
+        // Before anything else: writing to a peer that has gone (a control client, the guest's agent or clipboard
+        // port) must be an error (EPIPE) the writer handles – SIGPIPE would end the runner, and with it the VM
+        signal(SIGPIPE, SIG_IGN)
         CommandLineTool.main(
             [Latest.self, Install.self, Clone.self, Run.self, Control.self, IP.self, Bridge.self, MIDICheck.self, DiagnoseCheck.self],
             abstract: "Install and run macOS VMs (one process per VM).",

@@ -35,12 +35,18 @@ pub struct KeyEntry {
 enum EntryForm {
     One(String),
     Many(Vec<String>),
-    Table {
-        #[serde(default, with = "crate::modules::one_or_many", skip_serializing_if = "Vec::is_empty")]
-        key: Vec<String>,
-        #[serde(default, skip_serializing_if = "Option::is_none")]
-        after: Option<String>,
-    },
+    Table(EntryTable),
+}
+
+/// A set gives an action a key and/or the mode after it – nothing else: what an action does is its module's (a set
+/// is data; a field like `does` is refused, not ignored, so it never reaches the image build)
+#[derive(Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct EntryTable {
+    #[serde(default, with = "crate::modules::one_or_many", skip_serializing_if = "Vec::is_empty")]
+    key: Vec<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    after: Option<String>,
 }
 
 impl From<EntryForm> for KeyEntry {
@@ -48,7 +54,7 @@ impl From<EntryForm> for KeyEntry {
         match f {
             EntryForm::One(k) => KeyEntry { key: vec![k], after: None },
             EntryForm::Many(key) => KeyEntry { key, after: None },
-            EntryForm::Table { key, after } => KeyEntry { key, after },
+            EntryForm::Table(EntryTable { key, after }) => KeyEntry { key, after },
         }
     }
 }
@@ -58,7 +64,7 @@ impl From<KeyEntry> for EntryForm {
         match (e.key.len(), e.after) {
             (1, None) => EntryForm::One(e.key.into_iter().next().unwrap_or_default()),
             (_, None) if !e.key.is_empty() => EntryForm::Many(e.key),
-            (_, after) => EntryForm::Table { key: e.key, after },
+            (_, after) => EntryForm::Table(EntryTable { key: e.key, after }),
         }
     }
 }
@@ -188,6 +194,22 @@ impl KeymapStore {
         let Some((author, _, name)) = PartKind::Keymap.parse_id(id) else {
             return Err(vm_err!("Not key bindings: {id}"));
         };
+        // Data only, checked before anything is built from it (the image flake checks it once more): texts are one
+        // line, keys are keys
+        if !crate::parts::plain_text(&k.title) || !crate::parts::plain_text(&k.description) {
+            return Err(vm_err!("{}: title and description are one line of text", file.display()));
+        }
+        for (module, actions) in &k.keys {
+            for (action, entry) in actions {
+                if let Some(key) = entry.key.iter().find(|key| crate::composition::parse_key(key).is_none()) {
+                    return Err(vm_err!(
+                        "{}: {module} {action} – \"{}\" is not a key",
+                        file.display(),
+                        key.escape_debug()
+                    ));
+                }
+            }
+        }
         Ok(Keymap {
             id: id.to_string(),
             author,

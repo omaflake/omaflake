@@ -719,7 +719,7 @@ public final class AgentLink: @unchecked Sendable {
                 while off < buf.count {
                     let n = write(fd, buf.baseAddress! + off, buf.count - off)
                     if n < 0 && errno == EINTR { continue }
-                    if n <= 0 { return false }
+                    if n <= 0 { return false }   // the port is closed (EPIPE; the process ignores SIGPIPE) or stuck
                     off += n
                 }
                 return true

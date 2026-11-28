@@ -39,7 +39,7 @@ pub fn draw(f: &mut Frame, app: &mut App) {
     draw_items(f, app, &page, list_area);
     if let (Some(log), Some(area)) = (&page.log, log_area) {
         let ctx = app.ctx();
-        let lines = model::log_lines(&ctx, &app.logs, log);
+        let lines = model::log_lines(&ctx, app.log(&log.job), log);
         let inner = area.height.saturating_sub(2) as usize;
         let skip = lines.len().saturating_sub(inner);
         let block =
@@ -319,16 +319,18 @@ fn draw_modal(f: &mut Frame, app: &App, page: &Page, area: Rect) -> usize {
             lines.push(Line::from(Span::styled(" ←/→ change · Enter apply · r reset · Esc cancel", th.secondary())));
             (tr("Filter"), lines)
         }
-        Modal::Confirm { flow, input } => {
-            let (title, text, button, destructive) = App::confirm_texts(flow);
+        Modal::Confirm { action, params, input, .. } => {
+            let (title, text, button, destructive) = App::confirm_texts(action, params);
             let mut lines = vec![Line::from(Span::styled(text, th.text())), Line::raw("")];
             if let Some(i) = input {
                 lines.push(Line::from(vec![Span::styled("> ", th.accent()), Span::styled(i.clone(), th.text())]));
                 lines.push(Line::raw(""));
             }
             let style = if destructive { th.tone(Tone::Danger).add_modifier(Modifier::BOLD) } else { th.key() };
-            let mut keys = vec![Span::styled("Enter ", th.key()), Span::styled(button, style)];
-            if input.is_none() {
+            // What destroys is confirmed with y only (app.rs): Enter opened the question
+            let enter = if destructive && input.is_none() { "y " } else { "Enter " };
+            let mut keys = vec![Span::styled(enter, th.key()), Span::styled(button, style)];
+            if input.is_none() && !destructive {
                 keys.push(Span::styled(" (y)", th.secondary()));
             }
             keys.push(Span::styled(format!("    {}", tr("Esc Cancel")), th.secondary()));
@@ -364,7 +366,7 @@ fn draw_modal(f: &mut Frame, app: &App, page: &Page, area: Rect) -> usize {
                 String::new()
             };
             let what = tr(match &p.target {
-                Target::Ask(_) => "Enter OK",
+                Target::Ask { .. } => "Enter OK",
                 Target::Field(_) => "Enter set",
             });
             lines.push(Line::from(Span::styled(format!("{tab}{what} · {}", tr("Esc cancel")), th.secondary())));

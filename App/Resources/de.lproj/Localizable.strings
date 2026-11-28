@@ -1988,3 +1988,12 @@
 "Name in the Finder" = "Name im Finder";
 "Its name in the Finder and the sidebar; empty: omaflake volumes" = "Sein Name im Finder und in der Seitenleiste; leer: omaflake Platten";
 "omaflake volumes" = "omaflake Platten";
+"\"%@\" is a name omaflake uses itself – choose another one" = "„%@“ ist ein Name, den omaflake selbst verwendet – wähle einen anderen";
+"%@ %@ is installed with other content than %@ offers – a changed part needs a new version; remove the installed one to take this one" = "%@ %@ ist mit anderem Inhalt installiert, als %@ anbietet – ein geändertes Teil braucht eine neue Version; entferne das installierte, um dieses zu nehmen";
+"%@ cannot be read and is not overwritten (%@) – correct it, or move it away to start with an empty one" = "%@ lässt sich nicht lesen und wird nicht überschrieben (%@) – korrigiere die Datei oder verschiebe sie, um mit einer leeren zu beginnen";
+"%@ is running – stop it first" = "%@ läuft – stoppe sie zuerst";
+"%@ may be used by %@, which cannot be read – repair or remove them first" = "%@ wird vielleicht von %@ verwendet, die sich nicht lesen lassen – repariere oder entferne sie zuerst";
+"%@: \"%@\" is not a colour (#RRGGBB)" = "%@: „%@“ ist keine Farbe (#RRGGBB)";
+"%@: %@ %@ – \"%@\" is not a key" = "%@: %@ %@ – „%@“ ist keine Taste";
+"%@: %@ is one line of text" = "%@: %@ ist eine Zeile Text";
+"%@: title and description are one line of text" = "%@: Titel und Beschreibung sind je eine Zeile Text";

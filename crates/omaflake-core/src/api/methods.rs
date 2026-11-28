@@ -934,11 +934,11 @@ impl Server {
             Some(other) => return Err(RpcError::invalid_params(format!("gl \"{other}\": on or es"))),
         };
         let has_gl = self.qemu_gl();
+        let recovery = p.recovery;
         self.act(&p.name, true, |backends, _| {
             let c = backends.store.load(&p.name)?;
             let backend = backends.backend_for(&c)?;
-            backend
-                .start(&c, StartOptions { display: model::start_display(&c, has_gl, display), gl, recovery: false })?;
+            backend.start(&c, StartOptions { display: model::start_display(&c, has_gl, display), gl, recovery })?;
             Ok(())
         })?;
         self.when_reachable(&p.name);
@@ -947,7 +947,7 @@ impl Server {
 
     fn vms_stop(&self, p: StopParams) -> Reply {
         lock(&self.inner.stop_requested).insert(p.name.clone());
-        let timeout = Duration::from_secs_f64(p.timeout.unwrap_or(60.0).max(0.0));
+        let timeout = Duration::try_from_secs_f64(p.timeout.unwrap_or(60.0).max(0.0)).unwrap_or(Duration::MAX);
         let result = self.act(&p.name, true, |backends, _| {
             let c = backends.store.load(&p.name)?;
             backends.backend_for(&c)?.stop(&c, timeout)
@@ -1300,7 +1300,15 @@ impl Server {
     }
 
     fn vms_forget(&self, name: &str) -> Reply {
-        self.act(name, false, |backends, _| backends.store.forget(name))?;
+        self.act(name, false, |backends, _| {
+            // Its run folder goes with it (pid file, sockets): a running VM would run on unseen, holding its disk
+            if let Ok(c) = backends.store.load(name)
+                && backends.backend_for(&c)?.status(&c) != VmStatus::Stopped
+            {
+                return Err(vm_err!(codes::IN_USE, "{name} is running – stop it first"));
+            }
+            backends.store.forget(name)
+        })?;
         Ok(Answer::Value(Value::Null))
     }
 
@@ -1692,8 +1700,15 @@ impl Server {
         };
         ctx.log(&format!("✓ Image {} ready", OmaflakeId::image(&image, 3)));
         // Retention: current + one before + those in use (plan B52)
-        let used: HashSet<String> = self.store().list().into_iter().map(|c| c.image).collect();
-        let removed = ImageStore::new(paths).prune(recipe, &used);
+        // Not while a VM's file cannot be read: its image is not known, and must not go
+        let store = self.store();
+        let removed = if store.unreadable().is_empty() {
+            let used: HashSet<String> = store.list().into_iter().map(|c| c.image).collect();
+            ImageStore::new(paths).prune(recipe, &used)
+        } else {
+            ctx.log("Older images are kept: a VM's file cannot be read, so its image is not known");
+            Vec::new()
+        };
         for name in &removed {
             ctx.log(&format!("Removed older image {name}"));
         }
@@ -2865,6 +2880,8 @@ impl Server {
         };
         let (user, full_name, password) = (login.user, login.full_name, login.password);
         let ipsw = p.ipsw;
+        let (cpus, memory_gb, disk_gb, window, no_first_boot) =
+            (p.cpus, p.memory_gb, p.disk_gb, p.window, p.no_first_boot);
         let uses = replace.clone();
         let mut spec = JobSpec::new(
             JobKind::MacosInstall,
@@ -2874,8 +2891,12 @@ impl Server {
                 let paths = s.paths();
                 let vz = crate::backend::Backends::new(paths.clone())?.vz()?.clone();
                 let installer = MacBaseInstaller::new(paths, vz);
-                let mut request = BaseRequest::new(&user, &full_name, Some(password));
+                let mut request = BaseRequest::new(&user, &full_name, (!no_first_boot).then_some(password));
                 request.ipsw = ipsw.map(|i| PathBuf::from(platform::expand_tilde(&i)));
+                request.cpus = cpus.unwrap_or(request.cpus);
+                request.memory_gb = memory_gb.unwrap_or(request.memory_gb);
+                request.disk_gb = disk_gb.unwrap_or(request.disk_gb);
+                request.window = window;
                 request.credential = Some(credential);
                 request.replace = replace.clone();
                 let progress = ctx.progress_sink("Downloading macOS");
@@ -3329,7 +3350,7 @@ impl Server {
             }
         }
         if macos && MacImageBuilder::newest_base_in(&paths).is_none() {
-            take(self.macos_install_base(InstallBaseParams { credential: None, ipsw: None, replace: None }));
+            take(self.macos_install_base(InstallBaseParams::default()));
         }
         self.check_doctor_later();
         self.poke();
@@ -3760,6 +3781,9 @@ struct StartParams {
     display: Option<String>,
     #[serde(default)]
     gl: Option<String>,
+    /// macOS guests: into macOS Recovery (what `omaf start --recovery` does)
+    #[serde(default)]
+    recovery: bool,
 }
 
 #[derive(Deserialize)]
@@ -4274,7 +4298,7 @@ struct UnchainBaseParams {
     no_tools: bool,
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
 struct InstallBaseParams {
     /// The credential the guest user is created from (ID or name; default: the default credential) – plan B139
@@ -4285,6 +4309,19 @@ struct InstallBaseParams {
     /// A base this one supersedes (its name, plan B166): made first, removed once the new one is ready
     #[serde(default)]
     replace: Option<String>,
+    /// The installation's CPU cores, memory and disk (GB); left out: 4, 8 and 80
+    #[serde(default)]
+    cpus: Option<u32>,
+    #[serde(default, rename = "memoryGb", alias = "memoryGB")]
+    memory_gb: Option<u32>,
+    #[serde(default, rename = "diskGb", alias = "diskGB")]
+    disk_gb: Option<u32>,
+    /// Show the first boot in a window (headless otherwise)
+    #[serde(default)]
+    window: bool,
+    /// Stop after the clone, without the first boot – the base is not ready to build images then
+    #[serde(default)]
+    no_first_boot: bool,
 }
 
 #[derive(Deserialize)]

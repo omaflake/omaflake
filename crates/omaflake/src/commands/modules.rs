@@ -10,6 +10,9 @@ use omaflake_core::parts::PartKind;
 use omaflake_core::recipe_sources::{RecipeCatalog, RecipeSource, SourceClient};
 use omaflake_sdk::models::RecipeSourceKind;
 
+use serde_json::json;
+
+use super::service;
 use crate::util::{Env, Outcome, pad, usage};
 
 /// "<author>/<platform>/<name>" → a module's id, "<author>/<name>" → key bindings' (ids pass as they are)
@@ -108,14 +111,16 @@ pub fn install(reference: &str) -> Outcome {
         if !has {
             continue;
         }
-        let client = SourceClient::new(source.clone(), None);
-        let (title, version) = if keymap {
-            let k = KeymapStore::new(env.paths.clone()).install(&id, &catalog, &client)?;
-            (k.title, k.version)
+        let job =
+            service::rpc_job("modules.install", json!({"id": id, "source": source.id()}), &mut service::quiet_lines)?;
+        service::finished(job, "Installing the module")?;
+        let s = Settings::load(&env.paths);
+        let here = if keymap {
+            KeymapStore::new(env.paths.clone()).list(&s).into_iter().find(|k| k.id == id).map(|k| (k.title, k.version))
         } else {
-            let m = ModuleStore::new(env.paths.clone()).install(&id, &catalog, &client)?;
-            (m.title, m.version)
+            ModuleStore::new(env.paths.clone()).list(&s).into_iter().find(|m| m.id == id).map(|m| (m.title, m.version))
         };
+        let (title, version) = here.unwrap_or_else(|| (id.clone(), String::new()));
         println!("Installed {title} {version} from {}.", source.display_name());
         return Ok(());
     }
@@ -123,15 +128,10 @@ pub fn install(reference: &str) -> Outcome {
 }
 
 pub fn remove(reference: &str) -> Outcome {
-    let env = Env::new();
     let id = id_of(reference).ok_or_else(|| {
         usage(&["modules", "rm"], format!("{reference}: write <author>/<platform>/<name> or <author>/<name>"))
     })?;
-    if PartKind::Keymap.parse_id(&id).is_some() {
-        KeymapStore::new(env.paths.clone()).remove(&id)?;
-    } else {
-        ModuleStore::new(env.paths.clone()).remove(&id)?;
-    }
+    service::rpc("modules.remove", json!({"id": id}))?;
     println!("Removed {reference} – recipes made of it cannot be built until it is back.");
     Ok(())
 }

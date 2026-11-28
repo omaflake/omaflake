@@ -13,14 +13,18 @@
 #   zellij   { theme = name; kdl = the theme's KDL, null for a theme built into Zellij }
 #   nvim     { plugins = [ { name; plugin; } ] (loaded with :packadd); lua = sets the colours, returns lualine's theme }
 #   emacs    { packages = epkgs: [ … ]; elisp = loads the theme }
+#
+# A look comes from a source, also from other people's: lib/validate.nix checks all of it against look/v1 before
+# adapter.nix reads a value – a look that is not one fails the build with a message naming the field.
 { pkgs, lib }:
 
 let
-  adapt = import ./adapter.nix { inherit pkgs lib; };
+  validate = import ../lib/validate.nix { inherit lib; };
+  adapt = import ./adapter.nix { inherit pkgs lib validate; };
 in
 {
   # A look's data (look.toml as read); null: no look – every program its own colours
-  get = look: adapt (if look == null then { plain = true; } else look);
-  # Its name for /etc/omaflake/look/name
-  nameOf = look: if look == null then "none" else look.title or "look";
+  get = look: adapt (if look == null then { plain = true; } else validate.look look);
+  # Its name for /etc/omaflake/look/name and for comments: one line of text
+  nameOf = look: if look == null then "none" else validate.lookTitle (validate.look look);
 }

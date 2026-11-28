@@ -25,6 +25,16 @@ git-ignored settings (`nix/local/`); flake URLs are used as given. Recipes come 
 
 ## Commands
 
+**Commands that change something go through the core service** (`omaf serve --socket`, docs/api.md) – the same way
+the app and `omaf ui` change things, under the service's locks, so a change made in a terminal cannot overwrite one
+made in the app, and long work (builds, installs, exports, an upgrade in place) is a job the app shows too. The
+service is started when it does not run (`omaf service start` does the same by hand; started that way it ends five
+minutes after its last client and job) and serves `VM_HOME`'s data folder when that is set. Commands that only read
+(`list`, `recipes`, `images`, `ssh`, `log`, `doctor`, …) read the data folder themselves, and so do the few that work
+in this terminal by nature: `omaf macos unchain` and `omaf images unchain` (their steps are yours, in the VM's
+window), `omaf builder …` and `omaf doctor --install-cli` (sudo in this terminal), `omaf credentials copy-password`,
+and `omaf build` with `VM_FLAKE` set.
+
 | Command | Effect |
 |---|---|
 | `omaf recipes [--all] [--all-systems] [--long] [--check]` | the recipes omaflake can build – installed ones and those in enabled local folders (via `nix eval <flake>#lib.recipeDefaults` with them as input `omaflake-catalog`) – with guest kind, architectures and current image; recipes for another architecture only with `--all-systems`; recipes of another `recipe.toml` version (`"$schema"`) are named with a hint (plan B114); `--long` with description and source; `--check` marks images their recipe has outgrown |
@@ -48,7 +58,7 @@ git-ignored settings (`nix/local/`); flake URLs are used as given. Recipes come 
 | `omaf macos bases` | the macOS bases, newest first: build, version, credential, user; notes for the newest of a credential, unfinished ones, ones without a credential or without omaflake's own SSH key (plan B166) |
 | `omaf images unchain <image> [--no-tools]` | the unchained copy of a macOS image (plan B184): a second image, the same as this one, with System Integrity Protection off and omaflake Tools with omaflake's camera extension – nothing is built, what the image holds stays (its keyboard too, for the password the approval asks). The same two steps in the VM's window as for a base (`csrutil disable` in macOS Recovery, the extension's approval), here for each image. The copy has `unchained` in its image.json and is never its recipe's current image: `omaf new <name> --image <copy>`. Runs here, never in the service |
 | `omaf macos unchain <base> [--no-tools]` | the unchained copy of a ready base (plan B184): `bases/mac-unchained-<…>`, a clone with System Integrity Protection off and omaflake Tools with omaflake's camera extension (`--no-tools`: without). It goes through macOS Recovery by itself – the VM's window hidden, its screen read (text recognition on this Mac), clicks and keys sent: Options → Utilities → Terminal → `csrutil disable` with its questions → `halt`; Recovery's language set to English with a US keyboard before (`prev-lang:kbd`, put back after). When it finds no way on, it shows the window and prints the steps that are yours. The camera extension is approved by you in System Settings, in the window then shown. Prints its steps as `[n/6] …`. The base it is made from stays; an unfinished one continues. Before the approval the base gets this computer's keyboard (`hostKeyboard`; a base has the US one, and the approval asks for the password). Runs here, never in the service. Never the default: `omaf build <recipe> --unchained` builds an image from it |
-| `omaf macos remove <base>` | deletes a base for real – images and VMs made from it stay (they are copies); through the service when it runs (`macos.removeBase`, refused while an image build uses it), else here |
+| `omaf macos remove <base>` | deletes a base for real – images and VMs made from it stay (they are copies); by the service (`macos.removeBase`), refused while an image build uses it |
 | `omaf macos assign <base> <credential>` | a base from before bases kept their credential: records the credential its user was created with (its user must be the base's) – macOS builds then log in with its password (plan B139) |
 | `omaf images` | built images and which instances use them |
 | `omaf networks` (`net`) / `create <name>` / `rm <name>` / `show <name>` / `join <network> <vm>` / `leave <network> <vm>` | networks between VMs (plan B170, spec §11.12): each member gets a second network card on a switch omaflake runs (`10.231.<n>.0/24`, a fixed address per VM) and reaches the network's other VMs – NixOS and macOS alike; its own NAT (SSH, the internet) stays. Membership counts from the VM's next start; at most 4 networks per VM. `show`: members, addresses, MACs and – while the switch runs – each card's traffic and the bytes between VMs. `rm` takes the network away from its members at their next start. The switch (`omaf network-switch`, hidden) starts before a member VM and ends a minute after the last |
@@ -58,9 +68,9 @@ git-ignored settings (`nix/local/`); flake URLs are used as given. Recipes come 
 | `omaf new <name> -r <recipe>\|--image <image> [--ephemeral] [--share\|--no-share] [--share-dir <folder>] [--volume <volume>[=<name>]]… [--no-audio] [--microphone] [--user <u>] [--profile p] [--cpus/--memory/--disk/--network] [--join <network>]…` | create instance (NixOS: overlay + efivars; macOS: APFS clone) + `instance.json`; CPU cores and RAM from the profile named, else the default profile (plan B142) – `--cpus` and `--memory` win, less than the recipe needs is said; `--share` gives it a volume of its own, `share/<name>` (as the recipe's `share` does; `--no-share`: none), `--share-dir` that volume in an existing folder of your choice (its permissions stay as they are); `--volume` (repeatable) attaches a volume, making it when there is none of that name, at `/Volumes/<name>` in the VM (instead of a volume of its own); a recipe name takes the newest version of its line that has an image; `--image` takes that image (a name or omaflake ID from `omaf images`) – also one imported from another computer, whose recipe is not here: then the VM gets standard values (4 cores, 8 GB, 64 GB, shared network), as `-r` with its recipe's name does when no recipe here has that name; `--join` (once per network) makes it a member of networks between VMs (`--network` is its own NAT's mode); `--displays N` (NixOS, 1 to 4) gives it more monitors, each in a window of its own (plan B171) |
 | `omaf start <name> [--window [--gl on\|es] [--no-gl] \| --headless] [--wait] [--recovery]` | start QEMU in its own session (survives CLI/terminal); `--window` with 3D if the binary supports it. Without `--window`/`--headless` the recipe's `display` decides (none, window, gpu). On a Linux host with KVM, or TCG without a usable `/dev/kvm` – then a line says so (emulated, many times slower; SSH may take minutes); `--gl es` is the Mac's ANGLE path, GTK windows always use `gl=on` (docs/linux.md) |
 | `omaf stop <name> [--timeout 60]` | ACPI powerdown → QMP `quit` → SIGKILL |
-| `omaf reset <name>` | deletes overlay, efivars, known_hosts; fresh overlay (macOS: fresh clone) |
+| `omaf reset <name> [-y]` | deletes overlay, efivars, known_hosts; fresh overlay (macOS: fresh clone); asks first in a terminal (`-y`: does not) |
 | `omaf upgrade <name> [--keep]` | switch to the current image of the recipe (the old state is deleted); `--keep` (plan B178): the running VM gets the new image's system in place and keeps its disk and files (NixOS VMs with an image from 0.8.0 on) |
-| `omaf rm <name>` | deletes the instance (the folders of its volumes stay) |
+| `omaf rm <name> [-y]` | deletes the instance (the folders of its volumes stay); asks first in a terminal (`-y`: does not) |
 | `omaf images [list]` / `omaf images rm <image>` | images with their omaflake ID, recipe, revision, time, system, look and the instances using them / delete an image (by name, omaflake ID or the start of its words) – refused while instances use it; `current/` moves to the next newest image of the recipe's line |
 | `omaf list [--long]` | instances with status, guest kind, SSH port, disk usage; VMs that run from elsewhere with their place; `--long` with each VM's omaflake ID (`vm:<name>:<words>`) and its recipe's (spec §11.11) |
 | `omaf export vm <name> <folder> [--with-image]` | a stopped VM → `<folder>/<name>.omaflake-vm` (a snapshot); NixOS with its image, macOS with it only when ephemeral or with `--with-image` (spec §11.10) |
@@ -91,7 +101,7 @@ Guest user for SSH: `--user` on `omaf new`, otherwise `user = "…"` from the re
 
 Environment variables: `VM_HOME` (instead of `~/.omaflake`), `VM_FLAKE`, `VM_QEMU`, `VM_RUNNER` (signed `omaf-runner`;
 otherwise `omaf config --runner`, otherwise next to `omaf`, otherwise PATH). QEMU without `VM_QEMU`/`omaf config --qemu`: `qemu-system-aarch64` on a Mac, `qemu-system-<host arch>` on Linux, from PATH. The core service (`omaf serve`, started by the app, `omaf ui` or a terminal) has the environment it was started with,
-not this terminal's: with `VM_FLAKE` set, `omaf build` builds in the terminal instead of handing the build to a running service. Linux:
+not this terminal's: with `VM_FLAKE` set, `omaf build` builds in the terminal instead of handing the build to the service; `VM_QEMU`, `VM_RUNNER` and `OMAFLAKE_ACCEL` reach a VM start only when the service was started with them (`omaf service stop`, then the command again). Linux:
 `OMAFLAKE_ACCEL=tcg` starts VMs with TCG even where KVM works (to compare, or when KVM misbehaves).
 For window starts `omaf` passes `OMAFLAKE_DOCK_ICON` to QEMU (omaflake Dock icon, needs QEMU patchset p4 from `qemu/build.sh`),
 for 3D windows also `OMAFLAKE_LOADING_IMAGE` (the loading image until the guest draws, p6).
@@ -201,12 +211,14 @@ with `#custom-omaflake.running`, `.building`, `.failed`.
   "args"?}`). macOS guests get the agent over SSH always now (not only with MIDI), and that start ends with a check
   that the helpers run: a start that did not take is tried again at the next look and logged once per VM run, with
   ssh's stderr, in the instance's runner.log and the activity list.
-- **Builds and the service (plan B120):** when the core service runs, `omaf build` runs as its job – the app and
-  other clients see it, it waits in the same queue as theirs, and an already running build of the recipe is followed
-  instead of started twice; the command prints its log (routine lines left out; `--verbose` names the log file that
-  has them) and Ctrl-C cancels the job. Without a running service it builds in this process, as before. The other
-  long commands (`macos install`, `builder …`, `import`, `export`, `config --home`) still run in-process (OPEN, plan
-  B120).
+- **Builds and the service (plan B120):** `omaf build` runs as a job of the core service (started when it does not
+  run) – the app and other clients see it, it waits in the same queue as theirs, and an already running build of the
+  recipe is followed instead of started twice; the command prints its log (routine lines left out; `--verbose` names
+  the log file that has them) and Ctrl-C cancels the job. Only with `VM_FLAKE` set it builds in this process. The
+  other long commands are the service's jobs too – `macos install`, `import`, `export`, `config --home`, `upgrade
+  --keep`, `recipes install`, `looks install`, `modules install`, `diagnose` –, their log printed as it comes and
+  Ctrl-C cancelling them where the job can be cancelled; `builder …` and the unchained copies stay in this terminal
+  (sudo, and steps that are yours).
 - **Cancelling a build:** Ctrl-C during `omaf build` stops the running step (`nix build`, `nix copy`, SSH), forces
   a macOS build VM off and deletes the half-built folder. One build per image at a time (lock
   `images/.build-<image>.lock`, shared by app and CLI); a second one is refused.

@@ -8,7 +8,6 @@ use serde_json::json;
 use omaflake_core::modules::{Module, ModuleStore};
 use omaflake_core::paths::Settings;
 use omaflake_sdk::codes;
-use omaflake_sdk::types::JobState;
 
 use super::service;
 use omaflake_core::Error;
@@ -66,23 +65,14 @@ pub fn add(name: &str, path: Option<&str>) -> Outcome {
     })?;
     let path = path
         .map(|p| std::fs::canonicalize(p).map(|c| c.to_string_lossy().into_owned()).unwrap_or_else(|_| p.to_string()));
-    let running = service::ensure_running(&env.paths)?;
-    let client = &running.client;
     let mut params = json!({"module": m.id});
     if let Some(p) = path {
         params["path"] = json!(p);
     }
-    client.call("events.subscribe", json!({"topics": ["jobs"]})).map_err(Error::from)?;
-    let job = client.call("files.add", params).map_err(Error::from)?;
-    let mut print = |lines: &[String]| {
-        for line in lines {
-            eprintln!("{line}");
-        }
-    };
-    let ended = service::follow(client, &job, &mut print)?;
-    match ended.state {
-        JobState::Finished => Ok(()),
-        JobState::Cancelled => Err(Error::with_code(codes::CANCELLED, "Cancelled").into()),
-        _ => Err(Error::new(ended.error.unwrap_or_else(|| "Adding the file failed".into())).into()),
-    }
+    let job = service::rpc_job("files.add", params, &mut service::to_stderr)?;
+    service::finished(job, "Adding the file").map_err(|e| match e.code() {
+        Some(codes::CANCELLED) => Error::with_code(codes::CANCELLED, "Cancelled"),
+        _ => e,
+    })?;
+    Ok(())
 }

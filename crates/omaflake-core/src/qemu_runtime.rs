@@ -44,7 +44,7 @@ use crate::qemu_host::{Firmware, descriptor_dirs, host_accel, linux_audio};
 use crate::qmp_client::QmpClient;
 use crate::shell::{RunOptions, Shell};
 use crate::sockets::{self, Ports};
-use crate::spawn::{Pid, live_pid, reap_if_exited, send_signal, spawn_detached, wait_for_exit};
+use crate::spawn::{Pid, is_alive, live_pid, reap_if_exited, send_signal, spawn_detached, wait_for_exit};
 use crate::ssh_command::SshCommand;
 use crate::vm_err;
 use crate::vz_backend::VzBackend;
@@ -368,11 +368,26 @@ impl QemuRuntime {
 
     // MARK: Stop
 
-    /// ACPI powerdown → after `timeout` (Swift default 60 s) QMP `quit` → SIGKILL.
+    /// ACPI powerdown → after `timeout` (Swift default 60 s) QMP `quit` → SIGTERM → SIGKILL.
     pub fn stop(&self, name: &str, timeout: Duration) -> Result<StopResult> {
         let Some(pid) = self.pid(name) else { return Ok(StopResult::AlreadyStopped) };
         let socket = self.paths.instance(name).qmp_socket();
-        if let Ok(mut qmp) = QmpClient::connect(&socket, QmpClient::DEFAULT_TIMEOUT) {
+        // QEMU's monitor serves one client at a time: while another one holds it (a network joined or left, the
+        // screen asked) a connection gets no greeting. Busy is not broken – try again before anything is forced
+        let mut qmp = None;
+        for attempt in 0..Self::QMP_ATTEMPTS {
+            if attempt > 0 {
+                if !is_alive(pid) {
+                    return Ok(StopResult::Powerdown);
+                }
+                std::thread::sleep(Duration::from_millis(500));
+            }
+            if let Ok(client) = QmpClient::connect(&socket, QmpClient::DEFAULT_TIMEOUT) {
+                qmp = Some(client);
+                break;
+            }
+        }
+        if let Some(mut qmp) = qmp {
             let _ = qmp.execute("system_powerdown");
             if wait_for_exit(pid, timeout) {
                 return Ok(StopResult::Powerdown);
@@ -382,10 +397,19 @@ impl QemuRuntime {
                 return Ok(StopResult::Quit);
             }
         }
+        // Without the monitor: SIGTERM first – QEMU then ends as on `quit` and closes the disk image in order
+        send_signal(pid, libc::SIGTERM);
+        if wait_for_exit(pid, Duration::from_secs(10)) {
+            return Ok(StopResult::Quit);
+        }
         send_signal(pid, libc::SIGKILL);
         let _ = wait_for_exit(pid, Duration::from_secs(5));
         Ok(StopResult::Killed)
     }
+
+    /// How often `stop` asks for the monitor before it goes on without it (each attempt waits up to
+    /// `QmpClient::DEFAULT_TIMEOUT` for the greeting)
+    const QMP_ATTEMPTS: u32 = 4;
 
     /// What the instance's agent last reported – None while the VM is stopped or before the agent's hello.
     pub fn agent_state(&self, name: &str) -> Option<AgentState> {

@@ -3,13 +3,20 @@
 # (desktop, wezterm, zellij, nvim, emacs). A look is data only – everything a program needs is made here from its
 # colours and the few choices the schema allows (editor themes from nixpkgs, GTK theme, cursor). Without an editor theme
 # the editor's colours are made from the look's colours too.
-{ pkgs, lib }:
+#
+# looks/default.nix has checked the data (lib/validate.nix). All the same nothing reaches a program's configuration
+# here unchecked: a colour goes through `hex` (six hex digits or the build fails), a choice through `pick` (one of the
+# set or the build fails) – so no value of a look can end a string or a comment of Lua, Emacs Lisp or KDL.
+{ pkgs, lib, validate ? import ../lib/validate.nix { inherit lib; } }:
 
 data:
 
 let
-  plain = data.plain or false;
-  hex = c: lib.removePrefix "#" c; # "#RRGGBB" → "RRGGBB" (case as the look writes it)
+  plain = (data.plain or false) == true;
+  hex = validate.hexOf "look: a colour"; # "#RRGGBB" → "RRGGBB" (case as the look writes it)
+  choices = validate.lookChoices;
+  # A table's choice, or the default: one of the set
+  pick = what: set: table: key: default: validate.chosen "look: ${what}.${key}" set (table.${key} or default);
   h = c: "#${c}";
   c = lib.mapAttrs (_: hex) (data.colors or { });
   t = data.terminal or { };
@@ -17,7 +24,7 @@ let
   b = map hex (t.bright or [ ]);
   at = builtins.elemAt;
   d = data.desktop or { };
-  dark = (data.appearance or "dark") == "dark";
+  dark = pick "look" choices.appearance data "appearance" "dark" == "dark";
   cursor = c.cursor or c.accent;
 
   # Lualine's theme from the colours: the mode on the left in its colour, the rest quiet
@@ -78,36 +85,36 @@ let
   '';
 
   nvimThemes = {
-    catppuccin = o: {
+    catppuccin = o: let flavour = pick "neovim" choices.neovim.catppuccin.flavour o "flavour" "mocha"; in {
       plugins = [ { name = "catppuccin"; plugin = pkgs.vimPlugins.catppuccin-nvim; } ];
       lua = ''
         vim.cmd.packadd("catppuccin")
         require("catppuccin").setup({
-          flavour = "${o.flavour or "mocha"}",
+          flavour = "${flavour}",
           integrations = { gitsigns = true, neotree = true, telescope = { enabled = true },
                            which_key = true, indent_blankline = { enabled = true }, alpha = true },
         })
         vim.cmd.colorscheme("catppuccin")
-        return "catppuccin-${o.flavour or "mocha"}"
+        return "catppuccin-${flavour}"
       '';
     };
-    rose-pine = o: {
+    rose-pine = o: let variant = pick "neovim" choices.neovim.rose-pine.variant o "variant" "main"; in {
       plugins = [ { name = "rose-pine"; plugin = pkgs.vimPlugins.rose-pine; } ];
       lua = ''
         vim.cmd.packadd("rose-pine")
-        require("rose-pine").setup({ variant = "${o.variant or "main"}" })
-        vim.o.background = "${if (o.variant or "main") == "dawn" then "light" else "dark"}"
-        vim.cmd.colorscheme("rose-pine-${o.variant or "main"}")
+        require("rose-pine").setup({ variant = "${variant}" })
+        vim.o.background = "${if variant == "dawn" then "light" else "dark"}"
+        vim.cmd.colorscheme("rose-pine-${variant}")
         return "rose-pine"
       '';
     };
     # Modus (WCAG AAA) with the look's own background, text, accent and urgent colour
-    modus = o: {
+    modus = o: let style = pick "neovim" choices.neovim.modus.style o "style" "modus_vivendi"; in {
       plugins = [ { name = "modus-themes"; plugin = pkgs.vimPlugins.modus-themes-nvim; } ];
       lua = ''
         vim.cmd.packadd("modus-themes")
         require("modus-themes").setup({
-          style = "${o.style or "modus_vivendi"}",
+          style = "${style}",
           on_colors = function(colors)
             colors.bg_main = "${h c.background}"
             colors.fg_main = "${h c.text}"
@@ -120,7 +127,7 @@ let
           end,
         })
         vim.o.background = "${if dark then "dark" else "light"}"
-        vim.cmd.colorscheme("${o.style or "modus_vivendi"}")
+        vim.cmd.colorscheme("${style}")
       '' + lualine;
     };
   };
@@ -164,16 +171,16 @@ let
   '';
 
   emacsThemes = {
-    catppuccin = o: {
+    catppuccin = o: let flavour = pick "emacs" choices.emacs.catppuccin.flavour o "flavour" "mocha"; in {
       packages = epkgs: [ epkgs.catppuccin-theme ];
       elisp = ''
-        (setq catppuccin-flavor '${o.flavour or "mocha"})
+        (setq catppuccin-flavor '${flavour})
         (load-theme 'catppuccin t)
       '';
     };
     # Emacs' own Modus with the look's background, text, accent and urgent colour
     modus = o:
-      let style = o.style or "modus-vivendi"; in {
+      let style = pick "emacs" choices.emacs.modus.style o "style" "modus-vivendi"; in {
         packages = _: [ ];
         elisp = ''
           (setq ${style}-palette-overrides
@@ -185,7 +192,9 @@ let
   };
 
   theme = editor: themes: fallback:
-    let e = data.${editor} or null; in if e == null then fallback else themes.${e.theme} e;
+    let e = data.${editor} or null; in
+    if e == null then fallback
+    else themes.${validate.chosen "look: ${editor}.theme" (builtins.attrNames themes) (e.theme or null)} e;
 in
 if plain then {
   desktop = null;
@@ -206,16 +215,17 @@ if plain then {
     accent = c.accent;
     clock = if d ? clock then hex d.clock else c.text;
     urgent = c.urgent;
-    border = map hex (d.border or [ c.accent ]);
+    border = if d ? border then map hex d.border else [ c.accent ];
     inactiveBorder = if d ? inactive_border then hex d.inactive_border else c.selection;
     split = if d ? split then map hex d.split else null;
     prompt = if d ? prompt then {
-      ok = hex (d.prompt.ok or c.accent);
-      error = hex (d.prompt.error or c.urgent);
-      directory = hex (d.prompt.directory or c.text);
+      ok = if d.prompt ? ok then hex d.prompt.ok else c.accent;
+      error = if d.prompt ? error then hex d.prompt.error else c.urgent;
+      directory = if d.prompt ? directory then hex d.prompt.directory else c.text;
     } else null;
-    gtk = { name = d.gtk or (if dark then "adw-gtk3-dark" else "adw-gtk3"); package = pkgs.adw-gtk3; };
-    cursor = if d ? cursor_theme then { name = d.cursor_theme; package = pkgs.bibata-cursors; } else null;
+    gtk = { name = pick "desktop" choices.gtk d "gtk" (if dark then "adw-gtk3-dark" else "adw-gtk3"); package = pkgs.adw-gtk3; };
+    cursor = if d ? cursor_theme
+      then { name = pick "desktop" choices.cursorTheme d "cursor_theme" null; package = pkgs.bibata-cursors; } else null;
   };
 
   wezterm = ''
@@ -259,10 +269,10 @@ if plain then {
   macos =
     let m = data.macos or { }; in {
       inherit dark;
-      accent = m.accent or (if dark then "graphite" else "multicolor");
-      icons = m.icons or (if dark then "clear" else "default");
-      folders = m.folders or (if dark then "graphite" else "default");
-      wallpaper = m.wallpaper or (if dark then "black" else "default");
+      accent = pick "macos" choices.macos.accent m "accent" (if dark then "graphite" else "multicolor");
+      icons = pick "macos" choices.macos.icons m "icons" (if dark then "clear" else "default");
+      folders = pick "macos" choices.macos.folders m "folders" (if dark then "graphite" else "default");
+      wallpaper = pick "macos" choices.macos.wallpaper m "wallpaper" (if dark then "black" else "default");
     };
 
   nvim = theme "neovim" nvimThemes { plugins = [ ]; lua = nvimFromColors + lualine; };

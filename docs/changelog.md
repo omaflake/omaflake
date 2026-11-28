@@ -13,6 +13,65 @@ are collected under *Unreleased*. Releases: [GitHub](https://github.com/omaflake
 
 ## [Unreleased]
 
+### Changed
+
+- **`omaf` changes things through the omaflake service** – every command that changes something (`new`, `start`,
+  `stop`, `set`, `reset`, `upgrade`, `rm`, sources, credentials, locales, profiles, looks, modules, recipes, networks,
+  volumes, `import`, `export`, `external`, `images rm`, `macos install`/`remove`/`assign`, `config`) now asks the
+  service the app and `omaf ui` use, and starts it when it does not run. A change made in a terminal no longer
+  overwrites one made in the app at the same moment, the app shows the terminal's installs, imports, exports and
+  upgrades as they run, and Ctrl-C cancels an upgrade in place. `omaf build` always builds in the service now (with
+  `VM_FLAKE` set still in the terminal). The service has the environment it was started with: `VM_QEMU`, `VM_RUNNER`
+  and `OMAFLAKE_ACCEL` set only in a terminal reach a VM start after `omaf service stop`.
+- **`omaf rm` and `omaf reset` ask first** in a terminal ("Delete x? [y/N]"); `-y` does not ask, and without a
+  terminal (scripts, pipes) nothing is asked, as before. In `omaf ui` a question that deletes something is answered
+  with `y` – Enter, which opened it, no longer confirms it.
+- **Releases are not checked twice** (for contributors) – a version tag starts only the release workflow: it asks
+  whether CI passed for that commit of main, publishes the crates as CI packed them and drafts the release from the
+  app CI built, with a build provenance attestation (`gh attestation verify`). CI itself now fails on a clippy
+  warning, evaluates the image flake with the official catalog and
+  checks the age of new dependencies; advisories are checked weekly.
+
+### Security
+
+- **Looks and key binding sets are data, checked as data** – the image flake and omaflake itself now check every
+  colour, choice, text and key of a look or a key binding set before anything is built from it, and a key binding
+  set can give an action only a key and the mode after it. A look or set from any source can no longer carry code
+  into a guest's configuration (a title with a line break, a "colour" that ends a string, an entry that redefines
+  what an action does). Keys are now letters, digits, the named keys and `= ; , . / [ ] -`.
+- **A part is its author, name, version and content – from whichever source** – the same version with other content
+  is refused: an installed module, look or key binding set is not replaced by one of the same version that differs,
+  and when two of your sources offer one version with different content, neither is installed.
+- **Files a module needs** (`[[files]]`) – a module can name plain file names to look for in Downloads, Desktop and
+  Applications, nothing else on your computer; its store name is checked (a name like `..` emptied omaflake's cache).
+- **Passwords stay out of the VMs' clipboard** – what a password manager marks as concealed or transient on the Mac's
+  clipboard is no longer passed to guests, and a guest cannot empty the Mac's clipboard with content of an unknown
+  kind.
+
+### Fixed
+
+- **`omaf ui` and the Linux app after the service restarted, and quick fingers** – a new build no longer shows the log
+  of an old one and the Linux app's tray no longer lists builds that are gone; switching tabs quickly cannot leave the
+  page of the tab before on screen; in `omaf ui`, Esc while a chosen package is being checked really cancels the
+  import; log lines come neither twice nor are any missing; the Linux app no longer grows with every value typed into
+  a form; and a tool using the SDK's client no longer waits ten minutes for an answer the service garbled. Both
+  interfaces now share this part (`omaflake_sdk::session`), which is there for interfaces of your own too.
+- **A settings file with a typo is not replaced by the defaults** – `config.json` (and `volumes.json`) that cannot be
+  read is left as it is: `omaf` warns, and the next change is refused instead of writing the defaults over your
+  sources, profiles and the data folder's place. Files are written to the disk before they replace the old one.
+- **macOS VMs no longer end when a client gives up** – a control answer to a client that had stopped waiting ended
+  the VM's process (and with it the VM, hard).
+- **Stopping a NixOS VM does not kill it because the monitor is busy** – `stop` asks again while another request
+  (a network joined or left) holds QEMU's monitor, and without the monitor ends QEMU in order before it forces it.
+  `omaf stop` of a VM the app started no longer waits a minute and reports "Killed" after a clean shutdown.
+- **A VM cannot be named `net`** – its run folder was the networks' own; removing it took their switches' sockets.
+- **An external VM is not forgotten while it runs** (the app; `omaf external remove` refused it already).
+- **Older images are kept while a VM cannot be read** – after a build, or with `omaf images rm`, the image under a VM
+  whose file is damaged or from a newer omaflake is no longer deleted.
+- **The app with a service of another API version** asks that service to make way and connects to its own core,
+  instead of trying again forever.
+- `omaf stop --timeout` and `omaf start --wait` with a huge value no longer end with a panic.
+
 ## [0.8.5] – 2026-11-28
 
 Fixes: the catalog's macOS recipe `xcode` builds again, also with `omaf build` while the app is closed.

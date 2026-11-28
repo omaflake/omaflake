@@ -1675,7 +1675,7 @@ fn outcome<'a>(app: &'a App, o: &'a Outcome) -> El<'a> {
 
 /// The newest lines of a job's log in the console
 fn log_console<'a>(app: &'a App, job: &str) -> El<'a> {
-    let lines = app.logs.get(job).map(|l| l.lines.as_slice()).unwrap_or_default();
+    let lines = app.log(job);
     let shown = &lines[lines.len().saturating_sub(400)..];
     let body = if shown.is_empty() { "…".to_string() } else { shown.join("\n") };
     container(
@@ -2233,8 +2233,10 @@ pub mod tests {
     use serde::de::DeserializeOwned;
     use serde_json::Value;
 
+    use omaflake_sdk::views::home::HomePage;
+
     use super::*;
-    use crate::app::{decode, page_ref};
+    use crate::app::{Modal, decode, page_ref};
 
     fn dir() -> PathBuf {
         PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../omaflake-core/testdata/api/views")
@@ -2473,15 +2475,107 @@ pub mod tests {
         let a: Value = golden("activity");
         let newest = a["entries"][0]["id"].as_u64().unwrap();
         let (mut app, _) = App::boot();
-        app.seen_activity = newest + 100;
-        app.notified = Some(newest + 100);
-        let _ = app.update(Message::Core(crate::backend::Event::Notification(
-            "view.changed".into(),
-            serde_json::json!({"page": "activity", "params": {}, "model": a}),
-        )));
+        let arrives = |app: &mut App, model: Value| {
+            let _ = app.update(Message::Core(crate::backend::Event::Notification(
+                "view.changed".into(),
+                serde_json::json!({"page": "activity", "params": {}, "model": model}),
+            )));
+        };
+        // The old server's list, with higher ids: what happened before this app opened is seen
+        let mut old = a.clone();
+        old["entries"][0]["id"] = serde_json::json!(newest + 100);
+        arrives(&mut app, old);
+        assert_eq!(app.seen_activity, newest + 100);
+        assert!(!app.unseen_activity());
+        // The new server's ids start again: the mark is forgotten, its entries are unseen – and no toast for them
+        arrives(&mut app, a);
         assert_eq!(app.seen_activity, 0);
         assert!(app.unseen_activity());
-        assert_eq!(app.notified, Some(newest));
+        assert!(app.toast.is_none());
+    }
+
+    fn core_says(app: &mut App, method: &str, params: Value) {
+        let _ = app.update(Message::Core(crate::backend::Event::Notification(method.into(), params)));
+    }
+
+    /// A form asks for a new page with every value typed: only the models the session keeps stay
+    #[test]
+    fn models_of_pages_no_longer_shown_go() {
+        let model: Value = golden("newVm");
+        let (mut app, _) = App::boot();
+        app.stack.push(page_ref("newVm", serde_json::json!({"image": "i"})));
+        for n in 0..40 {
+            let value = serde_json::json!(format!("vm{n}"));
+            let _ = app.update(Message::FormSet { page: "newVm".into(), key: "name".into(), value });
+            let shown = app.current().unwrap();
+            // Until its model comes, the one before is drawn
+            assert_eq!(app.model(&shown).is_some(), n > 0);
+            core_says(
+                &mut app,
+                "view.changed",
+                serde_json::json!({"page": "newVm", "params": shown.params, "model": model}),
+            );
+            assert!(app.models.contains_key(&shown.key()));
+        }
+        assert_eq!(app.models.len(), 1, "a model per value typed is kept");
+        assert!(app.animated.len() <= 1);
+    }
+
+    /// Jobs are the service's: when it ends, they leave the tray (a new one counts from j1 again)
+    #[test]
+    fn jobs_of_a_service_that_ended_leave_the_tray() {
+        let (mut app, _) = App::boot();
+        let job = serde_json::json!({"job": {"id": "j1", "kind": "build", "title": "Build dev", "state": "running",
+            "cancellable": true, "logLines": 0, "hiddenLines": 0}});
+        core_says(&mut app, "jobs.changed", job.clone());
+        assert!(format!("{:?}", app.tray_model()).contains("Build dev"));
+        let _ = app.update(Message::Core(crate::backend::Event::Disconnected("the service ended".into())));
+        assert!(!format!("{:?}", app.tray_model()).contains("Build dev"));
+        // An ended job leaves it too
+        core_says(&mut app, "jobs.changed", job);
+        let mut ended = serde_json::json!({"job": {"id": "j1", "kind": "build", "title": "Build dev",
+            "state": "finished", "cancellable": false, "logLines": 0, "hiddenLines": 0}});
+        core_says(&mut app, "jobs.changed", ended.take());
+        assert!(!format!("{:?}", app.tray_model()).contains("Build dev"));
+    }
+
+    /// The session's question is the app's sheet; cancelled, its action is not sent
+    #[test]
+    fn a_question_is_a_sheet_and_cancel_ends_its_action() {
+        let home: HomePage = golden("home");
+        let quit = home.actions.iter().find(|a| a.method == "ui.quit").unwrap().clone();
+        assert!(quit.confirm.is_some());
+        let (mut app, _) = App::boot();
+        let _ = app.update(Message::Run(Box::new(quit.clone()), None));
+        assert!(matches!(app.modal, Some(Modal::Confirm { .. })) && app.session.question().is_some());
+        let _ = app.update(Message::ModalCancel);
+        assert!(app.modal.is_none() && app.session.question().is_none());
+        // Esc does the same
+        let _ = app.update(Message::Run(Box::new(quit), None));
+        let _ = app.update(Message::Back);
+        assert!(app.modal.is_none() && app.session.question().is_none());
+        // A value asked in a sheet: what is typed stays until it is answered
+        let ask = omaflake_sdk::views::common::Ask::new(
+            "value",
+            omaflake_sdk::views::common::AskKind::Text,
+            omaflake_sdk::views::Text::new("Name"),
+        );
+        let rename = Action::field(
+            "name",
+            omaflake_sdk::views::Text::new("Name"),
+            None,
+            "newVm",
+            serde_json::json!({}),
+            "name",
+            "name",
+        )
+        .ask(ask);
+        let _ = app.update(Message::Run(Box::new(rename), None));
+        let _ = app.update(Message::ModalInput("dev".into()));
+        assert!(matches!(&app.modal, Some(Modal::Ask { value, .. }) if value == "dev"));
+        let _ = app.update(Message::ModalOk);
+        assert!(app.modal.is_none() && app.session.question().is_none());
+        assert_eq!(app.forms["newVm"]["name"], serde_json::json!("dev"));
     }
 
     #[test]

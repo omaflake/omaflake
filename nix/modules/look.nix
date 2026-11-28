@@ -4,6 +4,8 @@
 # makes each program's part of it. Here: the per-program files under
 # /etc/omaflake/look/, which the guest's own configuration loads – the modules' on NixOS, the files a macOS module writes once
 # into the home folder. A changed look comes with the rebuilt image; the user's files stay.
+# A look is data from a source – looks/default.nix checks it (lib/validate.nix) before anything of it is written here:
+# its name is one line of text and only ever stands in a comment of its own line.
 #
 #   /etc/omaflake/look/name           the look's name
 #   /etc/omaflake/look/wezterm.lua    returns { config = <merged over WezTerm's>, zellij = <options for a new session> }
@@ -78,8 +80,8 @@ in
       # Zellij refuses a theme_dir that does not exist; it reads only *.kdl there
       "omaflake/look/zellij/README".text = "Zellij themes of the guest's look (omaflake, plan B135).\n";
       "omaflake/look/emacs.el".text = ''
-        ;;; emacs.el --- the guest's look (omaflake, plan B135): ${name}  -*- lexical-binding: t -*-
-        ;;; Generated with the image – a rebuild changes it.
+        ;;; emacs.el --- the guest's look (omaflake, plan B135)  -*- lexical-binding: t -*-
+        ;; ${name}. Generated with the image – a rebuild changes it.
         ${look.emacs.elisp}
       '';
     } // lib.optionalAttrs (look.zellij.kdl != null) {

@@ -115,9 +115,9 @@ pub fn run(command: Command) -> Outcome {
         Command::Set(a) => instances::set(&a),
         Command::Start(a) => instances::start(&a),
         Command::Stop(a) => instances::stop(&a),
-        Command::Reset(a) => instances::reset(&a.name),
+        Command::Reset(a) => instances::reset(&a.name, a.yes),
         Command::Upgrade(a) => instances::upgrade(&a.name, a.keep),
-        Command::Remove(a) => instances::remove(&a.name),
+        Command::Remove(a) => instances::remove(&a.name, a.yes),
         Command::List(a) => instances::list(&a),
         Command::Export { command } => match command {
             ExportCommand::Vm { name, folder, with_image } => packages::export_vm(&name, &folder, with_image),
@@ -153,43 +153,24 @@ pub fn run(command: Command) -> Outcome {
     }
 }
 
-/// `omaf diagnose <name>` (plan B162): the core's diagnosis in this process – each check's line as it is done, then
-/// where the log is; exit 1 when a check failed
+/// `omaf diagnose <name>` (plan B162): the diagnosis as a job of the core service – each check's line as it is done,
+/// then where the log is; Ctrl-C cancels it; exit 1 when a check failed
 fn diagnose(a: &Diagnose) -> Outcome {
-    use omaflake_core::api::Server;
-    use serde_json::{Value, json};
-    let notify = std::sync::Arc::new(|method: &str, params: Value| {
-        if method != "job.log" {
-            return;
+    let mut checks = |lines: &[String]| {
+        // The checks' lines (`✓ Clipboard: both ways`), not their details
+        for line in lines.iter().filter(|l| ["✓ ", "✗ ", "? ", "– "].iter().any(|m| l.starts_with(m))) {
+            println!("{line}");
         }
-        for line in params["lines"].as_array().into_iter().flatten().filter_map(Value::as_str) {
-            // The checks' lines (`✓ Clipboard: both ways`), not their details
-            if ["✓ ", "✗ ", "? ", "– "].iter().any(|m| line.starts_with(m)) {
-                println!("{line}");
-            }
-        }
-    });
-    let server = Server::new(omaflake_core::paths::Paths::standard(), notify);
-    server
-        .call(
-            "initialize",
-            json!({"client": "omaf diagnose", "clientVersion": omaflake_core::VERSION, "apiVersion": 1}),
-        )
-        .map_err(omaflake_core::Error::from)?;
-    server.call("events.subscribe", json!({"topics": ["jobs"]})).map_err(omaflake_core::Error::from)?;
-    let job = server.call_and_wait("diagnostics.run", json!({"name": a.name}));
-    // The last lines go out with the job's end; give the event pump a moment
-    std::thread::sleep(std::time::Duration::from_millis(400));
-    server.close(std::time::Duration::from_secs(5));
-    let job = job.map_err(omaflake_core::Error::from)?;
-    if job["state"] != "finished" {
-        let why = job["error"].as_str().unwrap_or("the diagnosis did not finish");
-        return Err(Error::new(why.to_string()).into());
+    };
+    let job = service::rpc_job("diagnostics.run", serde_json::json!({"name": a.name}), &mut checks)?;
+    if job.state != omaflake_sdk::types::JobState::Finished {
+        return Err(Error::new(job.error.unwrap_or_else(|| "the diagnosis did not finish".into())).into());
     }
-    if let Some(file) = job["result"]["file"].as_str() {
+    let result = job.result.unwrap_or_default();
+    if let Some(file) = result["file"].as_str() {
         println!("Log: {file}");
     }
-    let failed = job["result"]["checks"].as_array().is_some_and(|c| c.iter().any(|x| x["status"] == "fail"));
+    let failed = result["checks"].as_array().is_some_and(|c| c.iter().any(|x| x["status"] == "fail"));
     if failed { Err(crate::util::Failure::Exit(1)) } else { Ok(()) }
 }
 

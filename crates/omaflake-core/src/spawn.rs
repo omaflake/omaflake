@@ -56,6 +56,11 @@ pub fn wait_for_exit(pid: Pid, timeout: Duration) -> bool {
         if reap_if_exited(pid) || !is_alive(pid) {
             return true;
         }
+        // Another process's child that has exited but is not reaped yet (QEMU started by `omaf serve`, stopped by
+        // `omaf stop`): it still has a pid, but no executable any more – gone, for everything that waits for it
+        if executable_path(pid).is_none() {
+            return true;
+        }
         std::thread::sleep(Duration::from_millis(200));
     }
     false

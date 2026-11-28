@@ -7,6 +7,9 @@ use omaflake_core::looks::LookStore;
 use omaflake_core::recipe_sources::{RecipeSource, SourceClient};
 use omaflake_sdk::models::RecipeSourceKind;
 
+use serde_json::json;
+
+use super::service;
 use crate::util::{Env, Outcome, pad, usage};
 
 fn store(env: &Env) -> LookStore {
@@ -98,14 +101,19 @@ pub fn install(reference: &str) -> Outcome {
     };
     let found = catalogs(&s);
     for id in &wanted {
-        let Some((source, catalog)) = found.iter().find(|(_, c)| c.looks.iter().any(|l| &l.id == id)) else {
+        let Some((source, _)) = found.iter().find(|(_, c)| c.looks.iter().any(|l| &l.id == id)) else {
             return Err(usage(
                 &["looks", "install"],
                 format!("{id} is in none of your sources – see omaf looks available"),
             ));
         };
-        let look = looks.install(id, catalog, &SourceClient::new(source.clone(), None))?;
-        println!("Look {} installed ({}).", look.title, look.reference());
+        let job =
+            service::rpc_job("looks.install", json!({"id": id, "source": source.id()}), &mut service::quiet_lines)?;
+        service::finished(job, "Installing the look")?;
+        match looks.list(&s).into_iter().find(|l| &l.id == id) {
+            Some(look) => println!("Look {} installed ({}).", look.title, look.reference()),
+            None => println!("Look {id} installed."),
+        }
     }
     Ok(())
 }
@@ -124,7 +132,7 @@ pub fn remove(reference: &str) -> Outcome {
             format!("Images are built with {} ({used}) – remove them first", look.title),
         ));
     }
-    looks.remove(&look.id)?;
+    service::rpc("looks.remove", json!({"id": look.id}))?;
     println!("Look {} removed.", look.title);
     Ok(())
 }
@@ -136,7 +144,7 @@ pub fn set_default(reference: &str) -> Outcome {
     let Some(look) = looks.find(&s, reference) else {
         return Err(usage(&["looks", "default"], format!("No look {reference} – see omaf looks")));
     };
-    looks.set_default(&look.id)?;
+    service::rpc("looks.setDefault", json!({"id": look.id}))?;
     println!("New images get the look {}.", look.title);
     Ok(())
 }
